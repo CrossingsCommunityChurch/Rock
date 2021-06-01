@@ -24,13 +24,13 @@ using System.Text;
 using HtmlAgilityPack;
 
 using RestSharp;
-
+using Rock;
 using Rock.Model;
 using Rock.Security;
+using Rock.UniversalSearch;
 using Rock.UniversalSearch.Crawler.RobotsTxt;
-using Rock.UniversalSearch.IndexModels;
 
-namespace Rock.UniversalSearch.Crawler
+namespace Crossings.UniversalSearch
 {
     /// <summary>
     /// Crawler
@@ -85,7 +85,7 @@ namespace Rock.UniversalSearch.Crawler
         public int CrawlSite( Site site, string loginId, string password )
         {
             // Delete the indicies for the site that is being indexed.
-            IndexContainer.DeleteDocumentByProperty( typeof( SitePageIndex ), "SiteId", site.Id );
+            IndexContainer.DeleteDocumentByProperty( typeof( CccSitePageIndex ), "SiteId", site.Id );
 
             _site = site;
 
@@ -160,9 +160,10 @@ namespace Rock.UniversalSearch.Crawler
                             if ( metaRobot == null || metaRobot.Attributes["content"] == null || !metaRobot.Attributes["content"].Value.Contains( "noindex" ) )
                             {
                                 // index the page
-                                SitePageIndex sitePage = new SitePageIndex();
+                                CccSitePageIndex sitePage = new CccSitePageIndex();
 
                                 sitePage.Content = GetPageText( htmlDoc );
+                                sitePage.Tags = GetTagText(htmlDoc);
                                 sitePage.Url = url;
                                 sitePage.Id = url.MakeInt64HashCode();
                                 sitePage.SourceIndexModel = "Rock.Model.Site";
@@ -171,7 +172,6 @@ namespace Rock.UniversalSearch.Crawler
                                 sitePage.SiteName = _site.Name;
                                 sitePage.SiteId = _site.Id;
                                 sitePage.LastIndexedDateTime = RockDateTime.Now;
-
 
                                 HtmlNode metaDescription = htmlDoc.DocumentNode.SelectSingleNode( "//meta[@name='description']" );
                                 if ( metaDescription != null && metaDescription.Attributes["content"] != null )
@@ -352,6 +352,25 @@ namespace Rock.UniversalSearch.Crawler
             }
         }
 
+        private string GetTagText(HtmlDocument page)
+        {
+            if (page.DocumentNode.SelectSingleNode("//body") != null)
+            {
+                StringBuilder cleanText = new StringBuilder();
+
+                foreach (var childNode in page.DocumentNode.SelectSingleNode("//body").ChildNodes)
+                {
+                    GetTagNodeText(childNode, cleanText);
+                }
+
+                return cleanText.ToString().SanitizeHtml();
+            }
+            else
+            {
+                return page.ToString(); // must be a text file
+            }
+        }
+
         /// <summary>
         /// Gets the node text.
         /// </summary>
@@ -390,6 +409,53 @@ namespace Rock.UniversalSearch.Crawler
             foreach( var childNode in node.ChildNodes )
             {
                 GetNodeText( childNode, cleanText );
+            }
+        }
+
+        /// <summary>
+        /// Gets the text of a tag element.
+        /// </summary>
+        /// <param name="node">The node.</param>
+        /// <param name="cleanText">The clean text.</param>
+        private void GetTagNodeText(HtmlNode node, StringBuilder cleanText)
+        {
+            if (node.Name == "script" || node.Name == "style")
+            {
+                return;
+            }
+
+            // make sure it's not an element we don't want text from
+            var classValue = string.Empty;
+
+            if (node.Attributes["class"] != null)
+            {
+                classValue = node.Attributes["class"].Value;
+
+                if (classValue.Contains("no-index") || classValue.Contains("nav") || classValue.Contains("navbar"))
+                {
+                    return;
+                }
+            }
+
+            // add node's text
+            if (classValue.Contains("tagItem"))
+            {
+                foreach (var childNode in node.ChildNodes)
+                {
+                    if (childNode.NodeType == HtmlNodeType.Text)
+                    {
+                        if (childNode.InnerText.Trim() != "")
+                        {
+                            cleanText.Append(childNode.InnerText.Trim() + " ");
+                        }
+                    }
+                }
+            }
+
+            // get any child node text
+            foreach (var childNode in node.ChildNodes)
+            {
+                GetTagNodeText(childNode, cleanText);
             }
         }
 

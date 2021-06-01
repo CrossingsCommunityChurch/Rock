@@ -141,7 +141,7 @@ namespace Crossings.UniversalSearch
             {
                 indexName = document.GetType().Name.ToLower();
             }
-
+            // Want to add objectId for Algolia to this as document.Id
             SearchIndex index = _client.InitIndex(indexName);
 
             index.SaveObjectAsync<T>(document, autoGenerateObjectId: true);
@@ -263,22 +263,17 @@ namespace Crossings.UniversalSearch
 
 
         /// <summary>
-        /// Deletes the document by property.
+        /// Called at the start of a crawl will clean the whole index.
+        /// May need to modify to lower cost.
         /// </summary>
         /// <param name="documentType">Type of the document.</param>
         /// <param name="propertyName">Name of the property.</param>
         /// <param name="propertyValue">The property value.</param>
         public override void DeleteDocumentByProperty(Type documentType, string propertyName, object propertyValue)
         {
-            string jsonSearch = string.Format(@"{{
-""term"": {{
-      ""{0}"": {{
-                ""value"": ""{1}""
-      }}
-        }}
-}}", Char.ToLowerInvariant(propertyName[0]) + propertyName.Substring(1), propertyValue);
-
-            var response = true;
+            var indexName = documentType.Name.ToLower();
+            SearchIndex index = _client.InitIndex(indexName);
+            index.ClearObjectsAsync();
         }
 
         /// <summary>
