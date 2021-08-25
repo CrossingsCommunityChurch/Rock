@@ -139,7 +139,12 @@ namespace Crossings.UniversalSearch
         {
             if ( indexName == null )
             {
-                indexName = document.GetType().Name.ToLower();
+                if(document is CccSitePageIndex)
+                {
+                    var pageDoc = document as CccSitePageIndex;
+                    indexName = pageDoc.SiteName.ToLower();
+                }
+                else { indexName = document.GetType().Name.ToLower(); } 
             }
             // Want to add objectId for Algolia to this as document.Id
             SearchIndex index = _client.InitIndex(indexName);
@@ -271,7 +276,7 @@ namespace Crossings.UniversalSearch
         /// <param name="propertyValue">The property value.</param>
         public override void DeleteDocumentByProperty(Type documentType, string propertyName, object propertyValue)
         {
-            var indexName = documentType.Name.ToLower();
+            var indexName = propertyValue.ToString();
             SearchIndex index = _client.InitIndex(indexName);
             index.ClearObjectsAsync();
         }

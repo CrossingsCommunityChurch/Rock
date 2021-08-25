@@ -85,7 +85,7 @@ namespace Crossings.UniversalSearch
         public int CrawlSite( Site site, string loginId, string password )
         {
             // Delete the indicies for the site that is being indexed.
-            IndexContainer.DeleteDocumentByProperty( typeof( CccSitePageIndex ), "SiteId", site.Id );
+            CCCIndexContainer.DeleteDocumentByProperty( typeof( CccSitePageIndex ), "SiteName", site.Name.ToLower());
 
             _site = site;
 
@@ -190,7 +190,7 @@ namespace Crossings.UniversalSearch
 
                                 if ( !_pageHashes.Contains( contentHash ) )
                                 {
-                                    IndexContainer.IndexDocument( sitePage );
+                                    CCCIndexContainer.IndexDocument( sitePage );
                                     _pageHashes.Add( contentHash );
                                 }
                             }

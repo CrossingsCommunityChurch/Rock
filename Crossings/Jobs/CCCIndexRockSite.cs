@@ -22,8 +22,6 @@ using Rock.Attribute;
 using Rock.Data;
 using Rock.Model;
 using Rock.UniversalSearch;
-//should we implement our own crawler?
-//using Rock.UniversalSearch.Crawler;
 using Rock.UniversalSearch.IndexModels;
 using Crossings.UniversalSearch;
 
@@ -83,11 +81,8 @@ namespace Crossings.Jobs
 
                     if ( Uri.TryCreate( startingUrl, UriKind.Absolute, out startingUri ) && ( startingUri.Scheme == Uri.UriSchemeHttp || startingUri.Scheme == Uri.UriSchemeHttps ) )
                     {
-                        // ensure that an index is configured for site pages, if not create it
-                        IndexContainer.CreateIndex( typeof( SitePageIndex ), false );
-
                         // release the crawler, like the kraken... but not...
-                        var pages = new Crawler().CrawlSite( _site, loginId, password );
+                        var pages = new Crawler().CrawlSite( _site, loginId, password);
 
                         context.Result = string.Format( "Crawler indexed {0} pages.", pages, _indexedPageCount );
                     }

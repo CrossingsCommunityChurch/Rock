@@ -142,6 +142,7 @@
     <Compile Include="UniversalSearch\AlgoliaSearch.cs" />
     <Compile Include="UniversalSearch\CccSitePageIndex.cs" />
     <Compile Include="UniversalSearch\Crawler.cs" />
+    <Compile Include="UniversalSearch\CCCIndexContainer.cs" />
     <Compile Include="Worflow\Action\FilterGroupByAttribute.cs" />
   </ItemGroup>
   <ItemGroup>
