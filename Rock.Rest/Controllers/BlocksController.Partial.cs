@@ -23,10 +23,11 @@ using System.Net.Http;
 using System.Reflection;
 using System.Web;
 using System.Web.Http;
+using System.Web.Http.Controllers;
 
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
-
+using Rock.Blocks;
 using Rock.Model;
 using Rock.Rest.Filters;
 using Rock.Web.Cache;
@@ -95,7 +96,7 @@ namespace Rock.Rest.Controllers
 
             if ( model.IsValid )
             {
-                model.Order = ( (BlockService)Service ).GetMaxOrder( model );
+                model.Order = ( ( BlockService ) Service ).GetMaxOrder( model );
                 System.Web.HttpContext.Current.AddOrReplaceItem( "CurrentPerson", GetPerson() );
                 Service.Context.SaveChanges();
             }
@@ -114,9 +115,11 @@ namespace Rock.Rest.Controllers
         [Authenticate]
         [HttpGet]
         [Route( "api/blocks/action/{blockGuid}/{actionName}" )]
+        [RockObsolete( "1.13" )]
+        [Obsolete( "Does not provide access to site-level or layout-level blocks. Use api/blocks/actions/{pageGuid}/{blockGuid}/{actionName} instead.")]
         public IHttpActionResult BlockAction( Guid blockGuid, string actionName )
         {
-            return ProcessAction( "GET", blockGuid, actionName, null );
+            return v2.BlockActionsController.ProcessAction( this, null, blockGuid, actionName, null );
         }
 
         /// <summary>
@@ -129,8 +132,15 @@ namespace Rock.Rest.Controllers
         [Authenticate]
         [HttpPost]
         [Route( "api/blocks/action/{blockGuid}/{actionName}" )]
+        [RockObsolete( "1.13" )]
+        [Obsolete( "Does not provide access to site-level or layout-level blocks. Use api/blocks/actions/{pageGuid}/{blockGuid}/{actionName} instead." )]
         public IHttpActionResult BlockActionAsPost( string blockGuid, string actionName, [NakedBody] string parameters )
         {
+            if ( parameters == string.Empty )
+            {
+                return v2.BlockActionsController.ProcessAction( this, null, blockGuid.AsGuidOrNull(), actionName, null );
+            }
+
             //
             // We have to manually parse the JSON data, otherwise any strings
             // that look like dates get converted to Date objects. This causes
@@ -144,7 +154,7 @@ namespace Rock.Rest.Controllers
                 {
                     var parameterToken = JToken.ReadFrom( jsonReader );
 
-                    return ProcessAction( Request.Method.ToString(), blockGuid.AsGuidOrNull(), actionName, parameterToken );
+                    return v2.BlockActionsController.ProcessAction( this, null, blockGuid.AsGuidOrNull(), actionName, parameterToken );
                 }
             }
         }
@@ -152,34 +162,35 @@ namespace Rock.Rest.Controllers
         /// <summary>
         /// Executes an action handler on a specific block.
         /// </summary>
-        /// <param name="page">The page unique identifier.</param>
-        /// <param name="block">The block unique identifier.</param>
+        /// <param name="pageGuid">The page unique identifier.</param>
+        /// <param name="blockGuid">The block unique identifier.</param>
         /// <param name="actionName">Name of the action.</param>
         /// <returns></returns>
-        /// <remarks>Use api/blocks/action/{blockGuid}/{actionName} instead, used by Rock Mobile shell v1 only.</remarks>
         [Authenticate]
         [HttpGet]
-        [Route( "api/blocks/action/{page}/{block}/{actionName}")]
-        [RockObsolete( "1.12" )]
-        public IHttpActionResult BlockAction( string page, string block, string actionName )
+        [Route( "api/blocks/action/{pageGuid:guid}/{blockGuid:guid}/{actionName}" )]
+        public IHttpActionResult BlockAction( string pageGuid, string blockGuid, string actionName )
         {
-            return ProcessAction( "GET", block.AsGuidOrNull(), actionName, null );
+            return v2.BlockActionsController.ProcessAction( this, pageGuid.AsGuidOrNull(), blockGuid.AsGuidOrNull(), actionName, null );
         }
 
         /// <summary>
         /// Executes an action handler on a specific block.
         /// </summary>
-        /// <param name="pageIdentifier">The page unique identifier.</param>
-        /// <param name="blockIdentifier">The block unique identifier.</param>
+        /// <param name="pageGuid">The page unique identifier.</param>
+        /// <param name="blockGuid">The block unique identifier.</param>
         /// <param name="actionName">Name of the action.</param>
         /// <param name="parameters">The parameters.</param>
         /// <returns></returns>
-        /// <remarks>Use api/blocks/action/{blockGuid}/{actionName} instead, used by Rock Mobile shell v1 only.</remarks>
         [Authenticate]
-        [Route( "api/blocks/action/{pageIdentifier}/{blockIdentifier}/{actionName}" )]
-        [RockObsolete( "1.12" )]
-        public IHttpActionResult BlockAction( string pageIdentifier, string blockIdentifier, string actionName, [NakedBody] string parameters )
+        [Route( "api/blocks/action/{pageGuid:guid}/{blockGuid:guid}/{actionName}" )]
+        public IHttpActionResult BlockAction( string pageGuid, string blockGuid, string actionName, [NakedBody] string parameters )
         {
+            if ( parameters == string.Empty )
+            {
+                return v2.BlockActionsController.ProcessAction( this, pageGuid.AsGuidOrNull(), blockGuid.AsGuidOrNull(), actionName, null );
+            }
+
             //
             // We have to manually parse the JSON data, otherwise any strings
             // that look like dates get converted to Date objects. This causes
@@ -193,7 +204,7 @@ namespace Rock.Rest.Controllers
                 {
                     var parameterToken = JToken.ReadFrom( jsonReader );
 
-                    return ProcessAction( Request.Method.ToString(), blockIdentifier.AsGuidOrNull(), actionName, parameterToken );
+                    return v2.BlockActionsController.ProcessAction( this, pageGuid.AsGuidOrNull(), blockGuid.AsGuidOrNull(), actionName, parameterToken );
                 }
             }
         }
@@ -210,233 +221,7 @@ namespace Rock.Rest.Controllers
         [Authenticate]
         public IHttpActionResult BlockAction( string pageIdentifier, string blockIdentifier, string actionName, [FromBody] JToken parameters )
         {
-            return ProcessAction( Request.Method.ToString(), blockIdentifier.AsGuidOrNull(), actionName, parameters );
-        }
-
-        /// <summary>
-        /// Processes the action.
-        /// </summary>
-        /// <param name="verb">The HTTP Method Verb that was used for the request.</param>
-        /// <param name="blockGuid">The block unique identifier.</param>
-        /// <param name="actionName">Name of the action.</param>
-        /// <param name="parameters">The parameters.</param>
-        /// <returns></returns>
-        private IHttpActionResult ProcessAction( string verb, Guid? blockGuid, string actionName, JToken parameters )
-        {
-            try
-            {
-                BlockCache blockCache = null;
-
-                //
-                // Find the block.
-                //
-                if ( blockGuid.HasValue )
-                {
-                    blockCache = BlockCache.Get( blockGuid.Value );
-                }
-
-                if ( blockCache == null )
-                {
-                    return NotFound();
-                }
-
-                //
-                // Get the authenticated person and make sure it's cached.
-                //
-                var person = GetPerson();
-                HttpContext.Current.AddOrReplaceItem( "CurrentPerson", person );
-
-                //
-                // Ensure the user has access to both the page and block.
-                //
-                if ( !blockCache.Page.IsAuthorized( Security.Authorization.VIEW, person ) || !blockCache.IsAuthorized( Security.Authorization.VIEW, person ) )
-                {
-                    return StatusCode( HttpStatusCode.Unauthorized );
-                }
-
-                //
-                // Get the class that handles the logic for the block.
-                //
-                var blockCompiledType = blockCache.BlockType.GetCompiledType();
-                var block = Activator.CreateInstance( blockCompiledType );
-
-                if ( !( block is Blocks.IRockBlockType rockBlock ) )
-                {
-                    return NotFound();
-                }
-
-                var requestContext = new Net.RockRequestContext( Request );
-                requestContext.AddContextEntitiesForPage( blockCache.Page );
-
-                //
-                // Set the basic block parameters.
-                //
-                rockBlock.BlockCache = blockCache;
-                rockBlock.PageCache = blockCache.Page;
-                rockBlock.RequestContext = requestContext;
-
-                var actionParameters = new Dictionary<string, JToken>();
-
-                //
-                // Parse any posted parameter data.
-                //
-                if ( parameters != null )
-                {
-                    try
-                    {
-                        foreach ( var kvp in parameters.ToObject<Dictionary<string, JToken>>() )
-                        {
-                            actionParameters.AddOrReplace( kvp.Key, kvp.Value );
-                        }
-                    }
-                    catch
-                    {
-                        return BadRequest( "Invalid parameter data." );
-                    }
-                }
-
-                //
-                // Parse any query string parameter data.
-                //
-                foreach ( var q in Request.GetQueryNameValuePairs() )
-                {
-                    actionParameters.AddOrReplace( q.Key, JToken.FromObject( q.Value.ToString() ) );
-                }
-
-                return InvokeAction( rockBlock, verb, actionName, actionParameters );
-            }
-            catch ( Exception ex )
-            {
-                return BadRequest( ex.Message );
-            }
-        }
-
-        /// <summary>
-        /// Processes the specified block action.
-        /// </summary>
-        /// <param name="block">The block.</param>
-        /// <param name="verb">The HTTP Method Verb that was used for the request.</param>
-        /// <param name="actionName">Name of the action.</param>
-        /// <param name="actionParameters">The action parameters.</param>
-        /// <returns></returns>
-        /// <exception cref="ArgumentNullException">
-        /// actionName
-        /// or
-        /// actionData
-        /// </exception>
-        private IHttpActionResult InvokeAction( Blocks.IRockBlockType block, string verb, string actionName, Dictionary<string, JToken> actionParameters )
-        {
-            MethodInfo action;
-
-            //
-            // Find the action they requested.
-            //
-            action = block.GetType().GetMethods( BindingFlags.Instance | BindingFlags.Public )
-                .SingleOrDefault( m => m.GetCustomAttribute<Blocks.BlockActionAttribute>()?.ActionName == actionName );
-
-            if ( action == null )
-            {
-                return NotFound();
-            }
-
-            var methodParameters = action.GetParameters();
-            var parameters = new List<object>();
-
-            //
-            // Go through each parameter and convert it to the proper type.
-            //
-            for ( int i = 0; i < methodParameters.Length; i++ )
-            {
-                var key = actionParameters.Keys.SingleOrDefault( k => k.ToLowerInvariant() == methodParameters[i].Name.ToLower() );
-
-                if ( key != null )
-                {
-                    try
-                    {
-                        //
-                        // If the target type is nullable and the action parameter is an empty
-                        // string then consider it null. A GET query cannot have null values.
-                        //
-                        if ( Nullable.GetUnderlyingType( methodParameters[i].ParameterType ) != null )
-                        {
-                            if ( actionParameters[key].Type == JTokenType.String && actionParameters[key].ToString() == string.Empty )
-                            {
-                                parameters.Add( null );
-
-                                continue;
-                            }
-                        }
-
-                        parameters.Add( actionParameters[key].ToObject( methodParameters[i].ParameterType ) );
-                    }
-                    catch
-                    {
-                        return BadRequest( $"Parameter type mismatch for '{methodParameters[i].Name}'." );
-                    }
-                }
-                else if ( methodParameters[i].IsOptional )
-                {
-                    parameters.Add( Type.Missing );
-                }
-                else
-                {
-                    return BadRequest( $"Parameter '{methodParameters[i].Name}' is required." );
-                }
-            }
-
-            object result;
-            try
-            {
-                result = action.Invoke( block, parameters.ToArray() );
-            }
-            catch ( TargetInvocationException ex )
-            {
-                ExceptionLogService.LogApiException( ex.InnerException, Request, GetPersonAlias() );
-                result = new Rock.Blocks.BlockActionResult( HttpStatusCode.InternalServerError );
-            }
-            catch ( Exception ex )
-            {
-                ExceptionLogService.LogApiException( ex, Request, GetPersonAlias() );
-                result = new Rock.Blocks.BlockActionResult( HttpStatusCode.InternalServerError );
-            }
-
-            //
-            // Handle the result type.
-            //
-            if ( result is IHttpActionResult )
-            {
-                return ( IHttpActionResult ) result;
-            }
-            else if ( result is Rock.Blocks.BlockActionResult actionResult )
-            {
-                if ( actionResult.Error != null )
-                {
-                    return Content( actionResult.StatusCode, new HttpError( actionResult.Error ) );
-                }
-                else if ( actionResult.Content is HttpContent httpContent )
-                {
-                    var response = Request.CreateResponse( actionResult.StatusCode );
-                    response.Content = httpContent;
-                    return new System.Web.Http.Results.ResponseMessageResult( response );
-                }
-                else if ( actionResult.ContentClrType != null )
-                {
-                    var genericType = typeof( System.Web.Http.Results.NegotiatedContentResult<> ).MakeGenericType( actionResult.ContentClrType );
-                    return ( IHttpActionResult ) Activator.CreateInstance( genericType, actionResult.StatusCode, actionResult.Content, this );
-                }
-                else
-                {
-                    return StatusCode( actionResult.StatusCode );
-                }
-            }
-            else if ( action.ReturnType == typeof(void))
-            {
-                return Ok();
-            }
-            else
-            {
-                return Ok( result );
-            }
+            return v2.BlockActionsController.ProcessAction( this, pageIdentifier.AsGuidOrNull(), blockIdentifier.AsGuidOrNull(), actionName, parameters );
         }
     }
 }

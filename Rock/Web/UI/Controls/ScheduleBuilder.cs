@@ -497,6 +497,8 @@ namespace Rock.Web.UI.Controls
         private DateTimePicker _dpStartDateTime;
         private NumberBox _tbDurationHours;
         private NumberBox _tbDurationMinutes;
+        private HiddenField _hfCalendarEventDTStamp;
+        private HiddenField _hfCalendarEventUid;
 
         private RockRadioButton _radOneTime;
         private RockRadioButton _radRecurring;
@@ -563,6 +565,9 @@ END:VCALENDAR
             // common
             _vsValidation = new ValidationSummary();
             _dpStartDateTime = new DateTimePicker();
+
+            _hfCalendarEventDTStamp = new HiddenField();
+            _hfCalendarEventUid = new HiddenField();
 
             _tbDurationHours = new NumberBox();
             _tbDurationMinutes = new NumberBox();
@@ -742,6 +747,8 @@ END:VCALENDAR
 
             var calendarEvent = new Event();
             calendarEvent.DtStart = new CalDateTime( _dpStartDateTime.SelectedDateTime.Value );
+            calendarEvent.DtStamp = new CalDateTime( _hfCalendarEventDTStamp.Value.AsDateTime() ?? RockDateTime.Now );
+            calendarEvent.Uid = _hfCalendarEventUid.Value;
             calendarEvent.DtStart.HasTime = true;
 
             int durationHours = TextBoxToPositiveInteger( _tbDurationHours, 0 );
@@ -1015,6 +1022,9 @@ END:VCALENDAR
 
                 calendarEvent = calendar.Events[0] as Event;
 
+                _hfCalendarEventDTStamp.Value = calendarEvent.DtStamp?.AsSystemLocal.ToISO8601DateString();
+                _hfCalendarEventUid.Value = calendarEvent.Uid.ToString();
+
                 if ( calendarEvent.DtStart != null )
                 {
                     _dpStartDateTime.SelectedDateTime = calendarEvent.DtStart.Value;
@@ -1222,6 +1232,12 @@ END:VCALENDAR
             _vsValidation.CssClass = "alert alert-validation";
             _vsValidation.ValidationGroup = validationGroup;
 
+            _hfCalendarEventDTStamp.ClientIDMode = ClientIDMode.Static;
+            _hfCalendarEventDTStamp.ID = "_hfCalendarEventDTStamp" + this.ClientID;
+
+            _hfCalendarEventUid.ClientIDMode = ClientIDMode.Static;
+            _hfCalendarEventUid.ID = "_hfCalendarEventUid" + this.ClientID;
+
             _dpStartDateTime.ClientIDMode = ClientIDMode.Static;
             _dpStartDateTime.ID = "dpStartDateTime_" + this.ClientID;
             _dpStartDateTime.Label = "Start Date / Time";
@@ -1426,6 +1442,9 @@ END:VCALENDAR
             Controls.Add( _radOneTime );
             Controls.Add( _radRecurring );
 
+            Controls.Add( _hfCalendarEventDTStamp );
+            Controls.Add( _hfCalendarEventUid );
+
             Controls.Add( _radSpecificDates );
             Controls.Add( _radDaily );
             Controls.Add( _radWeekly );
@@ -1486,6 +1505,9 @@ END:VCALENDAR
             writer.AddAttribute( "id", this.ClientID );
             writer.RenderBeginTag( HtmlTextWriterTag.Div );
 
+            _hfCalendarEventDTStamp.RenderControl( writer );
+            _hfCalendarEventUid.RenderControl( writer );
+
             // Validation Summary
             _vsValidation.RenderControl( writer );
 
@@ -1501,7 +1523,7 @@ END:VCALENDAR
                 writer.AddAttribute( "class", "form-group" );
                 writer.RenderBeginTag( HtmlTextWriterTag.Div );
 
-                writer.Write( "<span class='control-label'>Duration</span>" );
+                writer.Write( "<label class='control-label'>Duration</label>" );
                 writer.AddAttribute( "class", "form-control-group" );
                 writer.RenderBeginTag( HtmlTextWriterTag.Div );
                 _tbDurationHours.RenderControl( writer );
@@ -1539,7 +1561,7 @@ END:VCALENDAR
             // OccurrencePattern Radiobuttons
             writer.AddAttribute( "class", "form-group" );
             writer.RenderBeginTag( HtmlTextWriterTag.Div );
-            writer.Write( "<span class='control-label'>Occurrence Pattern</span>" );
+            writer.Write( "<label class='control-label'>Occurrence Pattern</label>" );
             writer.AddAttribute( "class", "controls" );
             writer.RenderBeginTag( HtmlTextWriterTag.Div );
             _radSpecificDates.RenderControl( writer );

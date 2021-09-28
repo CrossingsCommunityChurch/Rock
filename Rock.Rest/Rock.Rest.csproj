@@ -78,8 +78,9 @@
     <Reference Include="NodaTime, Version=1.3.0.0, Culture=neutral, PublicKeyToken=4226afe0d9b296d1, processorArchitecture=MSIL">
       <HintPath>..\packages\Ical.Net.2.3.5\lib\net46\NodaTime.dll</HintPath>
     </Reference>
-    <Reference Include="Rock.Common.Mobile, Version=0.3.12.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\Rock.Common.Mobile.0.3.12\lib\net452\Rock.Common.Mobile.dll</HintPath>
+    <Reference Include="Rock.Common.Mobile, Version=0.3.13.0, Culture=neutral, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\RockWeb\Bin\Rock.Common.Mobile.dll</HintPath>
     </Reference>
     <Reference Include="Swashbuckle.Core, Version=1.0.0.0, Culture=neutral, PublicKeyToken=cd1bb07a5ac7c7bc, processorArchitecture=MSIL">
       <HintPath>..\packages\Swashbuckle.Core.5.5.3\lib\net40\Swashbuckle.Core.dll</HintPath>
@@ -129,23 +130,32 @@
     </Compile>
     <Compile Include="ApiController.cs" />
     <Compile Include="ApiControllerBase.cs" />
+    <Compile Include="v2\BlockActionsController.cs" />
     <Compile Include="Controllers\AssetStorageProvidersController.Partial.cs" />
     <Compile Include="Controllers\AttendanceOccurrencesController.partial.cs" />
     <Compile Include="Controllers\CheckinController.cs" />
+    <Compile Include="Controllers\CodeGenerated\AchievementTypesController.cs" />
     <Compile Include="Controllers\CodeGenerated\AnalyticsDimCampusController.cs" />
     <Compile Include="Controllers\CodeGenerated\AnalyticsSourceCampusController.cs" />
+    <Compile Include="Controllers\CodeGenerated\AnalyticsSourceGivingUnitsController.cs" />
     <Compile Include="Controllers\CodeGenerated\AssessmentsController.cs" />
     <Compile Include="Controllers\CodeGenerated\AssessmentTypesController.cs" />
     <Compile Include="Controllers\CodeGenerated\AssetStorageProvidersController.cs" />
     <Compile Include="Controllers\CodeGenerated\AttendanceCheckInSessionsController.cs" />
     <Compile Include="Controllers\CodeGenerated\AttendanceOccurrencesController.cs" />
     <Compile Include="Controllers\CodeGenerated\AttributeValueHistoricalsController.cs" />
+    <Compile Include="Controllers\CodeGenerated\AuthClaimsController.cs" />
+    <Compile Include="Controllers\CodeGenerated\AuthClientsController.cs" />
+    <Compile Include="Controllers\CodeGenerated\AuthScopesController.cs" />
+    <Compile Include="Controllers\CodeGenerated\CampusSchedulesController.cs" />
+    <Compile Include="Controllers\CodeGenerated\CommunicationResponseAttachmentsController.cs" />
     <Compile Include="Controllers\CodeGenerated\CommunicationResponsesController.cs" />
     <Compile Include="Controllers\CodeGenerated\CommunicationTemplateAttachmentsController.cs" />
     <Compile Include="Controllers\CodeGenerated\ContentChannelItemSlugsController.cs" />
     <Compile Include="Controllers\CodeGenerated\DocumentsController.cs" />
     <Compile Include="Controllers\CodeGenerated\DocumentTypesController.cs" />
     <Compile Include="Controllers\CodeGenerated\EntityCampusFiltersController.cs" />
+    <Compile Include="Controllers\CodeGenerated\FinancialStatementTemplatesController.cs" />
     <Compile Include="Controllers\CodeGenerated\FinancialTransactionAlertsController.cs" />
     <Compile Include="Controllers\CodeGenerated\FinancialTransactionAlertTypesController.cs" />
     <Compile Include="Controllers\CodeGenerated\GroupDemographicTypesController.cs" />
@@ -157,21 +167,31 @@
     <Compile Include="Controllers\CodeGenerated\GroupMemberHistoricalsController.cs" />
     <Compile Include="Controllers\CodeGenerated\GroupMemberScheduleTemplatesController.cs" />
     <Compile Include="Controllers\CodeGenerated\GroupSyncsController.cs" />
+    <Compile Include="Controllers\CodeGenerated\IdentityVerificationCodesController.cs" />
+    <Compile Include="Controllers\CodeGenerated\IdentityVerificationsController.cs" />
     <Compile Include="Controllers\CodeGenerated\LavaShortcodesController.cs" />
+    <Compile Include="Controllers\CodeGenerated\MediaAccountsController.cs" />
+    <Compile Include="Controllers\CodeGenerated\MediaElementsController.cs" />
+    <Compile Include="Controllers\CodeGenerated\MediaFoldersController.cs" />
     <Compile Include="Controllers\CodeGenerated\MetaFirstNameGenderLookupsController.cs" />
     <Compile Include="Controllers\CodeGenerated\MetaLastNameLookupsController.cs" />
     <Compile Include="Controllers\CodeGenerated\MetaNickNameLookupsController.cs" />
     <Compile Include="Controllers\CodeGenerated\NoteAttachmentsController.cs" />
     <Compile Include="Controllers\CodeGenerated\NoteWatchesController.cs" />
     <Compile Include="Controllers\CodeGenerated\PersistedDatasetsController.cs" />
+    <Compile Include="Controllers\CodeGenerated\PersonalLinksController.cs" />
+    <Compile Include="Controllers\CodeGenerated\PersonalLinkSectionOrdersController.cs" />
+    <Compile Include="Controllers\CodeGenerated\PersonalLinkSectionsController.cs" />
     <Compile Include="Controllers\CodeGenerated\PersonScheduleExclusionsController.cs" />
     <Compile Include="Controllers\CodeGenerated\PersonSearchKeysController.cs" />
     <Compile Include="Controllers\CodeGenerated\PersonSignalsController.cs" />
+    <Compile Include="Controllers\CodeGenerated\RegistrationSessionsController.cs" />
     <Compile Include="Controllers\CodeGenerated\RegistrationTemplateFeeItemsController.cs" />
     <Compile Include="Controllers\CodeGenerated\SmsActionsController.cs" />
     <Compile Include="Controllers\CodeGenerated\SmsPipelinesController.cs" />
     <Compile Include="Controllers\CodeGenerated\RegistrationTemplatePlacementsController.cs" />
     <Compile Include="Controllers\CodeGenerated\RelatedEntitiesController.cs" />
+    <Compile Include="Controllers\CodeGenerated\StepProgramCompletionsController.cs" />
     <Compile Include="Controllers\CodeGenerated\StepProgramsController.cs" />
     <Compile Include="Controllers\CodeGenerated\StepsController.cs" />
     <Compile Include="Controllers\CodeGenerated\StepStatusController.cs" />
@@ -182,7 +202,6 @@
     <Compile Include="Controllers\CodeGenerated\AchievementAttemptsController.cs" />
     <Compile Include="Controllers\CodeGenerated\StreaksController.cs" />
     <Compile Include="Controllers\CodeGenerated\AchievementTypePrerequisitesController.cs" />
-    <Compile Include="Controllers\CodeGenerated\StreakTypeAchievementTypesController.cs" />
     <Compile Include="Controllers\CodeGenerated\StreakTypeExclusionsController.cs" />
     <Compile Include="Controllers\CodeGenerated\StreakTypesController.cs" />
     <Compile Include="Controllers\CodeGenerated\ServiceJobHistoriesController.cs" />
@@ -192,13 +211,17 @@
     <Compile Include="Controllers\CodeGenerated\PersonTokensController.cs" />
     <Compile Include="Controllers\CodeGenerated\SystemCommunicationsController.cs" />
     <Compile Include="Controllers\CodeGenerated\WebFarmNodeLogsController.cs" />
+    <Compile Include="Controllers\CodeGenerated\WebFarmNodeMetricsController.cs" />
     <Compile Include="Controllers\CodeGenerated\WebFarmNodesController.cs" />
     <Compile Include="Controllers\ContentChannelItemsController.Partial.cs" />
     <Compile Include="Controllers\ContentChannelItemSlugsController.Partial.cs" />
+    <Compile Include="v2\Controls\ControlsControllerBase.cs" />
     <Compile Include="Controllers\DocumentsController.partial.cs" />
     <Compile Include="Controllers\FinancialBatchesController.Partial.cs" />
     <Compile Include="Controllers\FinancialGatewaysController.Partial.cs" />
     <Compile Include="Controllers\InteractionsController.Partial.cs" />
+    <Compile Include="Controllers\MediaElementsController.Partial.cs" />
+    <Compile Include="Controllers\PersonalLinksController.Partial.cs" />
     <Compile Include="Controllers\RegistrationRegistrantsController.cs" />
     <Compile Include="Controllers\RegistrationTemplatePlacementsController.cs" />
     <Compile Include="Controllers\StepProgramsController.Partial.cs" />
@@ -211,7 +234,9 @@
     <Compile Include="Controllers\PrayerRequestsController.Partial.cs" />
     <Compile Include="Controllers\PresenceController.cs" />
     <Compile Include="Controllers\PersonalDevicesController.Partial.cs" />
+    <Compile Include="v2\Controls\SaveFinancialAccountFormsController.cs" />
     <Compile Include="Filters\RockCacheabilityAttribute.cs" />
+    <Compile Include="Handler\RockAssembliesResolver.cs" />
     <Compile Include="HeaderTokens.cs" />
     <Compile Include="IHasCustomHttpRoutes.cs" />
     <Compile Include="Jwt\JwtHelper.cs" />
@@ -435,11 +460,28 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Swagger\SwaggerExtensions.cs" />
     <Compile Include="Utility\HttpRequestMessageExtensions.cs" />
+    <Compile Include="Utility\ApiPickerJsonMediaTypeFormatter.cs" />
+    <Compile Include="Utility\RockActionValueBinder.cs" />
+    <Compile Include="Utility\RockFormatterParameterBinding.cs" />
+    <Compile Include="Utility\RockOrganizationDateTimeJsonConverter.cs" />
+    <Compile Include="Utility\ValueProviders\RockApiV2ValueProviderResult.cs" />
+    <Compile Include="Utility\ValueProviders\RockQueryStringValueProvider.cs" />
+    <Compile Include="Utility\ValueProviders\RockQueryStringValueProviderFactory.cs" />
+    <Compile Include="Utility\ValueProviders\RockRouteDataValueProvider.cs" />
+    <Compile Include="Utility\ValueProviders\RockRouteDataValueProviderFactory.cs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\DotLiquid\DotLiquid.csproj">
       <Project>{00edcb8d-ef33-459c-ad62-02876bd24dff}</Project>
       <Name>DotLiquid</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\Rock.Common\Rock.Common.csproj">
+      <Project>{13568622-324e-4493-b605-c9896e725d30}</Project>
+      <Name>Rock.Common</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\Rock.Lava.Shared\Rock.Lava.Shared.csproj">
+      <Project>{8820cd93-70ee-496d-b17b-0c4c68dd4957}</Project>
+      <Name>Rock.Lava.Shared</Name>
     </ProjectReference>
     <ProjectReference Include="..\Rock.Version\Rock.Version.csproj">
       <Project>{6fe0930c-6832-4c2f-8a76-d4e4a2d80ddf}</Project>

@@ -26,6 +26,7 @@ using System.Runtime.Serialization;
 
 using Rock.Data;
 using Rock.Financial;
+using Rock.Lava;
 
 namespace Rock.Model
 {
@@ -64,8 +65,11 @@ namespace Rock.Model
         /// <value>
         /// A <see cref="System.Decimal"/> representing the purchase/gift amount.
         /// </value>
+        /// <remarks>
+        /// This value will be in the currency specified by the Organization Standard Currency Code which defaults to USD.
+        /// </remarks>
         [DataMember]
-        [BoundFieldTypeAttribute( typeof( Rock.Web.UI.Controls.CurrencyField ) )]
+        [BoundFieldType( typeof( Web.UI.Controls.CurrencyField ) )]
         public decimal Amount { get; set; }
 
         /// <summary>
@@ -102,8 +106,11 @@ namespace Rock.Model
         /// <value>
         /// The fee coverage amount.
         /// </value>
+        /// <remarks>
+        /// This value will be in the currency specified by the Organization Standard Currency Code which defaults to USD.
+        /// </remarks>
         [DataMember]
-        [BoundFieldTypeAttribute( typeof( Rock.Web.UI.Controls.CurrencyField ) )]
+        [BoundFieldType( typeof( Web.UI.Controls.CurrencyField ) )]
         [DecimalPrecision(18, 2)]
         public decimal? FeeCoverageAmount { get; set; }
         #endregion
@@ -116,7 +123,7 @@ namespace Rock.Model
         /// <value>
         /// The <see cref="Rock.Model.FinancialScheduledTransaction"/> that the transaction detail belongs to.
         /// </value>
-        [LavaInclude]
+        [LavaVisible]
         public virtual FinancialScheduledTransaction ScheduledTransaction { get; set; }
 
         /// <summary>
@@ -125,7 +132,7 @@ namespace Rock.Model
         /// <value>
         /// Tehe <see cref="Rock.Model.FinancialAccount"/>/account that the <see cref="Amount"/> of this transaction detail will be credited toward.
         /// </value>
-        [LavaInclude]
+        [LavaVisible]
         public virtual FinancialAccount Account { get; set; }
 
         /// <summary>
@@ -187,7 +194,7 @@ namespace Rock.Model
                 case EntityState.Added:
                     {
                         string acct = History.GetValue<FinancialAccount>( this.Account, this.AccountId, rockContext );
-                        HistoryChangeList.AddChange( History.HistoryVerb.Add, History.HistoryChangeType.Record, acct ).SetNewValue( Amount.FormatAsCurrency() );
+                        HistoryChangeList.AddChange( History.HistoryVerb.Add, History.HistoryChangeType.Record, acct ).SetNewValue( Amount.FormatAsCurrency( ScheduledTransaction.ForeignCurrencyCodeValueId ) );
                         break;
                     }
 
@@ -202,15 +209,26 @@ namespace Rock.Model
                             History.EvaluateChange( HistoryChangeList, "Account", History.GetValue<FinancialAccount>( null, origAccountId, rockContext ), acct );
                         }
 
-                        History.EvaluateChange( HistoryChangeList, acct, entry.OriginalValues["Amount"].ToStringSafe().AsDecimal().FormatAsCurrency(), Amount.FormatAsCurrency() );
-                        History.EvaluateChange( HistoryChangeList, acct, entry.OriginalValues["FeeCoverageAmount"].ToStringSafe().AsDecimal().FormatAsCurrency(), FeeCoverageAmount.FormatAsCurrency() );
+                        var originalCurrencyCodeValueId = ScheduledTransaction.ForeignCurrencyCodeValueId;
+                        var originalScheduledTransactionEntry = rockContext.ChangeTracker
+                            .Entries<FinancialScheduledTransaction>()
+                            .Where( s => ( int ) s.OriginalValues["Id"] == ScheduledTransaction.Id )
+                            .FirstOrDefault();
+
+                        if ( originalScheduledTransactionEntry != null )
+                        {
+                            originalCurrencyCodeValueId = ( int? ) originalScheduledTransactionEntry.OriginalValues["ForeignCurrencyCodeValueId"];
+                        }
+
+                        History.EvaluateChange( HistoryChangeList, acct + " Amount", entry.OriginalValues["Amount"].ToStringSafe().AsDecimal().FormatAsCurrency( originalCurrencyCodeValueId ), Amount.FormatAsCurrency( ScheduledTransaction.ForeignCurrencyCodeValueId ) );
+                        History.EvaluateChange( HistoryChangeList, acct + " Fee Coverage Amount", ( entry.OriginalValues["FeeCoverageAmount"] as int? ).FormatAsCurrency(), FeeCoverageAmount.FormatAsCurrency() );
 
                         break;
                     }
                 case EntityState.Deleted:
                     {
                         string acct = History.GetValue<FinancialAccount>( this.Account, this.AccountId, rockContext );
-                        HistoryChangeList.AddChange( History.HistoryVerb.Delete, History.HistoryChangeType.Record, acct ).SetOldValue( Amount.FormatAsCurrency() );
+                        HistoryChangeList.AddChange( History.HistoryVerb.Delete, History.HistoryChangeType.Record, acct ).SetOldValue( Amount.FormatAsCurrency( ScheduledTransaction.ForeignCurrencyCodeValueId ) );
                         break;
                     }
             }

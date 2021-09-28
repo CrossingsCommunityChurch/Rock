@@ -21,6 +21,7 @@ using System.Text;
 using System.Web;
 
 using Rock.Attribute;
+using Rock.Blocks;
 using Rock.Common.Mobile;
 using Rock.Common.Mobile.Enums;
 using Rock.Data;
@@ -209,7 +210,7 @@ namespace Rock.Mobile
                 RockDateTime.Now,
                 RockDateTime.Now.Add( System.Web.Security.FormsAuthentication.Timeout ),
                 true,
-                false.ToString() );
+                username.StartsWith( "rckipid=" ).ToString() );
 
             return System.Web.Security.FormsAuthentication.Encrypt( ticket );
         }
@@ -352,6 +353,13 @@ namespace Rock.Mobile
             // Run Lava on CSS to enable color utilities
             cssStyles = cssStyles.ResolveMergeFields(Lava.LavaHelper.GetCommonMergeFields(null, null, new Lava.CommonMergeFieldsOptions { GetLegacyGlobalMergeFields = false }));
 
+            // Get the Rock organization time zone. If not found back to the
+            // OS time zone. If not found just use Greenwich.
+            var timeZoneMapping = NodaTime.TimeZones.TzdbDateTimeZoneSource.Default.WindowsMapping.PrimaryMapping;
+            var timeZoneName = timeZoneMapping.GetValueOrNull( RockDateTime.OrgTimeZoneInfo.Id )
+                ?? timeZoneMapping.GetValueOrNull( TimeZoneInfo.Local.Id )
+                ?? "GMT";
+
             //
             // Initialize the base update package settings.
             //
@@ -364,7 +372,10 @@ namespace Rock.Mobile
                 ProfileDetailsPageGuid = additionalSettings.ProfilePageId.HasValue ? PageCache.Get( additionalSettings.ProfilePageId.Value )?.Guid : null,
                 PhoneFormats = phoneFormats,
                 DefinedValues = definedValues,
-                TabsOnBottomOnAndroid = additionalSettings.TabLocation == TabLocation.Bottom
+                TabsOnBottomOnAndroid = additionalSettings.TabLocation == TabLocation.Bottom,
+                HomepageRoutingLogic = additionalSettings.HomepageRoutingLogic,
+                DoNotEnableNotificationsAtLaunch = !additionalSettings.EnableNotificationsAutomatically,
+                TimeZone = timeZoneName
             };
 
             //
@@ -377,13 +388,18 @@ namespace Rock.Mobile
             package.AppearanceSettings.NavigationBarActionsXaml = additionalSettings.NavigationBarActionXaml;
             package.AppearanceSettings.LockedPhoneOrientation = additionalSettings.LockedPhoneOrientation;
             package.AppearanceSettings.LockedTabletOrientation = additionalSettings.LockedTabletOrientation;
+            package.AppearanceSettings.PaletteColors.Add( "text-color", additionalSettings.DownhillSettings.TextColor );
+            package.AppearanceSettings.PaletteColors.Add( "heading-color", additionalSettings.DownhillSettings.HeadingColor );
+            package.AppearanceSettings.PaletteColors.Add( "background-color", additionalSettings.DownhillSettings.BackgroundColor );
             package.AppearanceSettings.PaletteColors.Add( "app-primary", additionalSettings.DownhillSettings.ApplicationColors.Primary );
             package.AppearanceSettings.PaletteColors.Add( "app-secondary", additionalSettings.DownhillSettings.ApplicationColors.Secondary );
             package.AppearanceSettings.PaletteColors.Add( "app-success", additionalSettings.DownhillSettings.ApplicationColors.Success );
+            package.AppearanceSettings.PaletteColors.Add( "app-info", additionalSettings.DownhillSettings.ApplicationColors.Info );
             package.AppearanceSettings.PaletteColors.Add( "app-danger", additionalSettings.DownhillSettings.ApplicationColors.Danger );
             package.AppearanceSettings.PaletteColors.Add( "app-warning", additionalSettings.DownhillSettings.ApplicationColors.Warning );
             package.AppearanceSettings.PaletteColors.Add( "app-light", additionalSettings.DownhillSettings.ApplicationColors.Light );
             package.AppearanceSettings.PaletteColors.Add( "app-dark", additionalSettings.DownhillSettings.ApplicationColors.Dark );
+            package.AppearanceSettings.PaletteColors.Add( "app-brand", additionalSettings.DownhillSettings.ApplicationColors.Brand );
 
             if ( site.FavIconBinaryFileId.HasValue )
             {
@@ -441,7 +457,7 @@ namespace Rock.Mobile
                         BlockGuid = block.Guid,
                         RequiredAbiVersion = mobileBlockEntity.RequiredMobileAbiVersion,
                         BlockType = mobileBlockEntity.MobileBlockType,
-                        ConfigurationValues = mobileBlockEntity.GetMobileConfigurationValues(),
+                        ConfigurationValues = mobileBlockEntity.GetBlockInitialization( Blocks.RockClientType.Mobile ),
                         Order = block.Order,
                         AttributeValues = GetMobileAttributeValues( block, attributes ),
                         PreXaml = block.PreHtml,
@@ -487,6 +503,14 @@ namespace Rock.Mobile
                     }
                 }
 
+                // Get the campus time zone, If not found try the Rock
+                // organization time zone. If not found back to the
+                // OS time zone. If not found just use Greenwich.
+                mobileCampus.TimeZone = timeZoneMapping.GetValueOrNull( campus.TimeZoneId ?? string.Empty )
+                    ?? timeZoneMapping.GetValueOrNull( RockDateTime.OrgTimeZoneInfo.Id )
+                    ?? timeZoneMapping.GetValueOrNull( TimeZoneInfo.Local.Id )
+                    ?? "GMT";
+
                 package.Campuses.Add( mobileCampus );
             }
 
@@ -521,7 +545,8 @@ namespace Rock.Mobile
                     CssClasses = page.BodyCssClass,
                     CssStyles = additionalPageSettings.CssStyles,
                     AuthorizationRules = string.Join( ",", GetOrderedExplicitAuthorizationRules( page ) ),
-                    HideNavigationBar = additionalPageSettings.HideNavigationBar
+                    HideNavigationBar = additionalPageSettings.HideNavigationBar,
+                    ShowFullScreen = additionalPageSettings.ShowFullScreen
                 };
 
                 package.Pages.Add( mobilePage );

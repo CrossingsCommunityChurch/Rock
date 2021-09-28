@@ -103,6 +103,9 @@ namespace Rock.Client
         public bool IsActive { get; set; } = true;
 
         /// <summary />
+        public bool IsRegistrationMeteringEnabled { get; set; }
+
+        /// <summary />
         public bool LoginRequired { get; set; }
 
         /// <summary />
@@ -121,9 +124,6 @@ namespace Rock.Client
 
         /// <summary />
         public Rock.Client.Enums.RegistrationNotify Notify { get; set; }
-
-        /// <summary />
-        public Rock.Client.Enums.PaymentRedirectVendor? PaymentRedirectVendor { get; set; }
 
         /// <summary />
         public string PaymentReminderEmailTemplate { get; set; }
@@ -145,6 +145,9 @@ namespace Rock.Client
 
         /// <summary />
         public string RegistrantTerm { get; set; }
+
+        /// <summary />
+        public int? RegistrantWorkflowTypeId { get; set; }
 
         /// <summary />
         public Rock.Client.Enums.RegistrarOption RegistrarOption { get; set; }
@@ -269,13 +272,13 @@ namespace Rock.Client
             this.GroupMemberStatus = source.GroupMemberStatus;
             this.GroupTypeId = source.GroupTypeId;
             this.IsActive = source.IsActive;
+            this.IsRegistrationMeteringEnabled = source.IsRegistrationMeteringEnabled;
             this.LoginRequired = source.LoginRequired;
             this.MaxRegistrants = source.MaxRegistrants;
             this.MinimumInitialPayment = source.MinimumInitialPayment;
             this.ModifiedAuditValuesAlreadyUpdated = source.ModifiedAuditValuesAlreadyUpdated;
             this.Name = source.Name;
             this.Notify = source.Notify;
-            this.PaymentRedirectVendor = source.PaymentRedirectVendor;
             this.PaymentReminderEmailTemplate = source.PaymentReminderEmailTemplate;
             this.PaymentReminderFromEmail = source.PaymentReminderFromEmail;
             this.PaymentReminderFromName = source.PaymentReminderFromName;
@@ -283,6 +286,7 @@ namespace Rock.Client
             this.PaymentReminderTimeSpan = source.PaymentReminderTimeSpan;
             this.RegistrantsSameFamily = source.RegistrantsSameFamily;
             this.RegistrantTerm = source.RegistrantTerm;
+            this.RegistrantWorkflowTypeId = source.RegistrantWorkflowTypeId;
             this.RegistrarOption = source.RegistrarOption;
             this.RegistrationAttributeTitleEnd = source.RegistrationAttributeTitleEnd;
             this.RegistrationAttributeTitleStart = source.RegistrationAttributeTitleStart;
@@ -334,6 +338,9 @@ namespace Rock.Client
 
         /// <summary />
         public ICollection<RegistrationTemplatePlacement> Placements { get; set; }
+
+        /// <summary />
+        public WorkflowType RegistrantWorkflowType { get; set; }
 
         /// <summary />
         public WorkflowType RegistrationWorkflowType { get; set; }

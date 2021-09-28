@@ -22,6 +22,7 @@ using System.Linq;
 using System.Text;
 using System.Web.UI;
 using System.Web.UI.WebControls;
+
 using Rock;
 using Rock.Attribute;
 using Rock.Communication;
@@ -29,10 +30,12 @@ using Rock.Data;
 using Rock.Financial;
 using Rock.Lava;
 using Rock.Model;
+using Rock.Utility;
 using Rock.Tasks;
 using Rock.Web.Cache;
 using Rock.Web.UI;
 using Rock.Web.UI.Controls;
+using Rock.Transactions;
 
 namespace RockWeb.Blocks.Finance
 {
@@ -166,7 +169,7 @@ namespace RockWeb.Blocks.Finance
 
     [BooleanField( "Enable Comment Entry",
         Key = AttributeKey.EnableCommentEntry,
-        Description = "Allows the guest to enter the value that's put into the comment field (will be appended to the 'Payment Comment' setting)",
+        Description = "Allows the guest to enter the value that's put into the comment field (will be appended to the 'Payment Comment Template' setting)",
         DefaultBooleanValue = false,
         Order = 15 )]
 
@@ -267,7 +270,7 @@ namespace RockWeb.Blocks.Finance
         EditorTheme = CodeEditorTheme.Rock,
         EditorHeight = 200,
         IsRequired = true,
-        DefaultValue = AttributeString.ConfirmationHeader ,
+        DefaultValue = AttributeString.ConfirmationHeader,
         Category = CategoryKey.TextOptions,
         Order = 7 )]
 
@@ -280,7 +283,7 @@ namespace RockWeb.Blocks.Finance
         IsRequired = true,
         DefaultValue = AttributeString.ConfirmationFooter,
         Category = CategoryKey.TextOptions,
-        Order = 8)]
+        Order = 8 )]
 
     [TextField( "Success Title",
         Key = AttributeKey.SuccessTitle,
@@ -299,7 +302,7 @@ namespace RockWeb.Blocks.Finance
         IsRequired = true,
         DefaultValue = AttributeString.SuccessHeader,
         Category = CategoryKey.TextOptions,
-        Order = 10)]
+        Order = 10 )]
 
     [CodeEditorField( "Success Footer",
         Key = AttributeKey.SuccessFooter,
@@ -310,7 +313,7 @@ namespace RockWeb.Blocks.Finance
         IsRequired = false,
         DefaultValue = @"",
         Category = CategoryKey.TextOptions,
-        Order = 11)]
+        Order = 11 )]
 
     [TextField( "Save Account Title",
         Key = AttributeKey.SaveAccountTitle,
@@ -320,8 +323,8 @@ namespace RockWeb.Blocks.Finance
         Category = CategoryKey.TextOptions,
         Order = 12 )]
 
-    [CodeEditorField( "Payment Comment",
-        Key = AttributeKey.PaymentComment,
+    [CodeEditorField( "Payment Comment Template",
+        Key = AttributeKey.PaymentCommentTemplate,
         Description = AttributeString.PaymentCommentDescription,
         EditorMode = CodeEditorMode.Lava,
         EditorTheme = CodeEditorTheme.Rock,
@@ -347,7 +350,7 @@ namespace RockWeb.Blocks.Finance
         Key = AttributeKey.AllowAccountsInURL,
         Description = "Set to true to allow account options to be set via URL. To simply set allowed accounts, the allowed accounts can be specified as a comma-delimited list of AccountIds or AccountGlCodes. Example: ?AccountIds=1,2,3 or ?AccountGlCodes=40100,40110. The default amount for each account and whether it is editable can also be specified. Example:?AccountIds=1^50.00^false,2^25.50^false,3^35.00^true or ?AccountGlCodes=40100^50.00^false,40110^42.25^true",
         DefaultBooleanValue = false,
-        Category =CategoryKey.Advanced,
+        Category = CategoryKey.Advanced,
         Order = 1 )]
 
     [BooleanField( "Only Public Accounts In URL",
@@ -485,7 +488,10 @@ namespace RockWeb.Blocks.Finance
             public const string ConfirmationFooter = "ConfirmationFooter";
             public const string SuccessHeader = "SuccessHeader";
             public const string SuccessFooter = "SuccessFooter";
-            public const string PaymentComment = "PaymentComment";
+
+            // Keep this as "PaymentComment" for backwords compatibility 
+            public const string PaymentCommentTemplate = "PaymentComment";
+
             public const string AnonymousGivingTooltip = "AnonymousGivingTooltip";
 
             // Advanced Category
@@ -524,45 +530,7 @@ namespace RockWeb.Blocks.Finance
 </p>
 ";
 
-            public const string PaymentCommentDescription = @"The comment to include with the payment transaction when sending to Gateway. <span class='tip tip-lava'></span>. Merge fields include: <pre>CurrentPerson: {},
-PageParameters {},
-TransactionDateTime: '8/29/2016',
-CurrencyType: {
-  'AttributeIds': [],
-  'IsSystem': true,
-  'DefinedTypeId': 10,
-  'Order': 2,
-  'Value': 'Credit Card',
-  'Description': 'Credit Card',
-  'TypeId': 31,
-  'TypeName': 'Rock.Model.DefinedValue',
-  'AttributeValues': {},
-  'Id': 156,
-  'Guid': '928a2e04-c77b-4282-888f-ec549cee026a',
-  'ForeignId': null,
-  'ForeignGuid': null,
-  'ForeignKey': null
-}
-TransactionAccountDetails: [
-  {
-    'Id': 1,
-    'Order': 0,
-    'Name': 'General Fund',
-    'CampusId': null,
-    'Amount': 50.00,
-    'PublicName': 'General Fund',
-    'AmountFormatted': '$50.00'
-  },
-  {
-    'Id': 2,
-    'Order': 1,
-    'Name': 'Building Fund',
-    'CampusId': null,
-    'Amount': 10.00,
-    'PublicName': 'Building Fund',
-    'AmountFormatted': '$10.00'
-  }
-]</pre>";
+            public const string PaymentCommentDescription = @"The comment to include with the payment transaction when sending to Gateway. <span class='tip tip-lava'></span>";
         }
 
         private static class PageParameterKey
@@ -621,48 +589,39 @@ TransactionAccountDetails: [
         }
 
         /// <summary>
+        /// Saves any user control view-state changes that have occurred since the last page postback.
+        /// </summary>
+        /// <returns>
+        /// Returns the user control's current view state. If there is no view state associated with the control, it returns <see langword="null" />.
+        /// </returns>
+        protected override object SaveViewState()
+        {
+            ViewState["SelectedAccountsJSON"] = SelectedAccounts.ToJson();
+            ViewState["AvailableAccountsJSON"] = AvailableAccounts.ToJson();
+            return base.SaveViewState();
+        }
+
+        /// <summary>
+        /// Restores the view-state information from a previous user control request that was saved by the <see cref="M:System.Web.UI.UserControl.SaveViewState" /> method.
+        /// </summary>
+        /// <param name="savedState">An <see cref="T:System.Object" /> that represents the user control state to be restored.</param>
+        protected override void LoadViewState( object savedState )
+        {
+            base.LoadViewState( savedState );
+            AvailableAccounts = ( ViewState["AvailableAccountsJSON"] as string ).FromJsonOrNull<List<AccountItem>>() ?? new List<AccountItem>();
+            SelectedAccounts = ( ViewState["SelectedAccountsJSON"] as string ).FromJsonOrNull<List<AccountItem>>() ?? new List<AccountItem>();
+        }
+
+        /// <summary>
         /// Gets or sets the accounts that are available for user to add to the list.
         /// </summary>
-        protected List<AccountItem> AvailableAccounts
-        {
-            get
-            {
-                var accounts = ViewState["AvailableAccounts"] as List<AccountItem>;
-                if ( accounts == null )
-                {
-                    accounts = new List<AccountItem>();
-                }
+        protected List<AccountItem> AvailableAccounts { get; set; }
 
-                return accounts;
-            }
-
-            set
-            {
-                ViewState["AvailableAccounts"] = value;
-            }
-        }
 
         /// <summary>
         /// Gets or sets the accounts that are currently displayed to the user
         /// </summary>
-        protected List<AccountItem> SelectedAccounts
-        {
-            get
-            {
-                var accounts = ViewState["SelectedAccounts"] as List<AccountItem>;
-                if ( accounts == null )
-                {
-                    accounts = new List<AccountItem>();
-                }
-
-                return accounts;
-            }
-
-            set
-            {
-                ViewState["SelectedAccounts"] = value;
-            }
-        }
+        protected List<AccountItem> SelectedAccounts { get; set; }
 
         /// <summary>
         /// Gets or sets the payment transaction code.
@@ -964,27 +923,19 @@ TransactionAccountDetails: [
                 // Save amounts from controls to the viewstate list
                 foreach ( RepeaterItem item in rptAccountList.Items )
                 {
-                    var accountAmount = item.FindControl( "txtAccountAmount" ) as RockTextBox;
+                    var accountAmount = item.FindControl( "txtAccountAmount" ) as CurrencyBox;
                     if ( accountAmount != null )
                     {
                         if ( SelectedAccounts.Count > item.ItemIndex )
                         {
-                            decimal amount = decimal.MinValue;
-                            if ( decimal.TryParse( accountAmount.Text, out amount ) )
-                            {
-                                SelectedAccounts[item.ItemIndex].Amount = amount;
-                            }
-                            else
-                            {
-                                SelectedAccounts[item.ItemIndex].Amount = default( decimal );
-                            }
+                            SelectedAccounts[item.ItemIndex].Amount = accountAmount.Value ?? 0.0M;
                         }
                     }
                 }
             }
 
             // Update the total amount
-            lblTotalAmount.Text = GlobalAttributesCache.Value( "CurrencySymbol" ) + SelectedAccounts.Sum( f => f.Amount ).ToString( "F2" );
+            lblTotalAmount.Text = SelectedAccounts.Sum( f => f.Amount ).FormatAsCurrency();
 
             // Set the frequency date label based on if 'One Time' is selected or not
             if ( btnFrequency.Items.Count > 0 )
@@ -1116,6 +1067,18 @@ TransactionAccountDetails: [
         /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
         protected void btnPaymentInfoNext_Click( object sender, EventArgs e )
         {
+            if ( tbRockFullName.Text.IsNotNullOrWhiteSpace() )
+            {
+                /* 03/22/2021 MDP
+
+                see https://app.asana.com/0/1121505495628584/1200018171012738/f on why this is done
+
+                */
+
+                ShowMessage( NotificationBoxType.Validation, "Validation", "Invalid Form Value" );
+                return;
+            }
+
             string errorMessage = string.Empty;
             if ( ProcessPaymentInfo( out errorMessage ) )
             {
@@ -1395,13 +1358,17 @@ TransactionAccountDetails: [
                                 savedAccount.FinancialPaymentDetail.AccountNumberMasked = paymentDetail.AccountNumberMasked;
                                 savedAccount.FinancialPaymentDetail.CurrencyTypeValueId = paymentDetail.CurrencyTypeValueId;
                                 savedAccount.FinancialPaymentDetail.CreditCardTypeValueId = paymentDetail.CreditCardTypeValueId;
-                                savedAccount.FinancialPaymentDetail.NameOnCardEncrypted = paymentDetail.NameOnCardEncrypted;
-                                savedAccount.FinancialPaymentDetail.ExpirationMonthEncrypted = paymentDetail.ExpirationMonthEncrypted;
-                                savedAccount.FinancialPaymentDetail.ExpirationYearEncrypted = paymentDetail.ExpirationYearEncrypted;
+                                savedAccount.FinancialPaymentDetail.NameOnCard= paymentDetail.NameOnCard;
+                                savedAccount.FinancialPaymentDetail.ExpirationMonth = paymentDetail.ExpirationMonth;
+                                savedAccount.FinancialPaymentDetail.ExpirationYear = paymentDetail.ExpirationYear;
                                 savedAccount.FinancialPaymentDetail.BillingLocationId = paymentDetail.BillingLocationId;
 
                                 var savedAccountService = new FinancialPersonSavedAccountService( rockContext );
                                 savedAccountService.Add( savedAccount );
+                                rockContext.SaveChanges();
+
+                                // If we created a new saved account, update the transaction to say it that is used this saved account.
+                                paymentDetail.FinancialPersonSavedAccountId = savedAccount.Id;
                                 rockContext.SaveChanges();
 
                                 cbSaveAccount.Visible = false;
@@ -1687,17 +1654,30 @@ TransactionAccountDetails: [
                 }
 
                 // Bind the accounts
-                rblSavedAccount.DataSource = savedAccounts
+                savedAccounts = savedAccounts
                     .Where( a =>
                         ccSavedAccountIds.Contains( a.Id ) ||
                         achSavedAccountIds.Contains( a.Id ) )
-                    .OrderBy( a => a.Name )
-                    .Select( a => new
+                    .ToList();
+
+
+                rblSavedAccount.Items.Clear();
+
+                foreach ( var personSavedAccount in savedAccounts)
+                {
+                    string displayName;
+                    if ( personSavedAccount.FinancialPaymentDetail.ExpirationDate.IsNotNullOrWhiteSpace() )
                     {
-                        Id = a.Id,
-                        Name = "Use " + a.Name + " (" + a.FinancialPaymentDetail.AccountNumberMasked + ")"
-                    } ).ToList();
-                rblSavedAccount.DataBind();
+                        displayName = $"{personSavedAccount.Name} ({personSavedAccount.FinancialPaymentDetail.AccountNumberMasked} Expires: {personSavedAccount.FinancialPaymentDetail.ExpirationDate})";
+                    }
+                    else
+                    {
+                        displayName = $"{personSavedAccount.Name} ({personSavedAccount.FinancialPaymentDetail.AccountNumberMasked}";
+                    }
+
+                    rblSavedAccount.Items.Add( new ListItem( displayName, personSavedAccount.Id.ToString() ) );
+                }
+
                 if ( rblSavedAccount.Items.Count > 0 )
                 {
                     rblSavedAccount.Items.Add( new ListItem( "Use a different payment method", "0" ) );
@@ -2678,11 +2658,17 @@ TransactionAccountDetails: [
             }
             else
             {
-                paymentInfo.FirstName = "-";
-                paymentInfo.LastName = txtBusinessName.Text;
+                paymentInfo.BusinessName = txtBusinessName.Text;
             }
 
-            tdNameConfirm.Description = paymentInfo.FullName.Trim();
+            if ( givingAsBusiness )
+            {
+                tdNameConfirm.Description = paymentInfo.BusinessName.Trim();
+            }
+            else
+            {
+                tdNameConfirm.Description = paymentInfo.FullName.Trim();
+            }
             tdPhoneConfirm.Description = paymentInfo.Phone;
             tdEmailConfirm.Description = paymentInfo.Email;
             tdAddressConfirm.Description = string.Format( "{0} {1}, {2} {3}", paymentInfo.Street1, paymentInfo.City, paymentInfo.State, paymentInfo.PostalCode );
@@ -2690,7 +2676,7 @@ TransactionAccountDetails: [
             rptAccountListConfirmation.DataSource = SelectedAccounts.Where( a => a.Amount != 0 );
             rptAccountListConfirmation.DataBind();
 
-            tdTotalConfirm.Description = paymentInfo.Amount.ToString( "C" );
+            tdTotalConfirm.Description = paymentInfo.Amount.FormatAsCurrency();
 
             if ( !_using3StepGateway )
             {
@@ -3082,11 +3068,13 @@ TransactionAccountDetails: [
 
             if ( GetAttributeValue( AttributeKey.EnableCommentEntry ).AsBoolean() )
             {
-                paymentInfo.Comment1 = !string.IsNullOrWhiteSpace( GetAttributeValue( AttributeKey.PaymentComment ) ) ? string.Format( "{0}: {1}", GetAttributeValue( AttributeKey.PaymentComment ), txtCommentEntry.Text ) : txtCommentEntry.Text;
+                paymentInfo.Comment1 = !string.IsNullOrWhiteSpace( GetAttributeValue( AttributeKey.PaymentCommentTemplate ) )
+                    ? string.Format( "{0}: {1}", GetAttributeValue( AttributeKey.PaymentCommentTemplate ), txtCommentEntry.Text )
+                    : txtCommentEntry.Text;
             }
             else
             {
-                paymentInfo.Comment1 = GetAttributeValue( AttributeKey.PaymentComment );
+                paymentInfo.Comment1 = GetAttributeValue( AttributeKey.PaymentCommentTemplate );
             }
 
             var transactionAlreadyExists = new FinancialTransactionService( rockContext ).Queryable().FirstOrDefault( a => a.Guid == transactionGuid );
@@ -3182,11 +3170,13 @@ TransactionAccountDetails: [
                 mergeFields.Add( "TransactionAccountDetails", SelectedAccounts.Where( a => a.Amount != 0 ).ToList() );
             }
 
-            string paymentComment = GetAttributeValue( AttributeKey.PaymentComment ).ResolveMergeFields( mergeFields );
+            string paymentComment = GetAttributeValue( AttributeKey.PaymentCommentTemplate ).ResolveMergeFields( mergeFields );
 
             if ( GetAttributeValue( AttributeKey.EnableCommentEntry ).AsBoolean() )
             {
-                paymentInfo.Comment1 = !string.IsNullOrWhiteSpace( paymentComment ) ? string.Format( "{0}: {1}", paymentComment, txtCommentEntry.Text ) : txtCommentEntry.Text;
+                paymentInfo.Comment1 = !string.IsNullOrWhiteSpace( paymentComment )
+                    ? string.Format( "{0}: {1}", paymentComment, txtCommentEntry.Text )
+                    : txtCommentEntry.Text;
             }
             else
             {
@@ -3220,17 +3210,6 @@ TransactionAccountDetails: [
                 }
             }
 
-            var changeSummary = new StringBuilder();
-            changeSummary.AppendFormat( "{0} starting {1}", schedule.TransactionFrequencyValue.Value, schedule.StartDate.ToShortDateString() );
-            changeSummary.AppendLine();
-            changeSummary.Append( paymentInfo.CurrencyTypeValue.Value );
-            if ( paymentInfo.CreditCardTypeValue != null )
-            {
-                changeSummary.AppendFormat( " - {0}", paymentInfo.CreditCardTypeValue.Value );
-            }
-            changeSummary.AppendFormat( " {0}", paymentInfo.MaskedNumber );
-            changeSummary.AppendLine();
-
             var transactionEntity = this.GetTransactionEntity();
 
             foreach ( var account in SelectedAccounts.Where( a => a.Amount > 0 ) )
@@ -3246,17 +3225,9 @@ TransactionAccountDetails: [
                 }
 
                 scheduledTransaction.ScheduledTransactionDetails.Add( transactionDetail );
-                changeSummary.AppendFormat( "{0}: {1}", account.Name, account.Amount.FormatAsCurrency() );
-                changeSummary.AppendLine();
             }
 
-            if ( !string.IsNullOrWhiteSpace( paymentInfo.Comment1 ) )
-            {
-                changeSummary.Append( paymentInfo.Comment1 );
-                changeSummary.AppendLine();
-            }
-
-            scheduledTransaction.Summary = changeSummary.ToString();
+            scheduledTransaction.Summary = paymentInfo.Comment1;
 
             var transactionService = new FinancialScheduledTransactionService( rockContext );
             transactionService.Add( scheduledTransaction );
@@ -3437,7 +3408,7 @@ TransactionAccountDetails: [
             rptAccountListReceipt.DataSource = SelectedAccounts.Where( a => a.Amount != 0 );
             rptAccountListReceipt.DataBind();
 
-            tdTotalReceipt.Description = paymentInfo.Amount.ToString( "C" );
+            tdTotalReceipt.Description = paymentInfo.Amount.FormatAsCurrency();
 
             tdPaymentMethodReceipt.Description = paymentInfo.CurrencyTypeValue.Description;
 
@@ -3477,13 +3448,9 @@ TransactionAccountDetails: [
             if ( receiptEmail.HasValue )
             {
                 // Queue a transaction to send receipts
-                var newTransactionIds = new List<int> { transactionId };
-                var processSendPaymentReceiptEmailsMsg = new ProcessSendPaymentReceiptEmails.Message
-                {
-                    SystemEmailGuid = receiptEmail.Value,
-                    TransactionId = transactionId
-                };
-                processSendPaymentReceiptEmailsMsg.Send();
+                var transactionIds = new List<int> { transactionId };
+                var sendPaymentReceiptsTxn = new SendPaymentReceipts( receiptEmail.Value, transactionIds );
+                RockQueue.TransactionQueue.Enqueue( sendPaymentReceiptsTxn );
             }
         }
 
@@ -3582,7 +3549,7 @@ TransactionAccountDetails: [
                     else {{
                         $(this).parents('div.input-group').removeClass('has-error');
                         var num = Number(itemValue);
-                        $(this).val(num.toFixed(2));
+                        $(this).val(num.toFixed({7}));
                         totalAmt = totalAmt + num;
                     }}
                 }}
@@ -3590,7 +3557,7 @@ TransactionAccountDetails: [
                     $(this).parents('div.input-group').removeClass('has-error');
                 }}
             }});
-            $('.total-amount').html('{3}' + totalAmt.toFixed(2));
+            $('.total-amount').html('{3}' + totalAmt.toLocaleString(undefined, {{ minimumFractionDigits: {7}, maximumFractionDigits: {7} }}));
             return false;
         }});
 
@@ -3646,15 +3613,17 @@ TransactionAccountDetails: [
         }});
     }});
 ";
+            var currencyCodeInfo = new RockCurrencyCodeInfo();
             string script = string.Format(
                 scriptFormat,
                 divCCPaymentInfo.ClientID,      // {0}
                 hfPaymentTab.ClientID,          // {1}
                 oneTimeFrequencyId,             // {2}
-                GlobalAttributesCache.Value( "CurrencySymbol" ), // {3)
+                currencyCodeInfo.Symbol,      // {3)
                 rblSavedAccount.ClientID,       // {4}
                 rblSavedAccount.UniqueID,       // {5}
-                divNewPayment.ClientID          // {6}
+                divNewPayment.ClientID,         // {6}
+                currencyCodeInfo.DecimalPlaces // {7}
             );
 
             ScriptManager.RegisterStartupScript( upPayment, this.GetType(), "giving-profile", script, true );
@@ -3704,14 +3673,14 @@ TransactionAccountDetails: [
 
                 if ( accountItem.Amount != 0 )
                 {
-                    txtAccountAmount.Text = accountItem.Amount.ToString( "N2" );
+                    txtAccountAmount.Value = accountItem.Amount;
                 }
 
                 if ( !accountItem.Enabled )
                 {
                     txtAccountAmountLiteral.Visible = true;
                     txtAccountAmountLiteral.Label = txtAccountAmount.Label;
-                    txtAccountAmountLiteral.Text = string.Format( "${0}", txtAccountAmount.Text );
+                    txtAccountAmountLiteral.Text = txtAccountAmount.Value.FormatAsCurrency();
 
                     // Javascript  needs the textbox, so disable it and hide it with CSS.
                     txtAccountAmount.Label = string.Empty;
@@ -3728,8 +3697,6 @@ TransactionAccountDetails: [
         /// <summary>
         /// Lightweight object for each contribution item
         /// </summary>
-        [Serializable]
-        [DotLiquid.LiquidType( "Id", "Order", "Name", "CampusId", "Amount", "PublicName", "AmountFormatted" )]
         protected class AccountItem
         {
             public int Id { get; set; }
@@ -3752,6 +3719,10 @@ TransactionAccountDetails: [
                 {
                     return Amount > 0 ? Amount.FormatAsCurrency() : string.Empty;
                 }
+            }
+
+            public AccountItem()
+            {
             }
 
             public AccountItem( int id, int order, string name, int? campusId, string publicName )
