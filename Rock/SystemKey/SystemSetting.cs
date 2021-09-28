@@ -100,6 +100,11 @@ namespace Rock.SystemKey
         public const string ENABLE_MULTI_TIME_ZONE_SUPPORT = "core_EnableMultiTimeZoneSupport";
 
         /// <summary>
+        /// Always show businesses in PersonPicker controls
+        /// </summary>
+        public const string ALWAYS_SHOW_BUSINESS_IN_PERSONPICKER = "core_AlwaysShowBusinessInPersonPicker";
+
+        /// <summary>
         /// The day of the week that is considered the 'Start Day' (First Day Of week). This is used to compute 'SundayDate'. Default is Monday.
         /// </summary>
         public const string START_DAY_OF_WEEK = "core_StartDayOfWeek";
@@ -213,8 +218,33 @@ namespace Rock.SystemKey
         public const string WEBFARM_LEADERSHIP_POLLING_INTERVAL_UPPER_LIMIT_SECONDS = "WEBFARM_LEADERSHIP_POLLING_INTERVAL_UPPER_LIMIT_SECONDS";
 
         /// <summary>
+        /// The webfarm leadership minimum polling difference seconds
+        /// </summary>
+        public const string WEBFARM_LEADERSHIP_MIN_POLLING_DIFFERENCE_SECONDS = "WEBFARM_LEADERSHIP_MIN_POLLING_DIFFERENCE_SECONDS";
+
+        /// <summary>
+        /// The webfarm leadership maximum wait seconds
+        /// </summary>
+        public const string WEBFARM_LEADERSHIP_MAX_WAIT_SECONDS = "WEBFARM_LEADERSHIP_MAX_WAIT_SECONDS";
+
+        /// <summary>
         /// The RockCleanup Last Run DateTime
         /// </summary>
         public const string ROCK_CLEANUP_LAST_RUN_DATETIME = "core_RockCleanup_LastRunDateTime";
+
+        /// <summary>
+        /// Settings for Giving Automation
+        /// </summary>
+        public const string GIVING_AUTOMATION_CONFIGURATION = "core_GivingAutomationConfiguration";
+
+        /// <summary>
+        /// The organization currency code
+        /// </summary>
+        public const string ORGANIZATION_CURRENCY_CODE = "OrganizationStandardCurrencyCode";
+
+        /// <summary>
+        /// Lava Engine Type.
+        /// </summary>
+        public const string LAVA_ENGINE_LIQUID_FRAMEWORK = "core_LavaEngine_LiquidFramework";
     }
 }

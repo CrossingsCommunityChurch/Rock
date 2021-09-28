@@ -22,7 +22,7 @@ namespace Rock.SystemGuid
     public static class Group
     {
         /// <summary>
-        /// Gets the administrator group guid (Rock Administrators)
+        /// RSR - Rock Administration
         /// </summary>
         public const string GROUP_ADMINISTRATORS= "628C51A8-4613-43ED-A18D-4A6FB999273E";
 
@@ -90,5 +90,10 @@ namespace Rock.SystemGuid
         /// Group of people who are responsible for the safety and security of staff and members
         /// </summary>
         public const string GROUP_SAFETY_SECURITY = "32E80B6C-A1EB-40FD-BEC3-E11DE8FF75AB";
+
+        /// <summary>
+        /// WEB - Admistration
+        /// </summary>
+        public const string GROUP_WEB_ADMINISTRATORS = "1918E74F-C00D-4DDD-94C4-2E7209CE12C3";
     }
 }

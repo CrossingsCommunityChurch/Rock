@@ -28,10 +28,12 @@ using Rock.Data;
 using Rock.Financial;
 using Rock.Lava;
 using Rock.Model;
+using Rock.Utility;
 using Rock.Tasks;
 using Rock.Web.Cache;
 using Rock.Web.UI;
 using Rock.Web.UI.Controls;
+using Rock.Transactions;
 
 namespace RockWeb.Blocks.Finance
 {
@@ -575,7 +577,7 @@ mission. We are so grateful for your commitment.</p>
                         {% if financialPaymentDetail.CurrencyTypeValue.Value != 'Credit Card' %}
                             {{ financialPaymentDetail.CurrencyTypeValue.Value }}
                         {% else %}
-                            {{ financialPaymentDetail.CreditCardTypeValue.Value }} {{ financialPaymentDetail.AccountNumberMasked }}
+                            {{ financialPaymentDetail.CreditCardTypeValue.Value }} {{ financialPaymentDetail.AccountNumberMasked }} Expires: {{ financialPaymentDetail.ExpirationDate }}
                         {% endif %}
                     </span>
                     <br />
@@ -1250,8 +1252,8 @@ mission. We are so grateful for your commitment.</p>
                 }
 
                 cbGiveNowCoverTheFee.Text = string.Format(
-                    "Optionally add {0}<span class='js-coverthefee-checkbox-fee-amount-text'></span> to cover processing fee.",
-                    GlobalAttributesCache.Value( "CurrencySymbol" ) );
+                    "Optionally add {0}<span class='js-coverthefee-checkbox-fee-amount-text' decimal-places='{1}'></span> to cover processing fee.",
+                    RockCurrencyCodeInfo.GetCurrencySymbol(), RockCurrencyCodeInfo.GetDecimalPlaces() );
             }
 
             pnlGiveNowCoverTheFee.Visible = true;
@@ -1669,13 +1671,17 @@ mission. We are so grateful for your commitment.</p>
             savedAccount.FinancialPaymentDetail.AccountNumberMasked = paymentDetail.AccountNumberMasked;
             savedAccount.FinancialPaymentDetail.CurrencyTypeValueId = paymentDetail.CurrencyTypeValueId;
             savedAccount.FinancialPaymentDetail.CreditCardTypeValueId = paymentDetail.CreditCardTypeValueId;
-            savedAccount.FinancialPaymentDetail.NameOnCardEncrypted = paymentDetail.NameOnCardEncrypted;
-            savedAccount.FinancialPaymentDetail.ExpirationMonthEncrypted = paymentDetail.ExpirationMonthEncrypted;
-            savedAccount.FinancialPaymentDetail.ExpirationYearEncrypted = paymentDetail.ExpirationYearEncrypted;
+            savedAccount.FinancialPaymentDetail.NameOnCard = paymentDetail.NameOnCard;
+            savedAccount.FinancialPaymentDetail.ExpirationMonth = paymentDetail.ExpirationMonth;
+            savedAccount.FinancialPaymentDetail.ExpirationYear = paymentDetail.ExpirationYear;
             savedAccount.FinancialPaymentDetail.BillingLocationId = paymentDetail.BillingLocationId;
 
             var savedAccountService = new FinancialPersonSavedAccountService( rockContext );
             savedAccountService.Add( savedAccount );
+            rockContext.SaveChanges();
+
+            // If we created a new saved account, update the transaction to say it that is used this saved account.
+            paymentDetail.FinancialPersonSavedAccountId = savedAccount.Id;
             rockContext.SaveChanges();
 
             cbSaveAccount.Visible = false;
@@ -2428,8 +2434,7 @@ mission. We are so grateful for your commitment.</p>
             {
                 a.Id,
                 a.Name,
-                a.FinancialPaymentDetail.CurrencyTypeValueId,
-                a.FinancialPaymentDetail.AccountNumberMasked,
+                a.FinancialPaymentDetail
             } ).ToList();
 
             // Only show the SavedAccount picker if there are saved accounts. If there aren't any (or if they choose 'Use a different payment method'), a later step will prompt them to enter Payment Info (CC/ACH fields)
@@ -2439,7 +2444,16 @@ mission. We are so grateful for your commitment.</p>
             ddlPersonSavedAccount.Items.Clear();
             foreach ( var personSavedAccount in personSavedAccountList )
             {
-                var displayName = string.Format( "{0} ({1})", personSavedAccount.Name, personSavedAccount.AccountNumberMasked );
+                string displayName;
+                if ( personSavedAccount.FinancialPaymentDetail.ExpirationDate.IsNotNullOrWhiteSpace() )
+                {
+                    displayName = $"{personSavedAccount.Name} ({personSavedAccount.FinancialPaymentDetail.AccountNumberMasked} Expires: {personSavedAccount.FinancialPaymentDetail.ExpirationDate})";
+                }
+                else
+                {
+                    displayName = $"{personSavedAccount.Name} ({personSavedAccount.FinancialPaymentDetail.AccountNumberMasked}";
+                }
+
                 ddlPersonSavedAccount.Items.Add( new ListItem( displayName, personSavedAccount.Id.ToString() ) );
             }
 
@@ -3239,12 +3253,9 @@ mission. We are so grateful for your commitment.</p>
             if ( receiptEmail.HasValue )
             {
                 // Queue a transaction to send receipts
-                var processSendPaymentReceiptEmailsMsg = new ProcessSendPaymentReceiptEmails.Message
-                {
-                    SystemEmailGuid = receiptEmail.Value,
-                    TransactionId = transactionId
-                };
-                processSendPaymentReceiptEmailsMsg.Send();
+                var transactionIds = new List<int> { transactionId };
+                var sendPaymentReceiptsTxn = new SendPaymentReceipts( receiptEmail.Value, transactionIds );
+                RockQueue.TransactionQueue.Enqueue( sendPaymentReceiptsTxn );
             }
         }
 
@@ -3259,6 +3270,20 @@ mission. We are so grateful for your commitment.</p>
         /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
         protected void btnGiveNow_Click( object sender, EventArgs e )
         {
+            if ( tbRockFullName_AmountEntry.Text.IsNotNullOrWhiteSpace() )
+            {
+                /* 03/22/2021 MDP
+
+                see https://app.asana.com/0/1121505495628584/1200018171012738/f on why this is done
+
+                */
+
+                nbRockFullName_AmountEntry.Visible = true;
+                nbRockFullName_AmountEntry.NotificationBoxType = NotificationBoxType.Validation;
+                nbRockFullName_AmountEntry.Text = "Invalid Form Value";
+                return;
+            }
+
             var giftTerm = this.GetAttributeValue( AttributeKey.GiftTerm );
 
             nbProcessTransactionError.Visible = false;
@@ -3386,6 +3411,20 @@ mission. We are so grateful for your commitment.</p>
         /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
         protected void btnPersonalInformationNext_Click( object sender, EventArgs e )
         {
+            if ( tbRockFullName_PersonalInformation.Text.IsNotNullOrWhiteSpace() )
+            {
+                /* 03/22/2021 MDP
+
+                see https://app.asana.com/0/1121505495628584/1200018171012738/f on why this is done
+
+                */
+
+                nbRockFullName_PersonalInformation.Visible = true;
+                nbRockFullName_PersonalInformation.NotificationBoxType = NotificationBoxType.Validation;
+                nbRockFullName_PersonalInformation.Text = "Invalid Form Value";
+                return;
+            }
+
             ProcessTransaction();
         }
 

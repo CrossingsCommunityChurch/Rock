@@ -138,6 +138,7 @@ namespace RockWeb.Blocks.GroupScheduling
             Page.Response.Cache.SetNoStore();
 
             RockPage.AddScriptLink( "~/Scripts/dragula.min.js", true );
+            RockPage.AddScriptLink( "~/Scripts/Rock/Controls/GroupScheduler/groupScheduler.js" );
             RockPage.AddCSSLink( "~/Themes/Rock/Styles/group-scheduler.css", true );
 
             this.AddConfigurationUpdateTrigger( upnlContent );
@@ -450,7 +451,6 @@ btnCopyToClipboard.ClientID );
                 }
 
                 pickerGroupIds = pageParameterGroupIds;
-                gpPickedGroups.Enabled = false;
                 btnShowChildGroups.Enabled = false;
                 showChildGroups = this.PageParameter( PageParameterKey.ShowChildGroups ).AsBoolean();
             }
@@ -841,7 +841,7 @@ btnCopyToClipboard.ClientID );
                 pageReference.Parameters.AddOrReplace( pagePageParameterKey, this.GetBlockUserPreference( pagePageParameterKey ) );
             }
 
-            Uri requestUri = new Uri( Request.Url.ToString() );
+            Uri requestUri = new Uri( Request.UrlProxySafe().ToString() );
             var linkUrl = requestUri.GetLeftPart( UriPartial.Authority ) + pageReference.BuildUrl();
             btnCopyToClipboard.Attributes["data-clipboard-text"] = linkUrl;
             btnCopyToClipboard.Disabled = false;

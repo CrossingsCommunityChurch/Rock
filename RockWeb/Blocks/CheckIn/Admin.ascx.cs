@@ -19,7 +19,6 @@ using System.ComponentModel;
 using System.Data.Entity;
 using System.IO;
 using System.Linq;
-using System.Web;
 using System.Web.UI;
 using System.Web.UI.WebControls;
 using Rock;
@@ -74,7 +73,10 @@ namespace RockWeb.Blocks.CheckIn
     {
         #region Attribute Keys
 
-        private static class AttributeKey
+        /* 2021-05/07 ETD
+         * Use new here because the parent CheckInBlock also had inherited class AttributeKey.
+         */
+        private new static class AttributeKey
         {
             public const string AllowManualSetup = "AllowManualSetup";
             public const string EnableLocationSharing = "EnableLocationSharing";
@@ -100,10 +102,13 @@ namespace RockWeb.Blocks.CheckIn
             public const string KioskId = "KioskId";
             public const string CheckinConfigId = "CheckinConfigId";
             public const string GroupTypeIds = "GroupTypeIds";
+            public const string GroupIds = "GroupIds";
             public const string FamilyId = "FamilyId";
         }
 
         #endregion PageParameterKeys
+
+        protected override bool LoadUnencryptedLocalDeviceConfig { get { return true; } }
 
         /// <summary>
         /// Raises the <see cref="E:System.Web.UI.Control.Load" /> event.
@@ -211,7 +216,7 @@ namespace RockWeb.Blocks.CheckIn
                 ddlKiosk.DataSource = new DeviceService( rockContext )
                     .Queryable().AsNoTracking()
                     .Where( d => d.DeviceTypeValueId == kioskDeviceTypeValueId
-                    && d.IsActive)
+                    && d.IsActive )
                     .OrderBy( d => d.Name )
                     .Select( d => new
                     {
@@ -238,44 +243,81 @@ namespace RockWeb.Blocks.CheckIn
             var urlKioskId = PageParameter( PageParameterKey.KioskId ).AsIntegerOrNull();
             var urlCheckinTypeId = PageParameter( PageParameterKey.CheckinConfigId ).AsIntegerOrNull();
             var urlGroupTypeIds = ( PageParameter( PageParameterKey.GroupTypeIds ) ?? string.Empty ).SplitDelimitedValues().AsIntegerList();
+            var urlGroupIds = ( PageParameter( PageParameterKey.GroupIds ) ?? string.Empty ).SplitDelimitedValues().AsIntegerList();
 
-            /* 2020-09-10 MDP
-             If both PageParameterKey.CheckinConfigId and PageParameterKey.GroupTypeIds are specified, set the local device configuration from those.
-             Then if PageParameterKey.KioskId is also specified set the KioskId from that, otherwise determine it from the IP Address
-             see https://app.asana.com/0/1121505495628584/1191546188992881/f
-             
+            // Rock check-in will set configuration using Group IDs or GroupType IDs but not both. This is to remove the possiblilty of a Group/GroupType mismatch.
+            // Check for groups first since the GroupTypes of those groups will overwrite the URL provided GroupType IDs.
+            if ( urlGroupIds.Any() )
+            {
+                // Determine the GroupType(s) from the provided Group IDs and add them to the configuration, replacing explicit ones if they were provided
+                urlGroupTypeIds = new GroupService( new RockContext() ).Queryable().Where( g => urlGroupIds.Contains( g.Id ) ).Select( g => g.GroupTypeId ).Distinct().ToList();
+                this.LocalDeviceConfig.CurrentGroupIds = urlGroupIds;
+            }
+
+            /*
+                2021-04-30 MSB
+                There is a route that supports not passing in the check-in type id. If that route is used
+                we need to try to get the check-in type id from the selected group types.
+            */
+            if ( urlKioskId.HasValue && urlGroupTypeIds.Any() && !urlCheckinTypeId.HasValue )
+            {
+                // If Kiosk and GroupTypes were passed, but not a checkin type, try to calculate it from the group types.
+                foreach ( int groupTypeId in urlGroupTypeIds )
+                {
+                    var checkinType = GetCheckinType( groupTypeId );
+                    if ( checkinType != null )
+                    {
+                        urlCheckinTypeId = checkinType.Id;
+                        break;
+                    }
+                }
+            }
+
+            // Need to display the admin UI if Rock didn't find the check-in type
+            if ( !urlCheckinTypeId.HasValue )
+            {
+                return false;
+            }
+
+            this.LocalDeviceConfig.CurrentCheckinTypeId = urlCheckinTypeId;
+
+             /*
+                 2020-09-10 MDP
+                 If both PageParameterKey.CheckinConfigId and PageParameterKey.GroupTypeIds are specified, set the local device configuration from those.
+                 Then if PageParameterKey.KioskId is also specified set the KioskId from that, otherwise determine it from the IP Address
+                 see https://app.asana.com/0/1121505495628584/1191546188992881/f
              */
 
-            if ( urlCheckinTypeId.HasValue && urlGroupTypeIds.Any() )
+            if ( urlGroupTypeIds.Any() )
             {
-                // both PageParameterKey.CheckinConfigId and PageParameterKey.GroupTypeIds are specified in the url, so set localDeviceConfig from that
-                this.LocalDeviceConfig.CurrentCheckinTypeId = urlCheckinTypeId;
                 this.LocalDeviceConfig.CurrentGroupTypeIds = urlGroupTypeIds;
 
-                if ( urlKioskId.HasValue )
+                if ( !urlKioskId.HasValue )
                 {
-                    this.LocalDeviceConfig.CurrentKioskId = urlKioskId;
-                }
-                else
-                {
-                    // if both  CheckinConfigId and GroupTypeIds where specified in the URL, but device wasn't,
-                    // we'll attempt to get the Kiosk from IPAddress
-                    // if we find it, we are successfully configured from that
-                    // but if we can't find the kiosk, we'll return false, stay on this page, and the configuration will need to be set manually
+                    // If the kiosk device ID wasn't provided in the URL attempt to get it using the IPAddress.
+                    // If the kiosk device ID cannot be determined return false so the configuration can be set manually.
                     var device = GetKioskFromIpOrName();
                     if ( device == null )
                     {
                         return false;
                     }
+
+                    urlKioskId = device.Id;
                 }
 
-                // If the local device is fully configured return true
-                if ( this.LocalDeviceConfig.IsConfigured() )
-                {
-                    // Since we changed the config, save state
-                    SaveState();
-                    return true;
-                }
+                this.LocalDeviceConfig.CurrentKioskId = urlKioskId;
+            }
+
+            // If the local device is fully configured return true
+            if ( this.LocalDeviceConfig.IsConfigured() )
+            {
+                // These need to be cleared so they can be correctly reloaded with the new data.
+                CurrentCheckInState = null;
+                CurrentWorkflow = null;
+
+                // Since we changed the config, save state
+                SaveState();
+                return true;
             }
 
             return false;
@@ -535,8 +577,7 @@ tryGeoLocation();
             if ( LocalDeviceConfig.CurrentTheme != theme )
             {
                 LocalDeviceConfig.CurrentTheme = ddlTheme.SelectedValue;
-                var localDeviceConfigValue = this.LocalDeviceConfig.ToJson( Newtonsoft.Json.Formatting.None );
-                Rock.Web.UI.RockPage.AddOrUpdateCookie( CheckInCookieKey.LocalDeviceConfig, localDeviceConfigValue, RockDateTime.Now.AddYears( 1 ) );
+                LocalDeviceConfig.SaveToCookie();
             }
 
             if ( !RockPage.Site.Theme.Equals( LocalDeviceConfig.CurrentTheme, StringComparison.OrdinalIgnoreCase ) )

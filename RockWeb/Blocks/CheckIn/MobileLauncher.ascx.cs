@@ -116,7 +116,7 @@ namespace RockWeb.Blocks.CheckIn
         "Identify you Prompt Template <span class='tip tip-lava'></span>",
         Key = AttributeKey.IdentifyYouPromptTemplate,
         Category = "Text",
-        DefaultValue = "Before we proceed we'll need you to identify you for check-in.",
+        DefaultValue = "Before we proceed we'll need to identify you for check-in.",
         EditorHeight = 100,
         EditorMode = Rock.Web.UI.Controls.CodeEditorMode.Lava,
         IsRequired = true,
@@ -197,7 +197,10 @@ namespace RockWeb.Blocks.CheckIn
     {
         #region Attribute Keys
 
-        private static class AttributeKey
+        /* 2021-05/07 ETD
+         * Use new here because the parent CheckInBlockMultiPerson also has inherited class AttributeKey.
+         */
+        private new static class AttributeKey
         {
             public const string DeviceIdList = "DeviceIdList";
 
@@ -460,7 +463,7 @@ namespace RockWeb.Blocks.CheckIn
             // we want the SuccessBlock to generate a QR Code that contains the AttendanceSession(s)
             LocalDeviceConfig.GenerateQRCodeForAttendanceSessions = true;
 
-            RockPage.AddOrUpdateCookie( CheckInCookieKey.LocalDeviceConfig, LocalDeviceConfig.ToJson( Newtonsoft.Json.Formatting.None ), RockDateTime.Now.AddYears( 1 ) );
+            LocalDeviceConfig.SaveToCookie();
 
             // create new checkin state since we are starting a new checkin sessions
             this.CurrentCheckInState = new CheckInState( this.LocalDeviceConfig );
@@ -481,7 +484,7 @@ namespace RockWeb.Blocks.CheckIn
             if ( LocalDeviceConfig.CurrentTheme != theme )
             {
                 LocalDeviceConfig.CurrentTheme = theme;
-                RockPage.AddOrUpdateCookie( CheckInCookieKey.LocalDeviceConfig, LocalDeviceConfig.ToJson( Newtonsoft.Json.Formatting.None ), RockDateTime.Now.AddYears( 1 ) );
+                LocalDeviceConfig.SaveToCookie();
             }
 
             if ( !RockPage.Site.Theme.Equals( LocalDeviceConfig.CurrentTheme, StringComparison.OrdinalIgnoreCase ) )
@@ -579,7 +582,7 @@ namespace RockWeb.Blocks.CheckIn
             LocalDeviceConfig.CurrentKioskId = device.Id;
             LocalDeviceConfig.AllowCheckout = false;
 
-            RockPage.AddOrUpdateCookie( CheckInCookieKey.LocalDeviceConfig, LocalDeviceConfig.ToJson( Newtonsoft.Json.Formatting.None ), RockDateTime.Now.AddYears( 1 ) );
+            LocalDeviceConfig.SaveToCookie();
 
             // create new checkin state since we are starting a new checkin sessions
             this.CurrentCheckInState = new CheckInState( this.LocalDeviceConfig );

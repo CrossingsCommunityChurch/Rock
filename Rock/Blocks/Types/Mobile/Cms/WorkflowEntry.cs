@@ -45,7 +45,7 @@ namespace Rock.Blocks.Types.Mobile.Cms
 
     [WorkflowTypeField( "Workflow Type",
         Description = "The type of workflow to launch when viewing this.",
-        IsRequired = true,
+        IsRequired = false,
         Key = AttributeKeys.WorkflowType,
         Order = 0 )]
 
@@ -155,6 +155,14 @@ namespace Rock.Blocks.Types.Mobile.Cms
         /// </value>
         protected string ScanAttribute => GetAttributeValue( AttributeKeys.ScanAttribute );
 
+        /// <summary>
+        /// Gets the workflow type unique identifier block setting.
+        /// </summary>
+        /// <value>
+        /// The workflow type unique identifier block setting.
+        /// </value>
+        protected Guid? WorkflowType => GetAttributeValue( AttributeKeys.WorkflowType ).AsGuidOrNull();
+
         #endregion
 
         #region IRockMobileBlockType Implementation
@@ -207,7 +215,21 @@ namespace Rock.Blocks.Types.Mobile.Cms
             }
             else
             {
-                var workflowType = WorkflowTypeCache.Get( GetAttributeValue( AttributeKeys.WorkflowType ).AsGuid() );
+                WorkflowTypeCache workflowType = null;
+
+                if ( WorkflowType.HasValue )
+                {
+                    workflowType = WorkflowTypeCache.Get( WorkflowType.Value );
+                }
+                else if ( RequestContext.PageParameters.ContainsKey( "WorkflowTypeGuid" ) )
+                {
+                    workflowType = WorkflowTypeCache.Get( RequestContext.PageParameters["WorkflowTypeGuid"].AsGuid() );
+                }
+
+                if ( workflowType == null )
+                {
+                    return null;
+                }
 
                 return Model.Workflow.Activate( workflowType, $"New {workflowType.Name}" );
             }
@@ -437,7 +459,7 @@ namespace Rock.Blocks.Types.Mobile.Cms
 
             if ( form.PersonEntryBirthdateEntryOption != WorkflowActionFormPersonEntryOption.Hidden )
             {
-                person.SetBirthDate( mobilePerson.BirthDate );
+                person.SetBirthDate( mobilePerson.BirthDate?.DateTime );
             }
 
             if ( form.PersonEntryGenderEntryOption != WorkflowActionFormPersonEntryOption.Hidden )
@@ -475,7 +497,7 @@ namespace Rock.Blocks.Types.Mobile.Cms
             var personMatchQuery = new PersonService.PersonMatchQuery( personValues.FirstName, personValues.LastName, personValues.Email, personValues.MobilePhone )
             {
                 Gender = form.PersonEntryGenderEntryOption != WorkflowActionFormPersonEntryOption.Hidden ? ( Rock.Model.Gender? ) personValues.Gender.ToNative() : null,
-                BirthDate = form.PersonEntryBirthdateEntryOption != WorkflowActionFormPersonEntryOption.Hidden ? personValues.BirthDate : null
+                BirthDate = form.PersonEntryBirthdateEntryOption != WorkflowActionFormPersonEntryOption.Hidden ? personValues.BirthDate?.DateTime : null
             };
 
             bool updatePrimaryEmail = false;
@@ -796,6 +818,16 @@ namespace Rock.Blocks.Types.Mobile.Cms
                 }
             }
 
+            // If the LastProcessedDateTime is equal to RockDateTime.Now we need to pause for a bit so the workflow will actually process here.
+            // The resolution of System.DateTime.UTCNow is between .5 and 15 ms which can cause the workflow processing to not properly pick up
+            // where it left off.
+            // Without this you might see random failures of workflows to save automatically.
+            // https://docs.microsoft.com/en-us/dotnet/api/system.datetime.utcnow?view=netframework-4.7#remarks
+            while ( workflow.LastProcessedDateTime == RockDateTime.Now )
+            {
+                System.Threading.Thread.Sleep( 1 );
+            }
+
             return responseText;
         }
 
@@ -885,8 +917,9 @@ namespace Rock.Blocks.Types.Mobile.Cms
         /// <param name="rockContext">The rock context.</param>
         /// <param name="action">The action currently being processed.</param>
         /// <param name="currentPersonId">The current person identifier.</param>
+        /// <param name="mergeFields">The merge fields to use for Lava parsing.</param>
         /// <returns>The object that will be included in the response that details the person entry part of the form.</returns>
-        private static WorkflowFormPersonEntry GetPersonEntryDetails( RockContext rockContext, WorkflowAction action, int? currentPersonId )
+        private static WorkflowFormPersonEntry GetPersonEntryDetails( RockContext rockContext, WorkflowAction action, int? currentPersonId, IDictionary<string, object> mergeFields )
         {
             var form = action.ActionTypeCache.WorkflowForm;
 
@@ -938,8 +971,8 @@ namespace Rock.Blocks.Types.Mobile.Cms
 
             return new WorkflowFormPersonEntry
             {
-                PreHtml = form.PersonEntryPreHtml,
-                PostHtml = form.PersonEntryPostHtml,
+                PreHtml = form.PersonEntryPreHtml.ResolveMergeFields( mergeFields ),
+                PostHtml = form.PersonEntryPostHtml.ResolveMergeFields( mergeFields ),
                 CampusIsVisible = form.PersonEntryCampusIsVisible,
                 SpouseEntryOption = GetVisibility( form.PersonEntrySpouseEntryOption ),
                 GenderEntryOption = GetVisibility( form.PersonEntryGenderEntryOption ),
@@ -1004,6 +1037,18 @@ namespace Rock.Blocks.Types.Mobile.Cms
             var workflow = LoadWorkflow( workflowGuid, rockContext );
             var currentPerson = GetCurrentPerson();
 
+            if ( workflow == null )
+            {
+                return new WorkflowForm
+                {
+                    Message = new WorkflowFormMessage
+                    {
+                        Type = WorkflowFormMessageType.Error,
+                        Content = "No Workflow Type has been set."
+                    }
+                };
+            }
+
             //
             // Set initial workflow attribute values.
             //
@@ -1060,12 +1105,18 @@ namespace Rock.Blocks.Types.Mobile.Cms
             var activity = action.Activity;
             var form = action.ActionTypeCache.WorkflowForm;
 
+            // Prepare the merge fields for the HTML content.
+            var mergeFields = RequestContext.GetCommonMergeFields( currentPerson );
+            mergeFields.Add( "Action", action );
+            mergeFields.Add( "Activity", activity );
+            mergeFields.Add( "Workflow", workflow );
+
             var mobileForm = new WorkflowForm
             {
                 WorkflowGuid = workflow.Id != 0 ? ( Guid? ) workflow.Guid : null,
-                HeaderHtml = form.Header,
-                FooterHtml = form.Footer,
-                PersonEntry = GetPersonEntryDetails( rockContext, action, RequestContext.CurrentPerson?.Id )
+                HeaderHtml = form.Header.ResolveMergeFields( mergeFields ),
+                FooterHtml = form.Footer.ResolveMergeFields( mergeFields ),
+                PersonEntry = GetPersonEntryDetails( rockContext, action, RequestContext.CurrentPerson?.Id, mergeFields )
             };
 
             //

@@ -242,6 +242,22 @@ namespace Rock.Client.Enums
 
     /// <summary>
     /// </summary>
+    public enum ConnectionWorkflowTriggerType
+    {
+        RequestStarted = 0x0,
+        RequestConnected = 0x1,
+        StatusChanged = 0x2,
+        StateChanged = 0x3,
+        ActivityAdded = 0x4,
+        PlacementGroupAssigned = 0x5,
+        Manual = 0x6,
+        RequestTransferred = 0x7,
+        RequestAssigned = 0x8,
+        FutureFollowupDateReached = 0x9,
+    }
+
+    /// <summary>
+    /// </summary>
     public enum ContentChannelDateType
     {
         SingleDate = 0x1,
@@ -293,6 +309,45 @@ namespace Rock.Client.Enums
         GroupAny = 0x2,
         GroupAllFalse = 0x3,
         GroupAnyFalse = 0x4,
+    }
+
+    /// <summary>
+    /// </summary>
+    public enum FinancialScheduledTransactionStatus
+    {
+        Active = 0x0,
+        Completed = 0x1,
+        Paused = 0x2,
+        Canceled = 0x3,
+        Failed = 0x4,
+        PastDue = 0x5,
+    }
+
+    /// <summary>
+    /// </summary>
+    public enum FinancialStatementIndividualSaveOptionsSaveFor
+    {
+        AllActiveAdultsInGivingGroup = 0x0,
+        PrimaryGiver = 0x1,
+        AllActiveFamilyMembersInGivingGroup = 0x2,
+    }
+
+    /// <summary>
+    /// </summary>
+    public enum FinancialStatementOrderBy
+    {
+        PostalCode = 0x0,
+        LastName = 0x1,
+        PageCount = 0x2,
+    }
+
+    /// <summary>
+    /// </summary>
+    public enum FinancialStatementTemplatePDFSettingsPaperSize
+    {
+        Letter = 0x0,
+        Legal = 0x1,
+        A4 = 0x2,
     }
 
     /// <summary>
@@ -408,6 +463,14 @@ namespace Rock.Client.Enums
         Merge = 0x9,
         AddedToGroup = 0xa,
         RemovedFromGroup = 0xb,
+        ConnectionRequestAdded = 0xc,
+        ConnectionRequestConnected = 0xd,
+        ConnectionRequestStatusModify = 0xe,
+        ConnectionRequestStateModify = 0xf,
+        ConnectionRequestDelete = 0x10,
+        StepAdded = 0x11,
+        StepStatusModify = 0x12,
+        StepCampusModify = 0x13,
     }
 
     /// <summary>
@@ -531,13 +594,6 @@ namespace Rock.Client.Enums
     {
         Agreement = 0x0,
         Frequency = 0x1,
-    }
-
-    /// <summary>
-    /// </summary>
-    public enum PaymentRedirectVendor
-    {
-        Pushpay = 0x1,
     }
 
     /// <summary>
@@ -769,6 +825,15 @@ namespace Rock.Client.Enums
 
     /// <summary>
     /// </summary>
+    public enum SessionStatus
+    {
+        Transient = 0x0,
+        PaymentPending = 0x1,
+        Completed = 0x2,
+    }
+
+    /// <summary>
+    /// </summary>
     public enum SeverityLevel
     {
         Info = 0x0,
@@ -793,6 +858,14 @@ namespace Rock.Client.Enums
         Signed = 0x2,
         Cancelled = 0x3,
         Expired = 0x4,
+    }
+
+    /// <summary>
+    /// </summary>
+    public enum SignatureType
+    {
+        Drawn = 0x0,
+        Typed = 0x1,
     }
 
     /// <summary>

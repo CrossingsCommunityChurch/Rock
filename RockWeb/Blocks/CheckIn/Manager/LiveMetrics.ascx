@@ -54,7 +54,7 @@
         var data = {
             labels: chartLabel,
             datasets: [{
-                fill: false,
+                fill: true,
                 backgroundColor: '#059BFF',
                 borderColor: '#059BFF',
                 borderWidth: 0,
@@ -113,27 +113,27 @@
             </div>
 
             <div class="row">
-                <asp:Panel ID="pnlCheckedIn" runat="server" CssClass="col-lg-4">
+                <asp:Panel ID="pnlCheckedInCount" runat="server" CssClass="col-lg-4">
                     <div class="panel">
                         <div class="panel-body">
-                            <span class="h3 font-weight-bolder"><asp:Literal ID="lCheckedInPeople" runat="server" /></span>
-                            <span class="d-block small text-muted font-weight-bold">Checked-In People</span>
+                            <span class="h3 font-weight-bolder"><asp:Literal ID="lCheckedInPeopleCount" runat="server" /></span>
+                            <span class="d-block small text-muted font-weight-bold">Checked-in</span>
                         </div>
                     </div>
                 </asp:Panel>
-                <asp:Panel ID="pnlPending" runat="server" CssClass="col-lg-4">
+                <asp:Panel ID="pnlPresentCount" runat="server" CssClass="col-lg-4">
                     <div class="panel">
                         <div class="panel-body">
-                            <span class="h3 font-weight-bolder"><asp:Literal ID="lPendingPeople" runat="server" /></span>
-                            <span class="d-block small text-muted font-weight-bold">Pending People</span>
+                            <span class="h3 font-weight-bolder"><asp:Literal ID="lPresentPeopleCount" runat="server" /></span>
+                            <span class="d-block small text-muted font-weight-bold">Present</span>
                         </div>
                     </div>
                 </asp:Panel>
-                <asp:Panel ID="pnlCheckedOut" runat="server" CssClass="col-lg-4">
+                <asp:Panel ID="pnlTotalCount" runat="server" CssClass="col-lg-4">
                     <div class="panel">
                         <div class="panel-body">
-                            <span class="h3 font-weight-bolder"><asp:Literal ID="lCheckedOutPeople" runat="server" /></span>
-                            <span class="d-block small text-muted font-weight-bold">Checked-Out People</span>
+                            <span class="h3 font-weight-bolder"><asp:Literal ID="lTotalPeopleCount" runat="server" /></span>
+                            <span class="d-block small text-muted font-weight-bold">Total</span>
                         </div>
                     </div>
                 </asp:Panel>
@@ -184,7 +184,7 @@
                                 <div class="d-flex align-items-center">
                                     <asp:Literal ID="imgPerson" runat="server" />
                                     <div>
-                                        <span class="js-checkin-person-name"><%# Eval("Name") %></span><asp:Literal ID="lAge" runat="server" />
+                                        <span class="checkin-person-name js-checkin-person-name"><%# Eval("Name") %></span><asp:Literal ID="lAge" runat="server" />
                                         <%# Eval("ScheduleGroupNames") %>
                                     </div>
                                 </div>
