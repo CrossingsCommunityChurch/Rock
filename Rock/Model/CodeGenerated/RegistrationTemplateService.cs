@@ -23,7 +23,10 @@
 using System;
 using System.Linq;
 
+using Rock.Attribute;
 using Rock.Data;
+using Rock.ViewModel;
+using Rock.Web.Cache;
 
 namespace Rock.Model
 {
@@ -51,15 +54,107 @@ namespace Rock.Model
         public bool CanDelete( RegistrationTemplate item, out string errorMessage )
         {
             errorMessage = string.Empty;
- 
+
             if ( new Service<RegistrationTemplatePlacement>( Context ).Queryable().Any( a => a.RegistrationTemplateId == item.Id ) )
             {
                 errorMessage = string.Format( "This {0} is assigned to a {1}.", RegistrationTemplate.FriendlyTypeName, RegistrationTemplatePlacement.FriendlyTypeName );
                 return false;
-            }  
+            }
             return true;
         }
     }
+
+    /// <summary>
+    /// RegistrationTemplate View Model Helper
+    /// </summary>
+    [DefaultViewModelHelper( typeof( RegistrationTemplate ) )]
+    public partial class RegistrationTemplateViewModelHelper : ViewModelHelper<RegistrationTemplate, Rock.ViewModel.RegistrationTemplateViewModel>
+    {
+        /// <summary>
+        /// Converts the model to a view model.
+        /// </summary>
+        /// <param name="model">The entity.</param>
+        /// <param name="currentPerson">The current person.</param>
+        /// <param name="loadAttributes">if set to <c>true</c> [load attributes].</param>
+        /// <returns></returns>
+        public override Rock.ViewModel.RegistrationTemplateViewModel CreateViewModel( RegistrationTemplate model, Person currentPerson = null, bool loadAttributes = true )
+        {
+            if ( model == null )
+            {
+                return default;
+            }
+
+            var viewModel = new Rock.ViewModel.RegistrationTemplateViewModel
+            {
+                Id = model.Id,
+                Guid = model.Guid,
+                AddPersonNote = model.AddPersonNote,
+                AllowExternalRegistrationUpdates = model.AllowExternalRegistrationUpdates,
+                AllowMultipleRegistrants = model.AllowMultipleRegistrants,
+                BatchNamePrefix = model.BatchNamePrefix,
+                CategoryId = model.CategoryId,
+                ConfirmationEmailTemplate = model.ConfirmationEmailTemplate,
+                ConfirmationFromEmail = model.ConfirmationFromEmail,
+                ConfirmationFromName = model.ConfirmationFromName,
+                ConfirmationSubject = model.ConfirmationSubject,
+                Cost = model.Cost,
+                DefaultPayment = model.DefaultPayment,
+                Description = model.Description,
+                DiscountCodeTerm = model.DiscountCodeTerm,
+                FeeTerm = model.FeeTerm,
+                FinancialGatewayId = model.FinancialGatewayId,
+                GroupMemberRoleId = model.GroupMemberRoleId,
+                GroupMemberStatus = ( int ) model.GroupMemberStatus,
+                GroupTypeId = model.GroupTypeId,
+                IsActive = model.IsActive,
+                IsRegistrationMeteringEnabled = model.IsRegistrationMeteringEnabled,
+                LoginRequired = model.LoginRequired,
+                MaxRegistrants = model.MaxRegistrants,
+                MinimumInitialPayment = model.MinimumInitialPayment,
+                Name = model.Name,
+                Notify = ( int ) model.Notify,
+                PaymentReminderEmailTemplate = model.PaymentReminderEmailTemplate,
+                PaymentReminderFromEmail = model.PaymentReminderFromEmail,
+                PaymentReminderFromName = model.PaymentReminderFromName,
+                PaymentReminderSubject = model.PaymentReminderSubject,
+                PaymentReminderTimeSpan = model.PaymentReminderTimeSpan,
+                RegistrantsSameFamily = ( int ) model.RegistrantsSameFamily,
+                RegistrantTerm = model.RegistrantTerm,
+                RegistrantWorkflowTypeId = model.RegistrantWorkflowTypeId,
+                RegistrarOption = ( int ) model.RegistrarOption,
+                RegistrationAttributeTitleEnd = model.RegistrationAttributeTitleEnd,
+                RegistrationAttributeTitleStart = model.RegistrationAttributeTitleStart,
+                RegistrationInstructions = model.RegistrationInstructions,
+                RegistrationTerm = model.RegistrationTerm,
+                RegistrationWorkflowTypeId = model.RegistrationWorkflowTypeId,
+                ReminderEmailTemplate = model.ReminderEmailTemplate,
+                ReminderFromEmail = model.ReminderFromEmail,
+                ReminderFromName = model.ReminderFromName,
+                ReminderSubject = model.ReminderSubject,
+                RequestEntryName = model.RequestEntryName,
+                RequiredSignatureDocumentTemplateId = model.RequiredSignatureDocumentTemplateId,
+                SetCostOnInstance = model.SetCostOnInstance,
+                ShowCurrentFamilyMembers = model.ShowCurrentFamilyMembers,
+                SignatureDocumentAction = ( int ) model.SignatureDocumentAction,
+                SuccessText = model.SuccessText,
+                SuccessTitle = model.SuccessTitle,
+                WaitListEnabled = model.WaitListEnabled,
+                WaitListTransitionEmailTemplate = model.WaitListTransitionEmailTemplate,
+                WaitListTransitionFromEmail = model.WaitListTransitionFromEmail,
+                WaitListTransitionFromName = model.WaitListTransitionFromName,
+                WaitListTransitionSubject = model.WaitListTransitionSubject,
+                CreatedDateTime = model.CreatedDateTime,
+                ModifiedDateTime = model.ModifiedDateTime,
+                CreatedByPersonAliasId = model.CreatedByPersonAliasId,
+                ModifiedByPersonAliasId = model.ModifiedByPersonAliasId,
+            };
+
+            AddAttributesToViewModel( model, viewModel, currentPerson, loadAttributes );
+            ApplyAdditionalPropertiesAndSecurityToViewModel( model, viewModel, currentPerson, loadAttributes );
+            return viewModel;
+        }
+    }
+
 
     /// <summary>
     /// Generated Extension Methods
@@ -141,12 +236,12 @@ namespace Rock.Model
             target.GroupMemberStatus = source.GroupMemberStatus;
             target.GroupTypeId = source.GroupTypeId;
             target.IsActive = source.IsActive;
+            target.IsRegistrationMeteringEnabled = source.IsRegistrationMeteringEnabled;
             target.LoginRequired = source.LoginRequired;
             target.MaxRegistrants = source.MaxRegistrants;
             target.MinimumInitialPayment = source.MinimumInitialPayment;
             target.Name = source.Name;
             target.Notify = source.Notify;
-            target.PaymentRedirectVendor = source.PaymentRedirectVendor;
             target.PaymentReminderEmailTemplate = source.PaymentReminderEmailTemplate;
             target.PaymentReminderFromEmail = source.PaymentReminderFromEmail;
             target.PaymentReminderFromName = source.PaymentReminderFromName;
@@ -154,6 +249,7 @@ namespace Rock.Model
             target.PaymentReminderTimeSpan = source.PaymentReminderTimeSpan;
             target.RegistrantsSameFamily = source.RegistrantsSameFamily;
             target.RegistrantTerm = source.RegistrantTerm;
+            target.RegistrantWorkflowTypeId = source.RegistrantWorkflowTypeId;
             target.RegistrarOption = source.RegistrarOption;
             target.RegistrationAttributeTitleEnd = source.RegistrationAttributeTitleEnd;
             target.RegistrationAttributeTitleStart = source.RegistrationAttributeTitleStart;
@@ -184,5 +280,20 @@ namespace Rock.Model
             target.ForeignId = source.ForeignId;
 
         }
+
+        /// <summary>
+        /// Creates a view model from this entity
+        /// </summary>
+        /// <param name="model">The entity.</param>
+        /// <param name="currentPerson" >The currentPerson.</param>
+        /// <param name="loadAttributes" >Load attributes?</param>
+        public static Rock.ViewModel.RegistrationTemplateViewModel ToViewModel( this RegistrationTemplate model, Person currentPerson = null, bool loadAttributes = false )
+        {
+            var helper = new RegistrationTemplateViewModelHelper();
+            var viewModel = helper.CreateViewModel( model, currentPerson, loadAttributes );
+            return viewModel;
+        }
+
     }
+
 }

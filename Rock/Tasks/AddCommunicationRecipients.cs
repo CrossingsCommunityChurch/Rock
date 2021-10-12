@@ -1,9 +1,24 @@
-﻿using System;
+﻿// <copyright>
+// Copyright by the Spark Development Network
+//
+// Licensed under the Rock Community License (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.rockrms.com/license
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+// </copyright>
+//
+using System;
 using System.Collections.Generic;
 using System.Data.Entity;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+
 using Rock.Communication;
 using Rock.Data;
 using Rock.Model;
@@ -13,6 +28,8 @@ namespace Rock.Tasks
     /// <summary>
     /// 
     /// </summary>
+    [Obsolete( "This should not be used due to size limitations for BusStartedTask message. Use SaveMetaphoneTransaction instead " )]
+    [RockObsolete( "1.13" )]
     public sealed class AddCommunicationRecipients : BusStartedTask<AddCommunicationRecipients.Message>
     {
         /// <summary>
@@ -42,12 +59,11 @@ namespace Rock.Tasks
                     }
                 }
 
-                Rock.Model.Communication communication;
+                Model.Communication communication;
 
                 if ( message.Recipients?.Any() == true )
                 {
-                    var emailRecipients = message.Recipients.OfType<RockEmailMessageRecipient>().ToList();
-                    communication = new CommunicationService( rockContext ).CreateEmailCommunication( emailRecipients, message.FromName, message.FromAddress, message.ReplyTo, message.Subject, message.HtmlMessage, message.BulkCommunication, message.SendDateTime, message.RecipientStatus, senderPersonAliasId );
+                    communication = new CommunicationService( rockContext ).CreateEmailCommunication( message.Recipients, message.FromName, message.FromAddress, message.ReplyTo, message.Subject, message.HtmlMessage, message.BulkCommunication, message.SendDateTime, message.RecipientStatus, senderPersonAliasId );
 
                     if ( communication != null && communication.Recipients.Count() == 1 && message.RecipientGuid.HasValue )
                     {
@@ -70,7 +86,7 @@ namespace Rock.Tasks
             /// <value>
             /// The rock message recipients.
             /// </value>
-            public List<RockMessageRecipient> Recipients { get; set; }
+            public List<RockEmailMessageRecipient> Recipients { get; set; }
 
             /// <summary>
             /// Gets from PersonId of the person sending the email

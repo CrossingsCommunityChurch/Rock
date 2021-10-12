@@ -47,6 +47,8 @@ public class Lava : IHttpHandler
             // Convert the context values to a dictionary
             var mergeFields = RequestToDictionary( context.Request );
 
+            ProcessCors( context );
+
             // Find the valid api handler for this request
             var api = GetApiForRequest( context.Request, mergeFields );
             if ( api != null )
@@ -56,6 +58,11 @@ public class Lava : IHttpHandler
                 string enabledLavaCommands = api.GetAttributeValue( "EnabledLavaCommands" );
                 string contentType = api.GetAttributeValue( "ResponseContentType" );
                 var currentUser = Rock.Model.UserLoginService.GetCurrentUser();
+
+                if ( currentUser != null )
+                {
+                    mergeFields.AddOrReplace( "CurrentPerson", currentUser.Person );
+                }
 
                 string response = lava.ResolveMergeFields( mergeFields, currentUser != null ? currentUser.Person : null, enabledLavaCommands );
 
@@ -99,12 +106,12 @@ public class Lava : IHttpHandler
     /// </returns>
     protected DefinedValueCache GetApiForRequest( HttpRequest request, Dictionary<string, object> mergeFields )
     {
-        var url = "/" + string.Join( "", request.Url.Segments.SkipWhile( s => !s.EndsWith( ".ashx", StringComparison.InvariantCultureIgnoreCase ) && !s.EndsWith( ".ashx/", StringComparison.InvariantCultureIgnoreCase ) ).Skip( 1 ).ToArray() );
+        var url = "/" + string.Join( "", request.UrlProxySafe().Segments.SkipWhile( s => !s.EndsWith( ".ashx", StringComparison.InvariantCultureIgnoreCase ) && !s.EndsWith( ".ashx/", StringComparison.InvariantCultureIgnoreCase ) ).Skip( 1 ).ToArray() );
 
         var dt = DefinedTypeCache.Get( Rock.SystemGuid.DefinedType.WEBHOOK_TO_LAVA.AsGuid() );
         if ( dt != null )
         {
-            foreach ( DefinedValueCache api in dt.DefinedValues.OrderBy( h => h.Order ) )
+            foreach ( DefinedValueCache api in dt.DefinedValues.Where( dv => dv.IsActive).OrderBy( dv => dv.Order ) )
             {
                 string apiUrl = api.Value;
                 string apiMethod = api.GetAttributeValue( "Method" );
@@ -182,9 +189,11 @@ public class Lava : IHttpHandler
     {
         var dictionary = Rock.Lava.LavaHelper.GetCommonMergeFields( null );
         var host = WebRequestHelper.GetHostNameFromRequest( HttpContext.Current );
+        var proxySafeUri = request.UrlProxySafe();
+
         // Set the standard values to be used.
-        dictionary.Add( "Url", "/" + string.Join( "", request.Url.Segments.SkipWhile( s => !s.EndsWith( ".ashx", StringComparison.InvariantCultureIgnoreCase ) && !s.EndsWith( ".ashx/", StringComparison.InvariantCultureIgnoreCase ) ).Skip( 1 ).ToArray() ) );
-        dictionary.Add( "RawUrl", request.Url.AbsoluteUri );
+        dictionary.Add( "Url", "/" + string.Join( "", proxySafeUri.Segments.SkipWhile( s => !s.EndsWith( ".ashx", StringComparison.InvariantCultureIgnoreCase ) && !s.EndsWith( ".ashx/", StringComparison.InvariantCultureIgnoreCase ) ).Skip( 1 ).ToArray() ) );
+        dictionary.Add( "RawUrl", proxySafeUri.AbsoluteUri );
         dictionary.Add( "Method", request.HttpMethod );
         dictionary.Add( "QueryString", request.QueryString.Cast<string>().ToDictionary( q => q, q => request.QueryString[q] ) );
         dictionary.Add( "RemoteAddress", request.UserHostAddress );
@@ -202,7 +211,7 @@ public class Lava : IHttpHandler
         {
             try
             {
-                dictionary.Add( "Body", JsonConvert.DeserializeObject( (string)dictionary["RawBody"] ) );
+                dictionary.Add( "Body", JsonConvert.DeserializeObject( ( string ) dictionary["RawBody"] ) );
             }
             catch { }
         }
@@ -219,7 +228,7 @@ public class Lava : IHttpHandler
             try
             {
                 XmlDocument doc = new XmlDocument();
-                doc.LoadXml( (string)dictionary["RawBody"] );
+                doc.LoadXml( ( string ) dictionary["RawBody"] );
                 string jsonText = JsonConvert.SerializeXmlNode( doc );
                 dictionary.Add( "Body", JsonConvert.DeserializeObject( ( jsonText ) ) );
             }
@@ -236,11 +245,41 @@ public class Lava : IHttpHandler
         // Add the cookies
         try
         {
-			dictionary.Add( "Cookies", request.Cookies.Cast<string>().ToDictionary( q => q, q => request.Cookies[q].Value ) );
+            dictionary.Add( "Cookies", request.Cookies.Cast<string>().ToDictionary( q => q, q => request.Cookies[q].Value ) );
         }
         catch { }
 
         return dictionary;
+    }
+
+    /// <summary>
+    /// Process any CORS header requests that need to be placed in the Response.
+    /// </summary>
+    /// <param name="context">The HTTP context for this request.</param>
+    private void ProcessCors( HttpContext context )
+    {
+        var origin = context.Request.Headers["Origin"];
+
+        if ( origin.IsNullOrWhiteSpace() || !IsOriginValid( origin ) )
+        {
+            return;
+        }
+
+        context.Response.AddHeader( "Access-Control-Allow-Credentials", "true" );
+        context.Response.AddHeader( "Access-Control-Allow-Origin", origin );
+    }
+
+    /// <summary>
+    /// Check if the Origin is valid for our CORS configuration.
+    /// </summary>
+    /// <param name="origin">The Origin header value.</param>
+    /// <returns><c>true</c> if the Origin is valid.</returns>
+    /// <remarks>Taken from <see cref="Rock.Rest.EnableCorsFromOriginAttribute"/>.</remarks>
+    private bool IsOriginValid( string origin )
+    {
+        var definedType = DefinedTypeCache.Get( Rock.SystemGuid.DefinedType.REST_API_ALLOWED_DOMAINS.AsGuid() );
+
+        return definedType == null ? false : definedType.DefinedValues.Select( v => v.Value ).Contains( origin, StringComparer.OrdinalIgnoreCase );
     }
 
     /// <summary>

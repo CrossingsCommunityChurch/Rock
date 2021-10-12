@@ -191,6 +191,32 @@ namespace Rock.Field.Types
 
         #region Formatting
 
+        /// <inheritdoc/>
+        public override string GetTextValue( string value, Dictionary<string, ConfigurationValue> configurationValues )
+        {
+            if ( configurationValues != null &&
+                configurationValues.ContainsKey( IS_PASSWORD_KEY ) &&
+                configurationValues[IS_PASSWORD_KEY].Value.AsBoolean() )
+            {
+                return "********";
+            }
+
+            return value;
+        }
+
+        /// <inheritdoc/>
+        public override string GetCondensedTextValue( string value, Dictionary<string, ConfigurationValue> configurationValues )
+        {
+            if ( configurationValues != null &&
+                configurationValues.ContainsKey( IS_PASSWORD_KEY ) &&
+                configurationValues[IS_PASSWORD_KEY].Value.AsBoolean() )
+            {
+                return "********";
+            }
+
+            return base.GetCondensedTextValue( value, configurationValues );
+        }
+
         /// <summary>
         /// Returns the field's current value(s)
         /// </summary>
@@ -201,19 +227,9 @@ namespace Rock.Field.Types
         /// <returns></returns>
         public override string FormatValue( Control parentControl, string value, Dictionary<string, ConfigurationValue> configurationValues, bool condensed )
         {
-            if ( configurationValues != null &&
-                configurationValues.ContainsKey( IS_PASSWORD_KEY ) &&
-                configurationValues[IS_PASSWORD_KEY].Value.AsBoolean() )
-            {
-                return "********";
-            }
-
-            if ( condensed )
-            {
-                return value.Truncate( 100 );
-            }
-
-            return value;
+            return !condensed
+                ? GetTextValue( value, configurationValues )
+                : GetCondensedTextValue( value, configurationValues );
         }
 
         /// <summary>

@@ -999,7 +999,7 @@ namespace RockWeb.Blocks.Groups
             if ( scheduleType == ScheduleType.Custom )
             {
                 iCalendarContent = sbSchedule.iCalendarContent;
-                var calEvent = InetCalendarHelper.GetCalendarEvent( iCalendarContent );
+                var calEvent = InetCalendarHelper.CreateCalendarEvent( iCalendarContent );
                 if ( calEvent == null || calEvent.DtStart == null )
                 {
                     scheduleType = ScheduleType.None;
@@ -1539,6 +1539,13 @@ namespace RockWeb.Blocks.Groups
                     pnlDetails.Visible = false;
                     nbNotFoundOrArchived.Visible = true;
                     return;
+                }
+                else
+                {
+                    string lava = "{{ Group.Name | AddQuickReturn:'Groups', 20 }}";
+                    var mergeFields = Rock.Lava.LavaHelper.GetCommonMergeFields( this.RockPage, this.CurrentPerson, new Rock.Lava.CommonMergeFieldsOptions { GetLegacyGlobalMergeFields = false } );
+                    mergeFields.Add( "Group", group );
+                    lava.ResolveMergeFields( mergeFields );
                 }
             }
 
@@ -2113,12 +2120,15 @@ namespace RockWeb.Blocks.Groups
                 {
                     if ( groupType != null && groupType.EnableGroupHistory )
                     {
-                        bool hasGroupHistory = new GroupHistoricalService( rockContext ).Queryable().Any( a => a.GroupId == group.Id );
+                        bool hasGroupHistory = new GroupHistoricalService( rockContext ).Queryable().Any( a => a.GroupId == group.Id )
+                            || new GroupMemberHistoricalService( rockContext ).Queryable().Any( a => a.GroupId == group.Id );
                         if ( hasGroupHistory )
                         {
                             // If the group has GroupHistory enabled, and has group history snapshots, prompt to archive instead of delete
                             btnDelete.Visible = false;
-                            btnArchive.Visible = true;
+
+                            // Show the archive button if the user is authorized to see it.
+                            btnArchive.Visible = !group.IsSystem && group.IsAuthorized( Authorization.EDIT, CurrentPerson );
                         }
                     }
                 }

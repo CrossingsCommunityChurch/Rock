@@ -27,6 +27,7 @@ using Rock.Attribute;
 using Rock.Data;
 using Rock.Field.Types;
 using Rock.Model;
+using Rock.Security;
 using Rock.Web.Cache;
 using Rock.Web.UI;
 using Rock.Web.UI.Controls;
@@ -75,6 +76,13 @@ namespace RockWeb.Blocks.Steps
         DefaultBooleanValue = true,
         Order = 5,
         Key = AttributeKey.ShowCampusColumn )]
+
+    [BooleanField(
+        "Show Start Date Column",
+        Description = "Should the step start date be shown on the grid and card display?",
+        DefaultBooleanValue = true,
+        Order = 6,
+        Key = AttributeKey.ShowStartedDateColumn )]
     #endregion Attributes
 
     public partial class PersonProgramStepList : RockBlock
@@ -110,6 +118,11 @@ namespace RockWeb.Blocks.Steps
             /// The show campus column attribute key
             /// </summary>
             public const string ShowCampusColumn = "ShowCampusColumn";
+
+            /// <summary>
+            /// The show started date column
+            /// </summary>
+            public const string ShowStartedDateColumn = "ShowStartedDateColumn";
         }
 
         /// <summary>
@@ -186,6 +199,7 @@ namespace RockWeb.Blocks.Steps
 
             gStepList.DataKeyNames = new[] { "id" };
             gStepList.GridRebind += gStepList_GridRebind;
+            gStepList.RowDataBound += gStepList_RowDataBound;
 
             var campusField = gStepList.ColumnsOfType<CampusField>().First();
             if ( campusField != null )
@@ -194,6 +208,12 @@ namespace RockWeb.Blocks.Steps
                     .Where( c =>
                         !c.IsActive.HasValue || c.IsActive.Value ).Count();
                 campusField.Visible = GetAttributeValue( AttributeKey.ShowCampusColumn ).AsBoolean() && campusCount > 1;
+            }
+
+            var startDateField = gStepList.ColumnsOfType<DateField>().Where(c => c.DataField == "StartDateTime" ).FirstOrDefault();
+            if ( startDateField != null )
+            {
+                startDateField.Visible = GetAttributeValue( AttributeKey.ShowStartedDateColumn ).AsBoolean();
             }
 
             if ( !IsPostBack )
@@ -210,12 +230,25 @@ namespace RockWeb.Blocks.Steps
                 {
                     // use the program's default view setting
                     var program = GetStepProgram();
-                    hfIsCardView.Value = ( program.DefaultListView == StepProgram.ViewMode.Cards ).ToString();
+                    if ( program != null )
+                    {
+                        hfIsCardView.Value = ( program.DefaultListView == StepProgram.ViewMode.Cards ).ToString();
+                    }
                 }
             }
 
             RenderStepsPerRow();
             DisplayStepTerm();
+        }
+
+        /// <summary>
+        /// Raises the <see cref="E:System.Web.UI.Control.Load" /> event.
+        /// </summary>
+        /// <param name="e">The <see cref="T:System.EventArgs" /> object that contains the event data.</param>
+        protected override void OnLoad( EventArgs e )
+        {
+            base.OnLoad( e );
+
             RenderViewMode();
         }
 
@@ -239,6 +272,29 @@ namespace RockWeb.Blocks.Steps
         private void gStepList_GridRebind( object sender, GridRebindEventArgs e )
         {
             RenderGridView();
+        }
+
+        /// <summary>
+        /// Handle the rebind event for the step list grid
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void gStepList_RowDataBound( object sender, System.Web.UI.WebControls.GridViewRowEventArgs e )
+        {
+            if ( e.Row.RowType != DataControlRowType.DataRow )
+            {
+                return;
+            }
+
+            var stepGridRowViewModel = e.Row.DataItem as StepGridRowViewModel;
+
+            // Allow Edit if authorized to edit the block or the Step Type.
+            bool canEditBlock = IsUserAuthorized( Authorization.EDIT ) || stepGridRowViewModel.Step.StepType.IsAuthorized( Authorization.EDIT, CurrentPerson ) || stepGridRowViewModel.Step.StepType.IsAuthorized( Authorization.MANAGE_MEMBERS, CurrentPerson );
+            var deleteFieldColumn = gStepList.ColumnsOfType<DeleteField>().FirstOrDefault();
+            if ( deleteFieldColumn != null )
+            {
+                deleteFieldColumn.Visible = canEditBlock;
+            }
         }
 
         /// <summary>
@@ -433,7 +489,11 @@ namespace RockWeb.Blocks.Steps
         {
             var stepId = e.CommandArgument.ToStringSafe().AsInteger();
             DeleteStep( stepId );
-            RenderCardView();
+
+            // Redirect the browser to reload the page so that the POST data associated with this request is cleared from the cache.
+            // This prevents the delete operation from being repeated if the page is reloaded, which is usually accompanied by
+            // an unwanted postback alert dialog.
+            Response.Redirect( Request.Url.ToString(), false );
         }
 
         /// <summary>
@@ -1165,7 +1225,8 @@ namespace RockWeb.Blocks.Steps
                 StepTypeIconCssClass = s.StepType.IconCssClass,
                 StepTypeOrder = s.StepType.Order,
                 Summary = string.Empty,
-                Step = s
+                Step = s,
+                StartDateTime = s.StartDateTime
             } );
 
             // Sort the view models
@@ -1294,6 +1355,14 @@ namespace RockWeb.Blocks.Steps
             /// The name of the step type.
             /// </value>
             public string StepTypeName { get; set; }
+
+            /// <summary>
+            /// Gets or sets the start date time.
+            /// </summary>
+            /// <value>
+            /// The start date time.
+            /// </value>
+            public DateTime? StartDateTime { get; set; }
 
             /// <summary>
             /// Gets or sets the completed date time.

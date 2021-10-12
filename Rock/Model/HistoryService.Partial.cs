@@ -21,6 +21,7 @@ using System.Linq;
 using System.Reflection;
 
 using Rock.Data;
+using Rock.Utility;
 using Rock.Web.Cache;
 
 namespace Rock.Model
@@ -271,8 +272,7 @@ namespace Rock.Model
         /// <summary>
         /// 
         /// </summary>
-        /// <seealso cref="DotLiquid.Drop" />
-        public class HistorySummaryByDateTimeAndVerb : DotLiquid.Drop
+        public class HistorySummaryByDateTimeAndVerb : RockDynamic
         {
             /// <summary>
             /// Gets or sets the date time 
@@ -310,8 +310,7 @@ namespace Rock.Model
         /// <summary>
         /// 
         /// </summary>
-        /// <seealso cref="DotLiquid.Drop" />
-        public class HistorySummaryListByEntityTypeAndVerb : DotLiquid.Drop
+        public class HistorySummaryListByEntityTypeAndVerb : RockDynamic
         {
             /// <summary>
             /// Gets or sets the verb.
@@ -371,7 +370,7 @@ namespace Rock.Model
         /// <summary>
         /// 
         /// </summary>
-        public class HistorySummaryByDateTime : DotLiquid.Drop
+        public class HistorySummaryByDateTime : RockDynamic
         {
             /// <summary>
             /// Gets or sets the date time.
@@ -393,8 +392,7 @@ namespace Rock.Model
         /// <summary>
         /// 
         /// </summary>
-        /// <seealso cref="DotLiquid.Drop" />
-        public class HistorySummary : DotLiquid.Drop
+        public class HistorySummary : RockDynamic
         {
             /// <summary>
             /// Gets or sets the created date time.
@@ -620,25 +618,38 @@ namespace Rock.Model
                         string virtualUrl = string.Empty;
                         if ( !string.IsNullOrWhiteSpace( urlMask ) )
                         {
-                            if ( urlMask.Contains( "{0}" ) )
+                            IEntity iEntity = null;
+                            if ( this.RelatedEntityTypeId.HasValue && this.RelatedEntityId.HasValue )
                             {
-                                string p1 = this.RelatedEntityId.HasValue ? this.RelatedEntityId.Value.ToString() : "";
+                                var relatedEntityType = EntityTypeCache.Get( this.RelatedEntityTypeId.Value );
+                                iEntity = Reflection.GetIEntityForEntityType( relatedEntityType.GetEntityType(), this.RelatedEntityId.Value );
+                            }
+
+                            if ( urlMask.Contains( "{0}" ) && iEntity != null)
+                            {
+                                string p1 = this.RelatedEntityId.Value.ToString();
                                 string p2 = this.EntityId.ToString();
                                 virtualUrl = string.Format( urlMask, p1, p2 );
                             }
 
-                            string resolvedUrl;
-
-                            if ( System.Web.HttpContext.Current == null )
+                            string formattedCaption = caption;
+                            if ( virtualUrl.IsNotNullOrWhiteSpace() )
                             {
-                                resolvedUrl = virtualUrl;
-                            }
-                            else
-                            {
-                                resolvedUrl = System.Web.VirtualPathUtility.ToAbsolute( virtualUrl );
+                                string resolvedUrl;
+
+                                if ( System.Web.HttpContext.Current == null )
+                                {
+                                    resolvedUrl = virtualUrl;
+                                }
+                                else
+                                {
+                                    resolvedUrl = System.Web.VirtualPathUtility.ToAbsolute( virtualUrl );
+                                }
+
+                                formattedCaption = string.Format( "<a href='{0}'>{1}</a>", resolvedUrl, caption );
                             }
 
-                            return string.Format( "<a href='{0}'>{1}</a>", resolvedUrl, caption );
+                            return formattedCaption;
                         }
                     }
 

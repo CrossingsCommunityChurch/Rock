@@ -15,6 +15,8 @@
 // </copyright>
 //
 
+using Rock.WebFarm;
+
 namespace Rock.Bus.Queue
 {
     /// <summary>
@@ -29,5 +31,13 @@ namespace Rock.Bus.Queue
         /// The name.
         /// </value>
         public override string Name => "rock-web-farm-queue";
+
+        /// <summary>
+        /// Gets the name for configuration.
+        /// </summary>
+        /// <value>
+        /// The name for configuration.
+        /// </value>
+        public override string NameForConfiguration => $"{Name}_{RockMessageBus.NodeName}";
     }
 }

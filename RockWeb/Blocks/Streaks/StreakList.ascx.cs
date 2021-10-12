@@ -221,9 +221,8 @@ namespace RockWeb.Blocks.Streaks
                 if ( streakType != null )
                 {
                     var errorMessage = string.Empty;
-                    var occurrenceEngagements = streakTypeService.GetRecentEngagementBits( streakType.Id, person.Id, 24, out errorMessage );
+                    var occurrenceEngagements = streakTypeService.GetRecentEngagementBits( streakType.Id, person.Id, 24, out errorMessage ) ?? new OccurrenceEngagement[0];
                     var stringBuilder = new StringBuilder();
-
                     foreach ( var occurrence in occurrenceEngagements )
                     {
                         var hasEngagement = occurrence != null && occurrence.HasEngagement;
@@ -238,7 +237,7 @@ namespace RockWeb.Blocks.Streaks
 
                     lBiStateGraph.Text = string.Format( @"
                         <div class=""chart-container"">
-                            <ul class=""attendance-chart attendance-chart-sm"">{0}</ul>
+                            <ul class=""trend-chart trend-chart-sm"">{0}</ul>
                         </div>", stringBuilder );
                 }
             }

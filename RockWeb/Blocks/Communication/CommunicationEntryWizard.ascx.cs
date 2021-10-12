@@ -61,7 +61,7 @@ namespace RockWeb.Blocks.Communication
 
     [BinaryFileTypeField( "Attachment Binary File Type",
         Key = AttributeKey.AttachmentBinaryFileType,
-        Description = "The FileType to use for files that are attached to an sms or email communication",
+        Description = "The FileType to use for files that are attached to an SMS or email communication",
         IsRequired = true,
         DefaultBinaryFileTypeGuid = Rock.SystemGuid.BinaryFiletype.COMMUNICATION_ATTACHMENT,
         Order = 2 )]
@@ -81,7 +81,7 @@ namespace RockWeb.Blocks.Communication
 
     [CustomCheckboxListField( "Communication Types",
         Key = AttributeKey.CommunicationTypes,
-        Description = "The communication types that should be available to use for the communication (If none are selected, all will be available).",
+        Description = "The communication types that should be available to use for the communication. (If none are selected, all will be available.) Selecting 'Recipient Preference' will automatically enable Email and SMS as mediums. Push is not an option for selection as a communication preference as delivery is not as reliable as other mediums based on an individual's privacy settings.",
         ListSource = "Recipient Preference,Email,SMS,Push",
         IsRequired = false,
         Order = 5 )]
@@ -132,6 +132,13 @@ namespace RockWeb.Blocks.Communication
         DefaultBooleanValue = false,
         Order = 12 )]
 
+    [BooleanField( "Enable Person Parameter",
+        Key = AttributeKey.EnablePersonParameter,
+        Description = "When enabled, allows passing a 'Person' or 'PersonId' querystring parameter with a person Id to the block to create a communication for that person.",
+        DefaultBooleanValue = true,
+        IsRequired = false,
+        Order = 13 )]
+
     #endregion Block Attributes
     public partial class CommunicationEntryWizard : RockBlock, IDetailBlock
     {
@@ -154,6 +161,7 @@ namespace RockWeb.Blocks.Communication
             public const string SimpleCommunicationPage = "SimpleCommunicationPage";
             public const string ShowDuplicatePreventionOption = "ShowDuplicatePreventionOption";
             public const string DefaultAsBulk = "DefaultAsBulk";
+            public const string EnablePersonParameter = "EnablePersonParameter";
         }
 
         #endregion Attribute Keys
@@ -165,6 +173,7 @@ namespace RockWeb.Blocks.Communication
             public const string CommunicationId = "CommunicationId";
             public const string Edit = "Edit";
             public const string Person = "Person";
+            public const string PersonId = "PersonId";
             public const string TemplateGuid = "TemplateGuid";
         }
 
@@ -341,7 +350,7 @@ function onTaskCompleted( resultData )
                     Dictionary<string, string> qryParams = new Dictionary<string, string>();
                     if ( hfCommunicationId.Value != "0" )
                     {
-                        qryParams.Add( "CommunicationId", hfCommunicationId.Value );
+                        qryParams.Add( PageParameterKey.CommunicationId, hfCommunicationId.Value );
                     }
 
                     this.NavigateToCurrentPageReference( qryParams );
@@ -477,14 +486,17 @@ function onTaskCompleted( resultData )
             if ( communication.ListGroupId == null )
             {
                 IndividualRecipientPersonIds = new CommunicationRecipientService( rockContext ).Queryable().AsNoTracking().Where( r => r.CommunicationId == communication.Id ).Select( a => a.PersonAlias.PersonId ).ToList();
-
-                if ( IndividualRecipientPersonIds.Count > 0 )
-                {
-                    BindIndividualRecipientsGrid();
-                }
             }
 
-            int? personId = PageParameter( PageParameterKey.Person ).AsIntegerOrNull();
+
+            int? personId = null;
+            if ( GetAttributeValue( AttributeKey.EnablePersonParameter ).AsBoolean() )
+            {
+                // if either 'Person' or 'PersonId' is specified add that person to the communication
+                personId = PageParameter( PageParameterKey.Person ).AsIntegerOrNull()
+                    ?? PageParameter( PageParameterKey.PersonId ).AsIntegerOrNull();
+            }
+
             if ( personId.HasValue && !communication.ListGroupId.HasValue )
             {
                 communication.IsBulkCommunication = false;
@@ -517,11 +529,21 @@ function onTaskCompleted( resultData )
 
             UpdateRecipientListCount();
 
-            // If there aren't any Communication Groups, hide the option and only show the Individual Recipient selection
-            if ( ddlCommunicationGroupList.Items.Count <= 1 || ( communication.Id != 0 && communication.ListGroupId == null ) )
+            if ( IndividualRecipientPersonIds.Count > 0 )
             {
+                BindIndividualRecipientsGrid();
                 pnlListSelection.Visible = false;
                 pnlIndividualRecipientList.Visible = true;
+            }
+            else
+            {
+
+                // If there aren't any Communication Groups, hide the option and only show the Individual Recipient selection
+                if ( ddlCommunicationGroupList.Items.Count <= 1 || ( communication.Id != 0 && communication.ListGroupId == null ) )
+                {
+                    pnlListSelection.Visible = false;
+                    pnlIndividualRecipientList.Visible = true;
+                }
             }
 
             // Note: Javascript takes care of making sure the buttons are set up based on this
@@ -623,7 +645,7 @@ function onTaskCompleted( resultData )
 
             var selectedNumberGuids = GetAttributeValue( AttributeKey.AllowedSMSNumbers ).SplitDelimitedValues( true ).AsGuidList();
             var smsFromDefinedType = DefinedTypeCache.Get( new Guid( Rock.SystemGuid.DefinedType.COMMUNICATION_SMS_FROM ) );
-            var smsDefinedValues = smsFromDefinedType.DefinedValues.ToList();
+            var smsDefinedValues = smsFromDefinedType.DefinedValues.Where(v => v.IsAuthorized( Authorization.VIEW, this.CurrentPerson ) ).ToList();
             if ( selectedNumberGuids.Any() )
             {
                 smsDefinedValues = smsDefinedValues.Where( v => selectedNumberGuids.Contains( v.Guid ) ).ToList();
@@ -646,19 +668,43 @@ function onTaskCompleted( resultData )
         /// <summary>
         /// Loads the communication types that are configured for this block
         /// </summary>
-        private List<CommunicationType> GetAllowedCommunicationTypes()
+        private List<CommunicationType> GetAllowedCommunicationTypes(bool forSelector = false)
         {
+            /*
+                JME 8/20/2021
+                How the communication type configuration works is tricky. First some background on recipient preference.
+
+                When an individual picks a communication preference they are not given 'Push' as an option. This is
+                because push is a very unreliable medium. We often don't know if the person has disabled it and so the
+                probability of them getting the message is much lower than email or SMS.
+
+                Before the change below, when the block configuration had 'Recipient Preference' enabled it showed ALL
+                mediums. NewSpring did not want that. They wanted 'Recipient Preference' (email and SMS) but not push. We
+                made the change below to allow for that.
+
+                At some point we should probably clean up this code a bit to not rely on text values as the keys and make
+                the logic more reusable for other places in Rock.
+            */
+
             var communicationTypes = this.GetAttributeValue( AttributeKey.CommunicationTypes ).SplitDelimitedValues( false );
 
             var result = new List<CommunicationType>();
-            if ( communicationTypes.Any() )
+            if ( !forSelector && communicationTypes.Contains( "Recipient Preference" ) )
             {
-                // Recipient Preference,Email,SMS
-                if ( communicationTypes.Contains( "Recipient Preference" ) )
-                {
-                    result.Add( CommunicationType.RecipientPreference );
-                }
+                result.Add( CommunicationType.RecipientPreference );
 
+                // Recipient preference requires email and SMS to be shown
+                result.Add( CommunicationType.Email );
+                result.Add( CommunicationType.SMS );
+
+                // Enabled push only if it is also enabled
+                if ( communicationTypes.Contains( "Push" ) )
+                {
+                    result.Add( CommunicationType.PushNotification );
+                }
+            }
+            else if ( communicationTypes.Any() )
+            {
                 if ( communicationTypes.Contains( "Email" ) )
                 {
                     result.Add( CommunicationType.Email );
@@ -673,6 +719,11 @@ function onTaskCompleted( resultData )
                 {
                     result.Add( CommunicationType.PushNotification );
                 }
+
+                if ( communicationTypes.Contains( "Recipient Preference" ) )
+                {
+                    result.Add( CommunicationType.RecipientPreference );
+                }
             }
             else
             {
@@ -681,6 +732,7 @@ function onTaskCompleted( resultData )
                 result.Add( CommunicationType.SMS );
                 result.Add( CommunicationType.PushNotification );
             }
+
 
             return result;
         }
@@ -1012,7 +1064,7 @@ function onTaskCompleted( resultData )
                     listCount = groupMemberQuery.Count();
                     pnlRecipientFromListCount.Visible = true;
 
-                    lRecipientFromListCount.Text = string.Format( "{0} {1} selected", listCount, "recipient".PluralizeIf( listCount != 1 ) );
+                    lRecipientFromListCount.Text = string.Format( "Recipients: {0}", listCount );
                 }
                 else
                 {
@@ -1026,6 +1078,11 @@ function onTaskCompleted( resultData )
                 // Individuals Selection Count.
                 listCount = this.IndividualRecipientPersonIds.Count();
             }
+
+            // Refresh the individual list count, to address the case where the last item in the selection list has been removed.
+            lIndividualRecipientListCount.Text = string.Format( "Recipients: {0}", listCount );
+
+            pnlIndividualRecipientListCount.Visible = listCount > 0;
         }
 
         /// <summary>
@@ -1143,7 +1200,7 @@ function onTaskCompleted( resultData )
             }
 
             // See what is allowed by the block settings
-            var allowedCommunicationTypes = GetAllowedCommunicationTypes();
+            var allowedCommunicationTypes = GetAllowedCommunicationTypes(true);
             var emailTransportEnabled = _emailTransportEnabled && allowedCommunicationTypes.Contains( CommunicationType.Email );
             var smsTransportEnabled = _smsTransportEnabled && allowedCommunicationTypes.Contains( CommunicationType.SMS );
             var pushTransportEnabled = _pushTransportEnabled && allowedCommunicationTypes.Contains( CommunicationType.PushNotification );
@@ -1166,7 +1223,7 @@ function onTaskCompleted( resultData )
             }
 
             // Only add recipient preference if at least two options exists.
-            if ( rblCommunicationMedium.Items.Count > 1 && recipientPreferenceEnabled )
+            if ( recipientPreferenceEnabled )
             {
                 rblCommunicationMedium.Items.Add( new ListItem( "Recipient Preference", CommunicationType.RecipientPreference.ConvertToInt().ToString() ) );
             }
@@ -1174,7 +1231,7 @@ function onTaskCompleted( resultData )
             rblCommunicationMedium.Visible = rblCommunicationMedium.Items.Count > 1;
 
             // make sure that either EMAIL, SMS, or PUSH is enabled
-            if ( !( emailTransportEnabled || smsTransportEnabled || pushTransportEnabled ) )
+            if ( !( emailTransportEnabled || smsTransportEnabled || pushTransportEnabled || recipientPreferenceEnabled ) )
             {
                 nbNoCommunicationTransport.Text = "There are no active Email, SMS, or Push communication transports configured.";
                 nbNoCommunicationTransport.Visible = true;
@@ -1553,8 +1610,8 @@ function onTaskCompleted( resultData )
             var allowedCommunicationTypes = GetAllowedCommunicationTypes();
             var communicationTypeIsAllowed = !allowedCommunicationTypes.Any() || allowedCommunicationTypes.Contains( communicationType );
 
-            var selecedCommunicationType = SelectedCommunicationType;
-            var communicationTypeIsSelected = selecedCommunicationType == communicationType || selecedCommunicationType == CommunicationType.RecipientPreference;
+            var selectedCommunicationType = SelectedCommunicationType;
+            var communicationTypeIsSelected = selectedCommunicationType == communicationType || ( selectedCommunicationType == CommunicationType.RecipientPreference && communicationType != CommunicationType.PushNotification); 
 
             return communicationTypeIsAllowed && communicationTypeIsSelected;
         }
@@ -1806,7 +1863,21 @@ function onTaskCompleted( resultData )
                             if ( communicationService != null && testCommunication != null )
                             {
                                 var testCommunicationId = testCommunication.Id;
-                                communicationService.Delete( testCommunication );
+                                var pushMediumEntityTypeGuid = Rock.SystemGuid.EntityType.COMMUNICATION_MEDIUM_PUSH_NOTIFICATION.AsGuid();
+
+                                if ( testCommunication.GetMediums().Any( a => a.EntityType.Guid == pushMediumEntityTypeGuid ) )
+                                {
+                                    // We can't actually delete the test communication since if it is an
+                                    // action type of "Show Details" then they won't be able to view the
+                                    // communication on their device to see how it looks. Instead we switch
+                                    // the communication to be transient so the cleanup job will take care
+                                    // of it later.
+                                    testCommunication.Status = CommunicationStatus.Transient;
+                                }
+                                else
+                                {
+                                    communicationService.Delete( testCommunication );
+                                }
                                 rockContext.SaveChanges( disablePrePostProcessing: true );
 
                                 // Delete any Person History that was created for the Test Communication
@@ -2626,7 +2697,7 @@ function onTaskCompleted( resultData )
             // Set a placeholder value for the navigation URL, to be replaced using client-side script when the task completed notification is sent.
             this.CurrentPageReference.Parameters.AddOrReplace( PageParameterKey.CommunicationId, _viewCommunicationIdPlaceholder );
 
-            var uri = new Uri( Request.Url.ToString() );
+            var uri = new Uri( Request.UrlProxySafe().ToString() );
 
             _viewCommunicationTemplateUrl = uri.Scheme + "://" + uri.GetComponents( UriComponents.HostAndPort, UriFormat.UriEscaped ) + CurrentPageReference.BuildUrl();
 
@@ -2870,11 +2941,11 @@ function onTaskCompleted( resultData )
                     ShowHideConfirmationTabLinks( false, false, true );
                     ShowHideTabPanel( false, false, true );
                     break;
-                default:
+                default: // Recipient Preference
                     var allowedCommunicationTypes = GetAllowedCommunicationTypes();
                     var emailTransportEnabled = _emailTransportEnabled && allowedCommunicationTypes.Contains( CommunicationType.Email );
                     var smsTransportEnabled = _smsTransportEnabled && allowedCommunicationTypes.Contains( CommunicationType.SMS );
-                    var pushTransportEnabled = _pushTransportEnabled && allowedCommunicationTypes.Contains( CommunicationType.PushNotification );
+                    var pushTransportEnabled = false; //_pushTransportEnabled && allowedCommunicationTypes.Contains( CommunicationType.PushNotification ); // Recipient preference should not use push
 
                     if ( emailTransportEnabled )
                     {

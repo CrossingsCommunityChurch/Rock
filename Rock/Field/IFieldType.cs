@@ -37,6 +37,15 @@ namespace Rock.Field
         List<string> ConfigurationKeys();
 
         /// <summary>
+        /// Gets the client configuration values. This data will be sent to the
+        /// client which has no security protection. Sensitive data should not
+        /// be included or should be encrypted before storing in the dictionary.
+        /// </summary>
+        /// <param name="configurationValues">The configuration values.</param>
+        /// <returns>The configuration values that should be sent down to the client.</returns>
+        Dictionary<string, string> GetClientConfigurationValues( Dictionary<string, ConfigurationValue> configurationValues );
+
+        /// <summary>
         /// Creates the HTML controls required to configure this type of field
         /// </summary>
         /// <returns></returns>
@@ -64,6 +73,41 @@ namespace Rock.Field
         /// Gets the align value that should be used when displaying value
         /// </summary>
         System.Web.UI.WebControls.HorizontalAlign AlignValue { get; }
+
+        /// <summary>
+        /// Formats the value into a user-friendly string of plain text.
+        /// </summary>
+        /// <param name="value">The value.</param>
+        /// <param name="configurationValues">The configuration values.</param>
+        /// <returns>A plain string of text.</returns>
+        string GetTextValue( string value, Dictionary<string, ConfigurationValue> configurationValues );
+
+        /// <summary>
+        /// Formats the value into a string of HTML text that can be rendered
+        /// on a web page.
+        /// </summary>
+        /// <param name="value">The value.</param>
+        /// <param name="configurationValues">The configuration values.</param>
+        /// <returns>A string of HTML text.</returns>
+        string GetHtmlValue( string value, Dictionary<string, ConfigurationValue> configurationValues );
+
+        /// <summary>
+        /// Formats the value into a condensed user-friendly string of plain text.
+        /// This value will be used when space is limited.
+        /// </summary>
+        /// <param name="value">The value.</param>
+        /// <param name="configurationValues">The configuration values.</param>
+        /// <returns>A plain string of text.</returns>
+        string GetCondensedTextValue( string value, Dictionary<string, ConfigurationValue> configurationValues );
+
+        /// <summary>
+        /// Formats the value into a string of HTML text that can be rendered
+        /// on a web page. This value will be used when space is limited.
+        /// </summary>
+        /// <param name="value">The value.</param>
+        /// <param name="configurationValues">The configuration values.</param>
+        /// <returns>A string of HTML text.</returns>
+        string GetCondensedHtmlValue( string value, Dictionary<string, ConfigurationValue> configurationValues );
 
         /// <summary>
         /// Formats the value based on the type and qualifiers
@@ -119,6 +163,14 @@ namespace Rock.Field
         object ValueAsFieldType( Control parentControl, string value, Dictionary<string, ConfigurationValue> configurationValues );
 
         /// <summary>
+        /// Returns the value using the most appropriate datatype
+        /// </summary>
+        /// <param name="value">The value.</param>
+        /// <param name="configurationValues">The configuration values.</param>
+        /// <returns></returns>
+        object ValueAsFieldType( string value, Dictionary<string, ConfigurationValue> configurationValues );
+
+        /// <summary>
         /// Returns the value that should be used for sorting, using the most appropriate datatype
         /// </summary>
         /// <param name="parentControl">The parent control.</param>
@@ -147,6 +199,33 @@ namespace Rock.Field
         /// <c>true</c> if this instance has default control; otherwise, <c>false</c>.
         /// </value>
         bool HasDefaultControl { get; }
+
+        /// <summary>
+        /// Gets the value that will be sent down to the client. This value is
+        /// used custom formatting performed on the client.
+        /// </summary>
+        /// <param name="value">The value.</param>
+        /// <param name="configurationValues">The configuration values.</param>
+        /// <returns>A string of text to send to the client.</returns>
+        string GetClientValue( string value, Dictionary<string, ConfigurationValue> configurationValues );
+
+        /// <summary>
+        /// Gets the value that will be sent down to the client. This value is
+        /// used for custom formatting as well as client-side editing.
+        /// </summary>
+        /// <param name="value">The value.</param>
+        /// <param name="configurationValues">The configuration values.</param>
+        /// <returns>A string of text to send to the client.</returns>
+        string GetClientEditValue( string value, Dictionary<string, ConfigurationValue> configurationValues );
+
+        /// <summary>
+        /// Gets the value to be stored in the database from the value sent by
+        /// a client at the end of an edit.
+        /// </summary>
+        /// <param name="clientValue">The client value.</param>
+        /// <param name="configurationValues">The configuration values.</param>
+        /// <returns>A string value to store in the database.</returns>
+        string GetValueFromClient( string clientValue, Dictionary<string, ConfigurationValue> configurationValues );
 
         /// <summary>
         /// Creates an HTML control.
