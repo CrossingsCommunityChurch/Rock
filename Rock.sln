@@ -93,8 +93,6 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Rock.Common", "Rock.Common\
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Rock.Update", "Rock.Update\Rock.Update.csproj", "{B62B27C8-1F77-43CF-8EE7-30DE7F93FACD}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Rock.Common.NG", "Rock.Common\Rock.Common.NG.csproj", "{D722BDC5-08AF-4475-B7B8-84368F2FC88F}"
-EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "com_rocksolidchurchdemo.PageDebug", "org_rocksolidchurch.PageDebug\com_rocksolidchurchdemo.PageDebug.csproj", "{B98E49F8-A987-49C9-9CC3-40616BEAC9FD}"
 EndProject
 Project("{9092AA53-FB77-4645-B42D-1CCCA6BD08BD}") = "Rock.JavaScript.EditorJs", "Rock.JavaScript.EditorJs\Rock.JavaScript.EditorJs.njsproj", "{DEBE3E84-BE02-4840-9699-F1AEDEF26D49}"
@@ -104,6 +102,10 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Rock.Lava.Fluid", "Rock.Lava.Fluid\Rock.Lava.Fluid.csproj", "{AFCE6F84-BF3A-4182-A816-8FB47AFC0305}"
 EndProject
 Project("{9092AA53-FB77-4645-B42D-1CCCA6BD08BD}") = "Rock.JavaScript.Obsidian", "Rock.JavaScript.Obsidian\Rock.JavaScript.Obsidian.njsproj", "{A4FB4B9B-3564-4C25-938C-4350A9515B24}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Rock.Common.NG", "Rock.Common\Rock.Common.NG.csproj", "{4A3F760B-1DEB-4FB9-8650-FDC5B6BA4A55}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Crossings", "Crossings\Crossings.csproj", "{8541EAE2-026F-4964-9F70-04516162826E}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -239,10 +241,6 @@ Global
 		{B62B27C8-1F77-43CF-8EE7-30DE7F93FACD}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{B62B27C8-1F77-43CF-8EE7-30DE7F93FACD}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{B62B27C8-1F77-43CF-8EE7-30DE7F93FACD}.Release|Any CPU.Build.0 = Release|Any CPU
-		{D722BDC5-08AF-4475-B7B8-84368F2FC88F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{D722BDC5-08AF-4475-B7B8-84368F2FC88F}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{D722BDC5-08AF-4475-B7B8-84368F2FC88F}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{D722BDC5-08AF-4475-B7B8-84368F2FC88F}.Release|Any CPU.Build.0 = Release|Any CPU
 		{B98E49F8-A987-49C9-9CC3-40616BEAC9FD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{B98E49F8-A987-49C9-9CC3-40616BEAC9FD}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{B98E49F8-A987-49C9-9CC3-40616BEAC9FD}.Release|Any CPU.ActiveCfg = Release|Any CPU
@@ -263,6 +261,14 @@ Global
 		{A4FB4B9B-3564-4C25-938C-4350A9515B24}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{A4FB4B9B-3564-4C25-938C-4350A9515B24}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{A4FB4B9B-3564-4C25-938C-4350A9515B24}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4A3F760B-1DEB-4FB9-8650-FDC5B6BA4A55}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4A3F760B-1DEB-4FB9-8650-FDC5B6BA4A55}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4A3F760B-1DEB-4FB9-8650-FDC5B6BA4A55}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4A3F760B-1DEB-4FB9-8650-FDC5B6BA4A55}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8541EAE2-026F-4964-9F70-04516162826E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8541EAE2-026F-4964-9F70-04516162826E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8541EAE2-026F-4964-9F70-04516162826E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8541EAE2-026F-4964-9F70-04516162826E}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

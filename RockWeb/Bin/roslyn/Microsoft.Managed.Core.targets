@@ -1,5 +1,5 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
-<!-- Licensed to the .NET Foundation under one or more agreements. The .NET Foundation licenses this file to you under the MIT license. See the LICENSE file in the project root for more information. -->
+<!-- Copyright (c)  Microsoft.  All Rights Reserved.  Licensed under the Apache License, Version 2.0.  See License.txt in the project root for license information. -->
 <Project ToolsVersion="14.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <!--
     Common targets for managed compilers.
@@ -9,24 +9,16 @@
   <Target Name="ShimReferencePathsWhenCommonTargetsDoesNotUnderstandReferenceAssemblies"
           BeforeTargets="CoreCompile"
           Condition="'@(ReferencePathWithRefAssemblies)' == ''">
-    <!-- 
-      FindReferenceAssembliesForReferences target in Common targets populate this item 
-      since dev15.3. The compiler targets may be used (via NuGet package) on earlier MSBuilds. 
-      If the ReferencePathWithRefAssemblies item is not populated, just use ReferencePaths 
-      (implementation assemblies) as they are.
-      
-      Since XAML inner build runs CoreCompile directly (instead of Compile target),
-      it also doesn't invoke FindReferenceAssembliesForReferences listed in CompileDependsOn.
-      In that case we also populate ReferencePathWithRefAssemblies with implementation assemblies.
-    -->
+    <!-- Common targets should populate this item from dev15.3, but this file
+         may be used (via NuGet package) on earlier MSBuilds. If the
+         adjusted-for-reference-assemblies item is not populated, just use
+         the older item's contents. -->
     <ItemGroup>
       <ReferencePathWithRefAssemblies Include="@(ReferencePath)" />
     </ItemGroup>
   </Target>
 
-  <Target Name="_BeforeVBCSCoreCompile"
-          DependsOnTargets="ShimReferencePathsWhenCommonTargetsDoesNotUnderstandReferenceAssemblies">
-    
+  <Target Name="_BeforeVBCSCoreCompile">
     <ItemGroup Condition="'$(TargetingClr2Framework)' == 'true'">
       <ReferencePathWithRefAssemblies>
         <EmbedInteropTypes />
@@ -49,20 +41,6 @@
       <UseSharedCompilation>true</UseSharedCompilation>
     </PropertyGroup>
   </Target>
-
-  <!--
-    ========================
-    .editorconfig Support
-    ========================
-    
-    -->
-  <ItemGroup>
-    <_AllDirectoriesAbove Include="@(Compile->GetPathsOfAllDirectoriesAbove())" Condition="'$(DiscoverEditorConfigFiles)' != 'false'" />
-    <!-- Work around a GetPathsOfAllDirectoriesAbove() bug where it can return multiple equivalent paths when the 
-         compilation includes linked files with relative paths - https://github.com/microsoft/msbuild/issues/4392 -->
-    <PotentialEditorConfigFiles Include="@(_AllDirectoriesAbove->'%(FullPath)'->Distinct()->Combine('.editorconfig'))" Condition="'$(DiscoverEditorConfigFiles)' != 'false'" />
-    <EditorConfigFiles Include="@(PotentialEditorConfigFiles->Exists())" Condition="'$(DiscoverEditorConfigFiles)' != 'false'" />
-  </ItemGroup>
 
   <!--
     ========================
