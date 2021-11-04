@@ -56,8 +56,10 @@ namespace Rock.Lava
     /// </summary>
     /// <remarks>
     /// This class is marked for internal use because it should only be used in the context of resolving a Lava template.
-    /// Filters defined in this class should be moved to the TemplateFilters class once they are confirmed to operate correctly
-    /// in both the Rock Web and Rock Mobile applications.
+    /// Filters should only be defined in this class if they are specific to the Rock web application, as these definitions
+    /// override any implementation of the same name defined in the TemplateFilters class.
+    /// Filters that are confirmed as suitable for use with both the Rock Web and Rock Mobile applications should be
+    /// implemented in the TemplateFilters class.
     /// </remarks>
     internal static class LavaFilters
     {
@@ -1060,85 +1062,6 @@ namespace Rock.Lava
 
         #region DateTime Filters
 
-        /* [2021-07-31] DL
-         * 
-         * Lava Date filters may return DateTime, DateTimeOffset, or string values according to their purpose.
-         * Where possible, a filter should return a DateTime value specified in UTC, or a DateTimeOffset.
-         * Local DateTime values may give unexpected results if the Rock timezone setting is different from the server timezone.
-         * Where a date string is accepted as an input parameter, the Rock timezone is implied unless a timezone is specified.
-         */
-
-        /// <summary>
-        /// Formats a date using a .NET date format string
-        /// </summary>
-        /// <param name="input"></param>
-        /// <param name="format"></param>
-        /// <returns></returns>
-        public static string Date( object input, string format = null )
-        {
-            if ( input == null )
-            {
-                return null;
-            }
-
-            // If input is "now", use the current Rock date/time as the input value.
-            if ( input.ToString().ToLower() == "now" )
-            {
-                // To correctly include the Rock configured timezone, we need to use a DateTimeOffset.
-                // The DateTime object can only represent local server time or UTC time.
-                input = LavaDateTime.NowOffset;
-            }
-
-            // Use the General Short Date/Long Time format by default.
-            if ( string.IsNullOrWhiteSpace( format ) )
-            {
-                format = "G";
-            }
-            // Consider special 'Standard Date' and 'Standard Time' formats.
-            else if ( format == "sd" )
-            {
-                format = "d";
-            }
-            else if ( format == "st" )
-            {
-                format = "t";
-            }
-            // If the format string is a single character, add a space to produce a valid custom format string.
-            // (refer http://msdn.microsoft.com/en-us/library/8kb3ddd4.aspx#UsingSingleSpecifiers)
-            else if ( format.Length == 1 )
-            {
-                format = " " + format;
-            }
-
-            if ( input is DateTimeOffset inputDateTimeOffset )
-            {
-                // Preserve the value of the specified offset and return the formatted datetime value.
-                return inputDateTimeOffset.ToString( format ).Trim();
-            }
-
-            // Convert the input to a valid Rock DateTimeOffset if possible.
-            DateTimeOffset? inputDateTime;
-
-            if ( input is DateTime dt )
-            {
-                inputDateTime = LavaDateTime.ConvertToRockOffset( dt );
-            }
-            else
-            {
-                inputDateTime = LavaDateTime.ParseToOffset( input.ToString(), null );
-            }
-
-            if ( !inputDateTime.HasValue )
-            {
-                // Not a valid date, so return the input unformatted.
-                return input.ToString().Trim();
-            }
-
-            var output = LavaDateTime.ToString( inputDateTime.Value, format ).Trim();
-
-            return output;
-        }
-
         /// <summary>
         /// Sundays the date.
         /// </summary>
@@ -1602,47 +1525,6 @@ namespace Rock.Lava
             }
 
             return defaultValue;
-        }
-
-        /// <summary>
-        /// Returns the difference between two datetime values in the specified units.
-        /// </summary>
-        /// <param name="sStartDate">The start date.</param>
-        /// <param name="sEndDate">The end date.</param>
-        /// <param name="unit">The unit of measurement.</param>
-        /// <returns></returns>
-        public static Int64? DateDiff( object sStartDate, object sEndDate, string unit )
-        {
-            var startDate = GetDateTimeOffsetFromInputParameter( sStartDate, null );
-            var endDate = GetDateTimeOffsetFromInputParameter( sEndDate, null );
-
-            if ( startDate != null && endDate != null )
-            {
-                var difference = endDate.Value - startDate.Value;
-
-                switch ( unit )
-                {
-                    case "d":
-                        return ( Int64 ) difference.TotalDays;
-                    case "h":
-                        return ( Int64 ) difference.TotalHours;
-                    case "m":
-                        return ( Int64 ) difference.TotalMinutes;
-                    case "M":
-                        return ( Int64 ) GetMonthsBetween( startDate.Value, endDate.Value );
-                    case "Y":
-                        // Return the difference between the dates as the number of whole years.
-                        return ( Int64 ) Math.Truncate( endDate.Value.Subtract( startDate.Value ).TotalDays / 365.25 );
-                    case "s":
-                        return ( Int64 ) difference.TotalSeconds;
-                    default:
-                        return null;
-                }
-            }
-            else
-            {
-                return null;
-            }
         }
 
         private static int GetMonthsBetween( DateTimeOffset from, DateTimeOffset to )
@@ -3845,15 +3727,6 @@ namespace Rock.Lava
                 mergeFields = mergeFields.Where( a => a.Value == input ).ToDictionary( k => k.Key, v => v.Value );
             }
 
-            //var mergeFields = context.GetEnvironments().SelectMany( a => a ).ToDictionary( k => k.Key, v => v.Value );
-            //var allFields = mergeFields.Union( context.GetScopes().SelectMany( a => a ).DistinctBy( x => x.Key ).ToDictionary( k => k.Key, v => v.Value ) );
-
-            // if a specific MergeField was specified as the Input, limit the help to just that MergeField
-            //if ( input != null && allFields.Any( a => a.Value == input ) )
-            //{
-            //    mergeFields = allFields.Where( a => a.Value == input ).ToDictionary( k => k.Key, v => v.Value );
-            //}
-
             // TODO: implement the outputFormat option to support ASCII
             return mergeFields.lavaDebugInfo();
         }
@@ -3890,10 +3763,10 @@ namespace Rock.Lava
 
             if ( input != null )
             {
-                // Don't call Redirect with a false -- we want it to throw the thread abort exception
-                // so remaining lava does not continue to execute.  We'll catch the exception in the
-                // LavaExtension's ResolveMergeFields method.
-                HttpContext.Current.Response.Redirect( input, true );
+                HttpContext.Current.Response.Redirect( input, false );
+
+                // Having redirected to a new page, abort the rendering process for the current page.
+                throw new LavaInterruptException( "Render aborted by PageRedirect filter." );
             }
 
             return string.Empty;

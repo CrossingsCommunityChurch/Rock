@@ -294,7 +294,6 @@ namespace Rock.Blocks.Types.Mobile.Prayer
         {
             using ( var rockContext = new RockContext() )
             {
-
                 //
                 // Indicate that we are a dynamic content providing block.
                 //
@@ -320,9 +319,8 @@ namespace Rock.Blocks.Types.Mobile.Prayer
         {
             var helper = new ClientHelper( rockContext, RequestContext.CurrentPerson );
 
-            // We are not running as the target user so don't try to enforce
-            // security based on the currently logged in person when retrieving
-            // the list of campuses.
+            // Bypass security because the admin has specified which campuses
+            // they want to show up.
             helper.EnableSecurity = false;
 
             return helper.GetCampusesAsListItems( new ViewModel.Client.CampusOptions
@@ -377,6 +375,7 @@ namespace Rock.Blocks.Types.Mobile.Prayer
             IEnumerable<PrayerRequest> prayerRequests = prayerRequestService.GetPrayerRequests( new PrayerRequestQueryOptions
             {
                 IncludeNonPublic = !PublicOnly,
+                IncludeEmptyCampus = true,
                 Campuses = campusGuid.HasValue ? new List<Guid> { campusGuid.Value } : null,
                 Categories = new List<Guid> { CategoryGuid ?? Guid.Empty }
             } );

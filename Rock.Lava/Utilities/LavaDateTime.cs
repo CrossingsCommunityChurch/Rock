@@ -112,6 +112,18 @@ namespace Rock.Lava
             return NewDateTimeOffset( year, month, day, hour, minute, second, null );
         }
 
+        /// <summary>
+        /// Creates a new datetime for the Rock timezone.
+        /// </summary>
+        /// <param name="ticks"></param>
+        /// <returns></returns>
+        public static DateTimeOffset NewDateTimeOffset( long ticks )
+        {
+            var dto = new DateTimeOffset( ticks, RockDateTime.OrgTimeZoneInfo.GetUtcOffset( new DateTime( ticks ) ) );
+
+            return dto;
+        }
+
         private static DateTimeOffset NewDateTimeOffset( int year, int month, int day, int hour, int minute, int second, TimeSpan? offset )
         {
             offset = offset ?? RockDateTime.OrgTimeZoneInfo.BaseUtcOffset;
@@ -219,12 +231,12 @@ namespace Rock.Lava
                 // Convert a UTC or Local datetime to the Rock timezone.
                 dateTime = ConvertToRockDateTime( dateTime );
 
-                return new DateTimeOffset( dateTime, RockDateTime.OrgTimeZoneInfo.BaseUtcOffset );
+                return new DateTimeOffset( dateTime, RockDateTime.OrgTimeZoneInfo.GetUtcOffset( dateTime ) );
             }
             else
             {
                 // Assume an Unspecified Date Kind refers to the Rock timezone.
-                return new DateTimeOffset( dateTime, RockDateTime.OrgTimeZoneInfo.BaseUtcOffset );
+                return new DateTimeOffset( dateTime, RockDateTime.OrgTimeZoneInfo.GetUtcOffset( dateTime ) );
             }
         }
 
@@ -305,8 +317,7 @@ namespace Rock.Lava
                 if ( rockTimeZone.SupportsDaylightSavingTime )
                 {
                     var utcOffset = rockTimeZone.GetUtcOffset( dto );
-
-                    var dstOffsetString = ( utcOffset.Hours < 0 ? "-" : "+" ) + ( utcOffset.Hours > 9 ? "" : "0" ) + utcOffset.Hours + ":" + ( utcOffset.Minutes > 9 ? "" : "0" ) + utcOffset.Minutes;
+                    var dstOffsetString = ( utcOffset.Hours < 0 ? "-" : "+" ) + ( utcOffset.Hours > 9 ? "" : "0" ) + Math.Abs( utcOffset.Hours ) + ":" + ( utcOffset.Minutes > 9 ? "" : "0" ) + Math.Abs( utcOffset.Minutes );
 
                     isParsed = DateTimeOffset.TryParse( stringValue + " " + dstOffsetString, out dto );
                 }
