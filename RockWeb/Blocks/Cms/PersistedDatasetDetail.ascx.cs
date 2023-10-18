@@ -34,7 +34,8 @@ namespace RockWeb.Blocks.Cms
     [Category( "CMS" )]
     [Description( "Edit details of a Persisted Dataset" )]
 
-    public partial class PersistedDatasetDetail : RockBlock, IDetailBlock
+    [Rock.SystemGuid.BlockTypeGuid( "ACAF8CEB-18CD-4BAE-BF6A-12C08CF6D61F" )]
+    public partial class PersistedDatasetDetail : RockBlock
     {
         #region PageParameterKeys
 

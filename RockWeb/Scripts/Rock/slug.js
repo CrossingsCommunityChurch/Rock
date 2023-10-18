@@ -29,6 +29,16 @@
         subscribeToEvents();
         setDelete();
         subscribeToTitle();
+        // below code will only run in case of new Content Channel Item and if there is any postback
+        if ($(contentChannelItemSelector).val() === "0" && $(_contentSlugSelector).val() !== '') {
+            var html = '<div class="form-group rollover-container js-slug-row">' +
+                '<input id="slugId" class="js-slug-id" type="hidden" value="" />' +
+                '</div >';
+            $(_selectors.btnAdd).before(html);
+            var row = $(_selectors.slugSection).find(_selectors.slugRow);
+            setSlugDetail($(_contentSlugSelector).val(), '', row);
+            $(_selectors.btnAdd).hide();
+        }
     }
     function subscribeToTitle() {
         $(_txtTitle).unbind('focusout');
@@ -171,7 +181,7 @@
         }
         $(row).find(_selectors.inputGroup).remove();
         var html = '<span class="js-slug-literal">' + slug + '</span>' +
-            '<div class="rollover-item actions pull-right">' +
+            '<div class="rollover-item control-actions pull-right">' +
             '<a class="js-slug-edit margin-r-md" href="#"><i class="fa fa-pencil"></i></a>' +
             '<a class="js-slug-remove" href="#"><i class="fa fa-close"></i></a>' +
             '</div >';
@@ -200,11 +210,11 @@
             dataType: 'json',
             contentType: 'application/json'
         })
-            .done(function (data) {
-                setSlugDetail(data, '', row);
-            })
-            .fail(function (jqXHR, textStatus, errorThrown) {
-            });
+        .done(function (data) {
+            setSlugDetail(data, '', row);
+        })
+        .fail(function (jqXHR, textStatus, errorThrown) {
+        });
     }
     return {
         init: init

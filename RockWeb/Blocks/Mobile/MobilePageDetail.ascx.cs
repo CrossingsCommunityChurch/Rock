@@ -26,6 +26,7 @@ using System.Xml.Linq;
 
 using Rock;
 using Rock.Attribute;
+using Rock.Common.Mobile.Enums;
 using Rock.Data;
 using Rock.Mobile;
 using Rock.Model;
@@ -35,11 +36,14 @@ using Rock.Web.Cache;
 using Rock.Web.UI;
 using Rock.Web.UI.Controls;
 
+using DisplayInNavWhen = Rock.Model.DisplayInNavWhen;
+
 namespace RockWeb.Blocks.Mobile
 {
     [DisplayName( "Mobile Page Detail" )]
     [Category( "Mobile" )]
     [Description( "Edits and configures the settings of a mobile page." )]
+    [Rock.SystemGuid.BlockTypeGuid( "E3C4547A-E29B-4CBA-9610-6C19D939183B" )]
     public partial class MobilePageDetail : RockBlock
     {
         #region PageParameterKeys
@@ -84,6 +88,8 @@ namespace RockWeb.Blocks.Mobile
         {
             base.OnInit( e );
 
+            RockPage.AddCSSLink( "~/Styles/Blocks/Shared/DragPallet.css", true );
+            RockPage.AddCSSLink( "~/Styles/Blocks/Mobile/Mobile.css", true );
             RockPage.AddScriptLink( "~/Scripts/dragula.min.js" );
 
             btnSecurity.EntityTypeId = EntityTypeCache.Get( typeof( Rock.Model.Page ) ).Id;
@@ -411,6 +417,26 @@ namespace RockWeb.Blocks.Mobile
         }
 
         /// <summary>
+        /// Removes the mobile category prefix.
+        /// </summary>
+        /// <param name="category">The category.</param>
+        /// <returns>System.String.</returns>
+        private string RemoveMobileCategoryPrefix( string category )
+        {
+            if ( category.IsNullOrWhiteSpace() )
+            {
+                return category;
+            }
+
+            if ( category.StartsWith( "Mobile >" ) )
+            {
+                category = category.Replace( "Mobile >", string.Empty ).Trim();
+            }
+
+            return category;
+        }
+
+        /// <summary>
         /// Binds the block type repeater.
         /// </summary>
         private void BindBlockTypeRepeater()
@@ -421,7 +447,7 @@ namespace RockWeb.Blocks.Mobile
             // Find all mobile block types and build the component repeater.
             //
             var blockTypes = BlockTypeCache.All()
-                .Where( t => t.Category == ddlBlockTypeCategory.SelectedValue )
+                .Where( t => RemoveMobileCategoryPrefix( t.Category ) == ddlBlockTypeCategory.SelectedValue )
                 .OrderBy( t => t.Name );
 
             foreach ( var blockType in blockTypes )
@@ -433,6 +459,15 @@ namespace RockWeb.Blocks.Mobile
                     if ( !typeof( Rock.Blocks.IRockMobileBlockType ).IsAssignableFrom( blockCompiledType ) )
                     {
                         continue;
+                    }
+
+                    // Descendants of RockBlockType must provide the SupportedSiteTypes attribute.
+                    if ( typeof( Rock.Blocks.RockBlockType ).IsAssignableFrom( blockCompiledType ) )
+                    {
+                        if ( blockCompiledType.GetCustomAttribute<Rock.Blocks.SupportedSiteTypesAttribute>()?.SiteTypes.Contains( SiteType.Mobile ) != true )
+                        {
+                            continue;
+                        }
                     }
 
                     var iconCssClassAttribute = ( IconCssClassAttribute ) blockCompiledType.GetCustomAttribute( typeof( IconCssClassAttribute ) );
@@ -501,7 +536,7 @@ namespace RockWeb.Blocks.Mobile
                             {
                                 p.Id,
                                 Name = p.InternalName
-                            });
+                            } );
 
             ddlPageList.DataSource = pageList;
             ddlPageList.DataValueField = "Id";
@@ -560,24 +595,40 @@ namespace RockWeb.Blocks.Mobile
                 return;
             }
 
+            var additionalSettings = page.AdditionalSettings.FromJsonOrNull<AdditionalPageSettings>() ?? new AdditionalPageSettings();
+
             //
             // Setup the Details panel information.
             //
             hfPageId.Value = page.Id.ToString();
             lPageName.Text = page.InternalName;
 
+            lDescription.Text = $"<dl><dt>Description</dt><dd>{page.Description}</dd></dl>";
+
             var fields = new List<KeyValuePair<string, string>>();
 
-            fields.Add( new KeyValuePair<string, string>( "Title", page.PageTitle ) );
-            fields.Add( new KeyValuePair<string, string>( "Layout", page.Layout.Name ) );
-            fields.Add( new KeyValuePair<string, string>( "Display In Navigation", page.DisplayInNavWhen == DisplayInNavWhen.WhenAllowed ? "<i class='fa fa-check'></i>" : string.Empty ) );
+            if ( additionalSettings.PageType == MobilePageType.NativePage )
+            {
+                fields.Add( new KeyValuePair<string, string>( "Layout", page.Layout.Name ) );
+            }
+            else
+            {
+                fields.Add( new KeyValuePair<string, string>( "Page URL", additionalSettings.WebPageUrl ) );
+            }
+            fields.Add( new KeyValuePair<string, string>( "Display In Navigation", page.DisplayInNavWhen.GetDescription() ?? page.DisplayInNavWhen.ToStringSafe() ) );
+
             if ( page.IconBinaryFileId.HasValue )
             {
                 fields.Add( new KeyValuePair<string, string>( "Icon", GetImageTag( page.IconBinaryFileId, 200, 200, isThumbnail: true ) ) );
             }
 
+            if ( page.PageRoutes.Any() )
+            {
+                fields.Add( new KeyValuePair<string, string>( "Route", page.PageRoutes.First().Route ) );
+            }
+
             // TODO: I'm pretty sure something like this already exists in Rock, but I can never find it. - dh
-            ltDetails.Text = string.Join( "", fields.Select( f => string.Format( "<div class=\"col-md-6\"><dl><dt>{0}</dt><dd>{1}</dd></dl></div>", f.Key, f.Value ) ) );
+            lDetails.Text = string.Join( "", fields.Select( f => string.Format( "<div class=\"col-md-6\"><dl><dt>{0}</dt><dd>{1}</dd></dl></div>", f.Key, f.Value ) ) );
 
             pnlDetails.Visible = true;
             pnlEditPage.Visible = false;
@@ -609,12 +660,25 @@ namespace RockWeb.Blocks.Mobile
                 {
                     var blockCompiledType = blockType.GetCompiledType();
 
-                    if ( typeof( Rock.Blocks.IRockMobileBlockType ).IsAssignableFrom( blockCompiledType ) )
+                    if ( !typeof( Rock.Blocks.IRockMobileBlockType ).IsAssignableFrom( blockCompiledType ) )
                     {
-                        if ( !categories.Contains( blockType.Category ) )
+                        continue;
+                    }
+
+                    if ( typeof( Rock.Blocks.RockBlockType ).IsAssignableFrom( blockCompiledType ) )
+                    {
+                        if ( blockCompiledType.GetCustomAttribute<Rock.Blocks.SupportedSiteTypesAttribute>()?.SiteTypes.Contains( SiteType.Mobile ) != true )
                         {
-                            categories.Add( blockType.Category );
+                            continue;
                         }
+                    }
+
+                    var category = RemoveMobileCategoryPrefix( blockType.Category );
+
+
+                    if ( !categories.Contains( category ) )
+                    {
+                        categories.Add( category );
                     }
                 }
                 catch
@@ -625,11 +689,7 @@ namespace RockWeb.Blocks.Mobile
             ddlBlockTypeCategory.Items.Clear();
             foreach ( var c in categories.OrderBy( c => c ) )
             {
-                var text = c;
-                if ( c.StartsWith( "Mobile >" ) )
-                {
-                    text = c.Replace( "Mobile >", string.Empty ).Trim();
-                }
+                var text = RemoveMobileCategoryPrefix( c );
                 ddlBlockTypeCategory.Items.Add( new ListItem( text, c ) );
             }
             ddlBlockTypeCategory.SetValue( selectedCategory );
@@ -637,9 +697,15 @@ namespace RockWeb.Blocks.Mobile
             BindBlockTypeRepeater();
             BindZones();
 
+            hlInternalWebPage.ToolTip = string.Format( "This page will open {0} in an internal browser window.", additionalSettings.WebPageUrl );
+            hlExternalWebPage.ToolTip = string.Format( "This page will open {0} in an external browser application.", additionalSettings.WebPageUrl );
+
+            // Update the visibility of all controls to match our current state.
+            hlInternalWebPage.Visible = additionalSettings.PageType == MobilePageType.InternalWebPage;
+            hlExternalWebPage.Visible = additionalSettings.PageType == MobilePageType.ExternalWebPage;
             pnlDetails.Visible = true;
             pnlEditPage.Visible = false;
-            pnlBlocks.Visible = true;
+            pnlBlocks.Visible = additionalSettings.PageType == MobilePageType.NativePage;
         }
 
         /// <summary>
@@ -667,7 +733,7 @@ namespace RockWeb.Blocks.Mobile
             {
                 page = new Rock.Model.Page
                 {
-                    DisplayInNavWhen = DisplayInNavWhen.WhenAllowed
+                    DisplayInNavWhen = DisplayInNavWhen.Never
                 };
             }
 
@@ -699,13 +765,23 @@ namespace RockWeb.Blocks.Mobile
             tbName.Text = page.PageTitle;
             tbInternalName.Text = page.InternalName;
             tbDescription.Text = page.Description;
-            cbDisplayInNavigation.Checked = page.DisplayInNavWhen == DisplayInNavWhen.WhenAllowed;
+
             tbCssClass.Text = page.BodyCssClass;
             cbHideNavigationBar.Checked = additionalSettings.HideNavigationBar;
             cbShowFullScreen.Checked = additionalSettings.ShowFullScreen;
+            cbAutoRefresh.Checked = additionalSettings.AutoRefresh;
             ceEventHandler.Text = additionalSettings.LavaEventHandler;
             ceCssStyles.Text = additionalSettings.CssStyles;
             imgPageIcon.BinaryFileId = page.IconBinaryFileId;
+
+            ddlMenuDisplayWhen.BindToEnum<Rock.Model.DisplayInNavWhen>();
+            ddlMenuDisplayWhen.SetValue( page.DisplayInNavWhen.ToStringSafe().AsIntegerOrNull() ?? page.DisplayInNavWhen.ConvertToInt() );
+
+            ddlPageType.BindToEnum<MobilePageType>();
+            ddlPageType.SetValue( additionalSettings.PageType.ConvertToInt() );
+            tbWebPageUrl.Text = additionalSettings.WebPageUrl;
+
+            tbRoute.Text = page.PageRoutes.FirstOrDefault()?.Route ?? string.Empty;
 
             // Configure the layout options.
             var siteId = PageParameter( PageParameterKeys.SiteId ).AsInteger();
@@ -720,6 +796,8 @@ namespace RockWeb.Blocks.Mobile
             pnlEditPage.Visible = true;
             pnlDetails.Visible = false;
             pnlBlocks.Visible = false;
+
+            UpdateAdvancedSettingsVisibility();
         }
 
         /// <summary>
@@ -782,254 +860,15 @@ namespace RockWeb.Blocks.Mobile
         /// </summary>
         private List<EntityTypeCache> GetContextTypesRequired( BlockCache block )
         {
-            var contextTypesRequired = new List<EntityTypeCache>();
-
-            int properties = 0;
-            foreach ( var attribute in block.BlockType.GetCompiledType().GetCustomAttributes( typeof( ContextAwareAttribute ), true ) )
-            {
-                var contextAttribute = ( ContextAwareAttribute ) attribute;
-
-                if ( !contextAttribute.Contexts.Any() )
-                {
-                    // If the entity type was not specified in the attribute, look for a property that defines it
-                    string propertyKeyName = string.Format( "ContextEntityType{0}", properties > 0 ? properties.ToString() : string.Empty );
-                    properties++;
-
-                    Guid guid = Guid.Empty;
-                    if ( Guid.TryParse( block.GetAttributeValue( propertyKeyName ), out guid ) )
-                    {
-                        contextTypesRequired.Add( EntityTypeCache.Get( guid ) );
-                    }
-                }
-                else
-                {
-                    foreach ( var context in contextAttribute.Contexts )
-                    {
-                        var entityType = context.EntityType;
-
-                        if ( entityType != null && !contextTypesRequired.Any( e => e.Guid.Equals( entityType.Guid ) ) )
-                        {
-                            contextTypesRequired.Add( entityType );
-                        }
-                    }
-                }
-            }
-
-            return contextTypesRequired;
-        }
-
-        #endregion
-
-        #region Event Handlers
-
-        /// <summary>
-        /// Handles the Click event of the lbSave control.
-        /// </summary>
-        /// <param name="sender">The source of the event.</param>
-        /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
-        protected void lbSave_Click( object sender, EventArgs e )
-        {
-            var rockContext = new RockContext();
-            var pageService = new PageService( rockContext );
-            var contextService = new PageContextService( rockContext );
-            int parentPageId = SiteCache.Get( PageParameter( PageParameterKeys.SiteId ).AsInteger() ).DefaultPageId.Value;
-
-            var page = pageService.Get( PageParameter( PageParameterKeys.Page ).AsInteger() );
-            if ( page == null )
-            {
-                page = new Rock.Model.Page();
-                pageService.Add( page );
-
-                var order = pageService.GetByParentPageId( parentPageId )
-                    .OrderByDescending( p => p.Order )
-                    .Select( p => p.Order )
-                    .FirstOrDefault();
-                page.Order = order + 1;
-                page.ParentPageId = parentPageId;
-            }
-
-            var additionalSettings = page.AdditionalSettings.FromJsonOrNull<Rock.Mobile.AdditionalPageSettings>() ?? new Rock.Mobile.AdditionalPageSettings();
-            additionalSettings.LavaEventHandler = ceEventHandler.Text;
-            additionalSettings.CssStyles = ceCssStyles.Text;
-            additionalSettings.HideNavigationBar = cbHideNavigationBar.Checked;
-            additionalSettings.ShowFullScreen = cbShowFullScreen.Checked;
-
-            page.InternalName = tbInternalName.Text;
-            page.BrowserTitle = tbName.Text;
-            page.PageTitle = tbName.Text;
-            page.Description = tbDescription.Text;
-            page.BodyCssClass = tbCssClass.Text;
-            page.LayoutId = ddlLayout.SelectedValueAsId().Value;
-            page.DisplayInNavWhen = cbDisplayInNavigation.Checked ? DisplayInNavWhen.WhenAllowed : DisplayInNavWhen.Never;
-            page.AdditionalSettings = additionalSettings.ToJson();
-            int? oldIconId = null;
-            if ( page.IconBinaryFileId != imgPageIcon.BinaryFileId )
-            {
-                oldIconId = page.IconBinaryFileId;
-                page.IconBinaryFileId = imgPageIcon.BinaryFileId;
-            }
-
-            // update PageContexts
-            foreach ( var pageContext in page.PageContexts.ToList() )
-            {
-                contextService.Delete( pageContext );
-            }
-
-            page.PageContexts.Clear();
-            foreach ( var control in phContext.Controls )
-            {
-                if ( control is RockTextBox )
-                {
-                    var tbContext = control as RockTextBox;
-                    if ( !string.IsNullOrWhiteSpace( tbContext.Text ) )
-                    {
-                        var pageContext = new PageContext();
-                        pageContext.Entity = tbContext.ID.Substring( 8 ).Replace( '_', '.' );
-                        pageContext.IdParameter = tbContext.Text;
-                        page.PageContexts.Add( pageContext );
-                    }
-                }
-            }
-
-            rockContext.WrapTransaction( () =>
-            {
-                rockContext.SaveChanges();
-
-                if ( oldIconId.HasValue || page.IconBinaryFileId.HasValue )
-                {
-                    BinaryFileService binaryFileService = new BinaryFileService( rockContext );
-                    if ( oldIconId.HasValue )
-                    {
-                        var binaryFile = binaryFileService.Get( oldIconId.Value );
-                        if ( binaryFile != null )
-                        {
-                            // marked the old images as IsTemporary so they will get cleaned up later
-                            binaryFile.IsTemporary = true;
-                            rockContext.SaveChanges();
-                        }
-                    }
-
-                    if ( page.IconBinaryFileId.HasValue )
-                    {
-                        var binaryFile = binaryFileService.Get( page.IconBinaryFileId.Value );
-                        if ( binaryFile != null )
-                        {
-                            // marked the old images as IsTemporary so they will get cleaned up later
-                            binaryFile.IsTemporary = false;
-                            rockContext.SaveChanges();
-                        }
-                    }
-                }
-            } );
-
-            NavigateToCurrentPage( new Dictionary<string, string>
-            {
-                { PageParameterKeys.SiteId, PageParameter( PageParameterKeys.SiteId ) },
-                { PageParameterKeys.Page, page.Id.ToString() }
-            } );
+            return block?.ContextTypesRequired ?? new List<EntityTypeCache>();
         }
 
         /// <summary>
-        /// Handles the Click event of the lbBack control.
+        /// Adds the controls that will be displayed with the block. These indicate various
+        /// states and features that are enabled or disabled on the block.
         /// </summary>
-        /// <param name="sender">The source of the event.</param>
-        /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
-        protected void lbBack_Click( object sender, EventArgs e )
-        {
-            NavigateToParentPage( new Dictionary<string, string>
-            {
-                { PageParameterKeys.SiteId, PageParameter( PageParameterKeys.SiteId ) },
-                { PageParameterKeys.Tab, "Pages" }
-            } );
-        }
-
-        /// <summary>
-        /// Handles the Click event of the lbCancel control.
-        /// </summary>
-        /// <param name="sender">The source of the event.</param>
-        /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
-        protected void lbCancel_Click( object sender, EventArgs e )
-        {
-            if ( hfPageId.ValueAsInt() == 0 )
-            {
-                lbBack_Click( this, new EventArgs() );
-            }
-            else
-            {
-                ShowDetail( hfPageId.ValueAsInt() );
-            }
-        }
-
-        /// <summary>
-        /// Handles the Click event of the lbEdit control.
-        /// </summary>
-        /// <param name="sender">The source of the event.</param>
-        /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
-        protected void lbEdit_Click( object sender, EventArgs e )
-        {
-            ShowPageEdit( PageParameter( PageParameterKeys.Page ).AsInteger() );
-        }
-
-        /// <summary>
-        /// Handles the ItemDataBound event of the rptrZones control.
-        /// </summary>
-        /// <param name="sender">The source of the event.</param>
-        /// <param name="e">The <see cref="RepeaterItemEventArgs"/> instance containing the event data.</param>
-        protected void rptrZones_ItemDataBound( object sender, RepeaterItemEventArgs e )
-        {
-            var rptrBlocks = ( Repeater ) e.Item.FindControl( "rptrBlocks" );
-            var zone = ( BlockContainer ) e.Item.DataItem;
-
-            //
-            // Bind the nested repeater for blocks.
-            //
-            rptrBlocks.DataSource = zone.Components;
-            rptrBlocks.DataBind();
-        }
-
-        /// <summary>
-        /// Handles the ItemCommand event of the rptrBlocks control.
-        /// </summary>
-        /// <param name="source">The source of the event.</param>
-        /// <param name="e">The <see cref="RepeaterCommandEventArgs"/> instance containing the event data.</param>
-        protected void rptrBlocks_ItemCommand( object source, RepeaterCommandEventArgs e )
-        {
-            if ( e.CommandName == "Delete" )
-            {
-                var rockContext = new RockContext();
-                var blockService = new BlockService( rockContext );
-
-                var block = blockService.Get( e.CommandArgument.ToString().AsInteger() );
-                blockService.Delete( block );
-                rockContext.SaveChanges();
-
-                BindZones();
-            }
-        }
-
-        /// <summary>
-        /// Handles the ItemDataBound event of the any of the rptrBlocks controls.
-        /// </summary>
-        /// <param name="sender">The source of the event.</param>
-        /// <param name="e">The <see cref="RepeaterItemEventArgs"/> instance containing the event data.</param>
-        protected void rptrBlocks_ItemDataBound( object sender, RepeaterItemEventArgs e )
-        {
-            var blockInstance = e.Item.DataItem as BlockInstance;
-            if ( blockInstance != null )
-            {
-                BlockCache block = BlockCache.Get( blockInstance.Id );
-                if ( block != null )
-                {
-                    var phAdminButtons = e.Item.FindControl( "phAdminButtons" ) as PlaceHolder;
-                    var phSettings = e.Item.FindControl( "phSettings" ) as PlaceHolder;
-
-                    AddAdminControls( block, phAdminButtons );
-                    AddSettingsControls( block, phSettings );
-
-                }
-            }
-        }
-
+        /// <param name="block">The block.</param>
+        /// <param name="pnlLayoutItem">The placeholder to add the controls to.</param>
         private void AddSettingsControls( BlockCache block, PlaceHolder pnlLayoutItem )
         {
             var additionalSettings = block.AdditionalSettings.FromJsonOrNull<AdditionalBlockSettings>() ?? new AdditionalBlockSettings();
@@ -1049,9 +888,9 @@ namespace RockWeb.Blocks.Mobile
                 markup.Append( "<i class='fa fa-fire-alt margin-r-sm text-success' data-toggle='tooltip' data-placement='top' title='Lava will run on client.'></i>" );
             }
 
-            if ( additionalSettings.CacheDuration != 0  )
+            if ( additionalSettings.CacheDuration != 0 )
             {
-                markup.Append( string.Format("<i class='fa fa-memory margin-r-sm' data-toggle='tooltip' data-placement='top' title='Cache is set to {0} seconds.'></i> ", additionalSettings.CacheDuration ) );
+                markup.Append( string.Format( "<i class='fa fa-memory margin-r-sm' data-toggle='tooltip' data-placement='top' title='Cache is set to {0} seconds.'></i> ", additionalSettings.CacheDuration ) );
             }
             else
             {
@@ -1087,7 +926,7 @@ namespace RockWeb.Blocks.Mobile
                 }
                 else
                 {
-                    markup.Append( string.Format( "<i class='fa fa-wifi margin-r-sm' data-toggle='tooltip' data-placement='top' title='Requires internet. Content: {0}...'></i> ", additionalSettings.NoNetworkContent.Left(250)) );
+                    markup.Append( string.Format( "<i class='fa fa-wifi margin-r-sm' data-toggle='tooltip' data-placement='top' title='Requires internet. Content: {0}...'></i> ", additionalSettings.NoNetworkContent.Left( 250 ) ) );
                 }
             }
             else
@@ -1095,7 +934,7 @@ namespace RockWeb.Blocks.Mobile
                 markup.Append( "<i class='fa fa-wifi margin-r-sm o-30' data-toggle='tooltip' data-placement='top' title='Does not require internet.'></i> " );
             }
 
-            pnlLayoutItem.Controls.Add( new Literal { Text = markup.ToString() } ) ;
+            pnlLayoutItem.Controls.Add( new Literal { Text = markup.ToString() } );
         }
 
         /// <summary>
@@ -1210,6 +1049,310 @@ namespace RockWeb.Blocks.Mobile
         }
 
         /// <summary>
+        /// Updates the advanced settings controls visibility states to match
+        /// the current selections in the UI.
+        /// </summary>
+        private void UpdateAdvancedSettingsVisibility()
+        {
+            var pageType = ddlPageType.SelectedValueAsEnum<MobilePageType>( MobilePageType.NativePage );
+
+            if ( pageType == MobilePageType.NativePage )
+            {
+                tbWebPageUrl.Visible = false;
+                pnlNativePageAdvancedSettings.Visible = true;
+            }
+            else
+            {
+                tbWebPageUrl.Visible = true;
+                pnlNativePageAdvancedSettings.Visible = false;
+            }
+        }
+
+        /// <summary>
+        /// Determines whether the page route is a duplicate of another page
+        /// on the same site.
+        /// </summary>
+        /// <param name="pageId">The page identifier.</param>
+        /// <param name="siteId">The site identifier.</param>
+        /// <param name="pageRoute">The page route.</param>
+        /// <returns><c>true</c> if the route is a duplicate.; otherwise, <c>false</c>.</returns>
+        private bool IsPageRouteDuplicate( int pageId, int? siteId, string pageRoute )
+        {
+            using ( var rockContext = new RockContext() )
+            {
+                var routeService = new PageRouteService( rockContext );
+
+                // validate for any duplicate routes
+                var duplicateRouteQry = routeService.Queryable()
+                    .Where( r =>
+                        r.PageId != pageId &&
+                        pageRoute == r.Route );
+
+                if ( siteId.HasValue )
+                {
+                    duplicateRouteQry = duplicateRouteQry
+                        .Where( r =>
+                            r.Page != null &&
+                            r.Page.Layout != null &&
+                            r.Page.Layout.SiteId == siteId.Value );
+                }
+
+                return duplicateRouteQry.Any();
+            }
+        }
+
+        #endregion
+
+        #region Event Handlers
+
+        /// <summary>
+        /// Handles the Click event of the lbSave control.
+        /// </summary>
+        /// <param name="sender">The source of the event.</param>
+        /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
+        protected void lbSave_Click( object sender, EventArgs e )
+        {
+            var rockContext = new RockContext();
+            var pageService = new PageService( rockContext );
+            var contextService = new PageContextService( rockContext );
+            int parentPageId = SiteCache.Get( PageParameter( PageParameterKeys.SiteId ).AsInteger() ).DefaultPageId.Value;
+
+            var page = pageService.Get( PageParameter( PageParameterKeys.Page ).AsInteger() );
+            if ( page == null )
+            {
+                page = new Rock.Model.Page();
+                pageService.Add( page );
+
+                var order = pageService.GetByParentPageId( parentPageId )
+                    .OrderByDescending( p => p.Order )
+                    .Select( p => p.Order )
+                    .FirstOrDefault();
+                page.Order = order + 1;
+                page.ParentPageId = parentPageId;
+            }
+
+            var additionalSettings = page.AdditionalSettings.FromJsonOrNull<Rock.Mobile.AdditionalPageSettings>() ?? new Rock.Mobile.AdditionalPageSettings();
+            additionalSettings.LavaEventHandler = ceEventHandler.Text;
+            additionalSettings.CssStyles = ceCssStyles.Text;
+            additionalSettings.HideNavigationBar = cbHideNavigationBar.Checked;
+            additionalSettings.ShowFullScreen = cbShowFullScreen.Checked;
+            additionalSettings.AutoRefresh = cbAutoRefresh.Checked;
+            additionalSettings.PageType = ddlPageType.SelectedValueAsEnum<MobilePageType>( MobilePageType.NativePage );
+            additionalSettings.WebPageUrl = tbWebPageUrl.Text;
+
+            page.InternalName = tbInternalName.Text;
+            page.BrowserTitle = tbName.Text;
+            page.PageTitle = tbName.Text;
+            page.Description = tbDescription.Text;
+            page.BodyCssClass = tbCssClass.Text;
+            page.LayoutId = ddlLayout.SelectedValueAsId().Value;
+            page.DisplayInNavWhen = ddlMenuDisplayWhen.SelectedValue.ConvertToEnumOrNull<Rock.Model.DisplayInNavWhen>() ?? DisplayInNavWhen.Never;
+            page.AdditionalSettings = additionalSettings.ToJson();
+            int? oldIconId = null;
+            if ( page.IconBinaryFileId != imgPageIcon.BinaryFileId )
+            {
+                oldIconId = page.IconBinaryFileId;
+                page.IconBinaryFileId = imgPageIcon.BinaryFileId;
+            }
+
+            // update PageContexts
+            foreach ( var pageContext in page.PageContexts.ToList() )
+            {
+                contextService.Delete( pageContext );
+            }
+
+            page.PageContexts.Clear();
+            foreach ( var control in phContext.Controls )
+            {
+                if ( control is RockTextBox )
+                {
+                    var tbContext = control as RockTextBox;
+                    if ( !string.IsNullOrWhiteSpace( tbContext.Text ) )
+                    {
+                        var pageContext = new PageContext();
+                        pageContext.Entity = tbContext.ID.Substring( 8 ).Replace( '_', '.' );
+                        pageContext.IdParameter = tbContext.Text;
+                        page.PageContexts.Add( pageContext );
+                    }
+                }
+            }
+
+            var pageRoute = tbRoute.Text.TrimStart( '/' );
+
+            if ( pageRoute.IsNotNullOrWhiteSpace() )
+            {
+                if ( IsPageRouteDuplicate( page.Id, page?.Layout?.SiteId, pageRoute ) )
+                {
+                    throw new Exception( $"The page route {pageRoute} already exists for another page in the same site." );
+                }
+
+                if ( page.PageRoutes.Any() )
+                {
+                    page.PageRoutes.First().Route = pageRoute;
+                }
+                else
+                {
+                    page.PageRoutes.Add( new PageRoute
+                    {
+                        Route = pageRoute
+                    } );
+                }
+            }
+            else if ( page.Id != 0 && page.PageRoutes.Any() )
+            {
+                var pageRouteService = new PageRouteService( rockContext );
+
+                while ( page.PageRoutes.Any() )
+                {
+                    // Delete also removes the route from the PageRoutes collection.
+                    pageRouteService.Delete( page.PageRoutes.First() );
+                }
+            }
+
+            rockContext.WrapTransaction( () =>
+            {
+                rockContext.SaveChanges();
+
+                if ( oldIconId.HasValue || page.IconBinaryFileId.HasValue )
+                {
+                    BinaryFileService binaryFileService = new BinaryFileService( rockContext );
+                    if ( oldIconId.HasValue )
+                    {
+                        var binaryFile = binaryFileService.Get( oldIconId.Value );
+                        if ( binaryFile != null )
+                        {
+                            // marked the old images as IsTemporary so they will get cleaned up later
+                            binaryFile.IsTemporary = true;
+                            rockContext.SaveChanges();
+                        }
+                    }
+
+                    if ( page.IconBinaryFileId.HasValue )
+                    {
+                        var binaryFile = binaryFileService.Get( page.IconBinaryFileId.Value );
+                        if ( binaryFile != null )
+                        {
+                            // marked the old images as IsTemporary so they will get cleaned up later
+                            binaryFile.IsTemporary = false;
+                            rockContext.SaveChanges();
+                        }
+                    }
+                }
+            } );
+
+            // Call this here to force the cache to flush the page in case the
+            // only thing changed is related data, like page routes.
+            PageCache.FlushPage( page.Id );
+
+            NavigateToCurrentPage( new Dictionary<string, string>
+            {
+                { PageParameterKeys.SiteId, PageParameter( PageParameterKeys.SiteId ) },
+                { PageParameterKeys.Page, page.Id.ToString() }
+            } );
+        }
+
+        /// <summary>
+        /// Handles the Click event of the lbBack control.
+        /// </summary>
+        /// <param name="sender">The source of the event.</param>
+        /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
+        protected void lbBack_Click( object sender, EventArgs e )
+        {
+            NavigateToParentPage( new Dictionary<string, string>
+            {
+                { PageParameterKeys.SiteId, PageParameter( PageParameterKeys.SiteId ) },
+                { PageParameterKeys.Tab, "Pages" }
+            } );
+        }
+
+        /// <summary>
+        /// Handles the Click event of the lbCancel control.
+        /// </summary>
+        /// <param name="sender">The source of the event.</param>
+        /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
+        protected void lbCancel_Click( object sender, EventArgs e )
+        {
+            if ( hfPageId.ValueAsInt() == 0 )
+            {
+                lbBack_Click( this, new EventArgs() );
+            }
+            else
+            {
+                ShowDetail( hfPageId.ValueAsInt() );
+            }
+        }
+
+        /// <summary>
+        /// Handles the Click event of the lbEdit control.
+        /// </summary>
+        /// <param name="sender">The source of the event.</param>
+        /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
+        protected void lbEdit_Click( object sender, EventArgs e )
+        {
+            ShowPageEdit( PageParameter( PageParameterKeys.Page ).AsInteger() );
+        }
+
+        /// <summary>
+        /// Handles the ItemDataBound event of the rptrZones control.
+        /// </summary>
+        /// <param name="sender">The source of the event.</param>
+        /// <param name="e">The <see cref="RepeaterItemEventArgs"/> instance containing the event data.</param>
+        protected void rptrZones_ItemDataBound( object sender, RepeaterItemEventArgs e )
+        {
+            var rptrBlocks = ( Repeater ) e.Item.FindControl( "rptrBlocks" );
+            var zone = ( BlockContainer ) e.Item.DataItem;
+
+            //
+            // Bind the nested repeater for blocks.
+            //
+            rptrBlocks.DataSource = zone.Components;
+            rptrBlocks.DataBind();
+        }
+
+        /// <summary>
+        /// Handles the ItemCommand event of the rptrBlocks control.
+        /// </summary>
+        /// <param name="source">The source of the event.</param>
+        /// <param name="e">The <see cref="RepeaterCommandEventArgs"/> instance containing the event data.</param>
+        protected void rptrBlocks_ItemCommand( object source, RepeaterCommandEventArgs e )
+        {
+            if ( e.CommandName == "Delete" )
+            {
+                var rockContext = new RockContext();
+                var blockService = new BlockService( rockContext );
+
+                var block = blockService.Get( e.CommandArgument.ToString().AsInteger() );
+                blockService.Delete( block );
+                rockContext.SaveChanges();
+
+                BindZones();
+            }
+        }
+
+        /// <summary>
+        /// Handles the ItemDataBound event of the any of the rptrBlocks controls.
+        /// </summary>
+        /// <param name="sender">The source of the event.</param>
+        /// <param name="e">The <see cref="RepeaterItemEventArgs"/> instance containing the event data.</param>
+        protected void rptrBlocks_ItemDataBound( object sender, RepeaterItemEventArgs e )
+        {
+            var blockInstance = e.Item.DataItem as BlockInstance;
+            if ( blockInstance != null )
+            {
+                BlockCache block = BlockCache.Get( blockInstance.Id );
+                if ( block != null )
+                {
+                    var phAdminButtons = e.Item.FindControl( "phAdminButtons" ) as PlaceHolder;
+                    var phSettings = e.Item.FindControl( "phSettings" ) as PlaceHolder;
+
+                    AddAdminControls( block, phAdminButtons );
+                    AddSettingsControls( block, phSettings );
+
+                }
+            }
+        }
+
+        /// <summary>
         /// Handles the SelectedIndexChanged event of the ddlBlockTypeCategory control.
         /// </summary>
         /// <param name="sender">The source of the event.</param>
@@ -1219,6 +1362,11 @@ namespace RockWeb.Blocks.Mobile
             BindBlockTypeRepeater();
         }
 
+        /// <summary>
+        /// Handles the SelectedIndexChanged event of the ddlPageList control.
+        /// </summary>
+        /// <param name="sender">The source of the event.</param>
+        /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
         protected void ddlPageList_SelectedIndexChanged( object sender, EventArgs e )
         {
             var queryString = new Dictionary<string, string>();
@@ -1226,6 +1374,16 @@ namespace RockWeb.Blocks.Mobile
             queryString.Add( PageParameterKeys.Page, ddlPageList.SelectedValue );
 
             NavigateToCurrentPage( queryString );
+        }
+
+        /// <summary>
+        /// Handles the SelectedIndexChanged event of the ddlPageType control.
+        /// </summary>
+        /// <param name="sender">The source of the event.</param>
+        /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
+        protected void ddlPageType_SelectedIndexChanged( object sender, EventArgs e )
+        {
+            UpdateAdvancedSettingsVisibility();
         }
 
         #endregion

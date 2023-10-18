@@ -25,13 +25,28 @@
                      <p>As of Rock McKinley v13, Rock requires Microsoft .NET Framework 4.7.2 or greater on the hosting server.
                         This framework version was released by Microsoft on April 30th, 2018.</p>
                 </Rock:NotificationBox>
-                <Rock:NotificationBox ID="nbSqlServerVersionIssue" runat="server" NotificationBoxType="Danger" Visible="false">
-                    <h2><i class="fa fa-exclamation-triangle"></i> Microsoft SQL Server Update Required</h2>
+                <Rock:NotificationBox ID="nbSqlServerVersionIssue" runat="server" NotificationBoxType="Warning" Visible="false">
+                    <strong><i class="fa fa-exclamation-triangle"></i> Microsoft SQL Server Update Required</strong>
                     <p>
-                        As of Rock McKinley v11, Rock requires SQL Server 2014 or greater.
+                        As of Rock McKinley v16, Rock requires Microsoft SQL Azure or SQL Server 2016 or greater.
                         You will need to upgrade your database in order to proceed with that update.
                     </p>
                 </Rock:NotificationBox>
+                <Rock:NotificationBox ID="nbLavaEngineIssue" runat="server" NotificationBoxType="Warning" Visible="false">
+                    <strong><i class="fa fa-exclamation-triangle"></i> 'Lava Engine Liquid Framework' Change is Needed</strong>
+                    <p>
+                        Rock v17 no longer supports the "DotLiquid" engine. In order to upgrade Rock to v17, your <strong> Lava Engine Liquid Framework </strong> Global Attribute must be set to "Fluid".
+                    </p>
+                </Rock:NotificationBox>
+                <Rock:NotificationBox ID="nbCompileThreadsIssue" runat="server" NotificationBoxType="Warning" Visible="true">
+                    <strong><i class="fa fa-exclamation-triangle"></i> Background Process Running</strong>
+                    <p>
+                        Rock is running one or more processes that may lock files that will be updated. These will be checked again after clicking the update button. If this message appears again wait a minute and try again.
+                    </p>
+                </Rock:NotificationBox>
+
+                <Rock:NotificationBox ID="nbPendingMigrationJobs" runat="server" NotificationBoxType="Warning" Visible="false"></Rock:NotificationBox>
+
                 <asp:Panel ID="pnlNoUpdates" runat="server">
                     <div class="well well-message">
                         <h1>Everything Is Shipshape</h1>
@@ -172,19 +187,8 @@
                     </Content>
                 </Rock:ModalDialog>
 
-                <a href="/RockUpdateLegacy" class="pull-right">Legacy Updater</a>
             </div>
 
         </div>
     </ContentTemplate>
 </asp:UpdatePanel>
-
-<script>
-    $(function () {
-        $(".js-releasenote").on("click", function (event) {
-            var $top = $(event.target).closest(".releasenotes");
-            $top.find("i").toggleClass("fa-caret-up").toggleClass("fa-caret-down");
-            $top.find(".releasenotes-body").slideToggle(500);
-        });
-    });
-</script>

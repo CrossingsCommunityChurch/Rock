@@ -16,6 +16,7 @@
 //
 
 using System.ComponentModel;
+
 using Rock.Attribute;
 using Rock.Model;
 
@@ -24,14 +25,17 @@ namespace Rock.Blocks.Example
     /// <summary>
     /// Allows the user to try out various field types.
     /// </summary>
-    /// <seealso cref="Rock.Blocks.RockObsidianBlockType" />
+    /// <seealso cref="Rock.Blocks.RockBlockType" />
 
     [DisplayName( "Field Type Gallery" )]
     [Category( "Obsidian > Example" )]
     [Description( "Allows the user to try out various field types." )]
     [IconCssClass( "fa fa-flask" )]
+    [SupportedSiteTypes( Model.SiteType.Web )]
 
-    public class FieldTypeGallery : RockObsidianBlockType
+    [Rock.SystemGuid.EntityTypeGuid( Rock.SystemGuid.EntityType.OBSIDIAN_EXAMPLE_FIELD_TYPE_GALLERY )]
+    [Rock.SystemGuid.BlockTypeGuid( "50B7B326-8212-44E6-8CF6-515B1FF75A19")]
+    public class FieldTypeGallery : RockBlockType
     {
     }
 }

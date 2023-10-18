@@ -36,6 +36,7 @@ namespace Rock.Workflow.Action
     [KeyValueListField( "Parameters", "The parameters to supply to the SQL query. <span class='tip tip-lava'></span>", false, "", "Parameter", "", order: 1 )]
     [WorkflowAttribute( "Result Attribute", "An optional attribute to set to the scaler result of SQL query.", false, "", "", 2 )]
     [BooleanField( "Continue On Error", "Should processing continue even if SQL Error occurs?", false, "", 3 )]
+    [Rock.SystemGuid.EntityTypeGuid( "A41216D6-6FB0-4019-B222-2C29B4519CF4")]
     public class RunSQL : ActionComponent
     {
         /// <summary>
@@ -67,7 +68,7 @@ namespace Rock.Workflow.Action
 
             try
             {
-                object sqlResult = DbService.ExecuteScaler( query, System.Data.CommandType.Text, parameters );
+                object sqlResult = DbService.ExecuteScalar( query, System.Data.CommandType.Text, parameters, null );
                 action.AddLogEntry( "SQL query has been run" );
 
                 if ( sqlResult != null )

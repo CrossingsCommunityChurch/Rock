@@ -16,11 +16,13 @@
 //
 using System;
 using System.Configuration;
+using Newtonsoft.Json;
 
 namespace Rock.Apps.StatementGenerator
 {
     /// <summary>
-    /// 
+    /// Class RockConfig. This class cannot be inherited.
+    /// Implements the <see cref="System.Configuration.ApplicationSettingsBase" />
     /// </summary>
     internal sealed partial class RockConfig : ApplicationSettingsBase
     {
@@ -33,6 +35,9 @@ namespace Rock.Apps.StatementGenerator
         /// The default instance
         /// </summary>
         private static RockConfig defaultInstance = ( ( RockConfig ) ( ApplicationSettingsBase.Synchronized( new RockConfig() ) ) );
+
+        public const string DefaultGetFinancialStatementGeneratorRecipientsEndpoint = "api/FinancialGivingStatement/GetFinancialStatementGeneratorRecipients";
+        public const string DefaultGetStatementGeneratorRecipientResultEndpoint = "api/FinancialGivingStatement/GetStatementGeneratorRecipientResult";
 
         /// <summary>
         /// Gets the default.
@@ -56,6 +61,7 @@ namespace Rock.Apps.StatementGenerator
         /// </value>
         [DefaultSettingValue( "" )]
         [UserScopedSetting]
+        [JsonIgnore]
         public string RockBaseUrl
         {
             get
@@ -77,6 +83,7 @@ namespace Rock.Apps.StatementGenerator
         /// </value>
         [DefaultSettingValue( "" )]
         [UserScopedSetting]
+        [JsonIgnore]
         public string Username
         {
             get
@@ -96,6 +103,7 @@ namespace Rock.Apps.StatementGenerator
         /// <value>
         /// The password.
         /// </value>
+        [JsonIgnore]
         public string Password
         {
             get
@@ -138,6 +146,7 @@ namespace Rock.Apps.StatementGenerator
         /// </value>
         [DefaultSettingValue( "" )]
         [UserScopedSetting]
+        [JsonConverter( typeof( ConfigSettingsStringConverter ) )]
         public string IndividualSaveOptionsJson
         {
             get => this["IndividualSaveOptionsJson"] as string;
@@ -152,6 +161,7 @@ namespace Rock.Apps.StatementGenerator
         /// </value>
         [DefaultSettingValue( "" )]
         [UserScopedSetting]
+        [JsonConverter( typeof( ConfigSettingsStringConverter ) )]
         public string ReportConfigurationListJson
         {
             get => this["ReportConfigurationListJson"] as string;
@@ -201,6 +211,114 @@ namespace Rock.Apps.StatementGenerator
         }
 
         /// <summary>
+        /// Gets or sets the name of the result summary file.
+        /// </summary>
+        /// <value>The name of the result summary file.</value>
+        [DefaultSettingValue( "@Summary of Results.txt" )]
+        [UserScopedSetting]
+        public string ResultSummaryFileName
+        {
+            get
+            {
+                return this["ResultSummaryFileName"] as string;
+            }
+
+            set
+            {
+                this["ResultSummaryFileName"] = value;
+            }
+        }
+
+        /// <summary>
+        /// Gets or sets the last report options.
+        /// </summary>
+        /// <value>The last report options.</value>
+        [DefaultSettingValue( null )]
+        [UserScopedSetting]
+        public Rock.Client.FinancialStatementGeneratorOptions LastReportOptions
+        {
+            get
+            {
+                return this["LastReportOptions"] as Rock.Client.FinancialStatementGeneratorOptions;
+            }
+
+            set
+            {
+                this["LastReportOptions"] = value;
+            }
+        }
+
+        /// <summary>
+        /// Gets or sets the "get financial statement generator recipients" endpoint.
+        /// </summary>
+        /// <value>
+        /// The "get financial statement generator recipients" endpoint.
+        /// </value>
+        [DefaultSettingValue( DefaultGetFinancialStatementGeneratorRecipientsEndpoint )]
+        [UserScopedSetting]
+        public string GetFinancialStatementGeneratorRecipientsEndpoint
+        {
+            get
+            {
+                return this["GetFinancialStatementGeneratorRecipientsEndpoint"] as string;
+            }
+
+            set
+            {
+                this["GetFinancialStatementGeneratorRecipientsEndpoint"] = value;
+            }
+        }
+
+        /// <summary>
+        /// Gets or sets the "get statement generator recipient result" endpoint.
+        /// </summary>
+        /// <value>
+        /// The "get statement generator recipient result" endpoint.
+        /// </value>
+        [DefaultSettingValue( DefaultGetStatementGeneratorRecipientResultEndpoint )]
+        [UserScopedSetting]
+        public string GetStatementGeneratorRecipientResultEndpoint
+        {
+            get
+            {
+                return this["GetStatementGeneratorRecipientResultEndpoint"] as string;
+            }
+
+            set
+            {
+                this["GetStatementGeneratorRecipientResultEndpoint"] = value;
+            }
+        }
+
+        /// <summary>
+        /// Gets the collection of settings properties in the wrapper.
+        /// </summary>
+        /// <value>The properties.</value>
+        [JsonIgnore]
+        public override SettingsPropertyCollection Properties => base.Properties;
+
+        /// <summary>
+        /// Gets a collection of property values.
+        /// </summary>
+        /// <value>The property values.</value>
+        [JsonIgnore]
+        public override SettingsPropertyValueCollection PropertyValues => base.PropertyValues;
+
+        /// <summary>
+        /// Gets the collection of application settings providers used by the wrapper.
+        /// </summary>
+        /// <value>The providers.</value>
+        [JsonIgnore]
+        public override SettingsProviderCollection Providers => base.Providers;
+
+        /// <summary>
+        /// Gets the application settings context associated with the settings group.
+        /// </summary>
+        /// <value>The context.</value>
+        [JsonIgnore]
+        public override SettingsContext Context => base.Context;
+
+        /// <summary>
         /// Loads this instance.
         /// </summary>
         /// <returns></returns>
@@ -211,7 +329,7 @@ namespace Rock.Apps.StatementGenerator
     }
 
     /// <summary>
-    /// 
+    ///
     /// </summary>
     public enum PersonSelectionOption
     {

@@ -35,8 +35,9 @@ namespace RockWeb.Blocks.Checkin
     /// Block for displaying the attendance list of a group with schedule on selected date.
     /// </summary>
     [DisplayName( "Attendance List" )]
-    [Category( "Checkin" )]
+    [Category( "Check-in" )]
     [Description( "Block for displaying the attendance history of a person or a group." )]
+    [Rock.SystemGuid.BlockTypeGuid( "678ED4B6-D76F-4D43-B069-659E352C9BD8" )]
     public partial class AttendanceList : RockBlock, ICustomGridColumns
     {
 
@@ -146,7 +147,7 @@ namespace RockWeb.Blocks.Checkin
         #region Edit Events
 
         /// <summary>
-        /// Handles the GridRebind event of the gHistory control.
+        /// Handles the GridRebind event of the gAttendees control.
         /// </summary>
         /// <param name="sender">The source of the event.</param>
         /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
@@ -232,8 +233,8 @@ namespace RockWeb.Blocks.Checkin
         /// <exception cref="System.NotImplementedException"></exception>
         protected void rFilter_ApplyFilterClick( object sender, EventArgs e )
         {
-            rFilter.SaveUserPreference( UserPreferenceKey.EnteredBy, ppEnteredBy.SelectedValue.ToString() );
-            rFilter.SaveUserPreference( UserPreferenceKey.Attended, ddlDidAttend.SelectedValue );
+            rFilter.SetFilterPreference( UserPreferenceKey.EnteredBy, ppEnteredBy.SelectedValue.ToString() );
+            rFilter.SetFilterPreference( UserPreferenceKey.Attended, ddlDidAttend.SelectedValue );
 
             BindGrid();
         }
@@ -245,7 +246,7 @@ namespace RockWeb.Blocks.Checkin
         /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
         protected void rFilter_ClearFilterClick( object sender, EventArgs e )
         {
-            rFilter.DeleteUserPreferences();
+            rFilter.DeleteFilterPreferences();
             BindFilter();
         }
 
@@ -258,14 +259,14 @@ namespace RockWeb.Blocks.Checkin
         /// </summary>
         private void BindFilter()
         {
-            int? enteredById = rFilter.GetUserPreference( UserPreferenceKey.EnteredBy ).AsIntegerOrNull();
+            int? enteredById = rFilter.GetFilterPreference( UserPreferenceKey.EnteredBy ).AsIntegerOrNull();
             if ( enteredById.HasValue )
             {
                 var person = new PersonService( new RockContext() ).Get( enteredById.Value );
                 ppEnteredBy.SetValue( person );
             }
 
-            string filterValue = rFilter.GetUserPreference( UserPreferenceKey.Attended );
+            string filterValue = rFilter.GetFilterPreference( UserPreferenceKey.Attended );
             ddlDidAttend.SetValue( filterValue );
         }
 

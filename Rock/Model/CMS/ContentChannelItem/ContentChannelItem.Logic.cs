@@ -52,5 +52,51 @@ namespace Rock.Model
                 return ContentChannelItemSlugs.Select( a => a.Slug ).FirstOrDefault();
             }
         }
+
+        /// <summary>
+        /// Gets a value indicating whether [allows interactive bulk indexing].
+        /// </summary>
+        /// <value>
+        /// <c>true</c> if [allows interactive bulk indexing]; otherwise, <c>false</c>.
+        /// </value>
+        /// <exception cref="System.NotImplementedException"></exception>
+        [NotMapped]
+        public bool AllowsInteractiveBulkIndexing
+        {
+            get
+            {
+                return true;
+            }
+        }
+
+        /// <summary>
+        /// Gets a value indicating whether this instance is downloaded from content library.
+        /// </summary>
+        /// <value>
+        ///   <c>true</c> if this instance is downloaded from content library; otherwise, <c>false</c>.
+        /// </value>
+        [NotMapped]
+        public bool IsDownloadedFromContentLibrary
+        {
+            get
+            {
+                return !( this.IsContentLibraryOwner ?? false ) && this.ContentLibrarySourceIdentifier.HasValue;
+            }
+        }
+
+        /// <summary>
+        /// Gets a value indicating whether this instance is uploaded to content library.
+        /// </summary>
+        /// <value>
+        ///   <c>true</c> if this instance is uploaded to content library; otherwise, <c>false</c>.
+        /// </value>
+        [NotMapped]
+        public bool IsUploadedToContentLibrary
+        {
+            get
+            {
+                return ( this.IsContentLibraryOwner ?? false ) && this.ContentLibrarySourceIdentifier.HasValue;
+            }
+        }
     }
 }

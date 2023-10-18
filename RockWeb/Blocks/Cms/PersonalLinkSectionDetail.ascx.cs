@@ -45,7 +45,8 @@ namespace RockWeb.Blocks.Cms
         Key = AttributeKey.SharedSection,
         Order = 0)]
 
-    public partial class PersonalLinkSectionDetail : RockBlock, IDetailBlock
+    [Rock.SystemGuid.BlockTypeGuid( "CFE5C556-9E46-4A51-849D-FF5F4A899930" )]
+    public partial class PersonalLinkSectionDetail : RockBlock
     {
         #region Attribute Keys
 

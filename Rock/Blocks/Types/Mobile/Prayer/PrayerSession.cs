@@ -24,6 +24,7 @@ using Rock.Common.Mobile.Blocks.Content;
 using Rock.Data;
 using Rock.Model;
 using Rock.Security;
+using Rock.Utility;
 using Rock.Web.Cache;
 
 namespace Rock.Blocks.Types.Mobile.Events
@@ -31,12 +32,13 @@ namespace Rock.Blocks.Types.Mobile.Events
     /// <summary>
     /// Allows the user to read through and pray for prayer requests.
     /// </summary>
-    /// <seealso cref="Rock.Blocks.RockMobileBlockType" />
+    /// <seealso cref="Rock.Blocks.RockBlockType" />
 
     [DisplayName( "Prayer Session" )]
     [Category( "Mobile > Prayer" )]
     [Description( "Allows the user to read through and pray for prayer requests." )]
     [IconCssClass( "fa fa-pray" )]
+    [SupportedSiteTypes( Model.SiteType.Mobile )]
 
     #region Block Attributes
 
@@ -89,9 +91,36 @@ namespace Rock.Blocks.Types.Mobile.Events
         Key = AttributeKeys.CreateInteractionsForPrayers,
         Order = 6 )]
 
+    [BooleanField( "Include Group Requests",
+        Description = "Includes prayer requests that are attached to a group.",
+        IsRequired = false,
+        DefaultBooleanValue = false,
+        ControlType = Field.Types.BooleanFieldType.BooleanControlType.Checkbox,
+        Key = AttributeKeys.IncludeGroupRequests,
+        Order = 7 )]
+
+    [EnumField(
+        "Order",
+        Description = "The order that requests should be displayed.",
+        IsRequired = true,
+        EnumSourceType = typeof( PrayerRequestOrder ),
+        DefaultEnumValue = ( int ) PrayerRequestOrder.LeastPrayedFor,
+        Key = AttributeKeys.PrayerOrder,
+        Order = 8 )]
+
+    [IntegerField(
+        "Prayed For in Last x Minutes Filter",
+        Description = "An integer (minutes) that you can use to filter out recently prayed for items. Uses interaction data, so 'Create Interactions for Prayers' must be enabled. 0 to disable.",
+        IsRequired = true,
+        DefaultIntegerValue = 0,
+        Key = AttributeKeys.MinutesToFilter,
+        Order = 9 )]
+
     #endregion
 
-    public class PrayerSession : RockMobileBlockType
+    [Rock.SystemGuid.EntityTypeGuid( Rock.SystemGuid.EntityType.MOBILE_EVENTS_PRAYER_SESSION_BLOCK_TYPE )]
+    [Rock.SystemGuid.BlockTypeGuid( "420DEA5F-9ABC-4E59-A9BD-DCA972657B84" )]
+    public class PrayerSession : RockBlockType
     {
         #region Block Attributes
 
@@ -134,6 +163,21 @@ namespace Rock.Blocks.Types.Mobile.Events
             /// The create interactions for prayers key.
             /// </summary>
             public const string CreateInteractionsForPrayers = "CreateInteractionsForPrayers";
+
+            /// <summary>
+            /// The include group requests key.
+            /// </summary>
+            public const string IncludeGroupRequests = "IncludeGroupRequests";
+
+            /// <summary>
+            /// The prayer order key.
+            /// </summary>
+            public const string PrayerOrder = "PrayerOrder";
+
+            /// <summary>
+            /// The minutes to filter key.
+            /// </summary>
+            public const string MinutesToFilter = "MinutesToFilter";
         }
 
         /// <summary>
@@ -192,6 +236,24 @@ namespace Rock.Blocks.Types.Mobile.Events
         /// </value>
         protected bool CreateInteractionsForPrayers => GetAttributeValue( AttributeKeys.CreateInteractionsForPrayers ).AsBoolean();
 
+        /// <summary>
+        /// Gets a value that specifies if group requests should be included by default.
+        /// If <c>false</c> and no group is specified in the page parameters then any
+        /// requests that are attached to a group will be excluded.
+        /// </summary>
+        /// <value>
+        /// A value that specifies if group requests should be included by default.
+        /// </value>
+        protected bool IncludeGroupRequests => GetAttributeValue( AttributeKeys.IncludeGroupRequests ).AsBoolean( false );
+
+        /// <summary>
+        /// Gets the order of the prayer requests.
+        /// </summary>
+        /// <value>
+        /// The order of the prayer requests.
+        /// </value>
+        protected PrayerRequestOrder PrayerOrder => GetAttributeValue( AttributeKeys.PrayerOrder ).ConvertToEnum<PrayerRequestOrder>( PrayerRequestOrder.LeastPrayedFor );
+
         #endregion
 
         #region Page Parameters
@@ -210,6 +272,12 @@ namespace Rock.Blocks.Types.Mobile.Events
             /// My campus key, value should be blank or a boolean value.
             /// </summary>
             public const string MyCampus = "MyCampus";
+
+            /// <summary>
+            /// The unique identifier of the group to use when filtering prayer
+            /// requests.
+            /// </summary>
+            public const string GroupGuid = "GroupGuid";
         }
 
         /// <summary>
@@ -228,25 +296,18 @@ namespace Rock.Blocks.Types.Mobile.Events
         /// </value>
         protected bool MyCampus => RequestContext.GetPageParameter( PageParameterKeys.MyCampus ).AsBooleanOrNull() ?? false;
 
+        /// <summary>
+        /// The unique identifier of the group to use when filtering prayer
+        /// requests.
+        /// </summary>
+        protected Guid? GroupGuid => RequestContext.GetPageParameter( PageParameterKeys.GroupGuid ).AsGuidOrNull();
+
         #endregion
 
         #region IRockMobileBlockType Implementation
 
-        /// <summary>
-        /// Gets the required mobile application binary interface version required to render this block.
-        /// </summary>
-        /// <value>
-        /// The required mobile application binary interface version required to render this block.
-        /// </value>
-        public override int RequiredMobileAbiVersion => 1;
-
-        /// <summary>
-        /// Gets the class name of the mobile block to use during rendering on the device.
-        /// </summary>
-        /// <value>
-        /// The class name of the mobile block to use during rendering on the device
-        /// </value>
-        public override string MobileBlockType => "Rock.Mobile.Blocks.Prayer.PrayerSession";
+        /// <inheritdoc/>
+        public override Version RequiredMobileVersion => new Version( 1, 1 );
 
         /// <summary>
         /// Gets the property values that will be sent to the device in the application bundle.
@@ -347,12 +408,14 @@ namespace Rock.Blocks.Types.Mobile.Events
             var prayerRequestService = new PrayerRequestService( rockContext );
             var category = CategoryCache.Get( PrayerCategory );
 
-            if ( category == null )
+            if ( category == null && !GroupGuid.HasValue )
             {
                 return null;
             }
 
-            var query = prayerRequestService.GetByCategoryIds( new List<int> { category.Id } );
+            // This only works because GetByCategoryIds returns an IQueryable cast to be an IEnumerable, when the desired
+            // data type is actually IQueryable.
+            var query = ( IQueryable<PrayerRequest> ) prayerRequestService.GetByCategoryIds( new List<int> { category.Id } );
 
             if ( PublicOnly )
             {
@@ -369,8 +432,29 @@ namespace Rock.Blocks.Types.Mobile.Events
                 }
             }
 
+            // Filter by group if it has been specified.
+            if ( GroupGuid.HasValue )
+            {
+                query = query.Where( a => a.Group != null && a.Group.Guid == GroupGuid.Value );
+            }
+
+            // If we are not filtering by group, then exclude any group requests
+            // unless the block setting including them is enabled.
+            if ( !GroupGuid.HasValue && !IncludeGroupRequests )
+            {
+                query = query.Where( a => !a.GroupId.HasValue );
+            }
+
+            var minsToFilter = GetAttributeValue( AttributeKeys.MinutesToFilter ).AsInteger();
+
+            // Filter by whether or not the current person has prayed for this request in the last x minutes.
+            if ( minsToFilter != 0 && RequestContext.CurrentPerson != null )
+            {
+                query = query.FilterByRecentlyPrayedFor( rockContext, RequestContext.CurrentPerson.Id, minsToFilter );
+            }
+
             query = query.OrderByDescending( a => a.IsUrgent )
-                .ThenBy( a => a.PrayerCount );
+                .ThenBy( PrayerOrder );
 
             return query;
         }

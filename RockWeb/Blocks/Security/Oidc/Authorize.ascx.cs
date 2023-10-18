@@ -19,14 +19,17 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
 using System.Linq.Dynamic;
-using System.Threading.Tasks;
 using System.Web;
+
 using AspNet.Security.OpenIdConnect.Primitives;
+
 using Microsoft.Owin.Security;
+
 using Owin;
 using Owin.Security.OpenIdConnect.Extensions;
-using Owin.Security.OpenIdConnect.Server;
+
 using Rock;
+using Rock.CheckIn;
 using Rock.Data;
 using Rock.Model;
 using Rock.Oidc.Authorization;
@@ -41,6 +44,7 @@ namespace RockWeb.Blocks.Security.Oidc
     [Category( "Security > OIDC" )]
     [Description( "Choose to authorize the auth client to access the user's data." )]
 
+    [Rock.SystemGuid.BlockTypeGuid( Rock.SystemGuid.BlockType.OIDC_AUTHORIZE )]
     public partial class Authorize : RockBlock
     {
         #region Keys
@@ -70,7 +74,7 @@ namespace RockWeb.Blocks.Security.Oidc
 
         private const string AntiXsrfTokenKey = "__AntiXsrfToken";
         protected string _antiXsrfTokenValue;
-
+        private const string ScopeCookiePrefix = ".ROCK-OidcScopeApproval-";
 
         #region Base Control Methods
 
@@ -152,6 +156,7 @@ namespace RockWeb.Blocks.Security.Oidc
             {
                 return false;
             }
+
             return true;
         }
 
@@ -163,30 +168,38 @@ namespace RockWeb.Blocks.Security.Oidc
         {
             base.OnLoad( e );
 
+            // Get the auth client for the request
+            var authClient = GetAuthClient();
+            if ( authClient == null )
+            {
+                DenyAuthorization( "Invalid+client" );
+                return;
+            }
+
+            // Check if this client has already approved the scopes. We'll look for the cookie and check that the scopes have not changed.
+            var scopesApprovalCookieValue = RockPage.GetCookie( $"{ScopeCookiePrefix}{authClient.Guid}" )?.Value;
+            var scopesPreviouslyApproved = Rock.Security.Encryption.DecryptString( scopesApprovalCookieValue ) == authClient.AllowedScopes.ToString();
+
             // We have to use querystring, because something in the .net postback chain writes to the Response object which breaks the auth call.
             var action = PageParameter( PageParamKey.Action );
             var token = PageParameter( "token" );
 
-            if ( !string.IsNullOrWhiteSpace( action ) && ValidateAntiForgeryToken( token ) )
+            if ( (action.IsNotNullOrWhiteSpace() && ValidateAntiForgeryToken( token ) ) || scopesPreviouslyApproved )
             {
-                switch ( action )
+                if (action == "deny" )
                 {
-                    case "approve":
-                        AcceptAuthorization();
-                        return;
-                    case "deny":
-                        DenyAuthorization();
-                        return;
+                    DenyAuthorization( "The+user+declined+claim+permissions" );
+                    return;
                 }
+
+                AcceptAuthorization();
+                return;
             }
 
             CreateAntiForgeryToken();
 
-            Task.Run( async () =>
-            {
-                await BindClientName();
-                BindScopes();
-            } ).Wait();
+            BindClientName();
+            BindScopes();
         }
 
         #endregion Base Control Methods
@@ -196,12 +209,12 @@ namespace RockWeb.Blocks.Security.Oidc
         /// <summary>
         /// Denies the authorization.
         /// </summary>
-        private void DenyAuthorization()
+        private void DenyAuthorization( string errorDescription )
         {
             // Notify the client that the authorization grant has been denied by the resource owner.
             var owinContext = Context.GetOwinContext();
             var redirectUri = owinContext.Request.Query["redirect_uri"];
-            Response.Redirect( redirectUri + "?error=access_denied&error_description=The+user+declined+claim+permissions", true );
+            Response.Redirect( redirectUri + $"?error=access_denied&error_description={errorDescription.Replace( ' ', '+' )}", true );
             ApplicationInstance.CompleteRequest();
         }
 
@@ -222,9 +235,9 @@ namespace RockWeb.Blocks.Security.Oidc
         /// <summary>
         /// Binds the name of the client.
         /// </summary>
-        private async Task BindClientName()
+        private void BindClientName()
         {
-            var authClient = await GetAuthClient();
+            var authClient = GetAuthClient();
 
             if ( authClient != null )
             {
@@ -294,14 +307,14 @@ namespace RockWeb.Blocks.Security.Oidc
         /// Gets the authentication client.
         /// </summary>
         /// <returns></returns>
-        private async Task<AuthClient> GetAuthClient()
+        private AuthClient GetAuthClient()
         {
             if ( _authClient == null )
             {
                 var rockContext = new RockContext();
                 var authClientService = new AuthClientService( rockContext );
                 var authClientId = PageParameter( PageParamKey.ClientId );
-                _authClient = await authClientService.GetByClientIdAsync( authClientId );
+                _authClient = authClientService.GetByClientId( authClientId );
             }
 
             return _authClient;
@@ -344,12 +357,16 @@ namespace RockWeb.Blocks.Security.Oidc
 
             // Create a new authentication ticket holding the user identity.
             var ticket = new AuthenticationTicket( identity, new AuthenticationProperties() );
-
+            
             // We should set the scopes to the requested valid scopes.
             ticket.SetScopes( requestedScopes );
 
             // Set the resource servers the access token should be issued for.
             ticket.SetResources( "resource_server" );
+
+            // Set cookie to remember the fact that this individual as approved the scopes
+            var cookieValue = $"{Rock.Security.Encryption.EncryptString(authClient.AllowedScopes.ToString())}";            
+            RockPage.AddOrUpdateCookie( $"{ScopeCookiePrefix}{authClient.Guid}", cookieValue, RockDateTime.Now.AddYears( 1 ) );
 
             // Returning a SignInResult will ask ASOS to serialize the specified identity
             // to build appropriate tokens. You should always make sure the identities

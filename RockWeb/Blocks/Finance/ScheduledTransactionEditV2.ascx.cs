@@ -18,11 +18,13 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data.Entity;
 using System.Linq;
+using System.Threading.Tasks;
 using System.Web.UI;
 using System.Web.UI.WebControls;
 
 using Rock;
 using Rock.Attribute;
+using Rock.Bus.Message;
 using Rock.Data;
 using Rock.Financial;
 using Rock.Lava;
@@ -129,6 +131,7 @@ namespace RockWeb.Blocks.Finance
     #endregion Advanced options
 
     #endregion Block Attributes
+    [Rock.SystemGuid.BlockTypeGuid( "F1ADF375-7442-4B30-BAC3-C387EA9B6C18" )]
     public partial class ScheduledTransactionEditV2 : RockBlock
     {
         #region constants
@@ -308,8 +311,11 @@ mission. We are so grateful for your commitment.</p>
 
         public static class PageParameterKey
         {
+            [RockObsolete( "1.13.1" )]
+            [Obsolete( "Pass the GUID instead using the key ScheduledTransactionGuid." )]
             public const string ScheduledTransactionId = "ScheduledTransactionId";
-            public const string Person = "Person";
+
+            public const string ScheduledTransactionGuid = "ScheduledTransactionGuid";
         }
 
         #endregion PageParameterKeys
@@ -327,7 +333,7 @@ mission. We are so grateful for your commitment.</p>
             this.BlockUpdated += Block_BlockUpdated;
             this.AddConfigurationUpdateTrigger( upnlContent );
 
-            hfScheduledTransactionId.Value = this.PageParameter( PageParameterKey.ScheduledTransactionId );
+            hfScheduledTransactionGuid.Value = GetScheduledTransactionGuidFromUrl()?.ToString();
 
             var scheduledTransaction = this.GetFinancialScheduledTransaction( new RockContext() );
 
@@ -414,64 +420,64 @@ mission. We are so grateful for your commitment.</p>
         #region methods
 
         /// <summary>
+        /// Gets the scheduled transaction Guid based on what is specified in the URL
+        /// </summary>
+        /// <param name="refresh">if set to <c>true</c> [refresh].</param>
+        /// <returns></returns>
+        private Guid? GetScheduledTransactionGuidFromUrl()
+        {
+            var financialScheduledTransactionGuid = PageParameter( PageParameterKey.ScheduledTransactionGuid ).AsGuidOrNull();
+
+#pragma warning disable CS0618
+            var financialScheduledTransactionId = PageParameter( PageParameterKey.ScheduledTransactionId ).AsIntegerOrNull();
+#pragma warning restore CS0618
+
+            if ( financialScheduledTransactionGuid.HasValue )
+            {
+                return financialScheduledTransactionGuid.Value;
+            }
+
+            if ( financialScheduledTransactionId.HasValue )
+            {
+                return new FinancialScheduledTransactionService( new RockContext() ).GetGuid( financialScheduledTransactionId.Value );
+            }
+
+            return null;
+        }
+
+        /// <summary>
         /// Gets the financial scheduled transaction.
         /// </summary>
         /// <param name="rockContext">The rock context.</param>
         /// <returns></returns>
         private FinancialScheduledTransaction GetFinancialScheduledTransaction( RockContext rockContext )
         {
-            int? scheduledTransactionId = hfScheduledTransactionId.Value.AsIntegerOrNull();
-
-            if ( !scheduledTransactionId.HasValue )
+            Guid? scheduledTransactionGuid = hfScheduledTransactionGuid.Value.AsGuidOrNull();
+            if ( !scheduledTransactionGuid.HasValue )
             {
                 return null;
             }
 
-            Person targetPerson = null;
-
-            // If impersonation is allowed, and a valid person key was used, set the target to that person
-            if ( GetAttributeValue( AttributeKey.AllowImpersonation ).AsBoolean() )
-            {
-                string personKey = PageParameter( PageParameterKey.Person );
-                if ( !string.IsNullOrWhiteSpace( personKey ) )
-                {
-                    targetPerson = new PersonService( rockContext ).GetByUrlEncodedKey( personKey );
-                }
-            }
-
-            if ( targetPerson == null )
-            {
-                targetPerson = CurrentPerson;
-            }
-
-            if ( targetPerson == null )
-            {
-                return null;
-            }
-
-            var personService = new PersonService( rockContext );
-
-            // get the giving ids for the target person, as well as giving ids associated with any businesses associated with the target person
-            var validGivingIds = new List<string> { targetPerson.GivingId };
-            validGivingIds.AddRange( personService.GetBusinesses( targetPerson.Id ).Select( b => b.GivingId ) );
-
-            // Get scheduledTransaction by scheduledTransactionId, but also check to see if is valid
-            // for the target person's giving Ids
-            FinancialScheduledTransaction scheduledTransaction = new FinancialScheduledTransactionService( rockContext )
+            var financialScheduledTransactionService = new FinancialScheduledTransactionService( rockContext );
+            var scheduledTransactionQuery = financialScheduledTransactionService
                 .Queryable().Include( i => i.AuthorizedPersonAlias.Person )
-                .Where( t =>
-                     t.Id == scheduledTransactionId &&
+                .Where( t => t.Guid == scheduledTransactionGuid );
+
+            // If the block allows impersonation then just get the scheduled transaction, otherwise use the code below to filter by the current person
+            if ( !GetAttributeValue( AttributeKey.AllowImpersonation ).AsBoolean() )
+            {
+                var personService = new PersonService( rockContext );
+                var validGivingIds = new List<string> { CurrentPerson.GivingId };
+                validGivingIds.AddRange( personService.GetBusinesses( CurrentPerson.Id ).Select( b => b.GivingId ) );
+
+                scheduledTransactionQuery.Where( t =>
                      t.AuthorizedPersonAlias != null &&
                      t.AuthorizedPersonAlias.Person != null &&
-                     validGivingIds.Contains( t.AuthorizedPersonAlias.Person.GivingId ) )
-                .FirstOrDefault();
-
-            if ( scheduledTransaction != null )
-            {
-                return scheduledTransaction;
+                     validGivingIds.Contains( t.AuthorizedPersonAlias.Person.GivingId ) );
             }
 
-            return null;
+            var scheduledTransaction = scheduledTransactionQuery.FirstOrDefault();
+            return scheduledTransaction;
         }
 
         /// <summary>
@@ -497,9 +503,9 @@ mission. We are so grateful for your commitment.</p>
                 return;
             }
 
-            hfScheduledTransactionId.Value = scheduledTransaction.Id.ToString();
+            hfScheduledTransactionGuid.Value = scheduledTransaction.Guid.ToString();
 
-            List<int> selectableAccountIds = new FinancialAccountService( rockContext ).GetByGuids( this.GetAttributeValues( AttributeKey.AccountsToDisplay ).AsGuidList() ).Select( a => a.Id ).ToList();
+            List<int> selectableAccountIds = FinancialAccountCache.GetByGuids( this.GetAttributeValues( AttributeKey.AccountsToDisplay ).AsGuidList() ).Select( a => a.Id ).ToList();
 
             CampusAccountAmountPicker.AccountIdAmount[] accountAmounts = scheduledTransaction.ScheduledTransactionDetails.Select( a => new CampusAccountAmountPicker.AccountIdAmount( a.AccountId, a.Amount ) ).ToArray();
 
@@ -788,8 +794,8 @@ mission. We are so grateful for your commitment.</p>
 
             var financialScheduledTransactionService = new FinancialScheduledTransactionService( rockContext );
             var financialScheduledTransactionDetailService = new FinancialScheduledTransactionDetailService( rockContext );
-            int scheduledTransactionId = hfScheduledTransactionId.Value.AsInteger();
-            var financialScheduledTransaction = financialScheduledTransactionService.Get( scheduledTransactionId );
+            Guid scheduledTransactionGuid = hfScheduledTransactionGuid.Value.AsGuid();
+            var financialScheduledTransaction = financialScheduledTransactionService.Get( scheduledTransactionGuid );
 
             financialScheduledTransaction.StartDate = dtpStartDate.SelectedDate.Value;
             financialScheduledTransaction.TransactionFrequencyValueId = ddlFrequency.SelectedValue.AsInteger();
@@ -835,6 +841,7 @@ mission. We are so grateful for your commitment.</p>
                 referencePaymentInfo = new ReferencePaymentInfo();
                 referencePaymentInfo.GatewayPersonIdentifier = financialScheduledTransaction.FinancialPaymentDetail.GatewayPersonIdentifier;
                 referencePaymentInfo.FinancialPersonSavedAccountId = financialScheduledTransaction.FinancialPaymentDetail.FinancialPersonSavedAccountId;
+                referencePaymentInfo.ReferenceNumber = financialGatewayComponent.GetReferenceNumber( financialScheduledTransaction, out errorMessage );
             }
             else if ( useSavedAccount )
             {
@@ -858,10 +865,31 @@ mission. We are so grateful for your commitment.</p>
             var selectedAccountAmounts = caapPromptForAccountAmounts.AccountAmounts.Where( a => a.Amount.HasValue && a.Amount.Value != 0 ).Select( a => new { a.AccountId, Amount = a.Amount.Value } ).ToArray();
             referencePaymentInfo.Amount = selectedAccountAmounts.Sum( a => a.Amount );
 
+            // Validate that an amount was entered
+            if ( selectedAccountAmounts.Sum( a => a.Amount ) <= 0 )
+            {
+                nbUpdateScheduledPaymentWarning.Text = "Make sure you've entered an amount for at least one account";
+                nbUpdateScheduledPaymentWarning.Visible = true;
+                return;
+            }
+
+            // Validate that no negative amounts were entered
+            if ( selectedAccountAmounts.Any( a => a.Amount < 0 ) )
+            {
+                nbUpdateScheduledPaymentWarning.Text = "Make sure the amount you've entered for each account is a positive amount";
+                nbUpdateScheduledPaymentWarning.Visible = true;
+                return;
+            }
+
             var originalGatewayScheduleId = financialScheduledTransaction.GatewayScheduleId;
             try
             {
-                financialScheduledTransaction.FinancialPaymentDetail.ClearPaymentInfo();
+                // If we are using the existing payment method, DO NOT clear out the FinancialPaymentDetail record.
+                if ( !useExistingPaymentMethod )
+                {
+                    financialScheduledTransaction.FinancialPaymentDetail.ClearPaymentInfo();
+                }
+
                 var successfullyUpdated = financialGatewayComponent.UpdateScheduledPayment( financialScheduledTransaction, referencePaymentInfo, out errorMessage );
 
                 if ( !successfullyUpdated )
@@ -897,11 +925,12 @@ mission. We are so grateful for your commitment.</p>
                 }
 
                 rockContext.SaveChanges();
+                Task.Run( () => ScheduledGiftWasModifiedMessage.PublishScheduledTransactionEvent( financialScheduledTransaction.Id, ScheduledGiftEventTypes.ScheduledGiftUpdated ) );
             }
             catch ( Exception )
             {
                 // if the GatewayScheduleId was updated, but there was an exception,
-                // make sure we save the  financialScheduledTransaction record with the updated GatewaayScheduleId so we don't orphan it
+                // make sure we save the  financialScheduledTransaction record with the updated GatewayScheduleId so we don't orphan it
                 if ( financialScheduledTransaction.GatewayScheduleId.IsNotNullOrWhiteSpace() && ( originalGatewayScheduleId != financialScheduledTransaction.GatewayScheduleId ) )
                 {
                     rockContext.SaveChanges();
@@ -910,7 +939,7 @@ mission. We are so grateful for your commitment.</p>
                 throw;
             }
 
-            var mergeFields = LavaHelper.GetCommonMergeFields( this.RockPage, this.CurrentPerson, new CommonMergeFieldsOptions { GetLegacyGlobalMergeFields = false } );
+            var mergeFields = LavaHelper.GetCommonMergeFields( this.RockPage, this.CurrentPerson, new CommonMergeFieldsOptions() );
             var finishLavaTemplate = this.GetAttributeValue( AttributeKey.FinishLavaTemplate );
 
             // re-fetch financialScheduledTransaction with a new RockContext from database to ensure that lazy loaded fields will be populated
@@ -921,7 +950,7 @@ mission. We are so grateful for your commitment.</p>
                     SaveNewFinancialPersonSavedAccount( financialScheduledTransaction );
                 }
 
-                financialScheduledTransaction = new FinancialScheduledTransactionService( rockContextForSummary ).Get( scheduledTransactionId );
+                financialScheduledTransaction = new FinancialScheduledTransactionService( rockContextForSummary ).Get( scheduledTransactionGuid );
 
                 mergeFields.Add( "Transaction", financialScheduledTransaction );
                 mergeFields.Add( "Person", financialScheduledTransaction.AuthorizedPersonAlias.Person );

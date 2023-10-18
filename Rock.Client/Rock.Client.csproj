@@ -77,12 +77,15 @@
     <Compile Include="CodeGenerated\AttributeMatrixItem.cs" />
     <Compile Include="CodeGenerated\AttributeMatrixTemplate.cs" />
     <Compile Include="CodeGenerated\AttributeQualifier.cs" />
+    <Compile Include="CodeGenerated\AttributeReferencedEntity.cs" />
     <Compile Include="CodeGenerated\AttributesExport.cs" />
     <Compile Include="CodeGenerated\AttributeValue.cs" />
     <Compile Include="CodeGenerated\AttributeValueHistorical.cs" />
+    <Compile Include="CodeGenerated\AttributeValueReferencedEntity.cs" />
     <Compile Include="CodeGenerated\Audit.cs" />
     <Compile Include="CodeGenerated\AuditDetail.cs" />
     <Compile Include="CodeGenerated\Auth.cs" />
+    <Compile Include="CodeGenerated\AuthAuditLog.cs" />
     <Compile Include="CodeGenerated\AuthClaim.cs" />
     <Compile Include="CodeGenerated\AuthClient.cs" />
     <Compile Include="CodeGenerated\AuthScope.cs" />
@@ -91,6 +94,8 @@
     <Compile Include="CodeGenerated\BenevolenceRequest.cs" />
     <Compile Include="CodeGenerated\BenevolenceRequestDocument.cs" />
     <Compile Include="CodeGenerated\BenevolenceResult.cs" />
+    <Compile Include="CodeGenerated\BenevolenceType.cs" />
+    <Compile Include="CodeGenerated\BenevolenceWorkflow.cs" />
     <Compile Include="CodeGenerated\BinaryFile.cs" />
     <Compile Include="CodeGenerated\BinaryFileData.cs" />
     <Compile Include="CodeGenerated\BinaryFileType.cs" />
@@ -98,6 +103,7 @@
     <Compile Include="CodeGenerated\BlockType.cs" />
     <Compile Include="CodeGenerated\Campus.cs" />
     <Compile Include="CodeGenerated\CampusSchedule.cs" />
+    <Compile Include="CodeGenerated\CampusTopic.cs" />
     <Compile Include="CodeGenerated\Category.cs" />
     <Compile Include="CodeGenerated\Communication.cs" />
     <Compile Include="CodeGenerated\CommunicationAttachment.cs" />
@@ -116,6 +122,7 @@
     <Compile Include="CodeGenerated\ConnectionRequestActivity.cs" />
     <Compile Include="CodeGenerated\ConnectionRequestWorkflow.cs" />
     <Compile Include="CodeGenerated\ConnectionStatus.cs" />
+    <Compile Include="CodeGenerated\ConnectionStatusAutomation.cs" />
     <Compile Include="CodeGenerated\ConnectionType.cs" />
     <Compile Include="CodeGenerated\ConnectionWorkflow.cs" />
     <Compile Include="CodeGenerated\ContentChannel.cs" />
@@ -123,6 +130,10 @@
     <Compile Include="CodeGenerated\ContentChannelItemAssociation.cs" />
     <Compile Include="CodeGenerated\ContentChannelItemSlug.cs" />
     <Compile Include="CodeGenerated\ContentChannelType.cs" />
+    <Compile Include="CodeGenerated\ContentCollection.cs" />
+    <Compile Include="CodeGenerated\ContentCollectionSource.cs" />
+    <Compile Include="CodeGenerated\ContentTopic.cs" />
+    <Compile Include="CodeGenerated\ContentTopicDomain.cs" />
     <Compile Include="CodeGenerated\ControlTotalResult.cs" />
     <Compile Include="CodeGenerated\DataView.cs" />
     <Compile Include="CodeGenerated\DataViewFilter.cs" />
@@ -218,7 +229,14 @@
     <Compile Include="CodeGenerated\InteractionImport.cs" />
     <Compile Include="CodeGenerated\InteractionImportInteraction.cs" />
     <Compile Include="CodeGenerated\InteractionSession.cs" />
+    <Compile Include="CodeGenerated\InteractionSessionLocation.cs" />
     <Compile Include="CodeGenerated\InteractionsImport.cs" />
+    <Compile Include="CodeGenerated\InteractiveExperience.cs" />
+    <Compile Include="CodeGenerated\InteractiveExperienceAction.cs" />
+    <Compile Include="CodeGenerated\InteractiveExperienceAnswer.cs" />
+    <Compile Include="CodeGenerated\InteractiveExperienceOccurrence.cs" />
+    <Compile Include="CodeGenerated\InteractiveExperienceSchedule.cs" />
+    <Compile Include="CodeGenerated\InteractiveExperienceScheduleCampus.cs" />
     <Compile Include="CodeGenerated\LavaShortcode.cs" />
     <Compile Include="CodeGenerated\Layout.cs" />
     <Compile Include="CodeGenerated\Location.cs" />
@@ -253,6 +271,9 @@
     <Compile Include="CodeGenerated\Person.cs" />
     <Compile Include="CodeGenerated\PersonalDevice.cs" />
     <Compile Include="CodeGenerated\PersonAlias.cs" />
+    <Compile Include="CodeGenerated\PersonAliasPersonalization.cs" />
+    <Compile Include="CodeGenerated\PersonalizationSegment.cs" />
+    <Compile Include="CodeGenerated\PersonalizedEntity.cs" />
     <Compile Include="CodeGenerated\PersonalLink.cs" />
     <Compile Include="CodeGenerated\PersonalLinkSection.cs" />
     <Compile Include="CodeGenerated\PersonalLinkSectionOrder.cs" />
@@ -261,6 +282,7 @@
     <Compile Include="CodeGenerated\PersonPreviousName.cs" />
     <Compile Include="CodeGenerated\PersonScheduleExclusion.cs" />
     <Compile Include="CodeGenerated\PersonSearchKey.cs" />
+    <Compile Include="CodeGenerated\PersonSearchPhoneNumber.cs" />
     <Compile Include="CodeGenerated\PersonSearchResult.cs" />
     <Compile Include="CodeGenerated\PersonSignal.cs" />
     <Compile Include="CodeGenerated\PersonToken.cs" />
@@ -281,8 +303,12 @@
     <Compile Include="CodeGenerated\RegistrationTemplateFormField.cs" />
     <Compile Include="CodeGenerated\RegistrationTemplatePlacement.cs" />
     <Compile Include="CodeGenerated\RelatedEntity.cs" />
+    <Compile Include="CodeGenerated\Reminder.cs" />
+    <Compile Include="CodeGenerated\ReminderType.cs" />
+    <Compile Include="CodeGenerated\RemoteAuthenticationSession.cs" />
     <Compile Include="CodeGenerated\Report.cs" />
     <Compile Include="CodeGenerated\ReportField.cs" />
+    <Compile Include="CodeGenerated\RequestFilter.cs" />
     <Compile Include="CodeGenerated\RestAction.cs" />
     <Compile Include="CodeGenerated\RestController.cs" />
     <Compile Include="CodeGenerated\Schedule.cs" />
@@ -312,6 +338,7 @@
     <Compile Include="CodeGenerated\SystemCommunication.cs" />
     <Compile Include="CodeGenerated\SystemEmail.cs" />
     <Compile Include="CodeGenerated\SystemGuid\RockSystemGuids.cs" />
+    <Compile Include="CodeGenerated\SystemPhoneNumber.cs" />
     <Compile Include="CodeGenerated\Tag.cs" />
     <Compile Include="CodeGenerated\TaggedItem.cs" />
     <Compile Include="CodeGenerated\UserLogin.cs" />
@@ -323,9 +350,11 @@
     <Compile Include="CodeGenerated\WorkflowAction.cs" />
     <Compile Include="CodeGenerated\WorkflowActionForm.cs" />
     <Compile Include="CodeGenerated\WorkflowActionFormAttribute.cs" />
+    <Compile Include="CodeGenerated\WorkflowActionFormSection.cs" />
     <Compile Include="CodeGenerated\WorkflowActionType.cs" />
     <Compile Include="CodeGenerated\WorkflowActivity.cs" />
     <Compile Include="CodeGenerated\WorkflowActivityType.cs" />
+    <Compile Include="CodeGenerated\WorkflowFormBuilderTemplate.cs" />
     <Compile Include="CodeGenerated\WorkflowLog.cs" />
     <Compile Include="CodeGenerated\WorkflowTrigger.cs" />
     <Compile Include="CodeGenerated\WorkflowType.cs" />

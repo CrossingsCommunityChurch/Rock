@@ -49,6 +49,7 @@ namespace RockWeb.Blocks.Core
         Order = 0,
         Key = AttributeKey.EntityType )]
 
+    [Rock.SystemGuid.BlockTypeGuid( "BEC5B592-9E9E-4C55-BD0D-2B8065A1802E" )]
     public partial class NoteTypeList : RockBlock
     {
         public static class AttributeKey
@@ -143,7 +144,7 @@ namespace RockWeb.Blocks.Core
         /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
         protected void gfNoteTypes_ApplyFilterClick( object sender, EventArgs e )
         {
-            gfNoteTypes.SaveUserPreference( AttributeKey.EntityType, entityTypeFilter.SelectedValue );
+            gfNoteTypes.SetFilterPreference( AttributeKey.EntityType, entityTypeFilter.SelectedValue );
             BindGrid();
         }
 
@@ -237,7 +238,7 @@ namespace RockWeb.Blocks.Core
         }
 
         /// <summary>
-        /// Handles the GridRebind event of the rGrid control.
+        /// Handles the GridRebind event of the gNoteTypes control.
         /// </summary>
         /// <param name="sender">The source of the event.</param>
         /// <param name="e">The <see cref="EventArgs" /> instance containing the event data.</param>
@@ -308,7 +309,7 @@ namespace RockWeb.Blocks.Core
                 .ToList();
 
             entityTypeFilter.EntityTypes = noteTypeEntityTypes;
-            entityTypeFilter.SetValue( gfNoteTypes.GetUserPreference( AttributeKey.EntityType ) );
+            entityTypeFilter.SetValue( gfNoteTypes.GetFilterPreference( AttributeKey.EntityType ) );
         }
 
         /// <summary>

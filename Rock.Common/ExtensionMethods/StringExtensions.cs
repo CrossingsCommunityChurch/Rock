@@ -19,6 +19,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Globalization;
 using System.Linq;
+using System.Net;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -31,6 +32,45 @@ namespace Rock
     public static class StringExtensions
     {
         #region String Extensions
+
+        /// <summary>
+        /// Prepends a character to a string if it doesn't already exist.
+        /// </summary>
+        /// <param name="text"></param>
+        /// <param name="prepend"></param>
+        /// <returns></returns>
+        public static string AddStringAtBeginningIfItDoesNotExist( this string text, string prepend )
+        {
+            if ( text == null )
+                return prepend;
+            if ( prepend == null )
+                prepend = "";
+            return text.StartsWith( prepend ) ? text : prepend + text;
+        }
+
+        /// <summary>
+        /// Gets the nth occurrence of a string within a string. Pass 0 for the first occurrence, 1 for the second.
+        /// </summary>
+        /// <param name="str"></param>
+        /// <param name="value"></param>
+        /// <param name="nth"></param>
+        /// <returns></returns>
+        /// <exception cref="ArgumentException"></exception>
+        public static int IndexOfNth( this string str, string value, int nth = 0, StringComparison comparisonType = StringComparison.OrdinalIgnoreCase )
+        {
+            if ( nth < 0 )
+                throw new ArgumentException( "Can not find a negative index of substring in string. Must start with 0" );
+
+            int offset = str.IndexOf( value, comparisonType );
+            for ( int i = 0; i < nth; i++ )
+            {
+                if ( offset == -1 )
+                    return -1;
+                offset = str.IndexOf( value, offset + 1, comparisonType );
+            }
+
+            return offset;
+        }
 
         /// <summary>
         /// Converts string to MD5 hash
@@ -49,6 +89,7 @@ namespace Rock
                     // Can be "x2" if you want lowercase
                     sb.Append( b.ToString( "x2" ) );
                 }
+
                 return sb.ToString();
             }
         }
@@ -92,6 +133,7 @@ namespace Rock
                     // Can be "x2" if you want lowercase
                     sb.Append( b.ToString( "x2" ) );
                 }
+
                 return sb.ToString();
             }
         }
@@ -141,17 +183,59 @@ namespace Rock
         /// <param name="encodedString"></param>
         public static string ScrubEncodedStringForXSSObjects( this string encodedString )
         {
-            // Characters used by DOM Objects; javascript, document, window and URLs
-            char[] badCharacters = new char[] { '<', '>', ':', '*' };
+            var decodedString = encodedString.GetFullyUrlDecodedValue();
 
-            if ( encodedString.IndexOfAny( badCharacters ) >= 0 )
+            if ( decodedString.HasXssObjects() )
             {
                 return "%2f";
             }
-            else
+
+            return encodedString;
+        }
+
+        /// <summary>
+        /// Determines whether <paramref name="decodedString"/> has XSS objects.
+        /// </summary>
+        /// <param name="decodedString">The decoded string.</param>
+        /// <returns>
+        ///   <c>true</c> if <paramref name="decodedString"/> has XSS objects; otherwise, <c>false</c>.
+        /// </returns>
+        public static bool HasXssObjects( this string decodedString )
+        {
+            // Characters used by DOM Objects; javascript, document, window and URLs
+            char[] badCharacters = new char[] { '<', '>', ':', '*' };
+
+            if ( decodedString?.IndexOfAny( badCharacters ) >= 0 )
             {
-                return encodedString;
+                return true;
             }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Gets a fully URL-decoded string (or returns string.Empty if it cannot be decoded within 10 attempts).
+        /// </summary>
+        /// <param name="encodedString"></param>
+        /// <returns></returns>
+        public static string GetFullyUrlDecodedValue( this string encodedString )
+        {
+            int loopCount = 0;
+            var decodedString = encodedString;
+            var testString = WebUtility.UrlDecode( encodedString );
+            while ( testString != decodedString )
+            {
+                loopCount++;
+                if ( loopCount >= 10 )
+                {
+                    return string.Empty;
+                }
+
+                decodedString = testString;
+                testString = WebUtility.UrlDecode( testString );
+            }
+
+            return decodedString;
         }
 
         /// <summary>
@@ -159,7 +243,7 @@ namespace Rock
         /// </summary>
         /// <param name="source">The source.</param>
         /// <param name="separator">The separator.</param>
-        /// <returns>Concatencated string.</returns>
+        /// <returns>Concatenated string.</returns>
         public static string JoinStrings( this IEnumerable<string> source, string separator )
         {
             return string.Join( separator, source.ToArray() );
@@ -191,6 +275,46 @@ namespace Rock
             {
                 // only one element, just use it
                 output = list[0];
+            }
+
+            return output;
+        }
+
+        /// <summary>
+        /// Joins an array of English strings together with a chosen delimiter, plus a final delimiter for last element, with a maximum length of results and truncation value.
+        /// </summary>
+        /// <param name="source"></param>
+        /// <param name="repeatDelimiter">The delimiter for all but the final string.</param>
+        /// <param name="finalDelimiter">The delimiter for only the final string.</param>
+        /// <param name="maxLength">The maximum length allowed for the concatenated string from the source (not including the <paramref name="truncation"/> string).</param>
+        /// <param name="truncation">The truncation string value (default is "..." for ellipsis).</param>
+        /// <returns>Concatenated string.</returns>
+        public static string JoinStringsWithRepeatAndFinalDelimiterWithMaxLength( this IEnumerable<String> source, string repeatDelimiter, string finalDelimiter, int? maxLength, string truncation = "..." )
+        {
+            if ( source == null || source.Count() == 0 )
+            {
+                return string.Empty;
+            }
+
+            var output = string.Empty;
+
+            var list = source.ToList();
+
+            if ( list.Count > 1 )
+            {
+                var delimited = string.Join( repeatDelimiter, list.Take( list.Count - 1 ) );
+
+                output = string.Concat( delimited, finalDelimiter, list.LastOrDefault() );
+            }
+            else
+            {
+                // only one element, just use it.
+                output = list[0];
+            }
+
+            if ( maxLength.HasValue && output.Length > maxLength.Value )
+            {
+                output = output.Substring( 0, maxLength.Value ) + truncation;
             }
 
             return output;
@@ -298,12 +422,7 @@ namespace Rock
         /// <returns></returns>
         public static string Right( this string str, int length )
         {
-            if ( str == null )
-            {
-                return string.Empty;
-            }
-
-            return str.Substring( str.Length - length );
+            return str.SubstringSafe( str.Length - length );
         }
 
         /// <summary>
@@ -415,7 +534,6 @@ namespace Rock
         public static IEnumerable<int> StringToIntList( this string str )
         {
             // https://stackoverflow.com/questions/1763613/convert-comma-separated-string-of-ints-to-int-array
-
             if ( String.IsNullOrEmpty( str ) )
             {
                 yield break;
@@ -662,18 +780,7 @@ namespace Rock
         /// <returns></returns>
         public static string Left( this string str, int length )
         {
-            if ( str == null )
-            {
-                return null;
-            }
-            else if ( str.Length <= length )
-            {
-                return str;
-            }
-            else
-            {
-                return str.Substring( 0, length );
-            }
+            return str.SubstringSafe( 0, length );
         }
 
         /// <summary>
@@ -803,6 +910,19 @@ namespace Rock
         {
             int place = source.LastIndexOf( find );
             return place > 0 ? source.Remove( place, find.Length ).Insert( place, replace ) : source;
+        }
+
+        /// <summary>
+        /// Replaces the first occurrence of a given string with a new value
+        /// </summary>
+        /// <param name="source">The source.</param>
+        /// <param name="find">The find.</param>
+        /// <param name="replace">The replace.</param>
+        /// <returns>System.String.</returns>
+        public static string ReplaceFirstOccurrence( this string source, string find, string replace )
+        {
+            var regex = new Regex( Regex.Escape( find ) );
+            return regex.Replace( source, replace, 1 );
         }
 
         /// <summary>
@@ -1188,6 +1308,16 @@ namespace Rock
         }
 
         /// <summary>
+        /// Removes the trailing forwardslash.
+        /// </summary>
+        /// <param name="value">The value.</param>
+        /// <returns>System.String.</returns>
+        public static string RemoveTrailingForwardslash( this string value )
+        {
+            return value.TrimEnd( new char[] { '/' } );
+        }
+
+        /// <summary>
         /// Evaluates string, and if null or empty, returns nullValue instead.
         /// </summary>
         /// <param name="value">The value.</param>
@@ -1388,6 +1518,97 @@ namespace Rock
             }
 
             return sb.ToString();
+        }
+
+        /// <summary>
+        /// Returns true/false based on whether the provided string is in a valid hex color format.
+        /// </summary>
+        /// <param name="str"></param>
+        /// <returns></returns>
+        public static bool IsValidHexColor( this string str )
+        {
+            if (str == null )
+            {
+                return false;
+            }
+
+            return Regex.IsMatch( str, @"^#(([0-9a-fA-F]{2}){3}|([0-9a-fA-F]){3})$" );
+        }
+
+        /// <summary>
+        /// Returns the hex color as a string if it is valid otherwise it will return the fallback or null.
+        /// </summary>
+        /// <param name="str"></param>
+        /// <param name="fallback"></param>
+        /// <returns></returns>
+        public static string AsHexColorString( this string str, string fallback = null )
+        {
+            if ( str.IsValidHexColor() )
+            {
+                return str;
+            }
+
+            // Return null if no fallback provided
+            if ( fallback == null )
+            {
+                return null;
+            }
+
+            // Check if fallback is a valid hex color
+            if ( fallback.IsValidHexColor() )
+            {
+                return fallback;
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Convert a string into camelCase.
+        /// </summary>
+        /// <remarks>Originally from https://github.com/JamesNK/Newtonsoft.Json/blob/01e1759cac40d8154e47ed0e11c12a9d42d2d0ff/Src/Newtonsoft.Json/Utilities/StringUtils.cs#L155</remarks>
+        /// <param name="value">The string to be converted.</param>
+        /// <returns>A string in camel case.</returns>
+        public static string ToCamelCase( this string value )
+        {
+            if ( string.IsNullOrEmpty( value ) || !char.IsUpper( value[0] ) )
+            {
+                return value;
+            }
+
+            var chars = value.ToCharArray();
+
+            for ( int i = 0; i < chars.Length; i++ )
+            {
+                if ( i == 1 && !char.IsUpper( chars[i] ) )
+                {
+                    break;
+                }
+
+                var hasNext = i + 1 < chars.Length;
+
+                if ( i > 0 && hasNext && !char.IsUpper( chars[i + 1] ) )
+                {
+                    // if the next character is a space, which is not considered uppercase 
+                    // (otherwise we wouldn't be here...)
+                    // we want to ensure that the following:
+                    // 'FOO bar' is rewritten as 'foo bar', and not as 'foO bar'
+                    // The code was written in such a way that the first word in uppercase
+                    // ends when if finds an uppercase letter followed by a lowercase letter.
+                    // now a ' ' (space, (char)32) is considered not upper
+                    // but in that case we still want our current character to become lowercase
+                    if ( char.IsSeparator( chars[i + 1] ) )
+                    {
+                        chars[i] = char.ToLower( chars[i] );
+                    }
+
+                    break;
+                }
+
+                chars[i] = char.ToLower( chars[i] );
+            }
+
+            return new string( chars );
         }
 
         #endregion String Extensions

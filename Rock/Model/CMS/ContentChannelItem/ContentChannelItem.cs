@@ -23,7 +23,10 @@ using System.Data.Entity;
 using System.Data.Entity.ModelConfiguration;
 using System.Linq;
 using System.Runtime.Serialization;
+
+using Rock.Cms.ContentCollection.Attributes;
 using Rock.Data;
+using Rock.Enums.Cms;
 using Rock.Lava;
 using Rock.UniversalSearch;
 using Rock.UniversalSearch.IndexModels;
@@ -36,6 +39,8 @@ namespace Rock.Model
     [RockDomain( "CMS" )]
     [Table( "ContentChannelItem" )]
     [DataContract]
+    [Rock.SystemGuid.EntityTypeGuid( Rock.SystemGuid.EntityType.CONTENT_CHANNEL_ITEM )]
+    [ContentCollectionIndexable( typeof( Rock.Cms.ContentCollection.Indexers.ContentChannelItemIndexer ), typeof( Rock.Cms.ContentCollection.IndexDocuments.ContentChannelItemDocument ) )]
     public partial class ContentChannelItem : Model<ContentChannelItem>, IOrdered, IRockIndexable
     {
         #region Entity Properties
@@ -169,9 +174,72 @@ namespace Rock.Model
         /// <value>
         /// The item global key.
         /// </value>
-        [MaxLength( 100 )]
+        [MaxLength( 200 )]
         [DataMember]
         public string ItemGlobalKey { get; set; }
+
+        /// <summary>
+        /// Gets or sets a value indicating whether this item is an owned content library item.
+        /// </summary>
+        /// <value>
+        ///   <c>true</c> if this item is an owned content library item; otherwise, <c>false</c>.
+        /// </value>
+        [DataMember]
+        public bool? IsContentLibraryOwner { get; set; }
+
+        /// <summary>
+        /// Gets the content library source identifier.
+        /// </summary>
+        /// <value>
+        /// The content library source identifier.
+        /// </value>
+        [DataMember]
+        public Guid? ContentLibrarySourceIdentifier { get; set; }
+
+        /// <summary>
+        /// Gets the content library license type defined value identifier.
+        /// </summary>
+        /// <value>
+        /// The content library license type defined value identifier.
+        /// </value>
+        [DataMember]
+        public int? ContentLibraryLicenseTypeValueId { get; set; }
+
+        /// <summary>
+        /// Gets the content library content topic identifier.
+        /// </summary>
+        /// <value>
+        /// The content library content topic identifier.
+        /// </value>
+        [DataMember]
+        public int? ContentLibraryContentTopicId { get; set; }
+
+        /// <summary>
+        /// Gets or sets the content library uploaded by person alias identifier.
+        /// </summary>
+        /// <value>
+        /// The content library uploaded by person alias identifier.
+        /// </value>
+        [DataMember]
+        public int? ContentLibraryUploadedByPersonAliasId { get; set; }
+
+        /// <summary>
+        /// Gets or sets the content library uploaded date time.
+        /// </summary>
+        /// <value>
+        /// The content library uploaded date time.
+        /// </value>
+        [DataMember]
+        public DateTime? ContentLibraryUploadedDateTime { get; set; }
+
+        /// <summary>
+        /// Gets or sets the experience level.
+        /// </summary>
+        /// <value>
+        /// The experience level.
+        /// </value>
+        [DataMember]
+        public ContentLibraryItemExperienceLevel? ExperienceLevel { get; set; }
 
         #endregion Entity Properties
 
@@ -203,6 +271,35 @@ namespace Rock.Model
         /// </value>
         [LavaVisible]
         public virtual PersonAlias ApprovedByPersonAlias { get; set; }
+
+        /// <summary>
+        /// Gets or sets the content library uploaded by person alias.
+        /// </summary>
+        /// <value>
+        /// The content library uploaded by person alias.
+        /// </value>
+        [LavaVisible]
+        public virtual PersonAlias ContentLibraryUploadedByPersonAlias { get; set; }
+
+        /// <summary>
+        /// Gets the name of the content library uploaded by person.
+        /// </summary>
+        /// <value>
+        /// The name of the content library uploaded by person.
+        /// </value>
+        [LavaVisible]
+        [HideFromReporting]
+        public virtual string ContentLibraryUploadedByPersonName
+        {
+            get
+            {
+                if ( ContentLibraryUploadedByPersonAlias != null && ContentLibraryUploadedByPersonAlias.Person != null )
+                {
+                    return ContentLibraryUploadedByPersonAlias.Person.FullName;
+                }
+                return string.Empty;
+            }
+        }
 
         /// <summary>
         /// Gets or sets the content channel item slugs.
@@ -258,11 +355,8 @@ namespace Rock.Model
         private ICollection<EventItemOccurrenceChannelItem> _eventItemOccurrences;
 
         /// <summary>
-        /// Gets the supported actions.
+        /// Provides a <see cref="Dictionary{TKey, TValue}"/> of actions that this model supports, and the description of each.
         /// </summary>
-        /// <value>
-        /// The supported actions.
-        /// </value>
         [NotMapped]
         public override Dictionary<string, string> SupportedActions
         {
@@ -271,22 +365,6 @@ namespace Rock.Model
                 var supportedActions = base.SupportedActions;
                 supportedActions.AddOrReplace( Rock.Security.Authorization.INTERACT, "The roles and/or users that have access to interact with the channel item." );
                 return supportedActions;
-            }
-        }
-
-        /// <summary>
-        /// Gets a value indicating whether [allows interactive bulk indexing].
-        /// </summary>
-        /// <value>
-        /// <c>true</c> if [allows interactive bulk indexing]; otherwise, <c>false</c>.
-        /// </value>
-        /// <exception cref="System.NotImplementedException"></exception>
-        [NotMapped]
-        public bool AllowsInteractiveBulkIndexing
-        {
-            get
-            {
-                return true;
             }
         }
 

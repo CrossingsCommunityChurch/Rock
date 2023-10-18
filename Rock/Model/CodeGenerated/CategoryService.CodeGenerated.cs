@@ -23,10 +23,7 @@
 using System;
 using System.Linq;
 
-using Rock.Attribute;
 using Rock.Data;
-using Rock.ViewModel;
-using Rock.Web.Cache;
 
 namespace Rock.Model
 {
@@ -91,6 +88,18 @@ namespace Rock.Model
                 return false;
             }
 
+            if ( new Service<DefinedValue>( Context ).Queryable().Any( a => a.CategoryId == item.Id ) )
+            {
+                errorMessage = string.Format( "This {0} is assigned to a {1}.", Category.FriendlyTypeName, DefinedValue.FriendlyTypeName );
+                return false;
+            }
+
+            if ( new Service<GroupRequirementType>( Context ).Queryable().Any( a => a.CategoryId == item.Id ) )
+            {
+                errorMessage = string.Format( "This {0} is assigned to a {1}.", Category.FriendlyTypeName, GroupRequirementType.FriendlyTypeName );
+                return false;
+            }
+
             if ( new Service<History>( Context ).Queryable().Any( a => a.CategoryId == item.Id ) )
             {
                 errorMessage = string.Format( "This {0} is assigned to a {1}.", Category.FriendlyTypeName, History.FriendlyTypeName );
@@ -124,6 +133,12 @@ namespace Rock.Model
             if ( new Service<Schedule>( Context ).Queryable().Any( a => a.CategoryId == item.Id ) )
             {
                 errorMessage = string.Format( "This {0} is assigned to a {1}.", Category.FriendlyTypeName, Schedule.FriendlyTypeName );
+                return false;
+            }
+
+            if ( new Service<Snippet>( Context ).Queryable().Any( a => a.CategoryId == item.Id ) )
+            {
+                errorMessage = string.Format( "This {0} is assigned to a {1}.", Category.FriendlyTypeName, Snippet.FriendlyTypeName );
                 return false;
             }
 
@@ -161,53 +176,6 @@ namespace Rock.Model
             return true;
         }
     }
-
-    /// <summary>
-    /// Category View Model Helper
-    /// </summary>
-    [DefaultViewModelHelper( typeof( Category ) )]
-    public partial class CategoryViewModelHelper : ViewModelHelper<Category, Rock.ViewModel.CategoryViewModel>
-    {
-        /// <summary>
-        /// Converts the model to a view model.
-        /// </summary>
-        /// <param name="model">The entity.</param>
-        /// <param name="currentPerson">The current person.</param>
-        /// <param name="loadAttributes">if set to <c>true</c> [load attributes].</param>
-        /// <returns></returns>
-        public override Rock.ViewModel.CategoryViewModel CreateViewModel( Category model, Person currentPerson = null, bool loadAttributes = true )
-        {
-            if ( model == null )
-            {
-                return default;
-            }
-
-            var viewModel = new Rock.ViewModel.CategoryViewModel
-            {
-                Id = model.Id,
-                Guid = model.Guid,
-                Description = model.Description,
-                EntityTypeId = model.EntityTypeId,
-                EntityTypeQualifierColumn = model.EntityTypeQualifierColumn,
-                EntityTypeQualifierValue = model.EntityTypeQualifierValue,
-                HighlightColor = model.HighlightColor,
-                IconCssClass = model.IconCssClass,
-                IsSystem = model.IsSystem,
-                Name = model.Name,
-                Order = model.Order,
-                ParentCategoryId = model.ParentCategoryId,
-                CreatedDateTime = model.CreatedDateTime,
-                ModifiedDateTime = model.ModifiedDateTime,
-                CreatedByPersonAliasId = model.CreatedByPersonAliasId,
-                ModifiedByPersonAliasId = model.ModifiedByPersonAliasId,
-            };
-
-            AddAttributesToViewModel( model, viewModel, currentPerson, loadAttributes );
-            ApplyAdditionalPropertiesAndSecurityToViewModel( model, viewModel, currentPerson, loadAttributes );
-            return viewModel;
-        }
-    }
-
 
     /// <summary>
     /// Generated Extension Methods
@@ -285,20 +253,5 @@ namespace Rock.Model
             target.ForeignId = source.ForeignId;
 
         }
-
-        /// <summary>
-        /// Creates a view model from this entity
-        /// </summary>
-        /// <param name="model">The entity.</param>
-        /// <param name="currentPerson" >The currentPerson.</param>
-        /// <param name="loadAttributes" >Load attributes?</param>
-        public static Rock.ViewModel.CategoryViewModel ToViewModel( this Category model, Person currentPerson = null, bool loadAttributes = false )
-        {
-            var helper = new CategoryViewModelHelper();
-            var viewModel = helper.CreateViewModel( model, currentPerson, loadAttributes );
-            return viewModel;
-        }
-
     }
-
 }

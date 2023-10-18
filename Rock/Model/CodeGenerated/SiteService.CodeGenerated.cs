@@ -23,10 +23,7 @@
 using System;
 using System.Linq;
 
-using Rock.Attribute;
 using Rock.Data;
-using Rock.ViewModel;
-using Rock.Web.Cache;
 
 namespace Rock.Model
 {
@@ -61,91 +58,50 @@ namespace Rock.Model
                 return false;
             }
 
+            if ( new Service<NotificationMessageType>( Context ).Queryable().Any( a => a.RelatedMobileApplicationSiteId == item.Id ) )
+            {
+                errorMessage = string.Format( "This {0} is assigned to a {1}.", Site.FriendlyTypeName, NotificationMessageType.FriendlyTypeName );
+                return false;
+            }
+
+            if ( new Service<NotificationMessageType>( Context ).Queryable().Any( a => a.RelatedTvApplicationSiteId == item.Id ) )
+            {
+                errorMessage = string.Format( "This {0} is assigned to a {1}.", Site.FriendlyTypeName, NotificationMessageType.FriendlyTypeName );
+                return false;
+            }
+
+            if ( new Service<NotificationMessageType>( Context ).Queryable().Any( a => a.RelatedWebSiteId == item.Id ) )
+            {
+                errorMessage = string.Format( "This {0} is assigned to a {1}.", Site.FriendlyTypeName, NotificationMessageType.FriendlyTypeName );
+                return false;
+            }
+
             if ( new Service<PersonalDevice>( Context ).Queryable().Any( a => a.SiteId == item.Id ) )
             {
                 errorMessage = string.Format( "This {0} is assigned to a {1}.", Site.FriendlyTypeName, PersonalDevice.FriendlyTypeName );
                 return false;
             }
+
+            if ( new Service<RemoteAuthenticationSession>( Context ).Queryable().Any( a => a.SiteId == item.Id ) )
+            {
+                errorMessage = string.Format( "This {0} is assigned to a {1}.", Site.FriendlyTypeName, RemoteAuthenticationSession.FriendlyTypeName );
+                return false;
+            }
+
+            if ( new Service<RequestFilter>( Context ).Queryable().Any( a => a.SiteId == item.Id ) )
+            {
+                errorMessage = string.Format( "This {0} is assigned to a {1}.", Site.FriendlyTypeName, RequestFilter.FriendlyTypeName );
+                return false;
+            }
+
+            if ( new Service<SystemPhoneNumber>( Context ).Queryable().Any( a => a.MobileApplicationSiteId == item.Id ) )
+            {
+                errorMessage = string.Format( "This {0} is assigned to a {1}.", Site.FriendlyTypeName, SystemPhoneNumber.FriendlyTypeName );
+                return false;
+            }
             return true;
         }
     }
-
-    /// <summary>
-    /// Site View Model Helper
-    /// </summary>
-    [DefaultViewModelHelper( typeof( Site ) )]
-    public partial class SiteViewModelHelper : ViewModelHelper<Site, Rock.ViewModel.SiteViewModel>
-    {
-        /// <summary>
-        /// Converts the model to a view model.
-        /// </summary>
-        /// <param name="model">The entity.</param>
-        /// <param name="currentPerson">The current person.</param>
-        /// <param name="loadAttributes">if set to <c>true</c> [load attributes].</param>
-        /// <returns></returns>
-        public override Rock.ViewModel.SiteViewModel CreateViewModel( Site model, Person currentPerson = null, bool loadAttributes = true )
-        {
-            if ( model == null )
-            {
-                return default;
-            }
-
-            var viewModel = new Rock.ViewModel.SiteViewModel
-            {
-                Id = model.Id,
-                Guid = model.Guid,
-                AdditionalSettings = model.AdditionalSettings,
-                AllowedFrameDomains = model.AllowedFrameDomains,
-                AllowIndexing = model.AllowIndexing,
-                ChangePasswordPageId = model.ChangePasswordPageId,
-                ChangePasswordPageRouteId = model.ChangePasswordPageRouteId,
-                CommunicationPageId = model.CommunicationPageId,
-                CommunicationPageRouteId = model.CommunicationPageRouteId,
-                ConfigurationMobilePhoneBinaryFileId = model.ConfigurationMobilePhoneBinaryFileId,
-                ConfigurationMobileTabletBinaryFileId = model.ConfigurationMobileTabletBinaryFileId,
-                DefaultPageId = model.DefaultPageId,
-                DefaultPageRouteId = model.DefaultPageRouteId,
-                Description = model.Description,
-                EnabledForShortening = model.EnabledForShortening,
-                EnableExclusiveRoutes = model.EnableExclusiveRoutes,
-                EnableMobileRedirect = model.EnableMobileRedirect,
-                EnablePageViews = model.EnablePageViews,
-                ErrorPage = model.ErrorPage,
-                ExternalUrl = model.ExternalUrl,
-                FavIconBinaryFileId = model.FavIconBinaryFileId,
-                GoogleAnalyticsCode = model.GoogleAnalyticsCode,
-                IndexStartingLocation = model.IndexStartingLocation,
-                IsActive = model.IsActive,
-                IsIndexEnabled = model.IsIndexEnabled,
-                IsSystem = model.IsSystem,
-                LatestVersionDateTime = model.LatestVersionDateTime,
-                LoginPageId = model.LoginPageId,
-                LoginPageRouteId = model.LoginPageRouteId,
-                MobilePageId = model.MobilePageId,
-                Name = model.Name,
-                PageHeaderContent = model.PageHeaderContent,
-                PageNotFoundPageId = model.PageNotFoundPageId,
-                PageNotFoundPageRouteId = model.PageNotFoundPageRouteId,
-                RedirectTablets = model.RedirectTablets,
-                RegistrationPageId = model.RegistrationPageId,
-                RegistrationPageRouteId = model.RegistrationPageRouteId,
-                RequiresEncryption = model.RequiresEncryption,
-                SiteLogoBinaryFileId = model.SiteLogoBinaryFileId,
-                SiteType = ( int ) model.SiteType,
-                Theme = model.Theme,
-                ThumbnailBinaryFileId = model.ThumbnailBinaryFileId,
-                CreatedDateTime = model.CreatedDateTime,
-                ModifiedDateTime = model.ModifiedDateTime,
-                CreatedByPersonAliasId = model.CreatedByPersonAliasId,
-                ModifiedByPersonAliasId = model.ModifiedByPersonAliasId,
-            };
-
-            AddAttributesToViewModel( model, viewModel, currentPerson, loadAttributes );
-            ApplyAdditionalPropertiesAndSecurityToViewModel( model, viewModel, currentPerson, loadAttributes );
-            return viewModel;
-        }
-    }
-
 
     /// <summary>
     /// Generated Extension Methods
@@ -215,10 +171,14 @@ namespace Rock.Model
             target.DefaultPageId = source.DefaultPageId;
             target.DefaultPageRouteId = source.DefaultPageRouteId;
             target.Description = source.Description;
+            target.DisablePredictableIds = source.DisablePredictableIds;
             target.EnabledForShortening = source.EnabledForShortening;
             target.EnableExclusiveRoutes = source.EnableExclusiveRoutes;
             target.EnableMobileRedirect = source.EnableMobileRedirect;
+            target.EnablePageViewGeoTracking = source.EnablePageViewGeoTracking;
             target.EnablePageViews = source.EnablePageViews;
+            target.EnablePersonalization = source.EnablePersonalization;
+            target.EnableVisitorTracking = source.EnableVisitorTracking;
             target.ErrorPage = source.ErrorPage;
             target.ExternalUrl = source.ExternalUrl;
             target.FavIconBinaryFileId = source.FavIconBinaryFileId;
@@ -253,20 +213,5 @@ namespace Rock.Model
             target.ForeignId = source.ForeignId;
 
         }
-
-        /// <summary>
-        /// Creates a view model from this entity
-        /// </summary>
-        /// <param name="model">The entity.</param>
-        /// <param name="currentPerson" >The currentPerson.</param>
-        /// <param name="loadAttributes" >Load attributes?</param>
-        public static Rock.ViewModel.SiteViewModel ToViewModel( this Site model, Person currentPerson = null, bool loadAttributes = false )
-        {
-            var helper = new SiteViewModelHelper();
-            var viewModel = helper.CreateViewModel( model, currentPerson, loadAttributes );
-            return viewModel;
-        }
-
     }
-
 }

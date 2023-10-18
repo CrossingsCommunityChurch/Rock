@@ -59,6 +59,7 @@ namespace RockWeb.Blocks.Event
 
     #endregion
 
+    [Rock.SystemGuid.BlockTypeGuid( "762BEE39-15DF-477C-9831-DB5AA73DCB24" )]
     public partial class RegistrationInstancePaymentList : RegistrationInstanceBlock, ISecondaryBlock
     {
         #region Attribute Keys
@@ -144,7 +145,7 @@ namespace RockWeb.Blocks.Event
         /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
         protected void fPayments_ApplyFilterClick( object sender, EventArgs e )
         {
-            fPayments.SaveUserPreference( UserPreferenceKeyBase.GridFilter_PaymentsDateRange, "Transaction Date Range", sdrpPaymentDateRange.DelimitedValues );
+            fPayments.SetFilterPreference( UserPreferenceKeyBase.GridFilter_PaymentsDateRange, "Transaction Date Range", sdrpPaymentDateRange.DelimitedValues );
 
             BindPaymentsGrid();
         }
@@ -156,7 +157,7 @@ namespace RockWeb.Blocks.Event
         /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
         protected void fPayments_ClearFilterClick( object sender, EventArgs e )
         {
-            fPayments.DeleteUserPreferences();
+            fPayments.DeleteFilterPreferences();
 
             BindPaymentsFilter();
         }
@@ -279,7 +280,7 @@ namespace RockWeb.Blocks.Event
         /// </summary>
         private void SetUserPreferencePrefix( int registrationTemplateId )
         {
-            fPayments.UserPreferenceKeyPrefix = string.Format( "{0}-", registrationTemplateId );
+            fPayments.PreferenceKeyPrefix = string.Format( "{0}-", registrationTemplateId );
         }
 
         /// <summary>
@@ -287,7 +288,7 @@ namespace RockWeb.Blocks.Event
         /// </summary>
         private void BindPaymentsFilter()
         {
-            sdrpPaymentDateRange.DelimitedValues = fPayments.GetUserPreference( UserPreferenceKeyBase.GridFilter_PaymentsDateRange );
+            sdrpPaymentDateRange.DelimitedValues = fPayments.GetFilterPreference( UserPreferenceKeyBase.GridFilter_PaymentsDateRange );
         }
 
         /// <summary>

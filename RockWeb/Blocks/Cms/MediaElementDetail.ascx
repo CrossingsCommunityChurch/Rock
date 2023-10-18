@@ -19,12 +19,13 @@
 
                 <div class="panel-labels">
                     <asp:LinkButton ID="lbMediaFiles" runat="server" CssClass="btn btn-default btn-xs" OnClick="lbMediaFiles_Click" Visible="false">
-                        <i class="fas fa-file-text"></i> Media Files
+                        <i class="fas fa-file-text"></i> View Media Assets
                     </asp:LinkButton>
 
                     <asp:LinkButton ID="lbMediaAnalytics" runat="server" CssClass="btn btn-default btn-xs" OnClick="lbMediaAnalytics_Click" Visible="false">
-                        <i class="fas fa-line-chart"></i> Media Analytics
+                        <i class="fa fa-line-chart"></i> View Media Analytics
                     </asp:LinkButton>
+                    <Rock:HighlightLabel ID="hlDuration" runat="server" LabelType="Default" ToolTip="Media duration" />
                 </div>
             </div>
 
@@ -79,17 +80,15 @@
                     <asp:Panel ID="pnlLast12MonthsDetails" runat="server" Visible="false">
                         <asp:Literal ID="lLast12MonthsContent" runat="server" />
                     </asp:Panel>
-                </asp:Panel>
 
+                    <asp:Panel ID="pnlIndividualPlays" runat="server">
+                        <hr class="my-3" />
+                        <p class="my-3 py-1">
+                            <strong>Individual Plays</strong>
+                        </p>
 
-
-                <asp:Panel ID="pnlIndividualPlays" runat="server">
-                    <hr class="my-3" />
-                    <p class="my-3 py-1">
-                        <strong>Individual Plays</strong>
-                    </p>
-
-                    <button class="js-load-more btn btn-primary mt-2">Load More</button>
+                        <button class="js-load-more btn btn-primary mt-2">Load More</button>
+                    </asp:Panel>
                 </asp:Panel>
 
             </asp:Panel>

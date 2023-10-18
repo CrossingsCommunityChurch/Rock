@@ -36,6 +36,7 @@ namespace RockWeb.Blocks.Core
     [DisplayName( "Entity Types" )]
     [Category( "Core" )]
     [Description( "Administer the IEntity entity types." )]
+    [Rock.SystemGuid.BlockTypeGuid( "8098DF5D-4B87-4FAF-BA65-E017C5A93353" )]
     public partial class EntityTypes : RockBlock
     {
         #region Control Methods
@@ -82,7 +83,7 @@ namespace RockWeb.Blocks.Core
         /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
         private void gfSettings_ApplyFilterClick( object sender, EventArgs e )
         {
-            gfSettings.SaveUserPreference( "Search", "EntityType or Name contains", tbSearch.Text );
+            gfSettings.SetFilterPreference( "Search", "EntityType or Name contains", tbSearch.Text );
 
             BindGrid();
         }
@@ -92,7 +93,7 @@ namespace RockWeb.Blocks.Core
         /// </summary>
         private void BindFilter()
         {
-            tbSearch.Text = gfSettings.GetUserPreference( "Search" );
+            tbSearch.Text = gfSettings.GetFilterPreference( "Search" );
         }
 
         /// <summary>
@@ -243,7 +244,7 @@ namespace RockWeb.Blocks.Core
 
             var qry = entityTypeService.Queryable().Where( e => e.IsEntity );
 
-            string search = gfSettings.GetUserPreference( "Search" );
+            string search = gfSettings.GetFilterPreference( "Search" );
             if ( !string.IsNullOrWhiteSpace( search ) )
             {
                 qry = qry.Where( h => h.Name.Contains( search ) || h.FriendlyName.Contains( search ) );

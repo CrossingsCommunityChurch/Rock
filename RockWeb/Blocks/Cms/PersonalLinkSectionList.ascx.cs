@@ -54,6 +54,7 @@ namespace RockWeb.Blocks.Cms
         Order = 1 )]
 
     #endregion Block Attributes
+    [Rock.SystemGuid.BlockTypeGuid( "0BFD74A8-1888-4407-9102-D3FCEABF3095" )]
     public partial class PersonalLinkSectionList : RockBlock, ICustomGridColumns
     {
         #region Attribute Keys
@@ -264,7 +265,7 @@ namespace RockWeb.Blocks.Cms
         /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
         protected void gfFilter_ApplyFilterClick( object sender, EventArgs e )
         {
-            gfFilter.SaveUserPreference( UserPreferenceKey.Name, txtSectionName.Text );
+            gfFilter.SetFilterPreference( UserPreferenceKey.Name, txtSectionName.Text );
             BindGrid();
         }
 
@@ -275,7 +276,7 @@ namespace RockWeb.Blocks.Cms
         /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
         protected void gfFilter_ClearFilterClick( object sender, EventArgs e )
         {
-            gfFilter.DeleteUserPreferences();
+            gfFilter.DeleteFilterPreferences();
             BindFilter();
         }
 
@@ -312,7 +313,7 @@ namespace RockWeb.Blocks.Cms
         /// </summary>
         private void BindFilter()
         {
-            txtSectionName.Text = gfFilter.GetUserPreference( UserPreferenceKey.Name );
+            txtSectionName.Text = gfFilter.GetFilterPreference( UserPreferenceKey.Name );
         }
 
         /// <summary>

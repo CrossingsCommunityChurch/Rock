@@ -15,6 +15,8 @@
 // </copyright>
 
 using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using System.Data.Entity.ModelConfiguration;
@@ -31,6 +33,7 @@ namespace Rock.Model
     [RockDomain( "Event" )]
     [Table( "Registration" )]
     [DataContract]
+    [Rock.SystemGuid.EntityTypeGuid( Rock.SystemGuid.EntityType.REGISTRATION )]
     public partial class Registration : Model<Registration>
     {
         #region Entity Properties
@@ -152,6 +155,33 @@ namespace Rock.Model
 
         private DateTime? _lastPaymentReminderDateTime;
 
+        /// <summary>
+        /// Gets the created date key.
+        /// </summary>
+        /// <value>
+        /// The created date key.
+        /// </value>
+        [DataMember]
+        [FieldType( Rock.SystemGuid.FieldType.DATE )]
+        public int? CreatedDateKey
+        {
+            get => ( CreatedDateTime == null || CreatedDateTime.Value == default ) ?
+                        ( int? ) null :
+                        CreatedDateTime.Value.ToString( "yyyyMMdd" ).AsInteger();
+
+            private set { }
+        }
+
+        /// <summary>
+        /// Gets or sets the Id of the <see cref="Rock.Model.Campus"/> the registration will be tied to
+        /// </summary>
+        /// <value>
+        /// A <see cref="System.Int32"/> representing the Id of the <see cref="Rock.Model.Campus"/> the event occured
+        /// </value>
+        [DataMember]
+        [FieldType(Rock.SystemGuid.FieldType.CAMPUS)]
+        public int? CampusId { get; set; }
+
         #endregion Entity Properties
 
         #region Navigation Properties
@@ -192,6 +222,30 @@ namespace Rock.Model
         [DataMember]
         public virtual AnalyticsSourceDate CreatedSourceDate { get; set; }
 
+        /// <summary>
+        /// Gets or sets the registrants.
+        /// </summary>
+        /// <value>
+        /// The registrants.
+        /// </value>
+        [DataMember]
+        public virtual ICollection<RegistrationRegistrant> Registrants
+        {
+            get { return _registrants ?? ( _registrants = new Collection<RegistrationRegistrant>() ); }
+            set { _registrants = value; }
+        }
+
+        private ICollection<RegistrationRegistrant> _registrants;
+
+        /// <summary>
+        /// Gets or sets the <see cref="Rock.Model.Campus"/> the registration will be tied to
+        /// </summary>
+        /// <value>
+        /// The <see cref="Rock.Model.Campus"/> where the <see cref="Rock.Model.Person"/> attended.
+        /// </value>
+        [DataMember]
+        public virtual Campus Campus { get; set; }
+
         #endregion Navigation Properties
     }
 
@@ -210,6 +264,7 @@ namespace Rock.Model
             this.HasRequired( r => r.RegistrationInstance ).WithMany( t => t.Registrations ).HasForeignKey( r => r.RegistrationInstanceId ).WillCascadeOnDelete( false );
             this.HasOptional( r => r.PersonAlias ).WithMany().HasForeignKey( r => r.PersonAliasId ).WillCascadeOnDelete( false );
             this.HasOptional( r => r.Group ).WithMany().HasForeignKey( r => r.GroupId ).WillCascadeOnDelete( false );
+            this.HasOptional( a => a.Campus ).WithMany().HasForeignKey( p => p.CampusId ).WillCascadeOnDelete( true );
 
             // NOTE: When creating a migration for this, don't create the actual FK's in the database for this just in case there are outlier OccurrenceDates that aren't in the AnalyticsSourceDate table
             // and so that the AnalyticsSourceDate can be rebuilt from scratch as needed

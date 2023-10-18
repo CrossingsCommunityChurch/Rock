@@ -1,4 +1,4 @@
-﻿// <copyright>
+// <copyright>
 // Copyright by the Spark Development Network
 //
 // Licensed under the Rock Community License (the "License");
@@ -14,18 +14,14 @@
 // limitations under the License.
 // </copyright>
 //
-using System;
+
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using System.Data.Entity.ModelConfiguration;
-using System.Linq;
 using System.Runtime.Serialization;
-using System.Web;
-
 using Rock.Data;
-using Rock.Web.Cache;
 using Rock.Lava;
 
 namespace Rock.Model
@@ -36,6 +32,7 @@ namespace Rock.Model
     [RockDomain( "Engagement" )]
     [Table( "ConnectionOpportunity" )]
     [DataContract]
+    [Rock.SystemGuid.EntityTypeGuid( Rock.SystemGuid.EntityType.CONNECTION_OPPORTUNITY )]
     public partial class ConnectionOpportunity : Model<ConnectionOpportunity>, IHasActiveFlag, IOrdered
     {
 

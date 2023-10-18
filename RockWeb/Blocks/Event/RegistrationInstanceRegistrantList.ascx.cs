@@ -70,8 +70,16 @@ namespace RockWeb.Blocks.Event
 
     #endregion
 
-    public partial class RegistrationInstanceRegistrantList : RegistrationInstanceBlock, ISecondaryBlock
+    [Rock.SystemGuid.BlockTypeGuid( "4D4FBC7B-068C-499A-8BA4-C9209CA9BB6E" )]
+    public partial class RegistrationInstanceRegistrantList : RegistrationInstanceBlock, ISecondaryBlock, ICustomGridOptions
     {
+        #region Properties
+
+        private const string SIGNATURE_LINK_TEMPLATE = @"<a href='{0}?id={1}' target='_blank' rel='noopener noreferrer' style='color: black;'><i class='fa fa-file-signature'></i></a>";
+        private const string SIGNATURE_NOT_SIGNED_INDICATOR = @"<i class='fa fa-edit text-danger' data-toggle='tooltip' data-original-title='{0}'></i>";
+
+        #endregion
+
         #region Attribute Keys
 
         /// <summary>
@@ -115,6 +123,7 @@ namespace RockWeb.Blocks.Event
         private Dictionary<int, PhoneNumber> _mobilePhoneNumbers = new Dictionary<int, PhoneNumber>();
         private Dictionary<int, PhoneNumber> _homePhoneNumbers = new Dictionary<int, PhoneNumber>();
         private Dictionary<int, PhoneNumber> _workPhoneNumbers = new Dictionary<int, PhoneNumber>();
+        private Dictionary<int, SignatureDocument> _signatureDocuments = new Dictionary<int, SignatureDocument>();
         private List<RegistrationTemplatePlacement> _registrationTemplatePlacements = null;
         private List<PlacementGroupInfo> _placementGroupInfoList = null;
         private RockLiteralField _placementsField = null;
@@ -197,10 +206,21 @@ namespace RockWeb.Blocks.Event
 
             gRegistrants.EmptyDataText = "No Registrants Found";
             gRegistrants.DataKeyNames = new string[] { "Id" };
+            gRegistrants.PersonIdField = "PersonAlias.PersonId";
             gRegistrants.Actions.ShowAdd = true;
             gRegistrants.Actions.AddClick += gRegistrants_AddClick;
             gRegistrants.RowDataBound += gRegistrants_RowDataBound;
             gRegistrants.GridRebind += gRegistrants_GridRebind;
+
+            // Add a custom button with an EventHandler that is only in this block.
+            var customActionConfigEventButton = new CustomActionConfigEvent
+            {
+                IconCssClass = "fa fa-user-friends",
+                HelpText = "Communicate to Registrars",
+                EventHandler = LbRegistrarCommunication_Click
+            };
+
+            gRegistrants.Actions.AddCustomActionBlockButton( customActionConfigEventButton );
 
             this.AddConfigurationUpdateTrigger( upnlContent );
         }
@@ -243,11 +263,11 @@ namespace RockWeb.Blocks.Event
         /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
         protected void fRegistrants_ApplyFilterClick( object sender, EventArgs e )
         {
-            fRegistrants.SaveUserPreference( UserPreferenceKeyBase.GridFilter_RegistrantsDateRange, "Registrants Date Range", sdrpRegistrantsRegistrantDateRange.DelimitedValues );
-            fRegistrants.SaveUserPreference( UserPreferenceKeyBase.GridFilter_FirstName, tbRegistrantsRegistrantFirstName.Text );
-            fRegistrants.SaveUserPreference( UserPreferenceKeyBase.GridFilter_LastName, tbRegistrantsRegistrantLastName.Text );
-            fRegistrants.SaveUserPreference( UserPreferenceKeyBase.GridFilter_InGroup, ddlRegistrantsInGroup.SelectedValue );
-            fRegistrants.SaveUserPreference( UserPreferenceKeyBase.GridFilter_SignedDocument, ddlRegistrantsSignedDocument.SelectedValue );
+            fRegistrants.SetFilterPreference( UserPreferenceKeyBase.GridFilter_RegistrantsDateRange, "Registrants Date Range", sdrpRegistrantsRegistrantDateRange.DelimitedValues );
+            fRegistrants.SetFilterPreference( UserPreferenceKeyBase.GridFilter_FirstName, tbRegistrantsRegistrantFirstName.Text );
+            fRegistrants.SetFilterPreference( UserPreferenceKeyBase.GridFilter_LastName, tbRegistrantsRegistrantLastName.Text );
+            fRegistrants.SetFilterPreference( UserPreferenceKeyBase.GridFilter_InGroup, ddlRegistrantsInGroup.SelectedValue );
+            fRegistrants.SetFilterPreference( UserPreferenceKeyBase.GridFilter_SignedDocument, ddlRegistrantsSignedDocument.SelectedValue );
 
             if ( RegistrantFields != null )
             {
@@ -261,7 +281,7 @@ namespace RockWeb.Blocks.Event
                                 var ddlCampus = phRegistrantsRegistrantFormFieldFilters.FindControl( FILTER_CAMPUS_ID ) as RockDropDownList;
                                 if ( ddlCampus != null )
                                 {
-                                    fRegistrants.SaveUserPreference( UserPreferenceKeyBase.GridFilter_HomeCampus, ddlCampus.SelectedValue );
+                                    fRegistrants.SetFilterPreference( UserPreferenceKeyBase.GridFilter_HomeCampus, ddlCampus.SelectedValue );
                                 }
 
                                 break;
@@ -270,7 +290,7 @@ namespace RockWeb.Blocks.Event
                                 var tbEmailFilter = phRegistrantsRegistrantFormFieldFilters.FindControl( FILTER_EMAIL_ID ) as RockTextBox;
                                 if ( tbEmailFilter != null )
                                 {
-                                    fRegistrants.SaveUserPreference( UserPreferenceKeyBase.GridFilter_Email, tbEmailFilter.Text );
+                                    fRegistrants.SetFilterPreference( UserPreferenceKeyBase.GridFilter_Email, tbEmailFilter.Text );
                                 }
 
                                 break;
@@ -279,7 +299,7 @@ namespace RockWeb.Blocks.Event
                                 var drpBirthdateFilter = phRegistrantsRegistrantFormFieldFilters.FindControl( FILTER_BIRTHDATE_ID ) as DateRangePicker;
                                 if ( drpBirthdateFilter != null )
                                 {
-                                    fRegistrants.SaveUserPreference( UserPreferenceKeyBase.GridFilter_BirthdateRange, drpBirthdateFilter.DelimitedValues );
+                                    fRegistrants.SetFilterPreference( UserPreferenceKeyBase.GridFilter_BirthdateRange, drpBirthdateFilter.DelimitedValues );
                                 }
 
                                 break;
@@ -287,7 +307,7 @@ namespace RockWeb.Blocks.Event
                                 var tbMiddleNameFilter = phRegistrantsRegistrantFormFieldFilters.FindControl( FILTER_MIDDLE_NAME_ID ) as RockTextBox;
                                 if ( tbMiddleNameFilter != null )
                                 {
-                                    fRegistrants.SaveUserPreference( UserPreferenceKeyBase.GridFilter_MiddleName, tbMiddleNameFilter.Text );
+                                    fRegistrants.SetFilterPreference( UserPreferenceKeyBase.GridFilter_MiddleName, tbMiddleNameFilter.Text );
                                 }
 
                                 break;
@@ -295,7 +315,7 @@ namespace RockWeb.Blocks.Event
                                 var drAnniversaryDateFilter = phRegistrantsRegistrantFormFieldFilters.FindControl( FILTER_ANNIVERSARY_DATE_ID ) as DateRangePicker;
                                 if ( drAnniversaryDateFilter != null )
                                 {
-                                    fRegistrants.SaveUserPreference( UserPreferenceKeyBase.GridFilter_AnniversaryDateRange, drAnniversaryDateFilter.DelimitedValues );
+                                    fRegistrants.SetFilterPreference( UserPreferenceKeyBase.GridFilter_AnniversaryDateRange, drAnniversaryDateFilter.DelimitedValues );
                                 }
 
                                 break;
@@ -304,7 +324,7 @@ namespace RockWeb.Blocks.Event
                                 if ( gpGradeFilter != null )
                                 {
                                     int? gradeOffset = gpGradeFilter.SelectedValueAsInt( false );
-                                    fRegistrants.SaveUserPreference( UserPreferenceKeyBase.GridFilter_Grade, gradeOffset.HasValue ? gradeOffset.Value.ToString() : string.Empty );
+                                    fRegistrants.SetFilterPreference( UserPreferenceKeyBase.GridFilter_Grade, gradeOffset.HasValue ? gradeOffset.Value.ToString() : string.Empty );
                                 }
 
                                 break;
@@ -313,7 +333,7 @@ namespace RockWeb.Blocks.Event
                                 var ddlGenderFilter = phRegistrantsRegistrantFormFieldFilters.FindControl( FILTER_GENDER_ID ) as RockDropDownList;
                                 if ( ddlGenderFilter != null )
                                 {
-                                    fRegistrants.SaveUserPreference( UserPreferenceKeyBase.GridFilter_Gender, ddlGenderFilter.SelectedValue );
+                                    fRegistrants.SetFilterPreference( UserPreferenceKeyBase.GridFilter_Gender, ddlGenderFilter.SelectedValue );
                                 }
 
                                 break;
@@ -322,7 +342,7 @@ namespace RockWeb.Blocks.Event
                                 var dvpMaritalStatusFilter = phRegistrantsRegistrantFormFieldFilters.FindControl( FILTER_MARITAL_STATUS_ID ) as DefinedValuePicker;
                                 if ( dvpMaritalStatusFilter != null )
                                 {
-                                    fRegistrants.SaveUserPreference( UserPreferenceKeyBase.GridFilter_MaritalStatus, dvpMaritalStatusFilter.SelectedValue );
+                                    fRegistrants.SetFilterPreference( UserPreferenceKeyBase.GridFilter_MaritalStatus, dvpMaritalStatusFilter.SelectedValue );
                                 }
 
                                 break;
@@ -331,7 +351,7 @@ namespace RockWeb.Blocks.Event
                                 var dvpConnectionStatusFilter = phRegistrantsRegistrantFormFieldFilters.FindControl( FILTER_CONNECTION_STATUS_ID ) as DefinedValuePicker;
                                 if ( dvpConnectionStatusFilter != null )
                                 {
-                                    fRegistrants.SaveUserPreference( UserPreferenceKeyBase.GridFilter_ConnectionStatus, dvpConnectionStatusFilter.SelectedValue );
+                                    fRegistrants.SetFilterPreference( UserPreferenceKeyBase.GridFilter_ConnectionStatus, dvpConnectionStatusFilter.SelectedValue );
                                 }
 
                                 break;
@@ -340,7 +360,7 @@ namespace RockWeb.Blocks.Event
                                 var tbMobilePhoneFilter = phRegistrantsRegistrantFormFieldFilters.FindControl( FILTER_MOBILE_PHONE_ID ) as RockTextBox;
                                 if ( tbMobilePhoneFilter != null )
                                 {
-                                    fRegistrants.SaveUserPreference( UserPreferenceKeyBase.GridFilter_CellPhone, "Cell Phone", tbMobilePhoneFilter.Text );
+                                    fRegistrants.SetFilterPreference( UserPreferenceKeyBase.GridFilter_CellPhone, "Cell Phone", tbMobilePhoneFilter.Text );
                                 }
 
                                 break;
@@ -349,7 +369,25 @@ namespace RockWeb.Blocks.Event
                                 var tbHomePhoneFilter = phRegistrantsRegistrantFormFieldFilters.FindControl( FILTER_HOME_PHONE_ID ) as RockTextBox;
                                 if ( tbHomePhoneFilter != null )
                                 {
-                                    fRegistrants.SaveUserPreference( UserPreferenceKeyBase.GridFilter_HomePhone, tbHomePhoneFilter.Text );
+                                    fRegistrants.SetFilterPreference( UserPreferenceKeyBase.GridFilter_HomePhone, tbHomePhoneFilter.Text );
+                                }
+
+                                break;
+
+                            case RegistrationPersonFieldType.Race:
+                                var rpRaceFilter = phRegistrantsRegistrantFormFieldFilters.FindControl( FILTER_RACE_ID ) as RacePicker;
+                                if ( rpRaceFilter != null )
+                                {
+                                    fRegistrants.SetFilterPreference( UserPreferenceKeyBase.GridFilter_Race, rpRaceFilter.SelectedValue );
+                                }
+
+                                break;
+
+                            case RegistrationPersonFieldType.Ethnicity:
+                                var epEthnicityFilter = phRegistrantsRegistrantFormFieldFilters.FindControl( FILTER_ETHNICITY_ID ) as EthnicityPicker;
+                                if ( epEthnicityFilter != null )
+                                {
+                                    fRegistrants.SetFilterPreference( UserPreferenceKeyBase.GridFilter_Ethnicity, epEthnicityFilter.SelectedValue );
                                 }
 
                                 break;
@@ -365,7 +403,7 @@ namespace RockWeb.Blocks.Event
                             try
                             {
                                 var values = attribute.FieldType.Field.GetFilterValues( filterControl, field.Attribute.QualifierValues, Rock.Reporting.FilterMode.SimpleFilter );
-                                fRegistrants.SaveUserPreference( attribute.Key, attribute.Name, attribute.FieldType.Field.GetFilterValues( filterControl, attribute.QualifierValues, Rock.Reporting.FilterMode.SimpleFilter ).ToJson() );
+                                fRegistrants.SetFilterPreference( attribute.Key, attribute.Name, attribute.FieldType.Field.GetFilterValues( filterControl, attribute.QualifierValues, Rock.Reporting.FilterMode.SimpleFilter ).ToJson() );
                             }
                             catch
                             {
@@ -386,7 +424,7 @@ namespace RockWeb.Blocks.Event
         /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
         protected void fRegistrants_ClearFilterClick( object sender, EventArgs e )
         {
-            fRegistrants.DeleteUserPreferences();
+            fRegistrants.DeleteFilterPreferences();
 
             foreach ( var control in phRegistrantsRegistrantFormFieldFilters.ControlsOfTypeRecursive<Control>().Where( a => a.ID != null && a.ID.StartsWith( "filter" ) && a.ID.Contains( "_" ) ) )
             {
@@ -665,8 +703,7 @@ namespace RockWeb.Blocks.Event
             {
                 if ( registrant.PersonAlias != null && registrant.PersonAlias.Person != null )
                 {
-                    lRegistrant.Text = registrant.PersonAlias.Person.FullNameReversed +
-                        ( SignersPersonAliasIds != null && !SignersPersonAliasIds.Contains( registrant.PersonAlias.PersonId ) ? " <i class='fa fa-edit text-danger'></i>" : string.Empty );
+                    lRegistrant.Text = registrant.PersonAlias.Person.FullNameReversed;
                 }
                 else
                 {
@@ -743,6 +780,38 @@ namespace RockWeb.Blocks.Event
             if ( lPlacements != null )
             {
                 SetPlacementFieldHtml( registrant, lPlacements );
+            }
+
+            if ( registrant.Registration.RegistrationInstance.RegistrationTemplate.RequiredSignatureDocumentTemplateId.HasValue )
+            {
+                var lSignedDocument = e.Row.FindControl( "rlSignedDocument" ) as Literal;
+
+                if ( _signatureDocuments.ContainsKey( registrant.PersonId.Value ) )
+                {
+                    var document = _signatureDocuments[registrant.PersonId.Value];
+                    if ( document.Status == SignatureDocumentStatus.Signed )
+                    {
+                        lSignedDocument.Text = string.Format( SIGNATURE_LINK_TEMPLATE, ResolveRockUrl( "~/GetFile.ashx" ), document.BinaryFileId );
+                    }
+                    else
+                    {
+                        string message;
+                        if ( document.LastInviteDate.HasValue )
+                        {
+                            message = $"A signed {registrant.Registration.RegistrationInstance.RegistrationTemplate.Name} document has not yet been received for {registrant.NickName}. The last request was sent {document.LastInviteDate.Value.ToElapsedString()}.";
+                        }
+                        else
+                        {
+                            message = $"The required {registrant.Registration.RegistrationInstance.RegistrationTemplate.Name} document has not yet been sent to {registrant.NickName} for signing.";
+                        }
+
+                        lSignedDocument.Text = string.Format( SIGNATURE_NOT_SIGNED_INDICATOR, message );
+                    }
+                }
+                else
+                {
+                    lSignedDocument.Text = string.Format( SIGNATURE_NOT_SIGNED_INDICATOR, "Document not signed" );
+                }
             }
 
             if ( _homeAddresses.Any() && _homeAddresses.ContainsKey( registrant.PersonId.Value ) )
@@ -827,6 +896,34 @@ namespace RockWeb.Blocks.Event
                     {
                         workPhoneField.Text = workPhoneNumber.IsUnlisted ? "Unlisted" : workPhoneNumber.NumberFormatted;
                     }
+                }
+            }
+
+            // Set the registrant race
+            var lRace = e.Row.FindControl( "lRace" ) as Literal;
+            if ( lRace != null )
+            {
+                if ( registrant.PersonAlias != null && registrant.PersonAlias.Person != null )
+                {
+                    lRace.Text = registrant.PersonAlias.Person.RaceValue?.Value;
+                }
+                else
+                {
+                    lRace.Text = string.Empty;
+                }
+            }
+
+            // Set the registrant ethnicity
+            var lEthnicity = e.Row.FindControl( "lEthnicity" ) as Literal;
+            if ( lEthnicity != null )
+            {
+                if ( registrant.PersonAlias != null && registrant.PersonAlias.Person != null )
+                {
+                    lEthnicity.Text = registrant.PersonAlias.Person.EthnicityValue?.Value;
+                }
+                else
+                {
+                    lEthnicity.Text = string.Empty;
                 }
             }
         }
@@ -969,6 +1066,160 @@ namespace RockWeb.Blocks.Event
             BindRegistrantsGrid();
         }
 
+        /// <summary>
+        /// Handles the Registrar Communication event of the Custom Actions control.
+        /// </summary>
+        /// <param name="sender">The source of the event.</param>
+        /// <param name="e">The <see cref="EventArgs" /> instance containing the event data.</param>
+        private void LbRegistrarCommunication_Click( object sender, EventArgs e )
+        {
+            /*
+                04/01/2022 - CWR
+                This click event mirrors the Grid.cs -> Actions_Communicate event, without access to the private methods and properties.
+                Clicking a Grid Action button without selecting any rows assumes that all rows are desired (the behavior of Grid's Actions_Communicate).
+                In order to achieve this, we need to use the BindRegistrantsGrid method without paging to bring back all the Grid's DataKeys.
+             */
+            var itemsSelected = new List<int>();
+            if ( gRegistrants.SelectedKeys.Any() )
+            {
+                gRegistrants.SelectedKeys.ToList().ForEach( f => itemsSelected.Add( f.ToString().AsInteger() ) );
+            }
+            else
+            {
+                // If nothing is selected, assume all, and add all the data keys to the itemsSelected list.
+
+                // If the grid allows paging and there's more than one page, rebind the grid without paging so that all keys are available.
+                if ( gRegistrants.AllowPaging && gRegistrants.PageCount > 1 )
+                {
+                    gRegistrants.AllowPaging = false;
+
+                    BindRegistrantsGrid();
+                }
+
+                foreach ( DataKey dataKey in gRegistrants.DataKeys )
+                {
+                    itemsSelected.Add( dataKey.Value.ToString().AsInteger() );
+                }
+            }
+
+            // Create a dictionary of the additional merge fields that were created for the communication
+            var communicationMergeFields = new Dictionary<string, string>();
+            foreach ( string mergeField in gRegistrants.CommunicateMergeFields )
+            {
+                var parts = mergeField.Split( new char[] { '|' }, StringSplitOptions.RemoveEmptyEntries ).ToList();
+                if ( parts.Any() )
+                {
+                    communicationMergeFields.AddOrIgnore( parts.First().Replace( '.', '_' ), parts.Last().Replace( '.', '_' ) );
+                }
+            }
+
+            if ( itemsSelected.Any() )
+            {
+                var rockContext = new RockContext();
+                var registrationRegistrantService = new RegistrationRegistrantService( rockContext );
+
+                // Get the PersonAliases from the selected registrants.
+                var personAliasIdQuery = registrationRegistrantService.Queryable()
+                    .Where( rr => itemsSelected.Contains( rr.Id ) )
+                    .Select( p => p.PersonAliasId );
+
+                var registrationQuery = registrationRegistrantService.Queryable()
+                    .Where( r =>
+                    personAliasIdQuery.Contains( r.PersonAliasId.Value ) &&
+                    r.Registration.RegistrationInstanceId == this.RegistrationInstanceId )
+                    .Select( r => r.Registration );
+
+                var personIds = registrationQuery.Select( r => r.PersonAlias.PersonId ).Distinct().ToList();
+
+                if ( personIds.Any() )
+                {
+                    // Create communication
+                    var communicationRockContext = new RockContext();
+                    var communicationService = new CommunicationService( communicationRockContext );
+                    var communication = new Communication();
+                    communication.IsBulkCommunication = true;
+                    communication.Status = CommunicationStatus.Transient;
+
+                    if ( CurrentPerson != null )
+                    {
+                        communication.SenderPersonAliasId = CurrentPersonAliasId;
+                    }
+
+                    if ( Request != null && Request.UrlProxySafe() != null )
+                    {
+                        communication.UrlReferrer = Request.UrlProxySafe().AbsoluteUri.TrimForMaxLength( communication, "UrlReferrer" );
+                    }
+
+                    communicationService.Add( communication );
+
+                    // save communication to get Id
+                    communicationRockContext.SaveChanges();
+
+                    var personAliasService = new PersonAliasService( new RockContext() );
+
+                    // Get the primary aliases
+                    List<Rock.Model.PersonAlias> primaryAliasList = new List<PersonAlias>( personIds.Count );
+
+                    // get the data in chunks just in case we have a large list of PersonIds (to avoid a SQL Expression limit error)
+                    var chunkedPersonIds = personIds.Take( 1000 );
+                    int skipCount = 0;
+                    while ( chunkedPersonIds.Any() )
+                    {
+                        var chunkedPrimaryAliasList = personAliasService.Queryable()
+                            .Where( p => p.PersonId == p.AliasPersonId && chunkedPersonIds.Contains( p.PersonId ) ).AsNoTracking().ToList();
+                        primaryAliasList.AddRange( chunkedPrimaryAliasList );
+                        skipCount += 1000;
+                        chunkedPersonIds = personIds.Skip( skipCount ).Take( 1000 );
+                    }
+
+                    // NOTE: Set CreatedDateTime, ModifiedDateTime, etc manually set we are using BulkInsert
+                    var currentDateTime = RockDateTime.Now;
+                    var currentPersonAliasId = CurrentPersonAliasId;
+
+                    var communicationRecipientList = primaryAliasList.Select( a => new Rock.Model.CommunicationRecipient
+                    {
+                        CommunicationId = communication.Id,
+                        PersonAliasId = a.Id,
+                        CreatedByPersonAliasId = currentPersonAliasId,
+                        ModifiedByPersonAliasId = currentPersonAliasId,
+                        CreatedDateTime = currentDateTime,
+                        ModifiedDateTime = currentDateTime
+                    } ).ToList();
+
+                    // BulkInsert to quickly insert the CommunicationRecipient records. Note: This is much faster, but will bypass EF and Rock processing.
+                    var communicationRecipientRockContext = new RockContext();
+                    communicationRecipientRockContext.BulkInsert( communicationRecipientList );
+
+                    var pageRef = this.RockPage.Site.CommunicationPageReference;
+                    string communicationUrl;
+                    if ( pageRef.PageId > 0 )
+                    {
+                        pageRef.Parameters.AddOrReplace( "CommunicationId", communication.Id.ToString() );
+                        communicationUrl = pageRef.BuildUrl();
+                    }
+                    else
+                    {
+                        communicationUrl = "~/Communication/{0}";
+                    }
+
+                    Page.Response.Redirect( communicationUrl, false );
+                    Context.ApplicationInstance.CompleteRequest();
+                }
+                else
+                {
+                    // No people found in the registrations query.
+                    BindRegistrantsGrid();
+                    gRegistrants.ShowModalAlertMessage( "Registrations list has no recipients", ModalAlertType.Warning );
+                }
+            }
+            else
+            {
+                // Nobody is in list or nobody is selected.
+                BindRegistrantsGrid();
+                gRegistrants.ShowModalAlertMessage( "Grid has no recipients", ModalAlertType.Warning );
+            }
+        }
+
         #endregion
 
         #region Methods
@@ -1007,7 +1258,7 @@ namespace RockWeb.Blocks.Event
         /// </summary>
         private void SetUserPreferencePrefix( int registrationTemplateId )
         {
-            fRegistrants.UserPreferenceKeyPrefix = string.Format( "{0}-", registrationTemplateId );
+            fRegistrants.PreferenceKeyPrefix = string.Format( "{0}-", registrationTemplateId );
         }
 
         /// <summary>
@@ -1015,12 +1266,12 @@ namespace RockWeb.Blocks.Event
         /// </summary>
         private void BindRegistrantsFilter( RegistrationInstance instance )
         {
-            sdrpRegistrantsRegistrantDateRange.DelimitedValues = fRegistrants.GetUserPreference( UserPreferenceKeyBase.GridFilter_RegistrantsDateRange );
-            tbRegistrantsRegistrantFirstName.Text = fRegistrants.GetUserPreference( UserPreferenceKeyBase.GridFilter_FirstName );
-            tbRegistrantsRegistrantLastName.Text = fRegistrants.GetUserPreference( UserPreferenceKeyBase.GridFilter_LastName );
-            ddlRegistrantsInGroup.SetValue( fRegistrants.GetUserPreference( UserPreferenceKeyBase.GridFilter_InGroup ) );
+            sdrpRegistrantsRegistrantDateRange.DelimitedValues = fRegistrants.GetFilterPreference( UserPreferenceKeyBase.GridFilter_RegistrantsDateRange );
+            tbRegistrantsRegistrantFirstName.Text = fRegistrants.GetFilterPreference( UserPreferenceKeyBase.GridFilter_FirstName );
+            tbRegistrantsRegistrantLastName.Text = fRegistrants.GetFilterPreference( UserPreferenceKeyBase.GridFilter_LastName );
+            ddlRegistrantsInGroup.SetValue( fRegistrants.GetFilterPreference( UserPreferenceKeyBase.GridFilter_InGroup ) );
 
-            ddlRegistrantsSignedDocument.SetValue( fRegistrants.GetUserPreference( UserPreferenceKeyBase.GridFilter_SignedDocument ) );
+            ddlRegistrantsSignedDocument.SetValue( fRegistrants.GetFilterPreference( UserPreferenceKeyBase.GridFilter_SignedDocument ) );
             ddlRegistrantsSignedDocument.Visible = instance != null && instance.RegistrationTemplate != null && instance.RegistrationTemplate.RequiredSignatureDocumentTemplateId.HasValue;
         }
 
@@ -1052,6 +1303,8 @@ namespace RockWeb.Blocks.Event
 
                 if ( requiredSignatureDocumentTemplateId.HasValue )
                 {
+                    rlSignedDocument.Visible = true;
+
                     SignersPersonAliasIds = new SignatureDocumentService( rockContext )
                         .Queryable().AsNoTracking()
                         .Where( d =>
@@ -1139,6 +1392,8 @@ namespace RockWeb.Blocks.Event
 
                 var personIds = qry.Select( r => r.PersonAlias.PersonId ).Distinct().ToList();
 
+                gRegistrants.EntityTypeId = EntityTypeCache.Get( typeof( Rock.Model.RegistrationRegistrant ) ).Id;
+
                 if ( isExporting || ( RegistrantFields != null && RegistrantFields.Any( f => f.PersonFieldType != null && f.PersonFieldType == RegistrationPersonFieldType.Address ) ) )
                 {
                     _homeAddresses = Person.GetHomeLocations( personIds );
@@ -1151,24 +1406,31 @@ namespace RockWeb.Blocks.Event
                 if ( _registrationTemplatePlacements.Any() )
                 {
                     var registrationTemplatePlacementService = new RegistrationTemplatePlacementService( rockContext );
-                    var instancePlacementGroupsQry = registrationInstanceService.GetRegistrationInstancePlacementGroups( registrationInstance );
-                    _placementGroupInfoList = instancePlacementGroupsQry.AsNoTracking().Select( s => new
+
+                    _placementGroupInfoList = new List<PlacementGroupInfo>();
+                    foreach ( var placementTemplate in _registrationTemplatePlacements )
                     {
-                        Group = s,
-                        PersonIds = s.Members.Select( m => m.PersonId ).ToList()
-                    } )
-                        .ToList()
-                        .Select( a => new PlacementGroupInfo
+                        // Template Placement Id is needed as a parameter to properly collect placements by their group.
+                        var instancePlacementGroupsByTemplateQry = registrationInstanceService.GetRegistrationInstancePlacementGroupsByPlacement( registrationInstance, placementTemplate.Id );
+                        var _instancePlacementGroupInfoList = instancePlacementGroupsByTemplateQry.AsNoTracking().Select( s => new
                         {
-                            Group = a.Group,
-                            RegistrationTemplatePlacementId = null,
-                            PersonIds = a.PersonIds.ToArray(),
-                        } ).ToList();
+                            Group = s,
+                            PersonIds = s.Members.Select( m => m.PersonId ).ToList()
+                        } )
+                            .ToList()
+                            .Select( a => new PlacementGroupInfo
+                            {
+                                Group = a.Group,
+                                RegistrationTemplatePlacementId = placementTemplate.Id,
+                                PersonIds = a.PersonIds.ToArray(),
+                            } ).ToList();
 
-                    foreach ( var placementTemplate in registrationInstance.RegistrationTemplate.Placements )
-                    {
+                        if ( _instancePlacementGroupInfoList.Any() )
+                        {
+                            _placementGroupInfoList.AddRange( _instancePlacementGroupInfoList );
+                        }
+
                         var registrationTemplatePlacementPlacementGroupsQuery = registrationTemplatePlacementService.GetRegistrationTemplatePlacementPlacementGroups( placementTemplate );
-
                         var templatePlacementGroupInfoList = registrationTemplatePlacementPlacementGroupsQuery.AsNoTracking()
                             .Select( s => new
                             {
@@ -1196,6 +1458,7 @@ namespace RockWeb.Blocks.Event
                     _mobilePhoneNumbers = GetPersonMobilePhoneLookup( rockContext, this.RegistrantFields, personIds );
                     _homePhoneNumbers = GetPersonHomePhoneLookup( rockContext, this.RegistrantFields, personIds );
                     _workPhoneNumbers = GetPersonWorkPhoneLookup( rockContext, this.RegistrantFields, personIds );
+                    _signatureDocuments = GetPersonSignatureDocumentLookup( rockContext, personIds, registrationInstance );
 
                     // Filter by any selected
                     foreach ( var personFieldType in RegistrantFields
@@ -1377,6 +1640,36 @@ namespace RockWeb.Blocks.Event
                                             .Select( a => a.PersonId );
 
                                         qry = qry.Where( r => phoneNumberPersonIdQry.Contains( r.PersonAlias.PersonId ) );
+                                    }
+                                }
+
+                                break;
+
+                            case RegistrationPersonFieldType.Race:
+                                var rpRaceFilter = phRegistrantsRegistrantFormFieldFilters.FindControl( FILTER_RACE_ID ) as RacePicker;
+                                if ( rpRaceFilter != null )
+                                {
+                                    var raceValueId = rpRaceFilter.SelectedValue.AsIntegerOrNull();
+                                    if ( raceValueId.HasValue )
+                                    {
+                                        qry = qry.Where( r =>
+                                           r.PersonAlias.Person.RaceValueId.HasValue &&
+                                           r.PersonAlias.Person.RaceValueId.Value == raceValueId.Value );
+                                    }
+                                }
+
+                                break;
+
+                            case RegistrationPersonFieldType.Ethnicity:
+                                var epEthnicityPicker = phRegistrantsRegistrantFormFieldFilters.FindControl( FILTER_ETHNICITY_ID ) as EthnicityPicker;
+                                if ( epEthnicityPicker != null )
+                                {
+                                    var ethnicityValueId = epEthnicityPicker.SelectedValue.AsIntegerOrNull();
+                                    if ( ethnicityValueId.HasValue )
+                                    {
+                                        qry = qry.Where( r =>
+                                           r.PersonAlias.Person.EthnicityValueId.HasValue &&
+                                           r.PersonAlias.Person.EthnicityValueId.Value == ethnicityValueId.Value );
                                     }
                                 }
 
@@ -1618,6 +1911,36 @@ namespace RockWeb.Blocks.Event
 
                 gRegistrants.DataBind();
             }
+        }
+
+        /// <summary>
+        /// Gets the person signature document lookup.
+        /// </summary>
+        /// <param name="rockContext">The rock context.</param>
+        /// <param name="personIds">The person ids.</param>
+        /// <param name="registrationInstance">The registration instance.</param>
+        /// <returns></returns>
+        private Dictionary<int, SignatureDocument> GetPersonSignatureDocumentLookup( RockContext rockContext, List<int> personIds, RegistrationInstance registrationInstance )
+        {
+            var signatureDocuments = new Dictionary<int, SignatureDocument>();
+            var documents = new SignatureDocumentService( rockContext )
+                    .Queryable().AsNoTracking()
+                    .Where( d =>
+                        d.SignatureDocumentTemplateId == registrationInstance.RegistrationTemplate.RequiredSignatureDocumentTemplateId.Value &&
+                        d.AppliesToPersonAlias != null && personIds.Contains( d.AppliesToPersonAlias.PersonId ) )
+                    .OrderByDescending( d => d.LastStatusDate )
+                    .ToList();
+
+            foreach ( var personId in personIds )
+            {
+                var document = documents.Find( d => d.AppliesToPersonAlias.PersonId == personId );
+                if ( document != null )
+                {
+                    signatureDocuments[personId] = document;
+                }
+            }
+
+            return signatureDocuments;
         }
 
         /// <summary>

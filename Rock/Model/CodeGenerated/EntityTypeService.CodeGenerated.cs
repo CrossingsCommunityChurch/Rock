@@ -23,10 +23,7 @@
 using System;
 using System.Linq;
 
-using Rock.Attribute;
 using Rock.Data;
-using Rock.ViewModel;
-using Rock.Web.Cache;
 
 namespace Rock.Model
 {
@@ -130,6 +127,12 @@ namespace Rock.Model
             if ( new Service<CommunicationResponse>( Context ).Queryable().Any( a => a.RelatedTransportEntityTypeId == item.Id ) )
             {
                 errorMessage = string.Format( "This {0} is assigned to a {1}.", EntityType.FriendlyTypeName, CommunicationResponse.FriendlyTypeName );
+                return false;
+            }
+
+            if ( new Service<ContentCollectionSource>( Context ).Queryable().Any( a => a.EntityTypeId == item.Id ) )
+            {
+                errorMessage = string.Format( "This {0} is assigned to a {1}.", EntityType.FriendlyTypeName, ContentCollectionSource.FriendlyTypeName );
                 return false;
             }
 
@@ -241,6 +244,18 @@ namespace Rock.Model
                 return false;
             }
 
+            if ( new Service<InteractiveExperienceAction>( Context ).Queryable().Any( a => a.ActionEntityTypeId == item.Id ) )
+            {
+                errorMessage = string.Format( "This {0} is assigned to a {1}.", EntityType.FriendlyTypeName, InteractiveExperienceAction.FriendlyTypeName );
+                return false;
+            }
+
+            if ( new Service<InteractiveExperienceAction>( Context ).Queryable().Any( a => a.ResponseVisualEntityTypeId == item.Id ) )
+            {
+                errorMessage = string.Format( "This {0} is assigned to a {1}.", EntityType.FriendlyTypeName, InteractiveExperienceAction.FriendlyTypeName );
+                return false;
+            }
+
             if ( new Service<MediaAccount>( Context ).Queryable().Any( a => a.ComponentEntityTypeId == item.Id ) )
             {
                 errorMessage = string.Format( "This {0} is assigned to a {1}.", EntityType.FriendlyTypeName, MediaAccount.FriendlyTypeName );
@@ -265,11 +280,19 @@ namespace Rock.Model
                 return false;
             }
 
+            if ( new Service<NotificationMessageType>( Context ).Queryable().Any( a => a.EntityTypeId == item.Id ) )
+            {
+                errorMessage = string.Format( "This {0} is assigned to a {1}.", EntityType.FriendlyTypeName, NotificationMessageType.FriendlyTypeName );
+                return false;
+            }
+
             if ( new Service<PersistedDataset>( Context ).Queryable().Any( a => a.EntityTypeId == item.Id ) )
             {
                 errorMessage = string.Format( "This {0} is assigned to a {1}.", EntityType.FriendlyTypeName, PersistedDataset.FriendlyTypeName );
                 return false;
             }
+
+            // ignoring PersonalizedEntity,EntityTypeId
 
             if ( new Service<RelatedEntity>( Context ).Queryable().Any( a => a.SourceEntityTypeId == item.Id ) )
             {
@@ -280,6 +303,12 @@ namespace Rock.Model
             if ( new Service<RelatedEntity>( Context ).Queryable().Any( a => a.TargetEntityTypeId == item.Id ) )
             {
                 errorMessage = string.Format( "This {0} is assigned to a {1}.", EntityType.FriendlyTypeName, RelatedEntity.FriendlyTypeName );
+                return false;
+            }
+
+            if ( new Service<ReminderType>( Context ).Queryable().Any( a => a.EntityTypeId == item.Id ) )
+            {
+                errorMessage = string.Format( "This {0} is assigned to a {1}.", EntityType.FriendlyTypeName, ReminderType.FriendlyTypeName );
                 return false;
             }
 
@@ -402,7 +431,5 @@ namespace Rock.Model
             target.ForeignId = source.ForeignId;
 
         }
-
     }
-
 }

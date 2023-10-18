@@ -107,6 +107,7 @@ namespace RockWeb.Blocks.Prayer
         DefaultBooleanValue = true,
         IsRequired = true,
         Order = 8 )]
+    [Rock.SystemGuid.BlockTypeGuid( "FD294789-3B72-4D83-8006-FA50B5087D06" )]
     public partial class PrayerSession : RockBlock
     {
         #region Keys
@@ -125,6 +126,11 @@ namespace RockWeb.Blocks.Prayer
             public const string EnableCommunityFlagging = "EnableCommunityFlagging";
             public const string CategoryGuid = "CategoryGuid";
             public const string WelcomeIntroductionText = "WelcomeIntroductionText";
+        }
+
+        private static class PageParameterKey
+        {
+            public const string GroupGuid = "GroupGuid";
         }
 
         #endregion
@@ -174,7 +180,8 @@ namespace RockWeb.Blocks.Prayer
 
         #region Fields
 
-        private const string CAMPUS_PREFERENCE = "prayer-session-{0}-campus";
+        private const string CAMPUS_PREFERENCE = "campus";
+        private const string CATEGORIES_PREFERENCE = "categories";
         private bool _enableCommunityFlagging = false;
         private string _categoryGuidString = string.Empty;
         private int? _flagLimit = 1;
@@ -252,10 +259,12 @@ namespace RockWeb.Blocks.Prayer
 
             if ( !Page.IsPostBack )
             {
+                var preferences = GetBlockPersonPreferences();
+
                 DisplayCategories();
                 SetNoteType();
                 lbStart.Focus();
-                cpCampus.SetValue(this.GetUserPreference( string.Format( CAMPUS_PREFERENCE, this.BlockId ) ).AsIntegerOrNull());
+                cpCampus.SetValue( preferences.GetValue( CAMPUS_PREFERENCE ).AsIntegerOrNull() );
                 lbFlag.Visible = _enableCommunityFlagging;
             }
 
@@ -299,9 +308,7 @@ namespace RockWeb.Blocks.Prayer
                 nbSelectCategories.Visible = false;
             }
 
-            string categoriesPrefix = string.Format( "prayer-categories-{0}-", this.BlockId );
-            SavePreferences( categoriesPrefix );
-            this.SetUserPreference( string.Format( CAMPUS_PREFERENCE, this.BlockId ), cpCampus.SelectedValue );
+            SavePreferences();
 
             SetAndDisplayPrayerRequests( cblCategories );
 
@@ -502,8 +509,6 @@ namespace RockWeb.Blocks.Prayer
         /// <returns>true if there were active categories or false if there were none</returns>
         private bool BindCategories( string categoryGuid )
         {
-            string settingPrefix = string.Format( "prayer-categories-{0}-", this.BlockId );
-
             IQueryable<PrayerRequest> prayerRequestQuery = new PrayerRequestService( new RockContext() ).GetActiveApprovedUnexpired();
 
             // Filter categories if one has been selected in the configuration
@@ -517,6 +522,17 @@ namespace RockWeb.Blocks.Prayer
                 }
             }
 
+            var groupGuidQryString = PageParameter( PageParameterKey.GroupGuid ).AsGuidOrNull();
+            if ( groupGuidQryString.HasValue )
+            {
+                prayerRequestQuery = prayerRequestQuery.Where( a => a.Group != null && a.Group.Guid == groupGuidQryString.Value );
+            }
+            else
+            {
+                prayerRequestQuery = prayerRequestQuery.Where( a => a.GroupId == null );
+            }
+
+            var seee = prayerRequestQuery.ToList();
             var limitToPublic = GetAttributeValue( PUBLIC_ONLY ).AsBoolean();
             var categoryList = prayerRequestQuery
                 .Where( p => p.Category != null && ( !limitToPublic || ( p.IsPublic ?? false ) ) )
@@ -536,7 +552,8 @@ namespace RockWeb.Blocks.Prayer
             cblCategories.DataBind();
 
             // use the users preferences to set which items are checked.
-            _savedCategoryIdsSetting = this.GetUserPreference( settingPrefix ).SplitDelimitedValues();
+            var preferences = GetBlockPersonPreferences();
+            _savedCategoryIdsSetting = preferences.GetValue( CATEGORIES_PREFERENCE ).SplitDelimitedValues();
             for ( int i = 0; i < cblCategories.Items.Count; i++ )
             {
                 ListItem item = (ListItem)cblCategories.Items[i];
@@ -549,10 +566,10 @@ namespace RockWeb.Blocks.Prayer
         /// <summary>
         /// Saves the users selected prayer categories for use during the next prayer session.
         /// </summary>
-        /// <param name="settingPrefix"></param>
-        private void SavePreferences( string settingPrefix )
+        private void SavePreferences()
         {
-            var previouslyCheckedIds = this.GetUserPreference( settingPrefix ).SplitDelimitedValues();
+            var preferences = GetBlockPersonPreferences();
+            var previouslyCheckedIds = preferences.GetValue( CATEGORIES_PREFERENCE ).SplitDelimitedValues();
 
             IEnumerable<string> allIds = cblCategories.Items.Cast<ListItem>()
                               .Select( i => i.Value );
@@ -568,7 +585,10 @@ namespace RockWeb.Blocks.Prayer
                 .ToList()
                 .AsDelimited( "," );
 
-            this.SetUserPreference( settingPrefix, categoryValues );
+            preferences.SetValue( CAMPUS_PREFERENCE, cpCampus.SelectedValue );
+            preferences.SetValue( CATEGORIES_PREFERENCE, categoryValues );
+
+            preferences.Save();
         }
 
         /// <summary>
@@ -592,6 +612,16 @@ namespace RockWeb.Blocks.Prayer
             if ( limitToPublic )
             {
                 prayerRequestQuery = prayerRequestQuery.Where( a => a.IsPublic.HasValue && a.IsPublic.Value );
+            }
+
+            var groupGuidQryString = PageParameter( PageParameterKey.GroupGuid ).AsGuidOrNull();
+            if ( groupGuidQryString.HasValue )
+            {
+                prayerRequestQuery = prayerRequestQuery.Where( a => a.Group != null && a.Group.Guid == groupGuidQryString.Value );
+            }
+            else
+            {
+                prayerRequestQuery = prayerRequestQuery.Where( a => a.GroupId == null );
             }
 
             var prayerRequests = prayerRequestQuery.OrderByDescending( p => p.IsUrgent ).ThenBy( p => p.PrayerCount ).ToList();
@@ -626,7 +656,7 @@ namespace RockWeb.Blocks.Prayer
             }
 
             hlblCategory.Text = prayerRequest.Category.Name;
-            var mergeFields = Rock.Lava.LavaHelper.GetCommonMergeFields( this.RockPage, this.CurrentPerson, new Rock.Lava.CommonMergeFieldsOptions { GetLegacyGlobalMergeFields = false } );
+            var mergeFields = Rock.Lava.LavaHelper.GetCommonMergeFields( this.RockPage, this.CurrentPerson, new Rock.Lava.CommonMergeFieldsOptions() );
 
             // need to load attributes so that lava can loop thru PrayerRequest.Attributes
             prayerRequest.LoadAttributes();

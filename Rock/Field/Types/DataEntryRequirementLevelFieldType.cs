@@ -1,4 +1,4 @@
-﻿// <copyright>
+// <copyright>
 // Copyright by the Spark Development Network
 //
 // Licensed under the Rock Community License (the "License");
@@ -16,6 +16,8 @@
 //
 using System;
 using System.Collections.Generic;
+
+using Rock.Attribute;
 
 namespace Rock.Field.Types
 {
@@ -49,6 +51,8 @@ namespace Rock.Field.Types
     /// Field Type used to display a dropdown list of RequirementLevels
     /// </summary>
     [Serializable]
+    [RockPlatformSupport( Utility.RockPlatform.WebForms )]
+    [Rock.SystemGuid.FieldTypeGuid( Rock.SystemGuid.FieldType.DATA_ENTRY_REQUIREMENT_LEVEL )]
     public class DataEntryRequirementLevelFieldType : EnumFieldType<DataEntryRequirementLevelSpecifier>
     {
         /// <summary>

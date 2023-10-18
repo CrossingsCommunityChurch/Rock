@@ -18,28 +18,239 @@ using System;
 using System.Collections.Generic;
 using System.Data.Entity;
 using System.Linq;
+#if WEBFORMS
 using System.Web.UI;
 using System.Web.UI.WebControls;
+#endif
 
+using Rock.Attribute;
 using Rock.Data;
 using Rock.Model;
-using Rock.Web.UI.Controls;
+using Rock.ViewModels.Utility;
 using Rock.Web.Cache;
+using Rock.Web.UI.Controls;
 
 namespace Rock.Field.Types
 {
     /// <summary>
     /// Field Type to select a single (or null) content channel item filtered by a selected content channel
     /// </summary>
-    public class ContentChannelItemFieldType : FieldType, IEntityFieldType
+    [RockPlatformSupport( Utility.RockPlatform.WebForms, Utility.RockPlatform.Obsidian )]
+    [Rock.SystemGuid.FieldTypeGuid( Rock.SystemGuid.FieldType.CONTENT_CHANNEL_ITEM )]
+    public class ContentChannelItemFieldType : FieldType, IEntityFieldType, IEntityReferenceFieldType
     {
-
         #region Configuration
 
         /// <summary>
         /// Configuration Key for Content Channel
         /// </summary>
         public static readonly string CONTENT_CHANNEL_KEY = "contentchannel";
+
+        /// <summary>
+        /// Configuration Key for Content Channel options for the dropdownlist
+        /// </summary>
+        public static readonly string CONTENT_CHANNELS = "contentchannels";
+
+        /// <inheritdoc/>
+        public override Dictionary<string, string> GetPublicEditConfigurationProperties( Dictionary<string, string> privateConfigurationValues )
+        {
+            var configurationProperties = base.GetPublicEditConfigurationProperties( privateConfigurationValues );
+
+            // Get the Code editor options that are available
+            var contentChannels = ContentChannelCache.All().OrderBy( a => a.Name ).ToList();
+            var options = contentChannels.ConvertAll( c => new ListItemBag() { Text = c.Name, Value = c.Guid.ToString().ToUpper() } );
+
+            configurationProperties[CONTENT_CHANNELS] = options.ToCamelCaseJson( false, true );
+
+            return configurationProperties;
+        }
+
+        #endregion
+
+        #region Formatting
+
+        /// <inheritdoc />
+        public override string GetTextValue( string privateValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            var guid = privateValue.AsGuidOrNull();
+            if ( guid.HasValue )
+            {
+                using ( var rockContext = new RockContext() )
+                {
+                    var contentChannelItem = new ContentChannelItemService( rockContext ).GetNoTracking( guid.Value );
+                    if ( contentChannelItem != null )
+                    {
+                        return contentChannelItem.Title;
+                    }
+                }
+            }
+
+            return string.Empty;
+        }
+
+        #endregion
+
+        #region Edit Control
+
+        /// <inheritdoc />
+        public override string GetPublicValue( string privateValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            return GetTextValue( privateValue, privateConfigurationValues );
+        }
+
+        /// <inheritdoc />
+        public override string GetPublicEditValue( string privateValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            var guid = privateValue.AsGuidOrNull();
+            if ( guid.HasValue )
+            {
+                using ( var rockContext = new RockContext() )
+                {
+                    var contentChannelItem = new ContentChannelItemService( rockContext ).Queryable()
+                        .AsNoTracking()
+                        .Where( c => c.Guid == guid.Value )
+                        .Select( c => new ListItemBag
+                        {
+                            Value = c.Guid.ToString(),
+                            Text = c.Title
+                        } )
+                        .FirstOrDefault();
+
+                    if ( contentChannelItem != null )
+                    {
+                        return contentChannelItem.ToCamelCaseJson( false, true );
+                    }
+                }
+            }
+
+            return base.GetPublicEditValue( privateValue, privateConfigurationValues );
+        }
+
+        /// <inheritdoc />
+        public override string GetPrivateEditValue( string publicValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            var jsonValue = publicValue.FromJsonOrNull<ListItemBag>();
+
+            if ( jsonValue != null )
+            {
+                return jsonValue.Value;
+            }
+
+            return base.GetPrivateEditValue( publicValue, privateConfigurationValues );
+        }
+
+        /// <inheritdoc />
+        public override Dictionary<string, string> GetPublicConfigurationValues( Dictionary<string, string> privateConfigurationValues, ConfigurationValueUsage usage, string value )
+        {
+            var configurationValues = base.GetPublicConfigurationValues( privateConfigurationValues, usage, value );
+
+            if ( privateConfigurationValues.ContainsKey( CONTENT_CHANNEL_KEY ) )
+            {
+                var id = privateConfigurationValues[CONTENT_CHANNEL_KEY].AsIntegerOrNull();
+
+                if ( id.HasValue )
+                {
+                    var contentChannel = ContentChannelCache.Get( id.Value );
+                    configurationValues[CONTENT_CHANNEL_KEY] = contentChannel?.Guid.ToString();
+                }
+            }
+
+            return configurationValues;
+        }
+
+        /// <inheritdoc />
+        public override Dictionary<string, string> GetPrivateConfigurationValues( Dictionary<string, string> publicConfigurationValues )
+        {
+            var configurationValues = base.GetPrivateConfigurationValues( publicConfigurationValues );
+
+            if ( publicConfigurationValues.ContainsKey( CONTENT_CHANNEL_KEY ) )
+            {
+                var guid = publicConfigurationValues[CONTENT_CHANNEL_KEY].AsGuidOrNull();
+
+                if ( guid.HasValue )
+                {
+                    var contentChannel = ContentChannelCache.Get( guid.Value );
+                    configurationValues[CONTENT_CHANNEL_KEY] = contentChannel?.Id.ToString();
+                }
+            }
+
+            return configurationValues;
+        }
+
+        #endregion
+
+        #region IEntityFieldType
+
+        /// <summary>
+        /// Gets the entity.
+        /// </summary>
+        /// <param name="value">The value.</param>
+        /// <returns></returns>
+        public IEntity GetEntity( string value )
+        {
+            return GetEntity( value, null );
+        }
+
+        /// <summary>
+        /// Gets the entity.
+        /// </summary>
+        /// <param name="value">The value.</param>
+        /// <param name="rockContext">The rock context.</param>
+        /// <returns></returns>
+        public IEntity GetEntity( string value, RockContext rockContext )
+        {
+            var guid = value.AsGuidOrNull();
+            if ( guid.HasValue )
+            {
+                rockContext = rockContext ?? new RockContext();
+                return new ContentChannelItemService( rockContext ).Get( guid.Value );
+            }
+
+            return null;
+        }
+        #endregion
+
+        #region IEntityReferenceFieldType
+
+        /// <inheritdoc/>
+        List<ReferencedEntity> IEntityReferenceFieldType.GetReferencedEntities( string privateValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            var guid = privateValue.AsGuidOrNull();
+
+            if ( !guid.HasValue )
+            {
+                return null;
+            }
+
+            using ( var rockContext = new RockContext() )
+            {
+                var contentChannelItemId = new ContentChannelItemService( rockContext ).GetId( guid.Value );
+
+                if ( !contentChannelItemId.HasValue )
+                {
+                    return null;
+                }
+
+                return new List<ReferencedEntity>()
+                {
+                    new ReferencedEntity( EntityTypeCache.GetId<ContentChannelItem>().Value, contentChannelItemId.Value )
+                };
+            }
+        }
+
+        /// <inheritdoc/>
+        List<ReferencedProperty> IEntityReferenceFieldType.GetReferencedProperties( Dictionary<string, string> privateConfigurationValues )
+        {
+            return new List<ReferencedProperty>
+            {
+                new ReferencedProperty( EntityTypeCache.GetId<ContentChannelItem>().Value, nameof( ContentChannelItem.Title ) ),
+            };
+        }
+
+        #endregion
+
+        #region WebForms
+#if WEBFORMS
 
         /// <summary>
         /// Returns a list of the configuration keys
@@ -71,11 +282,9 @@ namespace Rock.Field.Types
             ddl.Help = "Content Channel to select items from, if left blank any content channel's item can be selected.";
 
             ddl.Items.Add( new ListItem() );
-            
+
             var contentChannels = ContentChannelCache.All().OrderBy( a => a.Name ).ToList();
-            contentChannels.ForEach( g =>
-                ddl.Items.Add( new ListItem( g.Name, g.Id.ToString().ToUpper() ) )
-            );
+            contentChannels.ForEach( g => ddl.Items.Add( new ListItem( g.Name, g.Id.ToString().ToUpper() ) ) );
 
             return controls;
         }
@@ -88,7 +297,7 @@ namespace Rock.Field.Types
         public override Dictionary<string, ConfigurationValue> ConfigurationValues( List<Control> controls )
         {
             Dictionary<string, ConfigurationValue> configurationValues = new Dictionary<string, ConfigurationValue>();
-            configurationValues.Add( CONTENT_CHANNEL_KEY, new ConfigurationValue( "Content Channel", "Content Channel to select items from, if left blank any content channel's item can be selected.", "" ) );
+            configurationValues.Add( CONTENT_CHANNEL_KEY, new ConfigurationValue( "Content Channel", "Content Channel to select items from, if left blank any content channel's item can be selected.", string.Empty ) );
 
             if ( controls != null && controls.Count == 1 )
             {
@@ -117,10 +326,6 @@ namespace Rock.Field.Types
             }
         }
 
-        #endregion
-
-        #region Formatting
-
         /// <summary>
         /// Returns the field's current value(s)
         /// </summary>
@@ -131,27 +336,10 @@ namespace Rock.Field.Types
         /// <returns></returns>
         public override string FormatValue( Control parentControl, string value, Dictionary<string, ConfigurationValue> configurationValues, bool condensed )
         {
-            string formattedValue = string.Empty;
-
-            Guid guid = Guid.Empty;
-            if ( Guid.TryParse( value, out guid ) )
-            {
-                using ( var rockContext = new RockContext() )
-                {
-                    var contentChannelItem = new ContentChannelItemService( rockContext ).GetNoTracking( guid );
-                    if ( contentChannelItem != null )
-                    {
-                        formattedValue = contentChannelItem.Title;
-                    }
-                }
-            }
-
-            return base.FormatValue( parentControl, formattedValue, null, condensed );
+            return !condensed
+                ? GetTextValue( value, configurationValues.ToDictionary( cv => cv.Key, cv => cv.Value.Value ) )
+                : GetCondensedTextValue( value, configurationValues.ToDictionary( cv => cv.Key, cv => cv.Value.Value ) );
         }
-
-        #endregion
-
-        #region Edit Control
 
         /// <summary>
         /// Creates the control(s) necessary for prompting user for a new value
@@ -168,7 +356,7 @@ namespace Rock.Field.Types
             if ( configurationValues != null && configurationValues.ContainsKey( CONTENT_CHANNEL_KEY ) )
             {
                 int contentChannelId = 0;
-                if ( Int32.TryParse( configurationValues[CONTENT_CHANNEL_KEY].Value, out contentChannelId ) && contentChannelId > 0 )
+                if ( int.TryParse( configurationValues[CONTENT_CHANNEL_KEY].Value, out contentChannelId ) && contentChannelId > 0 )
                 {
                     editControl.ContentChannelId = contentChannelId;
                 }
@@ -189,12 +377,26 @@ namespace Rock.Field.Types
             if ( picker != null )
             {
                 int? itemId = picker.ContentChannelItemId;
+                int? configurationChannelId = configurationValues.ContainsKey( CONTENT_CHANNEL_KEY ) ? configurationValues[CONTENT_CHANNEL_KEY].Value.AsIntegerOrNull() : null;
                 Guid? itemGuid = null;
                 if ( itemId.HasValue )
                 {
                     using ( var rockContext = new RockContext() )
                     {
-                        itemGuid = new ContentChannelItemService( rockContext ).Queryable().AsNoTracking().Where( a => a.Id == itemId.Value ).Select( a => ( Guid? ) a.Guid ).FirstOrDefault();
+                        // If the configuration Content Channel has a selected value, include that value in the clause.
+                        if ( configurationChannelId.HasValue )
+                        {
+                            itemGuid = new ContentChannelItemService( rockContext ).Queryable().AsNoTracking()
+                                .Where( a => a.Id == itemId.Value
+                                && a.ContentChannelId == configurationChannelId.Value )
+                                .Select( a => ( Guid? ) a.Guid ).FirstOrDefault();
+                        }
+                        else
+                        {
+                            itemGuid = new ContentChannelItemService( rockContext ).Queryable().AsNoTracking()
+                                .Where( a => a.Id == itemId.Value )
+                                .Select( a => ( Guid? ) a.Guid ).FirstOrDefault();
+                        }
                     }
                 }
 
@@ -229,9 +431,6 @@ namespace Rock.Field.Types
             }
         }
 
-        #endregion
-
-        #region IEntityFieldType
         /// <summary>
         /// Gets the edit value as the IEntity.Id
         /// </summary>
@@ -258,33 +457,7 @@ namespace Rock.Field.Types
             SetEditValue( control, configurationValues, guidValue );
         }
 
-        /// <summary>
-        /// Gets the entity.
-        /// </summary>
-        /// <param name="value">The value.</param>
-        /// <returns></returns>
-        public IEntity GetEntity( string value )
-        {
-            return GetEntity( value, null );
-        }
-
-        /// <summary>
-        /// Gets the entity.
-        /// </summary>
-        /// <param name="value">The value.</param>
-        /// <param name="rockContext">The rock context.</param>
-        /// <returns></returns>
-        public IEntity GetEntity( string value, RockContext rockContext )
-        {
-            var guid = value.AsGuidOrNull();
-            if ( guid.HasValue )
-            {
-                rockContext = rockContext ?? new RockContext();
-                return new ContentChannelItemService( rockContext ).Get( guid.Value );
-            }
-
-            return null;
-        }
+#endif
         #endregion
     }
 }

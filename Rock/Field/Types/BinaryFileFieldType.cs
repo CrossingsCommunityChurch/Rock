@@ -18,12 +18,16 @@ using System;
 using System.Collections.Generic;
 using System.Data.Entity;
 using System.Linq;
+#if WEBFORMS
 using System.Web.UI;
 using System.Web.UI.WebControls;
-
+#endif
+using Rock.Attribute;
 using Rock.Data;
 using Rock.Model;
 using Rock.Reporting;
+using Rock.ViewModels.Utility;
+using Rock.Web.Cache;
 using Rock.Web.UI.Controls;
 
 namespace Rock.Field.Types
@@ -32,12 +36,312 @@ namespace Rock.Field.Types
     /// Field Type used to display a dropdown list of binary files of a specific type
     /// Stored as BinaryFile's Guid
     /// </summary>
-    public class BinaryFileFieldType : FieldType, IEntityFieldType
+    [RockPlatformSupport( Utility.RockPlatform.WebForms )]
+    [Rock.SystemGuid.FieldTypeGuid( Rock.SystemGuid.FieldType.BINARY_FILE )]
+    public class BinaryFileFieldType : FieldType, IEntityFieldType, IEntityReferenceFieldType
     {
-
         #region Configuration
 
         private const string BINARY_FILE_TYPE = "binaryFileType";
+
+        private const string BINARY_FILE_TYPES_PROPERTY_KEY = "binaryFileTypes";
+
+        /// <inheritdoc/>
+        public override Dictionary<string, string> GetPublicEditConfigurationProperties( Dictionary<string, string> privateConfigurationValues )
+        {
+            var configurationProperties = new Dictionary<string, string>();
+
+            using ( var rockContext = new RockContext() )
+            {
+                var binaryFileTypes = new BinaryFileTypeService( rockContext )
+                    .Queryable()
+                    .OrderBy( t => t.Name )
+                    .Select( t => new ListItemBag
+                    {
+                        Value = t.Guid.ToString(),
+                        Text = t.Name
+                    } )
+                    .ToList();
+
+                configurationProperties[BINARY_FILE_TYPES_PROPERTY_KEY] = binaryFileTypes.ToCamelCaseJson( false, true );
+            }
+
+            return configurationProperties;
+        }
+
+        #endregion
+
+        #region Formatting
+
+        /// <summary>
+        /// Get the formatted value as either a plain text string or an HTML formatted string.
+        /// </summary>
+        /// <param name="privateValue">The value to be formatted.</param>
+        /// <param name="formatAsHtml"><c>true</c> if the output should be formatted as HTML; otherwise <c>false</c>.</param>
+        /// <returns>A string that represents the value.</returns>
+        private string GetFormattedValue( string privateValue, bool formatAsHtml )
+        {
+            string formattedValue = string.Empty;
+            var guid = privateValue.AsGuidOrNull();
+
+            if ( !guid.HasValue || guid.Value.IsEmpty() )
+            {
+                return "";
+            }
+
+            using ( var rockContext = new RockContext() )
+            {
+                var binaryFileInfo = new BinaryFileService( rockContext )
+                    .Queryable()
+                    .AsNoTracking()
+                    .Where( f => f.Guid == guid.Value )
+                    .Select( f => new
+                    {
+                        f.FileName,
+                        f.Guid
+                    } )
+                    .FirstOrDefault();
+
+                if ( binaryFileInfo == null )
+                {
+                    return "";
+                }
+
+                if ( !formatAsHtml )
+                {
+                    return binaryFileInfo.FileName;
+                }
+                else
+                {
+                    var filePath = System.Web.VirtualPathUtility.ToAbsolute( "~/GetFile.ashx" );
+                    return string.Format( "<a href='{0}?guid={1}' title='{2}' class='btn btn-xs btn-default'>View</a>", filePath, binaryFileInfo.Guid, System.Web.HttpUtility.HtmlEncode( binaryFileInfo.FileName ) );
+                }
+            }
+        }
+
+        /// <inheritdoc/>
+        public override string GetTextValue( string privateValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            return GetFormattedValue( privateValue, false );
+        }
+
+        /// <inheritdoc/>
+        public override string GetHtmlValue( string privateValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            return GetFormattedValue( privateValue, true );
+        }
+
+        #endregion
+
+        #region Edit Control
+
+        /// <inheritdoc/>
+        public override string GetPublicEditValue( string privateValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            string formattedValue = string.Empty;
+            var guid = privateValue.AsGuidOrNull();
+
+            if ( !guid.HasValue || guid.Value.IsEmpty() )
+            {
+                return "";
+            }
+
+            using ( var rockContext = new RockContext() )
+            {
+                var binaryFileInfo = new BinaryFileService( rockContext )
+                    .Queryable()
+                    .AsNoTracking()
+                    .Where( f => f.Guid == guid.Value )
+                    .Select( f => new
+                    {
+                        f.FileName,
+                        f.Guid
+                    } )
+                    .FirstOrDefault();
+
+                if ( binaryFileInfo == null )
+                {
+                    return "";
+                }
+
+                // A binary file needs more than just the Guid to properly display
+                // in most cases, so include the guid and the filename.
+                return new ListItemBag
+                {
+                    Value = binaryFileInfo.Guid.ToString(),
+                    Text = binaryFileInfo.FileName
+                }.ToCamelCaseJson( false, true );
+            }
+        }
+
+        /// <inheritdoc/>
+        public override string GetPrivateEditValue( string publicValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            // Extract the raw value.
+            return publicValue.FromJsonOrNull<ListItemBag>()?.Value ?? string.Empty;
+        }
+
+        /// <inheritdoc/>
+        public override Dictionary<string, string> GetPrivateConfigurationValues( Dictionary<string, string> publicConfigurationValues )
+        {
+            var configurationProperties = base.GetPrivateConfigurationValues( publicConfigurationValues );
+
+            // Get the Guid value if one exists.
+            if ( publicConfigurationValues.ContainsKey( BINARY_FILE_TYPE ) )
+            {
+                var publicValue = publicConfigurationValues[BINARY_FILE_TYPE].FromJsonOrNull<ListItemBag>();
+
+                if ( !string.IsNullOrWhiteSpace( publicValue?.Value ) )
+                {
+                    configurationProperties[BINARY_FILE_TYPE] = publicValue.Value;
+                }
+            }
+
+            return configurationProperties;
+        }
+
+        /// <inheritdoc/>
+        public override Dictionary<string, string> GetPublicConfigurationValues( Dictionary<string, string> privateConfigurationValues, ConfigurationValueUsage usage, string value )
+        {
+            var configurationProperties = base.GetPublicConfigurationValues( privateConfigurationValues, usage, value );
+
+            if ( privateConfigurationValues.ContainsKey( BINARY_FILE_TYPE ) )
+            {
+                var guidValue = privateConfigurationValues[BINARY_FILE_TYPE];
+
+                if ( !string.IsNullOrWhiteSpace( guidValue ) && Guid.TryParse( guidValue, out Guid guid ) )
+                {
+                    using ( var rockContext = new RockContext() )
+                    {
+                        var binaryFileTypeName = new BinaryFileTypeService( rockContext )
+                            .Queryable()
+                            .AsNoTracking()
+                            .Where( f => f.Guid == guid )
+                            .Select( f => f.Name )
+                            .FirstOrDefault();
+
+                        if ( binaryFileTypeName != null )
+                        {
+                            // A binary file type needs more than just the Guid to properly display
+                            // in most cases, so include the guid and the filename.
+                            configurationProperties[BINARY_FILE_TYPE] = new ListItemBag
+                            {
+                                Value = value,
+                                Text = binaryFileTypeName
+                            }.ToCamelCaseJson( false, true );
+                        }
+                    }
+                }
+            }
+
+            return configurationProperties;
+        }
+
+        #endregion
+
+        #region Filter Control
+
+        /// <summary>
+        /// Determines whether this filter has a filter control
+        /// </summary>
+        /// <returns></returns>
+        public override bool HasFilterControl()
+        {
+            return true;
+        }
+
+        /// <summary>
+        /// Gets the type of the filter comparison.
+        /// </summary>
+        /// <value>
+        /// The type of the filter comparison.
+        /// </value>
+        public override ComparisonType FilterComparisonType
+        {
+            get
+            {
+                // This field type only supports IsBlank and IsNotBlank since the content is stored as binarydata
+                return ComparisonType.IsBlank | ComparisonType.IsNotBlank;
+            }
+        }
+
+        #endregion
+
+        #region Entity Methods
+
+        /// <summary>
+        /// Gets the entity.
+        /// </summary>
+        /// <param name="value">The value.</param>
+        /// <returns></returns>
+        public IEntity GetEntity( string value )
+        {
+            return GetEntity( value, null );
+        }
+
+        /// <summary>
+        /// Gets the entity.
+        /// </summary>
+        /// <param name="value">The value.</param>
+        /// <param name="rockContext">The rock context.</param>
+        /// <returns></returns>
+        public IEntity GetEntity( string value, RockContext rockContext )
+        {
+            Guid? guid = value.AsGuidOrNull();
+            if ( guid.HasValue )
+            {
+                rockContext = rockContext ?? new RockContext();
+                return new BinaryFileService( rockContext ).Get( guid.Value );
+            }
+
+            return null;
+        }
+
+        #endregion
+
+        #region IEntityReferenceFieldType
+
+        /// <inheritdoc/>
+        List<ReferencedEntity> IEntityReferenceFieldType.GetReferencedEntities( string privateValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            var guid = privateValue.AsGuidOrNull();
+
+            if ( !guid.HasValue )
+            {
+                return null;
+            }
+
+            using ( var rockContext = new RockContext() )
+            {
+                var binaryFileId = new BinaryFileService( rockContext ).GetId( guid.Value );
+
+                if ( !binaryFileId.HasValue )
+                {
+                    return null;
+                }
+
+                return new List<ReferencedEntity>
+                {
+                    new ReferencedEntity( EntityTypeCache.GetId<BinaryFile>().Value, binaryFileId.Value )
+                };
+            }
+        }
+
+        /// <inheritdoc/>
+        List<ReferencedProperty> IEntityReferenceFieldType.GetReferencedProperties( Dictionary<string, string> privateConfigurationValues )
+        {
+            // This field type references the FileName property of a BinaryFile and
+            // should have its persisted values updated when changed.
+            return new List<ReferencedProperty>
+            {
+                new ReferencedProperty( EntityTypeCache.GetId<BinaryFile>().Value, nameof( BinaryFile.FileName ) )
+            };
+        }
+
+        #endregion
+
+        #region WebForms
+#if WEBFORMS
 
         /// <summary>
         /// Returns a list of the configuration keys
@@ -90,7 +394,7 @@ namespace Rock.Field.Types
             if ( controls != null && controls.Count > 0 &&
                 controls[0] != null && controls[0] is DropDownList )
             {
-                configurationValues[BINARY_FILE_TYPE].Value = ( (DropDownList)controls[0] ).SelectedValue;
+                configurationValues[BINARY_FILE_TYPE].Value = ( ( DropDownList ) controls[0] ).SelectedValue;
             }
 
             return configurationValues;
@@ -106,13 +410,9 @@ namespace Rock.Field.Types
             if ( controls != null && controls.Count > 0 && configurationValues != null &&
                 controls[0] != null && controls[0] is DropDownList && configurationValues.ContainsKey( BINARY_FILE_TYPE ) )
             {
-                ( (DropDownList)controls[0] ).SetValue( configurationValues[BINARY_FILE_TYPE].Value?.ToLower() ?? string.Empty );
+                ( ( DropDownList ) controls[0] ).SetValue( configurationValues[BINARY_FILE_TYPE].Value?.ToLower() ?? string.Empty );
             }
         }
-
-        #endregion
-
-        #region Formatting
 
         /// <summary>
         /// Returns the field's current value(s)
@@ -124,47 +424,10 @@ namespace Rock.Field.Types
         /// <returns></returns>
         public override string FormatValue( Control parentControl, string value, Dictionary<string, ConfigurationValue> configurationValues, bool condensed )
         {
-            string formattedValue = string.Empty;
-
-            Guid? guid = value.AsGuidOrNull();
-            if ( guid.HasValue && !guid.Value.IsEmpty() )
-            {
-                using ( var rockContext = new RockContext() )
-                {
-                    var binaryFileInfo = new BinaryFileService( rockContext )
-                    .Queryable()
-                    .AsNoTracking()
-                    .Where( f => f.Guid == guid.Value )
-                    .Select( f =>
-                        new
-                        {
-                            f.Id,
-                            f.FileName,
-                            f.Guid
-                        } )
-                    .FirstOrDefault();
-
-                    if ( binaryFileInfo != null )
-                    {
-                        if ( condensed )
-                        {
-                            return binaryFileInfo.FileName;
-                        }
-                        else
-                        {
-                            var filePath = System.Web.VirtualPathUtility.ToAbsolute( "~/GetFile.ashx" );
-                            return string.Format( "<a href='{0}?guid={1}' title='{2}' class='btn btn-xs btn-default'>View</a>", filePath, binaryFileInfo.Guid, System.Web.HttpUtility.HtmlEncode( binaryFileInfo.FileName ) );
-                        }
-                    }
-                }
-            }
-
-            return base.FormatValue( parentControl, formattedValue, null, condensed );
+            return !condensed
+                ? GetHtmlValue( value, configurationValues.ToDictionary( cv => cv.Key, cv => cv.Value.Value ) )
+                : GetCondensedTextValue( value, configurationValues.ToDictionary( cv => cv.Key, cv => cv.Value.Value ) );
         }
-
-        #endregion
-
-        #region Edit Control
 
         /// <summary>
         /// Creates the control(s) necessary for prompting user for a new value
@@ -242,10 +505,6 @@ namespace Rock.Field.Types
             }
         }
 
-        #endregion
-
-        #region Filter Control
-
         /// <summary>
         /// Gets the filter value control with the specified FilterMode
         /// </summary>
@@ -279,34 +538,6 @@ namespace Rock.Field.Types
         }
 
         /// <summary>
-        /// Determines whether this filter has a filter control
-        /// </summary>
-        /// <returns></returns>
-        public override bool HasFilterControl()
-        {
-            return true;
-        }
-
-        /// <summary>
-        /// Gets the type of the filter comparison.
-        /// </summary>
-        /// <value>
-        /// The type of the filter comparison.
-        /// </value>
-        public override ComparisonType FilterComparisonType
-        {
-            get
-            {
-                // This field type only supports IsBlank and IsNotBlank since the content is stored as binarydata
-                return ComparisonType.IsBlank | ComparisonType.IsNotBlank;
-            }
-        }
-        
-        #endregion
-
-        #region Entity Methods
-
-        /// <summary>
         /// Gets the edit value as the IEntity.Id
         /// </summary>
         /// <param name="control">The control.</param>
@@ -317,7 +548,7 @@ namespace Rock.Field.Types
         {
             Guid guid = GetEditValue( control, configurationValues ).AsGuid();
             int? itemId = new BinaryFileService( new RockContext() ).Queryable().Where( a => a.Guid == guid ).Select( a => a.Id ).FirstOrDefault();
-            return itemId != null ? itemId : (int?)null;
+            return itemId != null ? itemId : ( int? ) null;
         }
 
         /// <summary>
@@ -339,35 +570,7 @@ namespace Rock.Field.Types
             SetEditValue( control, configurationValues, guidValue );
         }
 
-        /// <summary>
-        /// Gets the entity.
-        /// </summary>
-        /// <param name="value">The value.</param>
-        /// <returns></returns>
-        public IEntity GetEntity( string value )
-        {
-            return GetEntity( value, null );
-        }
-
-        /// <summary>
-        /// Gets the entity.
-        /// </summary>
-        /// <param name="value">The value.</param>
-        /// <param name="rockContext">The rock context.</param>
-        /// <returns></returns>
-        public IEntity GetEntity( string value, RockContext rockContext )
-        {
-            Guid? guid = value.AsGuidOrNull();
-            if ( guid.HasValue )
-            {
-                rockContext = rockContext ?? new RockContext();
-                return new BinaryFileService( rockContext ).Get( guid.Value );
-            }
-
-            return null;
-        }
-
+#endif
         #endregion
-
     }
 }

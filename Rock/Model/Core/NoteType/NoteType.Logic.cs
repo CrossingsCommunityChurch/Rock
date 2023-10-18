@@ -14,35 +14,15 @@
 // limitations under the License.
 // </copyright>
 //
-using System;
-using System.Collections.Generic;
-using System.ComponentModel.DataAnnotations.Schema;
 using System.Data.Entity;
 
-using Rock.Lava;
+using Rock.Utility;
 using Rock.Web.Cache;
 
 namespace Rock.Model
 {
     public partial class NoteType
     {
-        #region Properties
-
-        /// <summary>
-        /// A dictionary of actions that this class supports and the description of each.
-        /// </summary>
-        public override Dictionary<string, string> SupportedActions
-        {
-            get
-            {
-                var supportedActions = base.SupportedActions;
-                supportedActions.AddOrReplace( Rock.Security.Authorization.APPROVE, "The roles and/or users that have access to approve notes." );
-                return supportedActions;
-            }
-        }
-
-        #endregion
-
         #region ICacheable
 
         /// <summary>
@@ -63,6 +43,44 @@ namespace Rock.Model
         {
             NoteTypeCache.UpdateCachedEntity( this.Id, entityState );
             NoteTypeCache.RemoveEntityNoteTypes();
+        }
+
+        #endregion
+
+        #region Methods
+
+        /// <summary>
+        /// Updates the legacy colors. This can be removed when the legacy
+        /// properties are removed.
+        /// </summary>
+        internal void UpdateLegacyColors()
+        {
+#pragma warning disable CS0618 // Type or member is obsolete
+            if ( Color.IsNullOrWhiteSpace() )
+            {
+                BackgroundColor = string.Empty;
+                FontColor = string.Empty;
+                BorderColor = string.Empty;
+
+                return;
+            }
+
+            try
+            {
+                var color = new RockColor( Color );
+                var pair = RockColor.CalculateColorPair( color );
+
+                BackgroundColor = pair.BackgroundColor.ToRGBA();
+                FontColor = pair.ForegroundColor.ToRGBA();
+                BorderColor = pair.ForegroundColor.ToRGBA();
+            }
+            catch
+            {
+                BackgroundColor = string.Empty;
+                FontColor = string.Empty;
+                BorderColor = string.Empty;
+            }
+#pragma warning restore CS0618 // Type or member is obsolete
         }
 
         #endregion

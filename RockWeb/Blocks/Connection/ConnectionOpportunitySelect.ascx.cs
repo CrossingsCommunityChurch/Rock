@@ -86,6 +86,7 @@ namespace RockWeb.Blocks.Connection
 
     #endregion Block Attributes
 
+    [Rock.SystemGuid.BlockTypeGuid( "23438CBC-105B-4ADB-8B9A-D5DDDCDD7643" )]
     public partial class ConnectionOpportunitySelect : Rock.Web.UI.RockBlock
     {
         #region Keys
@@ -107,7 +108,8 @@ namespace RockWeb.Blocks.Connection
         /// </summary>
         private static class UserPreferenceKey
         {
-            public const string MyActiveOpportunitiesChecked = "MyActiveOpportunitiesChecked";
+            public const string MyActiveOpportunitiesChecked = "my-active-opportunities";
+            public const string ConnectionOpportunitiesSelectedCampus = "selected-campus";
         }
 
         /// <summary>
@@ -116,6 +118,7 @@ namespace RockWeb.Blocks.Connection
         private static class PageParameterKey
         {
             public const string ConnectionOpportunityId = "ConnectionOpportunityId";
+            public const string CampusId = "CampusId";
         }
 
         /// <summary>
@@ -193,7 +196,13 @@ namespace RockWeb.Blocks.Connection
 
             if ( !Page.IsPostBack )
             {
-                tglMyActiveOpportunities.Checked = GetUserPreference( UserPreferenceKey.MyActiveOpportunitiesChecked ).AsBoolean();
+                var preferences = GetBlockPersonPreferences();
+
+                // NOTE: Don't include Inactive Campuses for the "Campus Filter for Page"
+                cpCampusFilter.Campuses = CampusCache.All( false );
+                cpCampusFilter.Items[0].Text = "All";
+                tglMyActiveOpportunities.Checked = preferences.GetValue( UserPreferenceKey.MyActiveOpportunitiesChecked ).AsBoolean();
+                cpCampusFilter.SelectedCampusId = preferences.GetValue( UserPreferenceKey.ConnectionOpportunitiesSelectedCampus ).AsIntegerOrNull();
                 GetSummaryData();
             }
         }
@@ -231,8 +240,27 @@ namespace RockWeb.Blocks.Connection
         /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
         protected void tglMyActiveOpportunities_CheckedChanged( object sender, EventArgs e )
         {
-            SetUserPreference( UserPreferenceKey.MyActiveOpportunitiesChecked, tglMyActiveOpportunities.Checked.ToString() );
+            var preferences = GetBlockPersonPreferences();
+
+            preferences.SetValue( UserPreferenceKey.MyActiveOpportunitiesChecked, tglMyActiveOpportunities.Checked.ToString() );
+            preferences.Save();
+
             BindSummaryData();
+        }
+
+        /// <summary>
+        /// Handles the SelectedIndexChanged event of the cpCampusPicker control.
+        /// </summary>
+        /// <param name="sender">The source of the event.</param>
+        /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
+        protected void cpCampusPicker_SelectedIndexChanged( object sender, EventArgs e )
+        {
+            var preferences = GetBlockPersonPreferences();
+
+            preferences.SetValue( UserPreferenceKey.ConnectionOpportunitiesSelectedCampus, cpCampusFilter.SelectedCampusId.ToString() );
+            preferences.Save();
+
+            GetSummaryData();
         }
 
         /// <summary>
@@ -279,7 +307,7 @@ namespace RockWeb.Blocks.Connection
         {
             var template = GetAttributeValue( AttributeKey.OpportunitySummaryTemplate );
 
-            var mergeFields = Rock.Lava.LavaHelper.GetCommonMergeFields( this.RockPage, this.CurrentPerson, new Rock.Lava.CommonMergeFieldsOptions { GetLegacyGlobalMergeFields = false } );
+            var mergeFields = Rock.Lava.LavaHelper.GetCommonMergeFields( this.RockPage, this.CurrentPerson, new Rock.Lava.CommonMergeFieldsOptions() );
 
             mergeFields.Add( "OpportunitySummary", opportunitySummary );
 
@@ -306,9 +334,13 @@ namespace RockWeb.Blocks.Connection
 
             if ( e.CommandName == "Select" )
             {
-                NavigateToLinkedPage( AttributeKey.OpportunityDetailPage, new Dictionary<string, string> {
-                    { PageParameterKey.ConnectionOpportunityId, selectedOpportunityId.ToString() }
-                } );
+                var queryParams = new Dictionary<string, string> { { PageParameterKey.ConnectionOpportunityId, selectedOpportunityId.ToString() } };
+                if ( cpCampusFilter.SelectedCampusId.HasValue )
+                {
+                    queryParams.Add( PageParameterKey.CampusId, cpCampusFilter.SelectedCampusId.ToString() );
+                }
+
+                NavigateToLinkedPage( AttributeKey.OpportunityDetailPage, queryParams );
             }
             else if ( e.CommandName == "ToggleFollow" )
             {
@@ -467,6 +499,10 @@ namespace RockWeb.Blocks.Connection
                     // get list of idle requests (no activity in past X days)
 
                     var connectionRequestsQry = new ConnectionRequestService( rockContext ).Queryable().Where( a => a.ConnectionOpportunityId == opportunity.Id );
+                    if ( cpCampusFilter.SelectedCampusId.HasValue )
+                    {
+                        connectionRequestsQry = connectionRequestsQry.Where( a => a.CampusId.HasValue && a.CampusId == cpCampusFilter.SelectedCampusId );
+                    }
 
                     var currentDateTime = RockDateTime.Now;
                     int activeRequestCount = connectionRequestsQry
@@ -549,6 +585,11 @@ namespace RockWeb.Blocks.Connection
                     r.CampusId,
                     ConnectorPersonId = r.ConnectorPersonAlias != null ? r.ConnectorPersonAlias.PersonId : -1
                 } );
+
+            if ( cpCampusFilter.SelectedCampusId.HasValue )
+            {
+                activeRequestsQry = activeRequestsQry.Where( a => a.CampusId.HasValue && a.CampusId == cpCampusFilter.SelectedCampusId );
+            }
 
             var activeRequests = activeRequestsQry.ToList();
 

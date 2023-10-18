@@ -55,6 +55,7 @@ namespace RockWeb.Blocks.Core
         Order = 2,
         Key = AttributeKey.DisplayQueryStrings )]
 
+    [Rock.SystemGuid.BlockTypeGuid( "ABC4A04E-6FA8-4817-8113-A653251A16B3" )]
     public partial class DateRangeContextSetter : Rock.Web.UI.RockBlock
     {
         public static class AttributeKey
@@ -67,7 +68,7 @@ namespace RockWeb.Blocks.Core
         /// <summary>
         /// The context preference name
         /// </summary>
-        protected static string ContextPreferenceName = "context-date-range";
+        protected static string ContextPreferenceName = "date-range";
 
         #region Base Control Methods
 
@@ -113,7 +114,8 @@ namespace RockWeb.Blocks.Core
         /// </summary>
         private void LoadDropdowns()
         {
-            var currentRange = RockPage.GetUserPreference( ContextPreferenceName );
+            var typePreferences = GetBlockTypePersonPreferences();
+            var currentRange = typePreferences.GetValue( ContextPreferenceName );
             var dateRangeString = Request.QueryString["SlidingDateRange"];
             if ( !string.IsNullOrEmpty( dateRangeString ) && currentRange != dateRangeString )
             {
@@ -145,7 +147,10 @@ namespace RockWeb.Blocks.Core
         protected void SetDateRangeContext( string dateRangeValues, bool refreshPage = false )
         {
             // set context and refresh below with the correct query string if needed
-            RockPage.SetUserPreference( ContextPreferenceName, dateRangeValues, true );
+            var typePreferences = GetBlockTypePersonPreferences();
+
+            typePreferences.SetValue( ContextPreferenceName, dateRangeValues );
+            typePreferences.Save();
 
             if ( refreshPage )
             {

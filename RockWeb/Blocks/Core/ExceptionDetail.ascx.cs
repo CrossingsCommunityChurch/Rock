@@ -33,7 +33,8 @@ namespace RockWeb.Blocks.Core
     [Category( "Core" )]
     [Description( "Displays the details of the given exception." )]
 
-    public partial class ExceptionDetail : RockBlock, IDetailBlock
+    [Rock.SystemGuid.BlockTypeGuid( "B9E704E8-2097-491D-A216-8011012AA84E" )]
+    public partial class ExceptionDetail : RockBlock
     {
         #region Page Parameter Keys
 
@@ -283,7 +284,7 @@ namespace RockWeb.Blocks.Core
             var dl = new DescriptionList();
 
             dl.Add( "Exception Date", baseException.CreatedDateTime.HasValue ? string.Format( "{0:g}", baseException.CreatedDateTime.Value ) : string.Empty );
-            dl.Add( "Description", baseException.Description );
+            dl.Add( "Description", baseException.Description.EncodeHtml().Truncate( 255, true ) );
             dl.Add( "Site", baseException.Site != null ? baseException.Site.Name : string.Empty );
 
             if ( baseException.Page != null || !string.IsNullOrWhiteSpace( baseException.PageUrl ) )
@@ -306,11 +307,9 @@ namespace RockWeb.Blocks.Core
 
             lCookies.Text = baseException.Cookies;
             lServerVariables.Text = baseException.ServerVariables;
-            lFormData.Text = baseException.Form;
 
             btnShowCookies.Visible = !string.IsNullOrWhiteSpace( baseException.Cookies );
             btnShowVariables.Visible = !string.IsNullOrWhiteSpace( baseException.ServerVariables );
-            btnShowFormData.Visible = !string.IsNullOrWhiteSpace( baseException.Form );
 
             // Make sure we have a root-level exception so we can show the entire hierarchy.
             var rootException = GetOutermostException( baseException );
@@ -362,8 +361,6 @@ namespace RockWeb.Blocks.Core
             }
         }
 
-        #region IDetailBlock implementation
-
         /// <summary>
         /// Show the block detail content.
         /// </summary>
@@ -372,8 +369,6 @@ namespace RockWeb.Blocks.Core
         {
             ShowReadonlyDetail( exceptionId );
         }
-
-        #endregion
 
         #endregion
     }

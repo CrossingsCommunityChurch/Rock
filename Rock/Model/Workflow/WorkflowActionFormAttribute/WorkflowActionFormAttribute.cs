@@ -1,4 +1,4 @@
-﻿// <copyright>
+// <copyright>
 // Copyright by the Spark Development Network
 //
 // Licensed under the Rock Community License (the "License");
@@ -19,7 +19,6 @@ using Rock.Lava;
 using Rock.Web.Cache;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
-using System.Data.Entity;
 using System.Data.Entity.ModelConfiguration;
 using System.Runtime.Serialization;
 
@@ -31,6 +30,7 @@ namespace Rock.Model
     [RockDomain( "Workflow" )]
     [Table( "WorkflowActionFormAttribute" )]
     [DataContract]
+    [Rock.SystemGuid.EntityTypeGuid( "E147611F-D1AB-4C34-A1F8-84A118BAFDE3")]
     public partial class WorkflowActionFormAttribute : Model<WorkflowActionFormAttribute>, IOrdered, ICacheable
     {
         #region Entity Properties
@@ -129,9 +129,36 @@ namespace Rock.Model
         [DataMember]
         public string FieldVisibilityRulesJSON { get; set; }
 
+        /// <summary>
+        /// Gets or sets the size of the column.
+        /// </summary>
+        /// <value>
+        /// The size of the column.
+        /// </value>
+        [DataMember]
+        public int? ColumnSize { get; set; }
+
+        /// <summary>
+        /// Gets or sets the action form section identifier.
+        /// </summary>
+        /// <value>
+        /// The action form section identifier.
+        /// </value>
+        [DataMember]
+        public int? ActionFormSectionId { get; set; }
+
         #endregion Entity Properties
 
         #region Navigation Properties
+
+        /// <summary>
+        /// Gets or sets the action form section.
+        /// </summary>
+        /// <value>
+        /// The action form section.
+        /// </value>
+        [LavaVisible]
+        public virtual WorkflowActionFormSection ActionFormSection { get; set; }
 
         /// <summary>
         /// Gets or sets the workflow action form.
@@ -166,6 +193,7 @@ namespace Rock.Model
         /// </summary>
         public WorkflowActionFormAttributeConfiguration()
         {
+            this.HasOptional( a => a.ActionFormSection ).WithMany().HasForeignKey( a => a.ActionFormSectionId ).WillCascadeOnDelete( false );
             this.HasRequired( a => a.WorkflowActionForm ).WithMany( f => f.FormAttributes ).HasForeignKey( a => a.WorkflowActionFormId ).WillCascadeOnDelete( true );
             this.HasRequired( a => a.Attribute ).WithMany().HasForeignKey( a => a.AttributeId ).WillCascadeOnDelete( true );
         }

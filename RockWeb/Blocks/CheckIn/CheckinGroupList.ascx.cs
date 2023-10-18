@@ -42,6 +42,7 @@ namespace RockWeb.Blocks.Checkin
 
     [LinkedPage("Group Detail Page", "Link to the group details page", false)]
     [BooleanField( "Allow Campus Filter", "Should block add an option to allow filtering attendance counts and percentage by campus?", false, "", 2 )]
+    [Rock.SystemGuid.BlockTypeGuid( "67E83A02-6D23-4B90-A861-F81FF78B56C7" )]
     public partial class CheckinGroupList : Rock.Web.UI.RockBlock
     {
         #region Fields
@@ -100,7 +101,8 @@ namespace RockWeb.Blocks.Checkin
             {
                 if ( _allowCampusFilter )
                 {
-                    var campus = CampusCache.Get( GetBlockUserPreference( "Campus" ).AsInteger() );
+                    var preferences = GetBlockPersonPreferences();
+                    var campus = CampusCache.Get( preferences.GetValue( "Campus" ).AsInteger() );
                     if ( campus != null )
                     {
                         bddlCampus.Title = campus.Name;
@@ -135,7 +137,11 @@ namespace RockWeb.Blocks.Checkin
         /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
         protected void bddlCampus_SelectionChanged( object sender, EventArgs e )
         {
-            SetBlockUserPreference( "Campus", bddlCampus.SelectedValue );
+            var preferences = GetBlockPersonPreferences();
+
+            preferences.SetValue( "Campus", bddlCampus.SelectedValue );
+            preferences.Save();
+
             var campus = CampusCache.Get( bddlCampus.SelectedValueAsInt() ?? 0 );
             bddlCampus.Title = campus != null ? campus.Name : "All Campuses";
 

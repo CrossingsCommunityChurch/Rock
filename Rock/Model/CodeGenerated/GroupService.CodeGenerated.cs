@@ -23,10 +23,7 @@
 using System;
 using System.Linq;
 
-using Rock.Attribute;
 using Rock.Data;
-using Rock.ViewModel;
-using Rock.Web.Cache;
 
 namespace Rock.Model
 {
@@ -61,11 +58,7 @@ namespace Rock.Model
                 return false;
             }
 
-            if ( new Service<AuthAuditLog>( Context ).Queryable().Any( a => a.GroupId == item.Id ) )
-            {
-                errorMessage = string.Format( "This {0} is assigned to a {1}.", Group.FriendlyTypeName, AuthAuditLog.FriendlyTypeName );
-                return false;
-            }
+            // ignoring AuthAuditLog,GroupId
 
             if ( new Service<Campus>( Context ).Queryable().Any( a => a.TeamGroupId == item.Id ) )
             {
@@ -135,6 +128,12 @@ namespace Rock.Model
 
             // ignoring GroupRequirement,GroupId
 
+            if ( new Service<InteractiveExperienceSchedule>( Context ).Queryable().Any( a => a.GroupId == item.Id ) )
+            {
+                errorMessage = string.Format( "This {0} is assigned to a {1}.", Group.FriendlyTypeName, InteractiveExperienceSchedule.FriendlyTypeName );
+                return false;
+            }
+
             if ( new Service<Person>( Context ).Queryable().Any( a => a.GivingGroupId == item.Id ) )
             {
                 errorMessage = string.Format( "This {0} is assigned to a {1}.", Group.FriendlyTypeName, Person.FriendlyTypeName );
@@ -155,6 +154,12 @@ namespace Rock.Model
 
             // ignoring Registration,GroupId
 
+            if ( new Service<SystemPhoneNumber>( Context ).Queryable().Any( a => a.SmsNotificationGroupId == item.Id ) )
+            {
+                errorMessage = string.Format( "This {0} is assigned to a {1}.", Group.FriendlyTypeName, SystemPhoneNumber.FriendlyTypeName );
+                return false;
+            }
+
             if ( new Service<WorkflowActivity>( Context ).Queryable().Any( a => a.AssignedGroupId == item.Id ) )
             {
                 errorMessage = string.Format( "This {0} is assigned to a {1}.", Group.FriendlyTypeName, WorkflowActivity.FriendlyTypeName );
@@ -163,74 +168,6 @@ namespace Rock.Model
             return true;
         }
     }
-
-    /// <summary>
-    /// Group View Model Helper
-    /// </summary>
-    [DefaultViewModelHelper( typeof( Group ) )]
-    public partial class GroupViewModelHelper : ViewModelHelper<Group, Rock.ViewModel.GroupViewModel>
-    {
-        /// <summary>
-        /// Converts the model to a view model.
-        /// </summary>
-        /// <param name="model">The entity.</param>
-        /// <param name="currentPerson">The current person.</param>
-        /// <param name="loadAttributes">if set to <c>true</c> [load attributes].</param>
-        /// <returns></returns>
-        public override Rock.ViewModel.GroupViewModel CreateViewModel( Group model, Person currentPerson = null, bool loadAttributes = true )
-        {
-            if ( model == null )
-            {
-                return default;
-            }
-
-            var viewModel = new Rock.ViewModel.GroupViewModel
-            {
-                Id = model.Id,
-                Guid = model.Guid,
-                AllowGuests = model.AllowGuests,
-                ArchivedByPersonAliasId = model.ArchivedByPersonAliasId,
-                ArchivedDateTime = model.ArchivedDateTime,
-                AttendanceRecordRequiredForCheckIn = ( int ) model.AttendanceRecordRequiredForCheckIn,
-                CampusId = model.CampusId,
-                Description = model.Description,
-                DisableScheduleToolboxAccess = model.DisableScheduleToolboxAccess,
-                DisableScheduling = model.DisableScheduling,
-                ElevatedSecurityLevel = ( int ) model.ElevatedSecurityLevel,
-                GroupCapacity = model.GroupCapacity,
-                GroupSalutation = model.GroupSalutation,
-                GroupSalutationFull = model.GroupSalutationFull,
-                GroupTypeId = model.GroupTypeId,
-                InactiveDateTime = model.InactiveDateTime,
-                InactiveReasonNote = model.InactiveReasonNote,
-                InactiveReasonValueId = model.InactiveReasonValueId,
-                IsActive = model.IsActive,
-                IsArchived = model.IsArchived,
-                IsPublic = model.IsPublic,
-                IsSecurityRole = model.IsSecurityRole,
-                IsSystem = model.IsSystem,
-                Name = model.Name,
-                Order = model.Order,
-                ParentGroupId = model.ParentGroupId,
-                RequiredSignatureDocumentTemplateId = model.RequiredSignatureDocumentTemplateId,
-                RSVPReminderOffsetDays = model.RSVPReminderOffsetDays,
-                RSVPReminderSystemCommunicationId = model.RSVPReminderSystemCommunicationId,
-                ScheduleCancellationPersonAliasId = model.ScheduleCancellationPersonAliasId,
-                ScheduleId = model.ScheduleId,
-                SchedulingMustMeetRequirements = model.SchedulingMustMeetRequirements,
-                StatusValueId = model.StatusValueId,
-                CreatedDateTime = model.CreatedDateTime,
-                ModifiedDateTime = model.ModifiedDateTime,
-                CreatedByPersonAliasId = model.CreatedByPersonAliasId,
-                ModifiedByPersonAliasId = model.ModifiedByPersonAliasId,
-            };
-
-            AddAttributesToViewModel( model, viewModel, currentPerson, loadAttributes );
-            ApplyAdditionalPropertiesAndSecurityToViewModel( model, viewModel, currentPerson, loadAttributes );
-            return viewModel;
-        }
-    }
-
 
     /// <summary>
     /// Generated Extension Methods
@@ -293,6 +230,7 @@ namespace Rock.Model
             target.ArchivedDateTime = source.ArchivedDateTime;
             target.AttendanceRecordRequiredForCheckIn = source.AttendanceRecordRequiredForCheckIn;
             target.CampusId = source.CampusId;
+            target.ConfirmationAdditionalDetails = source.ConfirmationAdditionalDetails;
             target.Description = source.Description;
             target.DisableScheduleToolboxAccess = source.DisableScheduleToolboxAccess;
             target.DisableScheduling = source.DisableScheduling;
@@ -314,10 +252,14 @@ namespace Rock.Model
             target.Name = source.Name;
             target.Order = source.Order;
             target.ParentGroupId = source.ParentGroupId;
+            target.ReminderAdditionalDetails = source.ReminderAdditionalDetails;
+            target.ReminderOffsetDays = source.ReminderOffsetDays;
+            target.ReminderSystemCommunicationId = source.ReminderSystemCommunicationId;
             target.RequiredSignatureDocumentTemplateId = source.RequiredSignatureDocumentTemplateId;
             target.RSVPReminderOffsetDays = source.RSVPReminderOffsetDays;
             target.RSVPReminderSystemCommunicationId = source.RSVPReminderSystemCommunicationId;
             target.ScheduleCancellationPersonAliasId = source.ScheduleCancellationPersonAliasId;
+            target.ScheduleConfirmationLogic = source.ScheduleConfirmationLogic;
             target.ScheduleId = source.ScheduleId;
             target.SchedulingMustMeetRequirements = source.SchedulingMustMeetRequirements;
             target.StatusValueId = source.StatusValueId;
@@ -329,20 +271,5 @@ namespace Rock.Model
             target.ForeignId = source.ForeignId;
 
         }
-
-        /// <summary>
-        /// Creates a view model from this entity
-        /// </summary>
-        /// <param name="model">The entity.</param>
-        /// <param name="currentPerson" >The currentPerson.</param>
-        /// <param name="loadAttributes" >Load attributes?</param>
-        public static Rock.ViewModel.GroupViewModel ToViewModel( this Group model, Person currentPerson = null, bool loadAttributes = false )
-        {
-            var helper = new GroupViewModelHelper();
-            var viewModel = helper.CreateViewModel( model, currentPerson, loadAttributes );
-            return viewModel;
-        }
-
     }
-
 }

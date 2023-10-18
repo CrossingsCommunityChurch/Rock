@@ -34,10 +34,9 @@ using Rock.Web.UI.Controls;
 
 namespace RockWeb.Blocks.Finance
 {
-    /// <summary>
-    /// Template block for developers to use to start a new block.
-    /// </summary>
-    [DisplayName( "Transaction Entry - Kiosk" )]
+    [DisplayName( "Transaction Entry - Kiosk (deprecated)" )]
+    [RockObsolete( "1.15" )]
+    [Obsolete( "This block type has been deprecated." )]
     [Category( "Finance" )]
     [Description( "Block used to process giving from a kiosk." )]
 
@@ -58,6 +57,7 @@ namespace RockWeb.Blocks.Finance
     [TextField( "Payment Comment", "The comment to include with the payment transaction when sending to Gateway", false, "Kiosk", "", 12 )]
     #endregion
 
+    [Rock.SystemGuid.BlockTypeGuid( "D10900A8-C2C1-4414-A443-3781A5CF371C" )]
     public partial class TransactionEntryKiosk : Rock.Web.UI.RockBlock
     {
         #region Fields
@@ -448,23 +448,10 @@ namespace RockWeb.Blocks.Finance
                             var batchService = new FinancialBatchService( rockContext );
 
                             // Get the batch
-                            var batch = batchService.Get(
-                                GetAttributeValue( "BatchNamePrefix" ),
-                                swipeInfo.CurrencyTypeValue,
-                                swipeInfo.CreditCardTypeValue,
-                                transaction.TransactionDateTime.Value,
-                                financialGateway.GetBatchTimeOffset() );
+                            var batch = batchService.GetForNewTransaction( transaction, GetAttributeValue( "BatchNamePrefix" ) );
 
                             var batchChanges = new History.HistoryChangeList();
-
-                            if ( batch.Id == 0 )
-                            {
-                                batchChanges.AddChange( History.HistoryVerb.Add, History.HistoryChangeType.Record, "Batch" );
-                                History.EvaluateChange( batchChanges, "Batch Name", string.Empty, batch.Name );
-                                History.EvaluateChange( batchChanges, "Status", null, batch.Status );
-                                History.EvaluateChange( batchChanges, "Start Date/Time", null, batch.BatchStartDateTime );
-                                History.EvaluateChange( batchChanges, "End Date/Time", null, batch.BatchEndDateTime );
-                            }
+                            FinancialBatchService.EvaluateNewBatchHistory( batch, batchChanges );
 
                             decimal newControlAmount = batch.ControlAmount + transaction.TotalAmount;
                             History.EvaluateChange( batchChanges, "Control Amount", batch.ControlAmount.FormatAsCurrency(), newControlAmount.FormatAsCurrency() );

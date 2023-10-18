@@ -67,6 +67,7 @@ namespace RockWeb.Blocks.Event
 
     [LinkedPage( "Event Detail Page", "The page to use for showing event details.", required: false, order: 4 )]
     [BooleanField( "Use Campus Context", "Set this to true to set the campus filter based on the campus context.", defaultValue: false, order: 5 )]
+    [Rock.SystemGuid.BlockTypeGuid( "B7788DFF-783D-40A3-BFD4-EA9561F950A8" )]
     public partial class EventDetailWithOccurrencesSearchLava : RockBlock
     {
         #region Base Control Methods
@@ -135,7 +136,7 @@ namespace RockWeb.Blocks.Event
 
             var eventItem = new EventItemService( new RockContext() ).Get( eventItemId );
             string eventLavaTemplate = this.GetAttributeValue( "EventLavaTemplate" );
-            var mergeFields = Rock.Lava.LavaHelper.GetCommonMergeFields( this.RockPage, this.CurrentPerson, new Rock.Lava.CommonMergeFieldsOptions { GetLegacyGlobalMergeFields = false } );
+            var mergeFields = Rock.Lava.LavaHelper.GetCommonMergeFields( this.RockPage, this.CurrentPerson, new Rock.Lava.CommonMergeFieldsOptions() );
             mergeFields.Add( "Event", eventItem );
 
             lEventDetails.Text = eventLavaTemplate.ResolveMergeFields( mergeFields );

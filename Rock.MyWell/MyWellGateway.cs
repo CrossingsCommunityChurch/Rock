@@ -41,10 +41,10 @@ namespace Rock.MyWell
     ///
     /// </summary>
     /// <seealso cref="Rock.Financial.GatewayComponent" />
-    [Description( "The My Well Gateway is the primary gateway to use with My Well giving." )]
-    [DisplayName( "My Well Gateway" )]
+    [Description( "This legacy version of the My Well Gateway is no longer supported.  Please contact MyWell and install their new gateway from the RockShop." )]
+    [DisplayName( "My Well Gateway (Legacy)" )]
     [Export( typeof( GatewayComponent ) )]
-    [ExportMetadata( "ComponentName", "My Well Gateway" )]
+    [ExportMetadata( "ComponentName", "My Well Gateway (Legacy)" )]
 
     #region Component Attributes
 
@@ -93,6 +93,7 @@ namespace Rock.MyWell
         Order = 6 )]
 
     #endregion Component Attributes
+    [Rock.SystemGuid.EntityTypeGuid( Rock.SystemGuid.EntityType.MYWELL_FINANCIAL_GATEWAY )]
     public class MyWellGateway : GatewayComponent, IHostedGatewayComponent, IAutomatedGatewayComponent, IFeeCoverageGatewayComponent/*, IObsidianFinancialGateway*/
     {
         #region Attribute Keys
@@ -239,7 +240,7 @@ namespace Rock.MyWell
 
             // ClientSecret is the 'Signature' from the WebHook at https://app.gotnpgateway.com/merchant/settings/webhooks/search
             string clientSecret = GetCardSyncSignature( financialGateway );
-            if (clientSecret.IsNullOrWhiteSpace())
+            if ( clientSecret.IsNullOrWhiteSpace() )
             {
                 // no CardSyncSignature specified, so don't do signature validation
                 return true;
@@ -446,8 +447,12 @@ namespace Rock.MyWell
         public void UpdatePaymentInfoFromPaymentControl( FinancialGateway financialGateway, Control hostedPaymentInfoControl, ReferencePaymentInfo referencePaymentInfo, out string errorMessage )
         {
             errorMessage = null;
-            var tokenResponse = ( hostedPaymentInfoControl as MyWellHostedPaymentControl ).PaymentInfoTokenRaw.FromJsonOrNull<TokenizerResponse>();
-            if ( tokenResponse?.IsSuccessStatus() != true )
+            var myWellHostedPaymentControl = hostedPaymentInfoControl as MyWellHostedPaymentControl;
+            var tokenResponse = myWellHostedPaymentControl.PaymentInfoTokenRaw.FromJsonOrNull<TokenizerResponse>();
+
+            bool successful = tokenResponse?.IsSuccessStatus() ?? false;
+
+            if ( !successful )
             {
                 if ( tokenResponse?.HasValidationError() == true )
                 {
@@ -455,11 +460,13 @@ namespace Rock.MyWell
                 }
 
                 errorMessage = tokenResponse?.Message ?? "null response from GetHostedPaymentInfoToken";
-                referencePaymentInfo.ReferenceNumber = ( hostedPaymentInfoControl as MyWellHostedPaymentControl ).PaymentInfoToken;
+                referencePaymentInfo.ReferenceNumber = myWellHostedPaymentControl.PaymentInfoToken;
+                referencePaymentInfo.InitialCurrencyTypeValue = myWellHostedPaymentControl.CurrencyTypeValue;
             }
             else
             {
-                referencePaymentInfo.ReferenceNumber = ( hostedPaymentInfoControl as MyWellHostedPaymentControl ).PaymentInfoToken;
+                referencePaymentInfo.ReferenceNumber = myWellHostedPaymentControl.PaymentInfoToken;
+                referencePaymentInfo.InitialCurrencyTypeValue = myWellHostedPaymentControl.CurrencyTypeValue;
             }
         }
 
@@ -1336,7 +1343,7 @@ namespace Rock.MyWell
             if ( response.IsSuccessStatus() )
             {
                 var transaction = new FinancialTransaction();
-                transaction.TransactionCode = transactionId;
+                transaction.TransactionCode = response.Data.Id;
                 errorMessage = string.Empty;
                 return transaction;
             }
@@ -1570,6 +1577,14 @@ namespace Rock.MyWell
 
                 if ( subscriptionId != scheduledTransaction.GatewayScheduleId )
                 {
+                    // Shouldn't happen, but just in case...
+                    if ( scheduledTransaction.PreviousGatewayScheduleIds == null )
+                    {
+                        scheduledTransaction.PreviousGatewayScheduleIds = new List<string>();
+                    }
+
+                    scheduledTransaction.PreviousGatewayScheduleIds.Add( scheduledTransaction.GatewayScheduleId );
+
                     referencedPaymentInfo.TransactionCode = subscriptionId;
                     scheduledTransaction.GatewayScheduleId = subscriptionId;
                 }
@@ -1689,7 +1704,16 @@ namespace Rock.MyWell
                 var subscriptionInfo = subscriptionResult.Data;
                 if ( subscriptionInfo != null )
                 {
-                    scheduledTransaction.NextPaymentDate = subscriptionInfo.NextBillDateUTC?.Date;
+                    var gatewayNextBillDate = subscriptionInfo.NextBillDateUTC?.Date;
+                    if ( gatewayNextBillDate.HasValue )
+                    {
+                        // Rock DateTimes don't keep any TimeZone or offset, so make sure the date is DateTimeKind.Unspecified instead of UTC.
+                        // Note that the DateTime stored to the database will get the DateTimeKind stripped off, so this is only issue for DateTime data
+                        // that isn't saved to the database yet.
+                        gatewayNextBillDate = DateTime.SpecifyKind( gatewayNextBillDate.Value, DateTimeKind.Unspecified );
+                    }
+
+                    scheduledTransaction.NextPaymentDate = gatewayNextBillDate;
                     scheduledTransaction.FinancialPaymentDetail.GatewayPersonIdentifier = subscriptionInfo.Customer?.Id;
                     scheduledTransaction.StatusMessage = subscriptionInfo.SubscriptionStatusRaw;
                     scheduledTransaction.Status = GetFinancialScheduledTransactionStatus( subscriptionInfo.SubscriptionStatus );
@@ -1727,30 +1751,79 @@ namespace Rock.MyWell
         {
             QueryTransactionStatusRequest queryTransactionStatusRequest = new QueryTransactionStatusRequest
             {
-                DateTimeRangeUTC = new QueryDateTimeRange( startDateTime, endDateTime )
+                DateTimeRangeUTC = new QueryDateTimeRange( startDateTime, endDateTime ),
+
+                /*
+                 04/13/2022 MDP
+
+                We only care about 'Sale' transaction. Here is why
+                - Scheduled Transactions would normally be 'sale' transactions. Rock wouldn't have recorded these yet since the Gateway does the transaction according to the schedule. If the Gateway
+                   ends up doing a 'sale' transaction due the scheduled transaction, then we want to know about it. If it was a scheduled transaction that is somehow a 'credit/refund/void', then we don't want it.
+
+                - 'Sale' transactions could also be one time transactions (not scheduled). We already have those recorded, but we want to know if the settle status has changed. Or if somehow ended up rejected.
+
+                - Any Refunds/Voids/Credits that were initialized by Rock would already be recorded as a FinancialTransaction in Rock. Since we know about those already, we don't need to get those from a Gateway. We also don't want
+                them because Rock might not know what do with them and would record it as a new transactions. Resulting in duplicates.
+
+                */
+
+                // Only search for transactions that were a 'sale' (see above engineering note)
+                TransactionTypeSearch = new QuerySearchTransactionType( TransactionType.sale )
             };
 
-            var searchResult = this.SearchTransactions( this.GetGatewayUrl( financialGateway ), this.GetPrivateApiKey( financialGateway ), queryTransactionStatusRequest );
-
-            if ( !searchResult.IsSuccessStatus() )
-            {
-                errorMessage = searchResult.Message;
-                return null;
-            }
-
+            List<TransactionQueryResultData> transactionQueryResultList = new List<TransactionQueryResultData>();
+            bool getMoreTransactions = true;
+            int offset = 0;
             errorMessage = string.Empty;
 
+            // NOTE 2500 is the max that MyWell supports
+            int fetchLimit = 2500;
             var paymentList = new List<Payment>();
 
-            if ( searchResult.Data == null )
+            while ( getMoreTransactions )
+            {
+                queryTransactionStatusRequest.Limit = fetchLimit;
+                queryTransactionStatusRequest.Offset = offset;
+                TransactionSearchResult searchResult = this.SearchTransactions( this.GetGatewayUrl( financialGateway ), this.GetPrivateApiKey( financialGateway ), queryTransactionStatusRequest );
+                int expectedTotal = searchResult?.TotalCount ?? 0;
+
+                if ( !searchResult.IsSuccessStatus() )
+                {
+                    errorMessage = searchResult.Message;
+                    return null;
+                }
+
+                var downloadedTransactions = searchResult.Data ?? new TransactionQueryResultData[0];
+                var actualDownloadCount = downloadedTransactions.Count();
+
+                transactionQueryResultList.AddRange( downloadedTransactions );
+
+                errorMessage = string.Empty;
+                if ( !downloadedTransactions.Any() || actualDownloadCount < fetchLimit )
+                {
+                    getMoreTransactions = false;
+                }
+
+                offset += fetchLimit;
+            }
+
+            if ( !transactionQueryResultList.Any() )
             {
                 // If no payments were found for the date range, searchResult.Data will be null,
                 // so just return an empty paymentList.
                 return paymentList;
             }
+            
 
-            foreach ( var transaction in searchResult.Data )
+            foreach ( var transaction in transactionQueryResultList )
             {
+                if ( !transaction.TransactionType.HasValue || ( transaction.TransactionType != TransactionType.sale ) )
+                {
+                    // We limited our search request to 'sale' transaction, but if we somehow got a transaction that wasn't a 'sale',
+                    // skip it (see above engineering note)
+                    continue;
+                }
+
                 var gatewayScheduleId = transaction.SubscriptionId;
                 var payment = new Payment
                 {

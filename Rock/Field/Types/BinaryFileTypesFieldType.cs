@@ -14,18 +14,24 @@
 // limitations under the License.
 // </copyright>
 //
+using System;
 using System.Collections.Generic;
+using System.Data.Entity;
 using System.Linq;
 
+using Rock.Attribute;
 using Rock.Data;
 using Rock.Model;
+using Rock.Web.Cache;
 
 namespace Rock.Field.Types
 {
     /// <summary>
     /// Field Type to pick multiple Binary Files Types
     /// </summary>
-    public class BinaryFileTypesFieldType : SelectFromListFieldType
+    [RockPlatformSupport( Utility.RockPlatform.WebForms, Utility.RockPlatform.Obsidian )]
+    [Rock.SystemGuid.FieldTypeGuid( Rock.SystemGuid.FieldType.BINARY_FILE_TYPES )]
+    public class BinaryFileTypesFieldType : SelectFromListFieldType, IEntityReferenceFieldType
     {
         /// <summary>
         /// Gets the list source.
@@ -37,5 +43,51 @@ namespace Rock.Field.Types
         {
             return new BinaryFileTypeService( new RockContext() ).Queryable().OrderBy( a => a.Name ).ToDictionary( c => c.Guid.ToString(), c => c.Name );
         }
+
+        #region IEntityReferenceFieldType
+
+        /// <inheritdoc/>
+        List<ReferencedEntity> IEntityReferenceFieldType.GetReferencedEntities( string privateValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            var valueGuidList = privateValue.Split( new char[] { ',' }, StringSplitOptions.RemoveEmptyEntries ).AsGuidList();
+
+            if ( !valueGuidList.Any() )
+            {
+                return null;
+            }
+
+            using ( var rockContext = new RockContext() )
+            {
+                var fileTypeIds = new BinaryFileTypeService( rockContext )
+                    .Queryable()
+                    .Where( bft => valueGuidList.Contains( bft.Guid ) )
+                    .Select( b => b.Id )
+                    .ToList();
+
+                if ( !fileTypeIds.Any() )
+                {
+                    return null;
+                }
+
+                var referencedEntities = new List<ReferencedEntity>();
+                foreach ( var binaryFileTypeId in fileTypeIds )
+                {
+                    referencedEntities.Add( new ReferencedEntity( EntityTypeCache.GetId<BinaryFileType>().Value, binaryFileTypeId ) );
+                }
+
+                return referencedEntities;
+            }
+        }
+
+        /// <inheritdoc/>
+        List<ReferencedProperty> IEntityReferenceFieldType.GetReferencedProperties( Dictionary<string, string> privateConfigurationValues )
+        {
+            return new List<ReferencedProperty>
+            {
+                new ReferencedProperty( EntityTypeCache.GetId<BinaryFileType>().Value, nameof( BinaryFileType.Name ) ),
+            };
+        }
+
+        #endregion
     }
 }

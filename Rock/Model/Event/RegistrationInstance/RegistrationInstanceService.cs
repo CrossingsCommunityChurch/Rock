@@ -20,7 +20,7 @@ using System.Data.Entity;
 using System.Linq;
 using Rock.Data;
 
-using Rock.ViewModel.Blocks;
+using Rock.ViewModels.Blocks.Event.RegistrationEntry;
 
 namespace Rock.Model
 {
@@ -196,7 +196,7 @@ namespace Rock.Model
                 else
                 {
                     // Add the registrant cost to the cost summary
-                    costSummary.Cost = context.RegistrationSettings.PerRegistrantCost;
+                    costSummary.Cost = registration.RegistrationGuid == null ? context.RegistrationSettings.PerRegistrantCost : registrant.Cost;
 
                     // Default the DiscountedCost to the same as the actual cost
                     costSummary.DiscountedCost = costSummary.Cost;
@@ -283,6 +283,7 @@ namespace Rock.Model
                             {
                                 // Compute the DiscountedCost using the DiscountAmountRemaining
                                 feeCostSummary.DiscountedCost = feeCostSummary.Cost - discountAmountRemaining;
+                                discountAmountRemaining = 0.0m;
                             }
                         }
                     }
@@ -370,11 +371,15 @@ namespace Rock.Model
         /// Gets the fee item count remaining.
         /// </summary>
         /// <param name="context">The context.</param>
-        /// <returns></returns>
+        /// <returns>
+        /// A dictionary of fee item unique identifier keys with the number of
+        /// items remaining as the value. The value will be <c>null</c> if there
+        /// is no configured limit.
+        /// </returns>
         public Dictionary<Guid, int?> GetFeeItemCountRemaining( RegistrationContext context )
         {
             var feeItems = context.RegistrationSettings.Fees.SelectMany( f => f.FeeItems );
-            var map = feeItems.ToDictionary( fi => fi.Guid, fi => ( int? ) null );
+            var map = feeItems.ToDictionary( fi => fi.Guid, fi => fi.MaximumUsageCount );
 
             var service = new RegistrationRegistrantFeeService( Context as RockContext );
             var quantitiesUsed = service.Queryable()
@@ -391,8 +396,8 @@ namespace Rock.Model
 
             foreach ( var quantityUsed in quantitiesUsed )
             {
-                var qtyUsed = map.GetValueOrDefault( quantityUsed.Guid, 0 ) + quantityUsed.Quantity;
-                map[quantityUsed.Guid] = qtyUsed;
+                var qtyRemaining = Math.Max( 0, ( map.GetValueOrNull( quantityUsed.Guid ) ?? 0 ) - quantityUsed.Quantity );
+                map[quantityUsed.Guid] = qtyRemaining;
             }
 
             return map;

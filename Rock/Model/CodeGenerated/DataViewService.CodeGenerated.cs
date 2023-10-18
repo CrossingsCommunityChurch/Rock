@@ -23,10 +23,7 @@
 using System;
 using System.Linq;
 
-using Rock.Attribute;
 using Rock.Data;
-using Rock.ViewModel;
-using Rock.Web.Cache;
 
 namespace Rock.Model
 {
@@ -75,6 +72,12 @@ namespace Rock.Model
                 return false;
             }
 
+            if ( new Service<GroupRequirement>( Context ).Queryable().Any( a => a.AppliesToDataViewId == item.Id ) )
+            {
+                errorMessage = string.Format( "This {0} is assigned to a {1}.", DataView.FriendlyTypeName, GroupRequirement.FriendlyTypeName );
+                return false;
+            }
+
             if ( new Service<GroupRequirementType>( Context ).Queryable().Any( a => a.DataViewId == item.Id ) )
             {
                 errorMessage = string.Format( "This {0} is assigned to a {1}.", DataView.FriendlyTypeName, GroupRequirementType.FriendlyTypeName );
@@ -93,9 +96,21 @@ namespace Rock.Model
                 return false;
             }
 
+            if ( new Service<InteractiveExperienceSchedule>( Context ).Queryable().Any( a => a.DataViewId == item.Id ) )
+            {
+                errorMessage = string.Format( "This {0} is assigned to a {1}.", DataView.FriendlyTypeName, InteractiveExperienceSchedule.FriendlyTypeName );
+                return false;
+            }
+
             if ( new Service<Metric>( Context ).Queryable().Any( a => a.DataViewId == item.Id ) )
             {
                 errorMessage = string.Format( "This {0} is assigned to a {1}.", DataView.FriendlyTypeName, Metric.FriendlyTypeName );
+                return false;
+            }
+
+            if ( new Service<PersonalizationSegment>( Context ).Queryable().Any( a => a.FilterDataViewId == item.Id ) )
+            {
+                errorMessage = string.Format( "This {0} is assigned to a {1}.", DataView.FriendlyTypeName, PersonalizationSegment.FriendlyTypeName );
                 return false;
             }
 
@@ -119,58 +134,6 @@ namespace Rock.Model
             return true;
         }
     }
-
-    /// <summary>
-    /// DataView View Model Helper
-    /// </summary>
-    [DefaultViewModelHelper( typeof( DataView ) )]
-    public partial class DataViewViewModelHelper : ViewModelHelper<DataView, Rock.ViewModel.DataViewViewModel>
-    {
-        /// <summary>
-        /// Converts the model to a view model.
-        /// </summary>
-        /// <param name="model">The entity.</param>
-        /// <param name="currentPerson">The current person.</param>
-        /// <param name="loadAttributes">if set to <c>true</c> [load attributes].</param>
-        /// <returns></returns>
-        public override Rock.ViewModel.DataViewViewModel CreateViewModel( DataView model, Person currentPerson = null, bool loadAttributes = true )
-        {
-            if ( model == null )
-            {
-                return default;
-            }
-
-            var viewModel = new Rock.ViewModel.DataViewViewModel
-            {
-                Id = model.Id,
-                Guid = model.Guid,
-                CategoryId = model.CategoryId,
-                DataViewFilterId = model.DataViewFilterId,
-                Description = model.Description,
-                EntityTypeId = model.EntityTypeId,
-                IncludeDeceased = model.IncludeDeceased,
-                IsSystem = model.IsSystem,
-                LastRunDateTime = model.LastRunDateTime,
-                Name = model.Name,
-                PersistedLastRefreshDateTime = model.PersistedLastRefreshDateTime,
-                PersistedLastRunDurationMilliseconds = model.PersistedLastRunDurationMilliseconds,
-                PersistedScheduleIntervalMinutes = model.PersistedScheduleIntervalMinutes,
-                RunCount = model.RunCount,
-                RunCountLastRefreshDateTime = model.RunCountLastRefreshDateTime,
-                TimeToRunDurationMilliseconds = model.TimeToRunDurationMilliseconds,
-                TransformEntityTypeId = model.TransformEntityTypeId,
-                CreatedDateTime = model.CreatedDateTime,
-                ModifiedDateTime = model.ModifiedDateTime,
-                CreatedByPersonAliasId = model.CreatedByPersonAliasId,
-                ModifiedByPersonAliasId = model.ModifiedByPersonAliasId,
-            };
-
-            AddAttributesToViewModel( model, viewModel, currentPerson, loadAttributes );
-            ApplyAdditionalPropertiesAndSecurityToViewModel( model, viewModel, currentPerson, loadAttributes );
-            return viewModel;
-        }
-    }
-
 
     /// <summary>
     /// Generated Extension Methods
@@ -231,6 +194,7 @@ namespace Rock.Model
             target.CategoryId = source.CategoryId;
             target.DataViewFilterId = source.DataViewFilterId;
             target.Description = source.Description;
+            target.DisableUseOfReadOnlyContext = source.DisableUseOfReadOnlyContext;
             target.EntityTypeId = source.EntityTypeId;
             target.ForeignGuid = source.ForeignGuid;
             target.ForeignKey = source.ForeignKey;
@@ -240,6 +204,7 @@ namespace Rock.Model
             target.Name = source.Name;
             target.PersistedLastRefreshDateTime = source.PersistedLastRefreshDateTime;
             target.PersistedLastRunDurationMilliseconds = source.PersistedLastRunDurationMilliseconds;
+            target.PersistedScheduleId = source.PersistedScheduleId;
             target.PersistedScheduleIntervalMinutes = source.PersistedScheduleIntervalMinutes;
             target.RunCount = source.RunCount;
             target.RunCountLastRefreshDateTime = source.RunCountLastRefreshDateTime;
@@ -253,20 +218,5 @@ namespace Rock.Model
             target.ForeignId = source.ForeignId;
 
         }
-
-        /// <summary>
-        /// Creates a view model from this entity
-        /// </summary>
-        /// <param name="model">The entity.</param>
-        /// <param name="currentPerson" >The currentPerson.</param>
-        /// <param name="loadAttributes" >Load attributes?</param>
-        public static Rock.ViewModel.DataViewViewModel ToViewModel( this DataView model, Person currentPerson = null, bool loadAttributes = false )
-        {
-            var helper = new DataViewViewModelHelper();
-            var viewModel = helper.CreateViewModel( model, currentPerson, loadAttributes );
-            return viewModel;
-        }
-
     }
-
 }

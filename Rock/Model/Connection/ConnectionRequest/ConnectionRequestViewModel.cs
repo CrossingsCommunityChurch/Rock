@@ -18,6 +18,7 @@
 using System;
 using System.Collections.Generic;
 using Rock.Data;
+using Rock.Utility;
 
 namespace Rock.Model
 {
@@ -47,6 +48,14 @@ namespace Rock.Model
         /// Gets or sets the placement group member status.
         /// </summary>
         public GroupMemberStatus? PlacementGroupMemberStatus { get; set; }
+
+        /// <summary>
+        /// Gets or sets the name of the placement group role.
+        /// </summary>
+        /// <value>
+        /// The name of the placement group role.
+        /// </value>
+        public string PlacementGroupRoleName { get; set; }
 
         /// <summary>
         /// Gets or sets the comments.
@@ -90,6 +99,11 @@ namespace Rock.Model
         /// Gets or sets the person phones.
         /// </summary>
         public List<PhoneViewModel> PersonPhones { get; set; }
+
+        /// <summary>
+        /// Gets or sets the campus identifier.
+        /// </summary>
+        public Campus Campus { get; set; }
 
         /// <summary>
         /// Gets or sets the campus identifier.
@@ -256,6 +270,12 @@ namespace Rock.Model
         ///   <c>true</c> if [current person can edit]; otherwise, <c>false</c>.
         /// </value>
         public bool CanCurrentUserEdit { get; set; }
+
+        /// <summary>
+        /// Gets or sets the attributes of this instance
+        /// </summary>
+        public string RequestAttributes { get; set; }
+
         #endregion Properties
 
         #region Computed
@@ -378,7 +398,7 @@ namespace Rock.Model
                 else
                 {
                     Person person = new PersonService( new RockContext() ).Get( PersonId );
-                    return Person.GetPersonPhotoUrl( person.Id, person.PhotoId, person.Age, person.Gender, person.RecordTypeValue?.Guid, person.AgeClassification );
+                    return Person.GetPersonPhotoUrl( person.Initials, person.PhotoId, person.Age, person.Gender, person.RecordTypeValueId, person.AgeClassification );
                 }
             }
         }
@@ -399,7 +419,7 @@ namespace Rock.Model
                     if ( ConnectorPersonId.HasValue )
                     {
                         Person person = new PersonService( new RockContext() ).Get( ConnectorPersonId.Value );
-                        return Person.GetPersonPhotoUrl( person.Id, person.PhotoId, person.Age, person.Gender, person.RecordTypeValue?.Guid, person.AgeClassification );
+                        return Person.GetPersonPhotoUrl( person.Initials, person.PhotoId, person.Age, person.Gender, person.RecordTypeValueId, person.AgeClassification );
                     }
                     else
                     {
@@ -560,12 +580,31 @@ namespace Rock.Model
             }
         }
 
+        /// <summary>
+        /// Gets the group name with role and status.
+        /// </summary>
+        /// <value>
+        /// The group name with role and status.
+        /// </value>
+        public string GroupNameWithRoleAndStatus
+        {
+            get
+            {
+                if (!string.IsNullOrWhiteSpace( PlacementGroupRoleName ) || PlacementGroupMemberStatus != null )
+                {
+                    return string.Format("{0} ({1} {2})", GroupName, PlacementGroupMemberStatus, PlacementGroupRoleName );
+                }
+
+                return GroupName;
+            }
+        }
+
         #endregion Computed
 
         /// <summary>
         /// Phone View Model
         /// </summary>
-        public sealed class PhoneViewModel
+        public sealed class PhoneViewModel : RockDynamic
         {
             /// <summary>
             /// Gets or sets the type of the phone.
@@ -581,6 +620,14 @@ namespace Rock.Model
             /// Gets or sets a value indicating whether this instance is messaging enabled.
             /// </summary>
             public bool IsMessagingEnabled { get; set; }
+
+            /// <summary>
+            /// Returns a string that represents the current object.
+            /// </summary>
+            public override string ToString()
+            {
+                return string.Format( "{0}: {1}", PhoneType, FormattedPhoneNumber );
+            }
         }
     }
 }

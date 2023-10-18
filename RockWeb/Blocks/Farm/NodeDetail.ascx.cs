@@ -40,7 +40,8 @@ namespace RockWeb.Blocks.Farm
         DefaultIntegerValue = 24,
         Order = 2 )]
 
-    public partial class NodeDetail : RockBlock, IDetailBlock
+    [Rock.SystemGuid.BlockTypeGuid( "95F38562-6CEF-4798-8A4F-05EBCDFB07E0" )]
+    public partial class NodeDetail : RockBlock
     {
         #region Keys
 
@@ -278,7 +279,7 @@ namespace RockWeb.Blocks.Farm
         }
 
         /// <summary>
-        /// This method satisfies the IDetailBlock requirement
+        /// Called by a related block to show the detail for a specific entity.
         /// </summary>
         /// <param name="unused"></param>
         public void ShowDetail( int unused )

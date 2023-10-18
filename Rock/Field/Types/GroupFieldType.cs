@@ -16,10 +16,15 @@
 //
 using System;
 using System.Collections.Generic;
+using System.Linq;
+#if WEBFORMS
 using System.Web.UI;
-
+#endif
+using Rock.Attribute;
 using Rock.Data;
 using Rock.Model;
+using Rock.ViewModels.Utility;
+using Rock.Web.Cache;
 using Rock.Web.UI.Controls;
 
 namespace Rock.Field.Types
@@ -28,10 +33,186 @@ namespace Rock.Field.Types
     /// Field Type to select a single (or null) Group
     /// Stored as Group.Guid
     /// </summary>
-    public class GroupFieldType : FieldType, IEntityFieldType
+    [RockPlatformSupport( Utility.RockPlatform.WebForms, Utility.RockPlatform.Obsidian )]
+    [Rock.SystemGuid.FieldTypeGuid( Rock.SystemGuid.FieldType.GROUP )]
+    public class GroupFieldType : FieldType, IEntityFieldType, IEntityReferenceFieldType
     {
-
         #region Formatting
+
+        /// <inheritdoc/>
+        public override string GetTextValue( string privateValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            var guid = privateValue.AsGuidOrNull();
+
+            if ( guid.HasValue )
+            {
+                using ( var rockContext = new RockContext() )
+                {
+                    var groupName = new GroupService( rockContext ).GetSelect( guid.Value, a => a.Name );
+
+                    if ( groupName != null )
+                    {
+                        return groupName;
+                    }
+                }
+            }
+
+            return privateValue;
+        }
+
+        #endregion
+
+        #region Edit Control
+
+        /// <inheritdoc/>
+        public override string GetPublicValue( string privateValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            return GetTextValue( privateValue, privateConfigurationValues );
+        }
+
+        /// <inheritdoc/>
+        public override string GetPrivateEditValue( string publicValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            var groupValue = publicValue.FromJsonOrNull<ListItemBag>();
+
+            if ( groupValue != null )
+            {
+                return groupValue.Value;
+            }
+
+            return string.Empty;
+        }
+
+        /// <inheritdoc/>
+        public override string GetPublicEditValue( string privateValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            if ( Guid.TryParse( privateValue, out Guid guid ) )
+            {
+                using ( var rockContext = new RockContext() )
+                {
+                    var group = new GroupService( rockContext ).GetNoTracking( guid );
+                    if ( group != null )
+                    {
+                        return new ListItemBag()
+                        {
+                            Value = group.Guid.ToString(),
+                            Text = group.Name,
+                        }.ToCamelCaseJson( false, true );
+                    }
+                }
+            }
+
+            return string.Empty;
+        }
+
+        #endregion
+
+        #region Entity Methods
+
+        /// <summary>
+        /// Gets the entity.
+        /// </summary>
+        /// <param name="value">The value.</param>
+        /// <returns></returns>
+        public IEntity GetEntity( string value )
+        {
+            return GetEntity( value, null );
+        }
+
+        /// <summary>
+        /// Gets the entity.
+        /// </summary>
+        /// <param name="value">The value.</param>
+        /// <param name="rockContext">The rock context.</param>
+        /// <returns></returns>
+        public IEntity GetEntity( string value, RockContext rockContext )
+        {
+            Guid? guid = value.AsGuidOrNull();
+            if ( guid.HasValue )
+            {
+                rockContext = rockContext ?? new RockContext();
+                return new GroupService( rockContext ).Get( guid.Value );
+            }
+
+            return null;
+        }
+
+        #endregion
+
+        #region Persistence
+
+        /// <inheritdoc/>
+        public override PersistedValues GetPersistedValues( string privateValue, Dictionary<string, string> privateConfigurationValues, IDictionary<string, object> cache )
+        {
+            if ( string.IsNullOrWhiteSpace( privateValue ) )
+            {
+                return new PersistedValues
+                {
+                    TextValue = string.Empty,
+                    CondensedTextValue = string.Empty,
+                    HtmlValue = string.Empty,
+                    CondensedHtmlValue = string.Empty
+                };
+            }
+
+            var textValue = GetTextValue( privateValue, privateConfigurationValues );
+            var condensedTextValue = textValue.Truncate( CondensedTruncateLength );
+
+            return new PersistedValues
+            {
+                TextValue = textValue,
+                CondensedTextValue = condensedTextValue,
+                HtmlValue = textValue,
+                CondensedHtmlValue = condensedTextValue
+            };
+        }
+
+        #endregion
+
+        #region IEntityReferenceFieldType
+
+        /// <inheritdoc/>
+        List<ReferencedEntity> IEntityReferenceFieldType.GetReferencedEntities( string privateValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            var guid = privateValue.AsGuidOrNull();
+
+            if ( !guid.HasValue )
+            {
+                return null;
+            }
+
+            using ( var rockContext = new RockContext() )
+            {
+                var groupId = new GroupService( rockContext ).GetId( guid.Value );
+
+                if ( !groupId.HasValue )
+                {
+                    return null;
+                }
+
+                return new List<ReferencedEntity>
+                {
+                    new ReferencedEntity( EntityTypeCache.GetId<Group>().Value, groupId.Value )
+                };
+            }
+        }
+
+        /// <inheritdoc/>
+        List<ReferencedProperty> IEntityReferenceFieldType.GetReferencedProperties( Dictionary<string, string> privateConfigurationValues )
+        {
+            // This field type references the Name property of a Group and
+            // should have its persisted values updated when changed.
+            return new List<ReferencedProperty>
+            {
+                new ReferencedProperty( EntityTypeCache.GetId<Group>().Value, nameof( Group.Name ) )
+            };
+        }
+
+        #endregion
+
+
+        #region WebForms
+#if WEBFORMS
 
         /// <summary>
         /// Returns the field's current value(s)
@@ -43,27 +224,10 @@ namespace Rock.Field.Types
         /// <returns></returns>
         public override string FormatValue( Control parentControl, string value, Dictionary<string, ConfigurationValue> configurationValues, bool condensed )
         {
-            string formattedValue = value;
-
-            Guid? guid = value.AsGuidOrNull();
-            if ( guid.HasValue )
-            {
-                using ( var rockContext = new RockContext() )
-                {
-                    var groupName = new GroupService( rockContext ).GetSelect( guid.Value, a => a.Name );
-                    if ( groupName != null )
-                    {
-                        formattedValue = groupName;
-                    }
-                }
-            }
-
-            return base.FormatValue( parentControl, formattedValue, configurationValues, condensed );
+            return !condensed
+                ? GetTextValue( value, configurationValues.ToDictionary( cv => cv.Key, cv => cv.Value.Value ) )
+                : GetCondensedTextValue( value, configurationValues.ToDictionary( cv => cv.Key, cv => cv.Value.Value ) );
         }
-
-        #endregion
-
-        #region Edit Control
 
         /// <summary>
         /// Creates the control(s) necessary for prompting user for a new value
@@ -73,9 +237,9 @@ namespace Rock.Field.Types
         /// <returns>
         /// The control
         /// </returns>
-        public override System.Web.UI.Control EditControl( Dictionary<string, ConfigurationValue> configurationValues, string id )
+        public override Control EditControl( Dictionary<string, ConfigurationValue> configurationValues, string id )
         {
-            GroupPicker groupPicker = new GroupPicker { ID = id }; 
+            GroupPicker groupPicker = new GroupPicker { ID = id };
             return groupPicker;
         }
 
@@ -134,10 +298,6 @@ namespace Rock.Field.Types
             }
         }
 
-        #endregion
-
-        #region Entity Methods
-
         /// <summary>
         /// Gets the edit value as the IEntity.Id
         /// </summary>
@@ -148,7 +308,7 @@ namespace Rock.Field.Types
         {
             Guid guid = GetEditValue( control, configurationValues ).AsGuid();
             var item = new GroupService( new RockContext() ).Get( guid );
-            return item != null ? item.Id : (int?)null;
+            return item != null ? item.Id : ( int? ) null;
         }
 
         /// <summary>
@@ -164,35 +324,7 @@ namespace Rock.Field.Types
             SetEditValue( control, configurationValues, guidValue );
         }
 
-        /// <summary>
-        /// Gets the entity.
-        /// </summary>
-        /// <param name="value">The value.</param>
-        /// <returns></returns>
-        public IEntity GetEntity( string value )
-        {
-            return GetEntity( value, null );
-        }
-
-        /// <summary>
-        /// Gets the entity.
-        /// </summary>
-        /// <param name="value">The value.</param>
-        /// <param name="rockContext">The rock context.</param>
-        /// <returns></returns>
-        public IEntity GetEntity( string value, RockContext rockContext )
-        {
-            Guid? guid = value.AsGuidOrNull();
-            if ( guid.HasValue )
-            {
-                rockContext = rockContext ?? new RockContext();
-                return new GroupService( rockContext ).Get( guid.Value );
-            }
-
-            return null;
-        }
-
+#endif
         #endregion
-
     }
 }

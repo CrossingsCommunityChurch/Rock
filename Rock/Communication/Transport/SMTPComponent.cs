@@ -18,6 +18,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net.Mail;
 using System.Net.Mime;
+using System.Text;
 using System.Threading.Tasks;
 using Rock.Logging;
 using Rock.Model;
@@ -119,7 +120,7 @@ namespace Rock.Communication.Transport
         {
             get
             {
-                return GetAttributeValue( "MaxParallelization" ).AsIntegerOrNull() ?? 10;
+                return GetAttributeValue( "MaxParallelization" ).AsIntegerOrNull() ?? 1;
             }
         }
 
@@ -169,7 +170,9 @@ namespace Rock.Communication.Transport
             var mailMessage = new MailMessage
             {
                 IsBodyHtml = true,
-                Priority = MailPriority.Normal
+                Priority = MailPriority.Normal,
+                BodyEncoding = Encoding.UTF8,
+                SubjectEncoding = Encoding.UTF8
             };
 
             // From
@@ -221,11 +224,11 @@ namespace Rock.Communication.Transport
 
             if ( !string.IsNullOrWhiteSpace( htmlBody ) )
             {
-                if ( rockEmailMessage.CssInliningEnabled )
-                {
-                    // Move styles inline to ensure compatibility with a wider range of email clients.
-                    htmlBody = htmlBody.ConvertHtmlStylesToInlineAttributes();
-                }
+                /*
+                 * 2021-11-04 Ethan Drotning
+                 * Do not check rockEmailMessage.CssInliningEnabled here. This is being taken care of in the parent abstract class EmailTransportComponent methods.
+                 * SMTP, SendGrid, MailGun and other child component classes don't have to worry about it unless they override the methods without calling the parent.
+                 */
 
                 var htmlView = AlternateView.CreateAlternateViewFromString( htmlBody, new System.Net.Mime.ContentType( MediaTypeNames.Text.Html ) );
                 mailMessage.AlternateViews.Add( htmlView );

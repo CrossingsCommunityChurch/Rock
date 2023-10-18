@@ -18,12 +18,15 @@ using System;
 using System.Collections.Generic;
 using System.Data.Entity;
 using System.Linq;
+#if WEBFORMS
 using System.Web.UI;
-
+#endif
 using Rock.Web.Cache;
 using Rock.Data;
 using Rock.Model;
 using Rock.Web.UI.Controls;
+using Rock.Attribute;
+using Rock.ViewModels.Utility;
 
 namespace Rock.Field.Types
 {
@@ -31,8 +34,240 @@ namespace Rock.Field.Types
     /// Field used to display or upload a new binary file of a specific type.
     /// Stored as BinaryFile.Guid.
     /// </summary>
-    public class BackgroundCheckFieldType : BinaryFileFieldType
+    [RockPlatformSupport( Utility.RockPlatform.WebForms, Utility.RockPlatform.Obsidian )]
+    [Rock.SystemGuid.FieldTypeGuid( Rock.SystemGuid.FieldType.BACKGROUNDCHECK )]
+    public class BackgroundCheckFieldType : BinaryFileFieldType, IEntityReferenceFieldType
     {
+        private const string BINARY_FILE_TYPE = "binaryFileType";
+
+        #region Edit Control
+
+        /// <inheritdoc />
+        public override string GetPublicValue( string privateValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            return GetTextValue( privateValue, privateConfigurationValues );
+        }
+
+        /// <inheritdoc />
+        public override Dictionary<string, string> GetPrivateConfigurationValues( Dictionary<string, string> publicConfigurationValues )
+        {
+            var privateConfigurationValues = base.GetPrivateConfigurationValues( publicConfigurationValues );
+
+            if ( privateConfigurationValues.ContainsKey( BINARY_FILE_TYPE ) )
+            {
+                var binaryFileTypeValue = publicConfigurationValues[BINARY_FILE_TYPE].FromJsonOrNull<ListItemBag>();
+
+                if ( binaryFileTypeValue != null )
+                {
+                    privateConfigurationValues[BINARY_FILE_TYPE] = binaryFileTypeValue.Value;
+                }
+            }
+
+            return privateConfigurationValues;
+        }
+
+        /// <inheritdoc />
+        public override Dictionary<string, string> GetPublicConfigurationValues( Dictionary<string, string> privateConfigurationValues, ConfigurationValueUsage usage, string value )
+        {
+            var publicConfigurationValues = base.GetPublicConfigurationValues( privateConfigurationValues, usage, value );
+
+            if ( publicConfigurationValues.ContainsKey( BINARY_FILE_TYPE ) && Guid.TryParse( publicConfigurationValues[BINARY_FILE_TYPE], out Guid binaryFileTypeGuid ) )
+            {
+                publicConfigurationValues[BINARY_FILE_TYPE] = new ListItemBag()
+                {
+                    Text = BinaryFileTypeCache.Get( binaryFileTypeGuid )?.Name,
+                    Value = binaryFileTypeGuid.ToString()
+                }.ToCamelCaseJson( false, true );
+            }
+
+            return publicConfigurationValues;
+        }
+
+        /// <inheritdoc />
+        public override string GetPublicEditValue( string privateValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            if ( !string.IsNullOrWhiteSpace( privateValue ) )
+            {
+                if ( Guid.TryParse( privateValue, out Guid binaryFileGuid ) )
+                {
+                    var entityType = EntityTypeCache.Get( Rock.SystemGuid.EntityType.PROTECT_MY_MINISTRY_PROVIDER.AsGuid() );
+                    return $"{entityType.Guid},{entityType.FriendlyName},{privateValue},{GetFileName( privateValue )}";
+                }
+
+                var valueSplit = privateValue.Split( ',' );
+                if ( valueSplit?.Length == 2 )
+                {
+                    var entityTypeId = valueSplit[0];
+                    var entityType = EntityTypeCache.Get( entityTypeId.AsInteger() );
+
+                    if ( entityType != null )
+                    {
+                        return $"{entityType.Guid},{entityType.FriendlyName},{valueSplit[1]}";
+                    }
+                }
+            }
+
+            return string.Empty;
+        }
+
+        /// <inheritdoc />
+        public override string GetPrivateEditValue( string publicValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            if ( !string.IsNullOrWhiteSpace( publicValue ) )
+            {
+                var valueSplit = publicValue.Split( ',' );
+
+                if ( valueSplit.Length > 2 && Guid.TryParse( valueSplit[0], out Guid entityTypeGuid ) )
+                {
+                    var entityType = EntityTypeCache.Get( entityTypeGuid );
+
+                    if ( entityType != null )
+                    {
+                        if ( entityType.Guid == SystemGuid.EntityType.CHECKR_PROVIDER.AsGuid() )
+                        {
+                            return $"{entityType.Id},{valueSplit[2]}";
+                        }
+                        else
+                        {
+                            return $"{valueSplit[2]}";
+                        }
+                    }
+                }
+            }
+
+            return publicValue;
+        }
+
+        #endregion
+
+        #region Formatting
+
+        /// <inheritdoc />
+        public override string GetTextValue( string privateValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            return GetFileName( privateValue );
+        }
+
+        /// <inheritdoc />
+        public override string GetHtmlValue( string privateValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            Guid? guid = privateValue.AsGuidOrNull();
+            if ( guid.HasValue && !guid.Value.IsEmpty() )
+            {
+                using ( var rockContext = new RockContext() )
+                {
+                    var binaryFileInfo = new BinaryFileService( rockContext )
+                    .Queryable()
+                    .AsNoTracking()
+                    .Where( f => f.Guid == guid.Value )
+                    .Select( f =>
+                        new
+                        {
+                            f.Id,
+                            f.FileName,
+                            f.Guid
+                        } )
+                    .FirstOrDefault();
+
+                    if ( binaryFileInfo != null )
+                    {
+                        var filePath = System.Web.VirtualPathUtility.ToAbsolute( "~/GetBackgroundCheck.ashx" );
+                        return string.Format( "<a href='{0}?EntityTypeId={1}&RecordKey={2}' title='{3}' class='btn btn-xs btn-default'>View</a>", filePath, EntityTypeCache.Get( typeof( Security.BackgroundCheck.ProtectMyMinistry ) ).Id, binaryFileInfo.Guid, System.Web.HttpUtility.HtmlEncode( binaryFileInfo.FileName ) );
+                    }
+                }
+            }
+            else if ( privateValue != null )
+            {
+                var valueArray = privateValue.Split( ',' );
+                if ( valueArray.Length == 2 )
+                {
+                    var filePath = System.Web.VirtualPathUtility.ToAbsolute( "~/GetBackgroundCheck.ashx" );
+                    return string.Format( "<a href='{0}?EntityTypeId={1}&RecordKey={2}' title='{3}' class='btn btn-xs btn-default'>View</a>", filePath, valueArray[0], valueArray[1], "Report" );
+                }
+            }
+
+            return string.Empty;
+        }
+
+        /// <inheritdoc />
+        public override string GetCondensedHtmlValue( string privateValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            return GetHtmlValue( privateValue, privateConfigurationValues );
+        }
+
+        /// <summary>
+        /// Gets the name of the file.
+        /// </summary>
+        /// <param name="privateValue">The private value.</param>
+        /// <returns></returns>
+        private static string GetFileName( string privateValue )
+        {
+            Guid? guid = privateValue.AsGuidOrNull();
+            if ( guid.HasValue && !guid.Value.IsEmpty() )
+            {
+                using ( var rockContext = new RockContext() )
+                {
+                    var fileName = new BinaryFileService( rockContext )
+                    .Queryable()
+                    .AsNoTracking()
+                    .Where( f => f.Guid == guid.Value )
+                    .Select( f => f.FileName )
+                    .FirstOrDefault();
+
+                    if ( fileName.IsNotNullOrWhiteSpace() )
+                    {
+                        return fileName;
+                    }
+                }
+            }
+
+            return string.Empty;
+        }
+
+        #endregion
+
+        #region IEntityReferenceFieldType
+
+        /// <inheritdoc/>
+        List<ReferencedEntity> IEntityReferenceFieldType.GetReferencedEntities( string privateValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            Guid? guid = privateValue.AsGuidOrNull();
+
+            if ( !guid.HasValue )
+            {
+                return null;
+            }
+
+            using ( var rockContext = new RockContext() )
+            {
+                var fileId = new BinaryFileService( rockContext ).GetId( guid.Value );
+
+                if ( !fileId.HasValue )
+                {
+                    return null;
+                }
+
+                return new List<ReferencedEntity>
+                {
+                    new ReferencedEntity( EntityTypeCache.GetId<BinaryFile>().Value, fileId.Value )
+                };
+            }
+        }
+
+        /// <inheritdoc/>
+        List<ReferencedProperty> IEntityReferenceFieldType.GetReferencedProperties( Dictionary<string, string> privateConfigurationValues )
+        {
+            return new List<ReferencedProperty>
+            {
+                new ReferencedProperty( EntityTypeCache.GetId<BinaryFile>().Value, nameof( BinaryFile.FileName ) ),
+            };
+        }
+
+        #endregion
+
+        #region WebForms
+#if WEBFORMS
+
         /// <summary>
         /// Creates the HTML controls required to configure this type of field
         /// </summary>
@@ -42,9 +277,6 @@ namespace Rock.Field.Types
             return base.ConfigurationControls();
         }
 
-
-
-        #region Edit Control
         /// <summary>
         /// Creates the control(s) necessary for prompting user for a new value.
         /// </summary>
@@ -86,7 +318,7 @@ namespace Rock.Field.Types
                 {
                     using ( var rockContext = new RockContext() )
                     {
-                        Guid? binaryFileGuid = new BinaryFileService( rockContext ).Queryable().AsNoTracking().Where( a => a.Id == binaryFileId.Value ).Select( a => (Guid?)a.Guid ).FirstOrDefault();
+                        Guid? binaryFileGuid = new BinaryFileService( rockContext ).Queryable().AsNoTracking().Where( a => a.Id == binaryFileId.Value ).Select( a => ( Guid? ) a.Guid ).FirstOrDefault();
                         if ( binaryFileGuid.HasValue )
                         {
                             return binaryFileGuid?.ToString();
@@ -121,7 +353,7 @@ namespace Rock.Field.Types
                     int? binaryFileId = null;
                     using ( var rockContext = new RockContext() )
                     {
-                        binaryFileId = new BinaryFileService( rockContext ).Queryable().Where( a => a.Guid == binaryFileGuid.Value ).Select( a => (int?)a.Id ).FirstOrDefault();
+                        binaryFileId = new BinaryFileService( rockContext ).Queryable().Where( a => a.Guid == binaryFileGuid.Value ).Select( a => ( int? ) a.Id ).FirstOrDefault();
                     }
 
                     backgroundCheckDocument.BinaryFileId = binaryFileId;
@@ -133,9 +365,6 @@ namespace Rock.Field.Types
             }
         }
 
-        #endregion
-        #region Formatting
-
         /// <summary>
         /// Returns the field's current value(s)
         /// </summary>
@@ -146,54 +375,13 @@ namespace Rock.Field.Types
         /// <returns></returns>
         public override string FormatValue( Control parentControl, string value, Dictionary<string, ConfigurationValue> configurationValues, bool condensed )
         {
-            string formattedValue = string.Empty;
-
-            Guid? guid = value.AsGuidOrNull();
-            if ( guid.HasValue && !guid.Value.IsEmpty() )
-            {
-                using ( var rockContext = new RockContext() )
-                {
-
-                    var binaryFileInfo = new BinaryFileService( rockContext )
-                    .Queryable()
-                    .AsNoTracking()
-                    .Where( f => f.Guid == guid.Value )
-                    .Select( f =>
-                        new
-                        {
-                            f.Id,
-                            f.FileName,
-                            f.Guid
-                        } )
-                    .FirstOrDefault();
-
-                    if ( binaryFileInfo != null )
-                    {
-                        if ( condensed )
-                        {
-                            return binaryFileInfo.FileName;
-                        }
-                        else
-                        {
-                            var filePath = System.Web.VirtualPathUtility.ToAbsolute( "~/GetBackgroundCheck.ashx" );
-                            return string.Format( "<a href='{0}?EntityTypeId={1}&RecordKey={2}' title='{3}' class='btn btn-xs btn-default'>View</a>", filePath, EntityTypeCache.Get( typeof( Security.BackgroundCheck.ProtectMyMinistry ) ).Id, binaryFileInfo.Guid, System.Web.HttpUtility.HtmlEncode( binaryFileInfo.FileName ) );
-                        }
-                    }
-                }
-            }
-            else if (value != null)
-            {
-                var valueArray = value.Split( ',' );
-                if ( valueArray.Length == 2 )
-                {
-                    var filePath = System.Web.VirtualPathUtility.ToAbsolute( "~/GetBackgroundCheck.ashx" );
-                    return string.Format( "<a href='{0}?EntityTypeId={1}&RecordKey={2}' title='{3}' class='btn btn-xs btn-default'>View</a>", filePath, valueArray[0], valueArray[1], "Report" );
-                }
-            }
-
-            return base.FormatValue( parentControl, formattedValue, null, condensed );
+            // For compatibility reasons condensed value is always the text value encoded for HTML.
+            return !condensed
+                ? GetHtmlValue( value, configurationValues.ToDictionary( cv => cv.Key, cv => cv.Value.Value ) )
+                : GetTextValue( value, configurationValues.ToDictionary( cv => cv.Key, cv => cv.Value.Value ) )?.EncodeHtml();
         }
 
+#endif
         #endregion
     }
 }

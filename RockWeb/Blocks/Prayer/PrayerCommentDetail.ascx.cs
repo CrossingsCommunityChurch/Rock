@@ -37,7 +37,8 @@ namespace RockWeb.Blocks.Prayer
 
     [ContextAware( typeof( PrayerRequest ) )]
     [TextField( "Title", "The title of the notes/comments section.", false, "Comments", "Behavior", 0 )]
-    public partial class PrayerCommentDetail : RockBlock, IDetailBlock
+    [Rock.SystemGuid.BlockTypeGuid( "4F3778DF-A25C-4E59-9242-B1D6813311E1" )]
+    public partial class PrayerCommentDetail : RockBlock
     {
         #region Private BlockType Attributes
         private IEntity contextEntity = null;

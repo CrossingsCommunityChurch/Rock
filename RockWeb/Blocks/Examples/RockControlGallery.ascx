@@ -191,6 +191,20 @@
     <Rock:NotificationBox ID="nbMP3" runat="server" CssClass="padding-all-xl margin-all-lg" NotificationBoxType="Info" Title=".padding-all-xl .margin-all-md" Text="For God so loved the world that he gave his one and only Son..." />
 </div>
 </div>
+                    <h2 runat="server">Field Labels</h2>
+                    <p>When a field is not editable because it was pre-configured via configuration or block setting,
+                        it should still have a typical look by using the <code>form-group, control-label, control-wrapper</code>
+                        classes.
+                    </p>
+
+<div runat="server" class="r-example">
+<div class="form-group">
+	<label class="control-label">Group</label> 
+	<div class="control-wrapper">
+		<p>A/V Team</p>	
+	</div>
+</div>
+</div>
 
                     <a id="Grid"></a>
                     <h2 runat="server">Rock:Grid</h2>
@@ -203,7 +217,7 @@
                                     <Rock:DateTimeField DataField="SomeDateTime" HeaderText="DateTime" SortExpression="SomeDateTime" />
                                     <Rock:BoolField DataField="SomeBoolean" HeaderText="Some Boolean" SortExpression="SomeBoolean" />
                                     <Rock:EditField />
-                                    <Rock:SecurityField />
+                                    <Rock:SecurityField TitleField="DefinedValueTypeName" />
                                     <Rock:DeleteField />
                                 </Columns>
                             </Rock:Grid>
@@ -340,7 +354,7 @@
                     <a id="RangeSlider"></a>
                     <h2>Range Slider</h2>
                     <div runat="server" class="r-example">
-                        <Rock:RangeSlider ID="rsSlider" runat="server" Label="Rock:RangeSlider" MaxValue="250" MinValue="125" StepValue="5" SelectedValue="200" />
+                        <Rock:RangeSlider ID="rsSlider" runat="server" Label="Rock:RangeSlider" MaxValue="250" MinValue="125" StepValue="0" SelectedValue="200" />
                         <br />
                     </div>
 
@@ -403,7 +417,7 @@
 
                     <a id="SlidingDateRangePicker"></a>
                     <div runat="server" class="r-example">
-                        <Rock:SlidingDateRangePicker ID="sdrpExample" runat="server" Label="Rock:SlidingDateRangePicker" />
+                        <Rock:SlidingDateRangePicker ID="sdrpExample" runat="server" Label="Rock:SlidingDateRangePicker" PreviewLocation="Top" />
                     </div>
 
                     <a id="BirthdayPicker"></a>
@@ -455,6 +469,7 @@
                     <div runat="server" class="r-example">
                         <Rock:DefinedValuesPickerEnhanced ID="dvpDefinedValuesPickerEnhanced" runat="server" Label="Rock:DefinedValuesPickerEnhanced for ConnectionStatus defined type" DefinedTypeId="4" />
                     </div>
+
 
                     <h2>Events</h2>
 
@@ -529,7 +544,7 @@
 
                     <a id="MediaElementPicker"></a>
                     <div runat="server" class="r-example">
-                        <Rock:MediaElementPicker ID="mediaElementPicker" runat="server" Label="Rock:MediaElementPicker" />
+                        <Rock:MediaElementPicker ID="mediaElementPicker" runat="server" Label="Rock:MediaElementPicker" MediaElementId="3" />
                     </div>
 
                     <h2>Groups and Group Types</h2>
@@ -674,6 +689,20 @@
                     <div runat="server" class="r-example">
                         <Rock:MetricCategoryPicker ID="pMetricCategoryPicker" runat="server" Label="Rock:MetricCategoryPicker (Pick Metric from Category Tree)" EntityTypeId="15"/>
                     </div>
+
+
+                    <h2 runat="server">SystemPhoneNumbers</h2>
+
+                    <a id="SystemPhoneNumberPicker"></a>
+                    <div runat="server" class="r-example">
+                        <Rock:SystemPhoneNumberPicker ID="spnpSystemPhoneNumberPicker" runat="server" Label="Rock:SystemPhoneNumberPicker" />
+                    </div>
+
+                    <a id="SystemPhoneNumbersPicker"></a>
+                    <div runat="server" class="r-example">
+                        <Rock:SystemPhoneNumbersPicker ID="spnpSystemPhoneNumbersPicker" runat="server" Label="Rock:SystemPhoneNumbersPicker" />
+                    </div>
+
 
                     <h2>Workflows</h2>
 
@@ -966,7 +995,7 @@ Horizontal Rule
                     <a id="CampusAccountAmountPicker"></a>
                     <h2 runat="server">Rock:CampusAccountAmountPicker</h2><span>(SingleAccount Mode)</span>
                     <div runat="server" class="r-example">
-                        <Rock:CampusAccountAmountPicker ID="caapExampleSingleAccount" runat="server" AmountEntryMode="SingleAccount" AutoPostBack="true" OnAccountChanged="caapExample_Changed" />
+                        <Rock:CampusAccountAmountPicker ID="caapExampleSingleAccount" runat="server" AmountEntryMode="SingleAccount" AutoPostBack="true" OnAccountChanged="caapExample_Changed" OnCampusChanged="caapExample_Changed" />
 
                         <hr />
                         <Rock:RockLiteral ID="lCaapExampleSingleAccountResultAccount" runat="server" Label="Resulting Campus Account" Text="-"/>
@@ -974,7 +1003,7 @@ Horizontal Rule
 
                     <h2 runat="server">Rock:CampusAccountAmountPicker</h2><span>(MultipleAccounts Mode)</span>
                     <div runat="server" class="r-example">
-                        <Rock:CampusAccountAmountPicker ID="caapExampleMultiAccount" runat="server" AmountEntryMode="MultipleAccounts" OnAccountChanged="caapExample_Changed"/>
+                        <Rock:CampusAccountAmountPicker ID="caapExampleMultiAccount" runat="server" AmountEntryMode="MultipleAccounts" OnAccountChanged="caapExample_Changed" OnCampusChanged="caapExample_Changed" />
 
                          <hr />
                         <Rock:RockLiteral ID="lCaapExampleMultiAccountResultAccount" runat="server" Label="Resulting Campus Accounts" Text="-" />

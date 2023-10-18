@@ -274,6 +274,21 @@ namespace Rock.Web.UI
             /// The grid filter registrant last name
             /// </summary>
             public const string GridFilter_RegistrantLastName = "Registrant Last Name";
+
+            /// <summary>
+            /// The grid filter registration campus
+            /// </summary>
+            public const string GridFilter_RegistrationCampus = "Registration Campus";
+
+            /// <summary>
+            /// The grid filter race
+            /// </summary>
+            public const string GridFilter_Race = "Race";
+
+            /// <summary>
+            /// The grid filter ethnicity
+            /// </summary>
+            public const string GridFilter_Ethnicity = "Ethnicity";
         }
 
         #endregion User Preference Keys
@@ -341,9 +356,44 @@ namespace Rock.Web.UI
         protected const string FILTER_WORK_PHONE_ID = "tbWorkPhoneFilter";
 
         /// <summary>
+        /// Filter connection status Identifier
+        /// </summary>
+        protected const string FILTER_RACE_ID = "dvpRaceFilter";
+
+        /// <summary>
+        /// Filter connection status Identifier
+        /// </summary>
+        protected const string FILTER_ETHNICITY_ID = "dvpEthnicityFilter";
+
+        /// <summary>
         /// Filter attribute prefix
         /// </summary>
         protected const string FILTER_ATTRIBUTE_PREFIX = "filterAttribute_";
+
+        /// <summary>
+        /// The address grid column identifier
+        /// </summary>
+        protected const string ADDRESS_GRID_COLUMN_ID = "lGroupPlacementsAddress";
+
+        /// <summary>
+        /// The mobile phone grid column identifier
+        /// </summary>
+        protected const string MOBILE_PHONE_GRID_COLUMN_ID = "lMobile";
+
+        /// <summary>
+        /// The home phone grid column identifier
+        /// </summary>
+        protected const string HOME_PHONE_GRID_COLUMN_ID = "lHomePhone";
+
+        /// <summary>
+        /// The work phone grid column identifier
+        /// </summary>
+        protected const string WORK_PHONE_GRID_COLUMN_ID = "lWorkPhone";
+
+        /// <summary>
+        /// The campus grid column identifier
+        /// </summary>
+        protected const string CAMPUS_GRID_COLUMN_ID = "lRegistrantsCampus";
 
         /// <summary>
         /// The active RegistrationInstance in this context.
@@ -514,13 +564,13 @@ namespace Rock.Web.UI
 
                                     if ( setValues )
                                     {
-                                        ddlCampus.SetValue( gridFilter.GetUserPreference( UserPreferenceKeyBase.GridFilter_HomeCampus ) );
+                                        ddlCampus.SetValue( gridFilter.GetFilterPreference( UserPreferenceKeyBase.GridFilter_HomeCampus ) );
                                     }
 
                                     filterFieldsContainer.Controls.Add( ddlCampus );
 
                                     var templateField = new RockLiteralField();
-                                    templateField.ID = "lRegistrantsCampus";
+                                    templateField.ID = CAMPUS_GRID_COLUMN_ID;
                                     templateField.HeaderText = "Campus";
                                     grid.Columns.Add( templateField );
                                 }
@@ -535,7 +585,7 @@ namespace Rock.Web.UI
 
                                     if ( setValues )
                                     {
-                                        tbEmailFilter.Text = gridFilter.GetUserPreference( UserPreferenceKeyBase.GridFilter_Email );
+                                        tbEmailFilter.Text = gridFilter.GetFilterPreference( UserPreferenceKeyBase.GridFilter_Email );
                                     }
 
                                     filterFieldsContainer.Controls.Add( tbEmailFilter );
@@ -559,7 +609,7 @@ namespace Rock.Web.UI
 
                                     if ( setValues )
                                     {
-                                        drpBirthdateFilter.DelimitedValues = gridFilter.GetUserPreference( UserPreferenceKeyBase.GridFilter_BirthdateRange );
+                                        drpBirthdateFilter.DelimitedValues = gridFilter.GetFilterPreference( UserPreferenceKeyBase.GridFilter_BirthdateRange );
                                     }
 
                                     filterFieldsContainer.Controls.Add( drpBirthdateFilter );
@@ -579,11 +629,11 @@ namespace Rock.Web.UI
                                 {
                                     var tbMiddleNameFilter = new RockTextBox();
                                     tbMiddleNameFilter.ID = FILTER_MIDDLE_NAME_ID;
-                                    tbMiddleNameFilter.Label = "MiddleName";
+                                    tbMiddleNameFilter.Label = "Middle Name";
 
                                     if ( setValues )
                                     {
-                                        tbMiddleNameFilter.Text = gridFilter.GetUserPreference( UserPreferenceKeyBase.GridFilter_MiddleName );
+                                        tbMiddleNameFilter.Text = gridFilter.GetFilterPreference( UserPreferenceKeyBase.GridFilter_MiddleName );
                                     }
 
                                     filterFieldsContainer.Controls.Add( tbMiddleNameFilter );
@@ -592,7 +642,7 @@ namespace Rock.Web.UI
 
                                     var middleNameField = new RockBoundField();
                                     middleNameField.DataField = dataFieldExpression;
-                                    middleNameField.HeaderText = "MiddleName";
+                                    middleNameField.HeaderText = "Middle Name";
                                     middleNameField.SortExpression = dataFieldExpression;
                                     grid.Columns.Add( middleNameField );
                                 }
@@ -603,11 +653,11 @@ namespace Rock.Web.UI
                                 {
                                     var drpAnniversaryDateFilter = new DateRangePicker();
                                     drpAnniversaryDateFilter.ID = FILTER_ANNIVERSARY_DATE_ID;
-                                    drpAnniversaryDateFilter.Label = "AnniversaryDate Range";
+                                    drpAnniversaryDateFilter.Label = "Anniversary Date Range";
 
                                     if ( setValues )
                                     {
-                                        drpAnniversaryDateFilter.DelimitedValues = gridFilter.GetUserPreference( UserPreferenceKeyBase.GridFilter_AnniversaryDateRange );
+                                        drpAnniversaryDateFilter.DelimitedValues = gridFilter.GetFilterPreference( UserPreferenceKeyBase.GridFilter_AnniversaryDateRange );
                                     }
 
                                     filterFieldsContainer.Controls.Add( drpAnniversaryDateFilter );
@@ -636,7 +686,7 @@ namespace Rock.Web.UI
                                     // by not calling SetValue otherwise it will select 12th grade.
                                     if ( setValues )
                                     {
-                                        var groupPlacementsGradeUserPreference = gridFilter.GetUserPreference( UserPreferenceKeyBase.GridFilter_Grade ).AsIntegerOrNull();
+                                        var groupPlacementsGradeUserPreference = gridFilter.GetFilterPreference( UserPreferenceKeyBase.GridFilter_Grade ).AsIntegerOrNull();
                                         if ( groupPlacementsGradeUserPreference != null )
                                         {
                                             gpGradeFilter.SetValue( groupPlacementsGradeUserPreference );
@@ -665,7 +715,7 @@ namespace Rock.Web.UI
 
                                     if ( setValues )
                                     {
-                                        ddlGenderFilter.SetValue( gridFilter.GetUserPreference( UserPreferenceKeyBase.GridFilter_Gender ) );
+                                        ddlGenderFilter.SetValue( gridFilter.GetFilterPreference( UserPreferenceKeyBase.GridFilter_Gender ) );
                                     }
 
                                     filterFieldsContainer.Controls.Add( ddlGenderFilter );
@@ -690,7 +740,7 @@ namespace Rock.Web.UI
 
                                     if ( setValues )
                                     {
-                                        dvpMaritalStatusFilter.SetValue( gridFilter.GetUserPreference( UserPreferenceKeyBase.GridFilter_MaritalStatus ) );
+                                        dvpMaritalStatusFilter.SetValue( gridFilter.GetFilterPreference( UserPreferenceKeyBase.GridFilter_MaritalStatus ) );
                                     }
 
                                     filterFieldsContainer.Controls.Add( dvpMaritalStatusFilter );
@@ -699,7 +749,7 @@ namespace Rock.Web.UI
 
                                     var maritalStatusField = new RockBoundField();
                                     maritalStatusField.DataField = dataFieldExpression;
-                                    maritalStatusField.HeaderText = "MaritalStatus";
+                                    maritalStatusField.HeaderText = "Marital Status";
                                     maritalStatusField.SortExpression = dataFieldExpression;
                                     grid.Columns.Add( maritalStatusField );
                                 }
@@ -715,7 +765,7 @@ namespace Rock.Web.UI
 
                                     if ( setValues )
                                     {
-                                        dvpConnectionStatusFilter.SetValue( gridFilter.GetUserPreference( UserPreferenceKeyBase.GridFilter_ConnectionStatus ) );
+                                        dvpConnectionStatusFilter.SetValue( gridFilter.GetFilterPreference( UserPreferenceKeyBase.GridFilter_ConnectionStatus ) );
                                     }
 
                                     filterFieldsContainer.Controls.Add( dvpConnectionStatusFilter );
@@ -724,7 +774,7 @@ namespace Rock.Web.UI
 
                                     var connectionStatusField = new RockBoundField();
                                     connectionStatusField.DataField = dataFieldExpression;
-                                    connectionStatusField.HeaderText = "ConnectionStatus";
+                                    connectionStatusField.HeaderText = "Connection Status";
                                     connectionStatusField.SortExpression = dataFieldExpression;
                                     grid.Columns.Add( connectionStatusField );
                                 }
@@ -742,13 +792,13 @@ namespace Rock.Web.UI
 
                                     if ( setValues )
                                     {
-                                        tbMobilePhoneFilter.Text = gridFilter.GetUserPreference( UserPreferenceKeyBase.GridFilter_CellPhone );
+                                        tbMobilePhoneFilter.Text = gridFilter.GetFilterPreference( UserPreferenceKeyBase.GridFilter_CellPhone );
                                     }
 
                                     filterFieldsContainer.Controls.Add( tbMobilePhoneFilter );
 
                                     var phoneNumbersField = new RockLiteralField();
-                                    phoneNumbersField.ID = "lMobile";
+                                    phoneNumbersField.ID = MOBILE_PHONE_GRID_COLUMN_ID;
                                     phoneNumbersField.HeaderText = mobileLabel;
                                     grid.Columns.Add( phoneNumbersField );
                                 }
@@ -766,13 +816,13 @@ namespace Rock.Web.UI
 
                                     if ( setValues )
                                     {
-                                        tbHomePhoneFilter.Text = gridFilter.GetUserPreference( UserPreferenceKeyBase.GridFilter_HomePhone );
+                                        tbHomePhoneFilter.Text = gridFilter.GetFilterPreference( UserPreferenceKeyBase.GridFilter_HomePhone );
                                     }
 
                                     filterFieldsContainer.Controls.Add( tbHomePhoneFilter );
 
                                     var homePhoneNumbersField = new RockLiteralField();
-                                    homePhoneNumbersField.ID = "lHomePhone";
+                                    homePhoneNumbersField.ID = HOME_PHONE_GRID_COLUMN_ID;
                                     homePhoneNumbersField.HeaderText = homePhoneLabel;
                                     grid.Columns.Add( homePhoneNumbersField );
                                 }
@@ -790,13 +840,13 @@ namespace Rock.Web.UI
 
                                     if ( setValues )
                                     {
-                                        tbWorkPhoneFilter.Text = gridFilter.GetUserPreference( UserPreferenceKeyBase.GridFilter_WorkPhone );
+                                        tbWorkPhoneFilter.Text = gridFilter.GetFilterPreference( UserPreferenceKeyBase.GridFilter_WorkPhone );
                                     }
 
                                     filterFieldsContainer.Controls.Add( tbWorkPhoneFilter );
 
                                     var workPhoneNumbersField = new RockLiteralField();
-                                    workPhoneNumbersField.ID = "lWorkPhone";
+                                    workPhoneNumbersField.ID = WORK_PHONE_GRID_COLUMN_ID;
                                     workPhoneNumbersField.HeaderText = workLabel;
                                     grid.Columns.Add( workPhoneNumbersField );
                                 }
@@ -814,8 +864,64 @@ namespace Rock.Web.UI
                                         addressField.ExcelExportBehavior = ExcelExportBehavior.NeverInclude;
                                     }
 
-                                    addressField.ID = "lGroupPlacementsAddress";
+                                    addressField.ID = ADDRESS_GRID_COLUMN_ID;
                                     grid.Columns.Add( addressField );
+                                }
+
+                                break;
+
+                            case RegistrationPersonFieldType.Race:
+                                {
+                                    var dvpRaceFilter = new RacePicker
+                                    {
+                                        ID = FILTER_RACE_ID,
+                                        Label = Rock.Web.SystemSettings.GetValue( Rock.SystemKey.SystemSetting.PERSON_RACE_LABEL )
+                                    };
+
+                                    if ( setValues )
+                                    {
+                                        dvpRaceFilter.SetValue( gridFilter.GetFilterPreference( UserPreferenceKeyBase.GridFilter_Race ) );
+                                    }
+
+                                    filterFieldsContainer.Controls.Add( dvpRaceFilter );
+
+                                    dataFieldExpression = "PersonAlias.Person.RaceValue.Value";
+
+                                    var raceField = new RockLiteralField
+                                    {
+                                        ID = "lRace",
+                                        HeaderText = "Race",
+                                        SortExpression = dataFieldExpression
+                                    };
+                                    grid.Columns.Add( raceField );
+                                }
+
+                                break;
+
+                            case RegistrationPersonFieldType.Ethnicity:
+                                {
+                                    var dvpEthnicityFilter = new EthnicityPicker
+                                    {
+                                        ID = FILTER_ETHNICITY_ID,
+                                        Label = Rock.Web.SystemSettings.GetValue( Rock.SystemKey.SystemSetting.PERSON_ETHNICITY_LABEL )
+                                    };
+
+                                    if ( setValues )
+                                    {
+                                        dvpEthnicityFilter.SetValue( gridFilter.GetFilterPreference( UserPreferenceKeyBase.GridFilter_Ethnicity ) );
+                                    }
+
+                                    filterFieldsContainer.Controls.Add( dvpEthnicityFilter );
+
+                                    dataFieldExpression = "PersonAlias.Person.EthnicityValue.Value";
+
+                                    var ethnicityField = new RockLiteralField
+                                    {
+                                        ID = "lEthnicity",
+                                        HeaderText = "Ethnicity",
+                                        SortExpression = dataFieldExpression
+                                    };
+                                    grid.Columns.Add( ethnicityField );
                                 }
 
                                 break;
@@ -847,7 +953,7 @@ namespace Rock.Web.UI
 
                             if ( setValues )
                             {
-                                string savedValue = gridFilter.GetUserPreference( attribute.Key );
+                                string savedValue = gridFilter.GetFilterPreference( attribute.Key );
                                 if ( !string.IsNullOrWhiteSpace( savedValue ) )
                                 {
                                     try

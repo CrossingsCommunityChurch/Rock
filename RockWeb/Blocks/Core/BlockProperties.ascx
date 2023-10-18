@@ -44,10 +44,9 @@
                     </asp:Panel>
 
                     <asp:Panel ID="pnlCustomGridTab" runat="server" Visible="false">
-                        <Rock:NotificationBox ID="nbGridWarning" runat="server" Text="With great power comes great responsibility! This feature allows you to easily display additional information but be aware for large grids and complex lava that will come with a performance penalty."></Rock:NotificationBox>
                         <Rock:Toggle ID="tglEnableStickyHeader" runat="server" Label="Enable Sticky Header" OnText="Yes" OffText="No" Checked="false" Help="If set to yes, all the table headers will stay at the top of the window when scrolling." />
 
-                        <Rock:PanelWidget runat="server" Title="Custom Actions">
+                        <Rock:PanelWidget ID="pwCustomActions" runat="server" Title="Custom Actions">
                             <Rock:NotificationBox runat="server" Text="This feature requires that the grid know the entity type of the items displayed. If this information is not available, then the action buttons will not be displayed. Action buttons are also not displayed if the person does not have permission to visit the destination route or the route does not exist." />
                             <Rock:Toggle ID="tglEnableDefaultWorkflowLauncher" runat="server" Label="Enable Workflow Launcher" OnText="Yes" OffText="No" Help="If set to yes, the workflow launcher button will be enabled for the grid." />
                             <Rock:RockControlWrapper ID="rcwCustomActions" runat="server" Label="Custom Actions">
@@ -58,6 +57,9 @@
                                         <div class="row">
                                             <div class="col-md-11">
                                                 <div class="row">
+                                                    <div class="col-md-6">
+                                                        <Rock:RockTextBox ID="rtbName" runat="server" Label="Name" Help="The name of the action. This should be one or two words." />
+                                                    </div>
                                                     <div class="col-md-6">
                                                         <Rock:RockTextBox ID="rtbRoute" runat="server" Label="Route" Help="The route that the user is directed to after clicking the action button. This will be formatted using an EntitySetId in position {0}. If position {0} is not included in this value, then the EntitySetId will be included as a query parameter. Example: /CustomLaunchRoute/{0}" />
                                                     </div>
@@ -82,6 +84,7 @@
 
                         <Rock:PanelWidget ID="pwCustomGridColumns" runat="server" Title="Custom Columns">
                             <Rock:RockControlWrapper ID="rcwCustomGridColumns" runat="server" Label="Custom Columns">
+                                <Rock:NotificationBox ID="nbGridWarning" runat="server" Text="With great power comes great responsibility! This feature allows you to easily display additional information but be aware that this could cause performance issues for grids with more than a few dozen rows." CssClass="alert alert-warning"></Rock:NotificationBox>
                                 <asp:LinkButton ID="lbAddColumns" runat="server" CssClass="btn btn-default" Text="Add Column" OnClick="lbAddColumns_Click" />
                                 <asp:Repeater ID="rptCustomGridColumns" runat="server" OnItemDataBound="rptCustomGridColumns_ItemDataBound">
                                     <ItemTemplate>

@@ -16,10 +16,15 @@
 //
 using System;
 using System.Collections.Generic;
+using System.Linq;
+#if WEBFORMS
 using System.Web.UI;
-
+#endif
+using Rock.Attribute;
 using Rock.Data;
 using Rock.Model;
+using Rock.ViewModels.Utility;
+using Rock.Web.Cache;
 using Rock.Web.UI.Controls;
 
 namespace Rock.Field.Types
@@ -28,7 +33,9 @@ namespace Rock.Field.Types
     /// Field Type to select a group and role filtered by a selected group type
     /// Stored as "GroupType.Guid|Group.Guid|GroupTypeRole.Guid"
     /// </summary>
-    public class GroupAndRoleFieldType : FieldType
+    [RockPlatformSupport( Utility.RockPlatform.WebForms, Utility.RockPlatform.Obsidian )]
+    [Rock.SystemGuid.FieldTypeGuid( Rock.SystemGuid.FieldType.GROUP_AND_ROLE )]
+    public class GroupAndRoleFieldType : FieldType, IEntityReferenceFieldType
     {
         #region Configuration
 
@@ -36,6 +43,210 @@ namespace Rock.Field.Types
         /// Configuration Key for GroupAndRole Picker Label
         /// </summary>
         public static readonly string CONFIG_GROUP_AND_ROLE_PICKER_LABEL = "groupAndRolePickerLabel";
+
+        #endregion
+
+        #region Formatting
+
+        /// <inheritdoc/>
+        public override string GetTextValue( string privateValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            string formattedValue = string.Empty;
+
+            if ( !TryGetGuidValues( privateValue, out var groupTypeGuid, out var groupGuid, out var groupTypeRoleGuid ) )
+            {
+                return string.Empty;
+            }
+
+            using ( var rockContext = new RockContext() )
+            {
+                if ( groupGuid.HasValue )
+                {
+                    var group = new GroupService( rockContext ).GetNoTracking( groupGuid.Value );
+                    if ( group != null )
+                    {
+                        formattedValue = "Group: " + group.Name;
+                    }
+                }
+                else if ( groupTypeGuid.HasValue )
+                {
+                    var groupType = new GroupTypeService( rockContext ).GetNoTracking( groupTypeGuid.Value );
+                    if ( groupType != null )
+                    {
+                        formattedValue = "Group type: " + groupType.Name;
+                    }
+                }
+
+                if ( groupTypeRoleGuid.HasValue )
+                {
+                    var groupTypeRole = new GroupTypeRoleService( rockContext ).GetNoTracking( groupTypeRoleGuid.Value );
+                    if ( groupTypeRole != null )
+                    {
+                        formattedValue += string.IsNullOrEmpty( formattedValue ) ? string.Empty : ", " + "Role: " + groupTypeRole.Name;
+                    }
+                }
+            }
+
+            return formattedValue;
+        }
+
+        #endregion
+
+        #region Edit Control
+
+        /// <inheritdoc/>
+        public override string GetPublicValue( string privateValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            return GetTextValue( privateValue, privateConfigurationValues );
+        }
+
+        /// <inheritdoc/>
+        public override string GetPrivateEditValue( string publicValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            var groupRoleValue = publicValue.FromJsonOrNull<GroupAndRoleValue>();
+
+            if ( groupRoleValue != null )
+            {
+                return $"{groupRoleValue.GroupType?.Value}|{groupRoleValue.Group?.Value}|{groupRoleValue.GroupRole?.Value}";
+            }
+
+            return base.GetPrivateEditValue( publicValue, privateConfigurationValues );
+        }
+
+        /// <inheritdoc/>
+        public override string GetPublicEditValue( string privateValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            if ( !TryGetGuidValues( privateValue, out var groupTypeGuid, out var groupGuid, out var groupTypeRoleGuid ) )
+            {
+                return string.Empty;
+            }
+
+            var groupTypeRoles = new List<ListItemBag>();
+            if ( groupTypeGuid.HasValue && groupTypeRoleGuid.HasValue )
+            {
+                using ( var rockContext = new RockContext() )
+                {
+                    groupTypeRoles = new GroupTypeRoleService( rockContext ).Queryable()
+                        .Where( r =>
+                            r.GroupType.Guid == groupTypeGuid )
+                        .OrderBy( r => r.Name )
+                        .Select( r => new ListItemBag { Text = r.Name, Value = r.Guid.ToString() } )
+                        .ToList();
+                }
+            }
+
+            return new GroupAndRoleValue
+            {
+                Group = groupGuid.HasValue ? new ListItemBag() { Value = groupGuid.ToString() } : null,
+                GroupType = groupTypeGuid.HasValue ? new ListItemBag() { Value = groupTypeGuid.ToString() } : null,
+                GroupRole = groupTypeRoleGuid.HasValue ? new ListItemBag() { Value = groupTypeRoleGuid.ToString() } : null,
+                GroupTypeRoles = groupTypeRoles
+            }.ToCamelCaseJson( false, true );
+        }
+
+        #endregion
+
+        #region Methods
+
+        /// <summary>
+        /// Tries the get unique identifier values that correspond to the private value.
+        /// </summary>
+        /// <param name="privateValue">The private value.</param>
+        /// <param name="groupTypeGuid">The group type unique identifier.</param>
+        /// <param name="groupGuid">The group unique identifier.</param>
+        /// <param name="groupTypeRoleGuid">The group type role unique identifier.</param>
+        /// <returns><c>true</c> if one or more of the values was found, <c>false</c> otherwise.</returns>
+        private static bool TryGetGuidValues( string privateValue, out Guid? groupTypeGuid, out Guid? groupGuid, out Guid? groupTypeRoleGuid )
+        {
+            groupTypeGuid = null;
+            groupGuid = null;
+            groupTypeRoleGuid = null;
+
+            string[] parts = ( privateValue ?? string.Empty ).Split( new char[] { '|' }, StringSplitOptions.RemoveEmptyEntries );
+            if ( parts.Length > 0 )
+            {
+                groupTypeGuid = parts[0].AsGuidOrNull();
+                if ( parts.Length > 1 )
+                {
+                    groupGuid = parts[1].AsGuidOrNull();
+                }
+
+                if ( parts.Length > 2 )
+                {
+                    groupTypeRoleGuid = parts[2].AsGuidOrNull();
+                }
+            }
+
+            return groupTypeGuid.HasValue || groupGuid.HasValue || groupTypeRoleGuid.HasValue;
+        }
+
+        #endregion
+
+        #region IEntityReferenceFieldType
+
+        /// <inheritdoc/>
+        List<ReferencedEntity> IEntityReferenceFieldType.GetReferencedEntities( string privateValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            if ( !TryGetGuidValues( privateValue, out var groupTypeGuid, out var groupGuid, out var groupTypeRoleGuid ) )
+            {
+                return null;
+            }
+
+            var entityReferences = new List<ReferencedEntity>();
+
+            using ( var rockContext = new RockContext() )
+            {
+                if ( groupGuid.HasValue )
+                {
+                    var groupId = new GroupService( rockContext ).GetId( groupGuid.Value );
+
+                    if ( groupId.HasValue )
+                    {
+                        entityReferences.Add( new ReferencedEntity( EntityTypeCache.GetId<Group>().Value, groupId.Value ) );
+                    }
+                }
+                else if ( groupTypeGuid.HasValue )
+                {
+                    var groupType = GroupTypeCache.Get( groupTypeGuid.Value );
+
+                    if ( groupType != null )
+                    {
+                        entityReferences.Add( new ReferencedEntity( EntityTypeCache.GetId<GroupType>().Value, groupType.Id ) );
+                    }
+                }
+
+                if ( groupTypeRoleGuid.HasValue )
+                {
+                    var groupTypeRoleId = new GroupTypeRoleService( rockContext ).GetId( groupTypeRoleGuid.Value );
+
+                    if ( groupTypeRoleId.HasValue )
+                    {
+                        entityReferences.Add( new ReferencedEntity( EntityTypeCache.GetId<GroupTypeRole>().Value, groupTypeRoleId.Value ) );
+                    }
+                }
+            }
+
+            return entityReferences;
+        }
+
+        /// <inheritdoc/>
+        List<ReferencedProperty> IEntityReferenceFieldType.GetReferencedProperties( Dictionary<string, string> privateConfigurationValues )
+        {
+            // This field type references the Name properties of GroupType,
+            // GroupTypeRole and Group and should have its persisted values
+            // updated when changed.
+            return new List<ReferencedProperty>
+            {
+                new ReferencedProperty( EntityTypeCache.GetId<GroupType>().Value, nameof( GroupType.Name ) ),
+                new ReferencedProperty( EntityTypeCache.GetId<GroupTypeRole>().Value, nameof( GroupTypeRole.Name ) ),
+                new ReferencedProperty( EntityTypeCache.GetId<Group>().Value, nameof( Group.Name ) )
+            };
+        }
+
+        #endregion
+
+        #region WebForms
+#if WEBFORMS
 
         /// <summary>
         /// Returns a list of the configuration keys
@@ -97,16 +308,12 @@ namespace Rock.Field.Types
             if ( controls != null && controls.Count == 1 && configurationValues != null )
             {
                 var textBoxGroupAndRolePickerLabel = controls[0] as RockTextBox;
-                if ( textBoxGroupAndRolePickerLabel != null && configurationValues?.ContainsKey(CONFIG_GROUP_AND_ROLE_PICKER_LABEL) == true )
+                if ( textBoxGroupAndRolePickerLabel != null && configurationValues?.ContainsKey( CONFIG_GROUP_AND_ROLE_PICKER_LABEL ) == true )
                 {
                     textBoxGroupAndRolePickerLabel.Text = configurationValues[CONFIG_GROUP_AND_ROLE_PICKER_LABEL].Value;
                 }
             }
         }
-
-        #endregion
-
-        #region Formatting
 
         /// <summary>
         /// Returns the field's current value(s)
@@ -118,62 +325,10 @@ namespace Rock.Field.Types
         /// <returns></returns>
         public override string FormatValue( Control parentControl, string value, Dictionary<string, ConfigurationValue> configurationValues, bool condensed )
         {
-            string formattedValue = string.Empty;
-
-            Guid? groupTypeGuid = null;
-            Guid? groupGuid = null;
-            Guid? groupTypeRoleGuid = null;
-
-            string[] parts = ( value ?? string.Empty ).Split( new char[] { '|' }, StringSplitOptions.RemoveEmptyEntries );
-            if ( parts.Length > 0 )
-            {
-                groupTypeGuid = parts[0].AsGuidOrNull();
-                if ( parts.Length > 1 )
-                {
-                    groupGuid = parts[1].AsGuidOrNull();
-                }
-
-                if ( parts.Length > 2 )
-                {
-                    groupTypeRoleGuid = parts[2].AsGuidOrNull();
-                }
-            }
-
-            using ( var rockContext = new RockContext() )
-            {
-                if ( groupGuid.HasValue )
-                {
-                    var group = new GroupService( rockContext ).GetNoTracking( groupGuid.Value );
-                    if ( group != null )
-                    {
-                        formattedValue = "Group: " + group.Name;
-                    }
-                }
-                else if ( groupTypeGuid.HasValue )
-                {
-                    var groupType = new GroupTypeService( rockContext ).GetNoTracking( groupTypeGuid.Value );
-                    if ( groupType != null )
-                    {
-                        formattedValue = "Group type: " + groupType.Name;
-                    }
-                }
-
-                if ( groupTypeRoleGuid.HasValue )
-                {
-                    var groupTypeRole = new GroupTypeRoleService( rockContext ).GetNoTracking( groupTypeRoleGuid.Value );
-                    if ( groupTypeRole != null )
-                    {
-                        formattedValue += string.IsNullOrEmpty( formattedValue ) ? string.Empty : ", " + "Role: " + groupTypeRole.Name;
-                    }
-                }
-            }
-
-            return base.FormatValue( parentControl, formattedValue, null, condensed );
+            return !condensed
+                ? GetTextValue( value, configurationValues.ToDictionary( cv => cv.Key, cv => cv.Value.Value ) )
+                : GetCondensedTextValue( value, configurationValues.ToDictionary( cv => cv.Key, cv => cv.Value.Value ) );
         }
-
-        #endregion
-
-        #region Edit Control
 
         /// <summary>
         /// Creates the control(s) necessary for prompting user for a new value
@@ -293,6 +448,16 @@ namespace Rock.Field.Types
             }
         }
 
+
+#endif
         #endregion
+
+        private class GroupAndRoleValue
+        {
+            public ListItemBag GroupType { get; set; }
+            public ListItemBag Group { get; set; }
+            public ListItemBag GroupRole { get; set; }
+            public List<ListItemBag> GroupTypeRoles { get; set; }
+        }
     }
 }

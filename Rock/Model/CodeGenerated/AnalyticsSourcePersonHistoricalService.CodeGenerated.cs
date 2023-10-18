@@ -23,10 +23,7 @@
 using System;
 using System.Linq;
 
-using Rock.Attribute;
 using Rock.Data;
-using Rock.ViewModel;
-using Rock.Web.Cache;
 
 namespace Rock.Model
 {
@@ -154,7 +151,5 @@ namespace Rock.Model
             target.ForeignId = source.ForeignId;
 
         }
-
     }
-
 }

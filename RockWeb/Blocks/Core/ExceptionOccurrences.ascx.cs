@@ -53,6 +53,7 @@ namespace RockWeb.Blocks.Administration
 
     #endregion
 
+    [Rock.SystemGuid.BlockTypeGuid( "E3486885-FA88-4B67-88B6-472F1FE4E5E4" )]
     public partial class ExceptionOccurrences : RockBlock
     {
         #region Attribute Keys
@@ -457,7 +458,7 @@ namespace RockWeb.Blocks.Administration
 
                 if ( !string.IsNullOrWhiteSpace( keyPrefix ) )
                 {
-                    ListFilterControl.UserPreferenceKeyPrefix = OnGetUserPreferenceKeyPrefix();
+                    ListFilterControl.PreferenceKeyPrefix = OnGetUserPreferenceKeyPrefix();
                 }
 
                 BindFilter();
@@ -611,7 +612,7 @@ namespace RockWeb.Blocks.Administration
         /// </summary>
         private void ClearGridFilter()
         {
-            ListFilterControl.DeleteUserPreferences();
+            ListFilterControl.DeleteFilterPreferences();
 
             BindFilter();
         }
@@ -657,7 +658,7 @@ namespace RockWeb.Blocks.Administration
             // Overwrite the map with the settings stored in the user preferences.
             foreach ( var key in settings.Keys.ToList() )
             {
-                settings[key] = ListFilterControl.GetUserPreference( key );
+                settings[key] = ListFilterControl.GetFilterPreference( key );
             }
 
             // Apply the map to update the filter controls.
@@ -678,7 +679,7 @@ namespace RockWeb.Blocks.Administration
 
             foreach ( var kvp in settings )
             {
-                ListFilterControl.SaveUserPreference( kvp.Key, kvp.Value );
+                ListFilterControl.SetFilterPreference( kvp.Key, kvp.Value );
             }
         }
 

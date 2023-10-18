@@ -21,6 +21,7 @@ using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Web;
 
 using Goheer.EXIF;
@@ -232,6 +233,49 @@ namespace Rock.Utility
             g.Dispose();
 
             return ( Image ) b;
+        }
+
+        /// <summary>
+        /// Returns the string representation of the file size in MB, KB, or B depending on the number of bytes entered.
+        /// </summary>
+        /// <param name="bytes">The bytes.</param>
+        /// <returns>System.String.</returns>
+        public static string FileSizeSuffixFormatter(int bytes)
+        {
+            decimal d = ( decimal ) bytes;
+            if ( bytes > 1000000 )
+            {
+                return ( d / 1000000m ) + " MB";
+            }
+
+            if ( bytes > 1000 )
+            {
+                return ( d / 1000m ) + " KB";
+            }
+
+            return bytes + " B";
+        }
+
+        /// <summary>
+        /// Scrubs a filename to make sure it doesn't have any directories, invalid characters, or spaces.
+        /// </summary>
+        /// <param name="untrustedFileName">The filename.</param>
+        /// <returns>A scrubbed filename.</returns>
+        public static string ScrubFileName( string untrustedFileName )
+        {
+            // Scrub characters identified by .NET as invalid for file names.
+            string scrubbedFileName = Regex.Replace( untrustedFileName, "[" + Regex.Escape( string.Concat( Path.GetInvalidFileNameChars() ) ) + "]", string.Empty, RegexOptions.CultureInvariant );
+
+            // Get the file name (without path).
+            scrubbedFileName = Path.GetFileName( scrubbedFileName );
+
+            scrubbedFileName = scrubbedFileName.Replace( " ", "_" );
+
+            // Remove Illegal Filename Characters
+            char[] illegalChars = { '#', '(', ')', '&', '%' };
+            scrubbedFileName = string.Concat( scrubbedFileName.Split( illegalChars ) );
+
+            return scrubbedFileName;
         }
     }
 }

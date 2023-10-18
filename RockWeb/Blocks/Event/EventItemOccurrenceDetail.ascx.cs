@@ -29,6 +29,7 @@ using Rock.Constants;
 using Rock.Data;
 using Rock.Model;
 using Rock.Security;
+using Rock.Tasks;
 using Rock.Web;
 using Rock.Web.Cache;
 using Rock.Web.UI;
@@ -62,7 +63,8 @@ namespace RockWeb.Blocks.Event
         Order = 2,
         Key = AttributeKey.GroupDetailPage )]
 
-    public partial class EventItemOccurrenceDetail : RockBlock, IDetailBlock
+    [Rock.SystemGuid.BlockTypeGuid( "C18CB1DC-B2BC-4D3F-918A-A047183E4024" )]
+    public partial class EventItemOccurrenceDetail : RockBlock
     {
         #region Properties
 
@@ -131,6 +133,19 @@ namespace RockWeb.Blocks.Event
             ddlCampus.DataSource = CampusCache.All();
             ddlCampus.DataBind();
             ddlCampus.Items.Insert( 0, new ListItem( All.Text, string.Empty ) );
+
+            string deleteScript = @"
+    $('a.js-delete-event').on('click', function( e ){
+        e.preventDefault();
+        Rock.dialogs.confirm('Are you sure you want to delete this event occurrence? All of the content channels will also be deleted!', function (result) {
+            if (result) {
+                window.location = e.target.href ? e.target.href : e.target.parentElement.href;
+            }
+        });
+    });
+";
+            ScriptManager.RegisterStartupScript( btnDelete, btnDelete.GetType(), "deleteInstanceScript", deleteScript, true );
+
         }
 
         /// <summary>
@@ -524,7 +539,11 @@ namespace RockWeb.Blocks.Event
             {
                 // clone the workflow type
                 eventItemOccurrence = oldOccurrence.CloneWithoutIdentity();
-                eventItemOccurrence.Schedule = oldOccurrence.Schedule;
+                if ( oldOccurrence.Schedule != null )
+                {
+                    eventItemOccurrence.ScheduleId = null;
+                    eventItemOccurrence.Schedule = oldOccurrence.Schedule.CloneWithoutIdentity();
+                }
                 eventItemOccurrence.EventItem = oldOccurrence.EventItem;
                 eventItemOccurrence.ContactPersonAlias = oldOccurrence.ContactPersonAlias;
 
@@ -693,7 +712,13 @@ namespace RockWeb.Blocks.Event
                 }
             }
 
-            NavigateToParentPage();
+            var qryParams = new Dictionary<string, string>
+            {
+                { "EventCalendarId", PageParameter("EventCalendarId") },
+                { "EventItemId", PageParameter("EventItemId") }
+            };
+
+            NavigateToParentPage( qryParams );
         }
 
         /// <summary>
@@ -853,8 +878,27 @@ namespace RockWeb.Blocks.Event
                     return;
                 }
 
+                /*
+                     9/23/2022 - NA
+
+                     Force the eventItemOccurrence.ModifiedDateTime to be set here so that
+                     the EventItemOccurrence PreSaveChanges event is fired in order to set
+                     the NextStartDateTime which may have changed if/when the schedule is
+                     changed.
+
+                     Reason: NextStartDateTime is not updated unless PreSaveChanges is called.
+                */
+                eventItemOccurrence.ModifiedDateTime = RockDateTime.Now;
+
                 rockContext.SaveChanges();
                 eventItemOccurrence.SaveAttributeValues( rockContext );
+
+                // Update the content collection index.
+                new ProcessContentCollectionDocument.Message
+                {
+                    EntityTypeId = EntityTypeCache.GetId<EventItem>().Value,
+                    EntityId = eventItemOccurrence.EventItemId
+                }.Send();
 
                 var qryParams = new Dictionary<string, string>();
                 qryParams.Add( "EventCalendarId", PageParameter( "EventCalendarId" ) );
@@ -1170,7 +1214,9 @@ namespace RockWeb.Blocks.Event
                 {
                     foreach ( var instance in new RegistrationInstanceService( rockContext )
                         .Queryable().AsNoTracking()
-                        .Where( i => i.RegistrationTemplateId == templateId.Value )
+                        .Where( i => i.RegistrationTemplateId == templateId.Value
+                            && i.RegistrationTemplate.IsActive == true
+                            && i.IsActive == true )
                         .OrderBy( i => i.Name )
                         )
                     {
@@ -1192,7 +1238,10 @@ namespace RockWeb.Blocks.Event
 
             using ( var rockContext = new RockContext() )
             {
-                foreach ( var template in new RegistrationTemplateService( rockContext ).Queryable().AsNoTracking().OrderBy( t => t.Name ) )
+                foreach ( var template in new RegistrationTemplateService( rockContext )
+                    .Queryable().AsNoTracking()
+                    .Where( i => i.IsActive == true )
+                    .OrderBy( t => t.Name ) )
                 {
                     if ( template.IsAuthorized( Authorization.VIEW, CurrentPerson ) )
                     {
@@ -1463,6 +1512,18 @@ namespace RockWeb.Blocks.Event
 
                 args.IsValid = !existsInCurrentList && !eventMapingService.Queryable().AsNoTracking().Any( m => m.UrlSlug == urlSlug && m.Guid != groupMapId );
             }
+        }
+
+        protected void rvUrlSlug_ServerValidate( object source, ServerValidateEventArgs args )
+        {
+            var urlSlug = args.Value;
+            if ( urlSlug.IsNullOrWhiteSpace() )
+            {
+                return;
+            }
+
+            var match = System.Text.RegularExpressions.Regex.Match( urlSlug, "^[a-z0-9]+(?:-[a-z0-9]+)*$" );
+            args.IsValid = match.Success;
         }
     }
 }

@@ -1,4 +1,4 @@
-﻿// <copyright>
+// <copyright>
 // Copyright by the Spark Development Network
 //
 // Licensed under the Rock Community License (the "License");
@@ -44,6 +44,7 @@ namespace Rock.Reporting.DataSelect.Person
     [Description( "Filter people on whether they registered (registrar) or were registered (registrant) in the designated registration instance." )]
     [Export( typeof( DataFilterComponent ) )]
     [ExportMetadata( "ComponentName", "Person In Registration Instance Filter" )]
+    [Rock.SystemGuid.EntityTypeGuid( "1F51DA3B-22FE-4093-9DAA-5492B5FB17DA")]
     public class InRegistrationInstanceFilter : DataFilterComponent
     {
         #region Properties
@@ -199,7 +200,7 @@ function() {
             ddlOnWaitList.CssClass = "js-on-wait-list";
             ddlOnWaitList.ID = $"{filterControl.ID}_ddlOnWaitList";
             ddlOnWaitList.Label = "On Wait List";
-            ddlOnWaitList.Help = "Select 'Yes' to only show only people on the wait list. Select 'No' to only show people who are not on the wait list, or leave blank to ignore wait list status.";
+            ddlOnWaitList.Help = "Select 'Yes' to only show people on the wait list. Select 'No' to only show people who are not on the wait list, or leave blank to ignore wait list status.";
             ddlOnWaitList.Items.Add( new ListItem() );
             ddlOnWaitList.Items.Add( new ListItem( "Yes", "True" ) );
             ddlOnWaitList.Items.Add( new ListItem( "No", "False" ) );

@@ -14,10 +14,16 @@
 // limitations under the License.
 // </copyright>
 //
+using System;
 using System.Collections.Generic;
+using System.ComponentModel;
+using System.Reflection;
+#if WEBFORMS
 using System.Web.UI;
-
+#endif
+using Rock.Attribute;
 using Rock.Reporting;
+using Rock.ViewModels.Utility;
 using Rock.Web.UI.Controls;
 
 namespace Rock.Field.Types
@@ -25,13 +31,108 @@ namespace Rock.Field.Types
     /// <summary>
     ///
     /// </summary>
+    [RockPlatformSupport( Utility.RockPlatform.WebForms, Utility.RockPlatform.Obsidian )]
+    [Rock.SystemGuid.FieldTypeGuid( Rock.SystemGuid.FieldType.CODE_EDITOR )]
     public class CodeEditorFieldType : FieldType
     {
         #region Configuration
 
         private const string EDITOR_MODE = "editorMode";
+        private const string EDITOR_MODE_OPTIONS = "editorModeOptions";
         private const string EDITOR_THEME = "editorTheme";
+        private const string EDITOR_THEME_OPTIONS = "editorThemeOptions";
         private const string EDITOR_HEIGHT = "editorHeight";
+
+        /// <inheritdoc/>
+        public override Dictionary<string, string> GetPublicEditConfigurationProperties( Dictionary<string, string> privateConfigurationValues )
+        {
+            var configurationProperties = base.GetPublicEditConfigurationProperties( privateConfigurationValues );
+
+            // Get the Code editor options that are available
+            var codeEditorModeOptions = ToListItemBagList<CodeEditorMode>();
+            var codeEditorThemeOptions = ToListItemBagList<CodeEditorTheme>();
+
+            configurationProperties[EDITOR_MODE_OPTIONS] = codeEditorModeOptions.ToCamelCaseJson( false, true );
+            configurationProperties[EDITOR_THEME_OPTIONS] = codeEditorThemeOptions.ToCamelCaseJson( false, true );
+
+            return configurationProperties;
+        }
+
+        /// <summary>
+        /// Converts the passed enum into a Listitembaglist.
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <returns></returns>
+        private List<ListItemBag> ToListItemBagList<T>()
+            where T : Enum
+        {
+            var enumType = typeof( T );
+            var listItems = new List<ListItemBag>();
+            var names = Enum.GetNames( enumType );
+            foreach ( var name in names )
+            {
+                // ignore Obsolete Enum values
+                object value = Enum.Parse( typeof( T ), name );
+                var fieldInfo = value.GetType().GetField( name );
+                if ( fieldInfo?.GetCustomAttribute<ObsoleteAttribute>() != null )
+                {
+                    continue;
+                }
+
+                // if the Enum has a [Description] attribute, use the description text
+                var description = fieldInfo.GetCustomAttribute<DescriptionAttribute>()?.Description ?? name.SplitCase();
+                listItems.Add( new ListItemBag() { Text = description, Value = Convert.ToInt32( value ).ToString() } );
+            }
+
+            return listItems;
+        }
+
+        #endregion
+
+        #region Edit Controls
+
+        #endregion
+
+        #region Formatting
+
+        /// <inheritdoc/>
+        public override string GetHtmlValue( string privateValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            // Encode because if the user typed <span>hello</span> then we want
+            // it to display on screen as "<span>hello</span>" rather than "hello".
+            return privateValue.EncodeHtml();
+        }
+
+        /// <inheritdoc/>
+        public override string GetCondensedHtmlValue( string privateValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            // Encode because if the user typed <span>hello</span> then we want
+            // it to display on screen as "<span>hello</span>" rather than "hello".
+            return privateValue.Truncate( CondensedTruncateLength ).EncodeHtml();
+        }
+
+        #endregion
+
+        #region FilterControl
+
+        /// <summary>
+        /// /*Get*/s the type of the filter comparison.
+        /// </summary>
+        /// <value>
+        /// The type of the filter comparison.
+        /// </value>
+        public override Model.ComparisonType FilterComparisonType
+        {
+            get
+            {
+                return ComparisonHelper.StringFilterComparisonTypes;
+            }
+        }
+
+        #endregion
+
+        #region WebForms
+#if WEBFORMS
 
         /// <summary>
         /// Returns a list of the configuration keys
@@ -68,7 +169,7 @@ namespace Rock.Field.Types
             ddlTheme.AutoPostBack = true;
             ddlTheme.SelectedIndexChanged += OnQualifierUpdated;
             ddlTheme.Label = "Editor Theme";
-            ddlTheme.Help = "The styling them to use for the code editor.";
+            ddlTheme.Help = "The styling theme to use for the code editor.";
 
             var nbHeight = new NumberBox();
             controls.Add( nbHeight );
@@ -97,15 +198,15 @@ namespace Rock.Field.Types
             {
                 if ( controls[0] != null && controls[0] is RockDropDownList )
                 {
-                    configurationValues[EDITOR_MODE].Value = ( (RockDropDownList)controls[0] ).SelectedValue;
+                    configurationValues[EDITOR_MODE].Value = ( ( RockDropDownList ) controls[0] ).SelectedValue;
                 }
                 if ( controls[1] != null && controls[1] is RockDropDownList )
                 {
-                    configurationValues[EDITOR_THEME].Value = ( (RockDropDownList)controls[1] ).SelectedValue;
+                    configurationValues[EDITOR_THEME].Value = ( ( RockDropDownList ) controls[1] ).SelectedValue;
                 }
                 if ( controls[2] != null && controls[2] is NumberBox )
                 {
-                    configurationValues[EDITOR_HEIGHT].Value = ( (NumberBox)controls[2] ).Text;
+                    configurationValues[EDITOR_HEIGHT].Value = ( ( NumberBox ) controls[2] ).Text;
                 }
             }
 
@@ -123,22 +224,18 @@ namespace Rock.Field.Types
             {
                 if ( controls[0] != null && controls[0] is RockDropDownList && configurationValues.ContainsKey( EDITOR_MODE ) )
                 {
-                    ( (RockDropDownList)controls[0] ).SelectedValue = configurationValues[EDITOR_MODE].Value;
+                    ( ( RockDropDownList ) controls[0] ).SelectedValue = configurationValues[EDITOR_MODE].Value;
                 }
                 if ( controls[1] != null && controls[1] is RockDropDownList && configurationValues.ContainsKey( EDITOR_THEME ) )
                 {
-                    ( (RockDropDownList)controls[1] ).SelectedValue = configurationValues[EDITOR_THEME].Value;
+                    ( ( RockDropDownList ) controls[1] ).SelectedValue = configurationValues[EDITOR_THEME].Value;
                 }
                 if ( controls[2] != null && controls[2] is NumberBox && configurationValues.ContainsKey( EDITOR_HEIGHT ) )
                 {
-                    ( (NumberBox)controls[2] ).Text = configurationValues[EDITOR_HEIGHT].Value;
+                    ( ( NumberBox ) controls[2] ).Text = configurationValues[EDITOR_HEIGHT].Value;
                 }
             }
         }
-
-        #endregion
-
-        #region Edit Control
 
         /// <summary>
         /// Creates the control(s) necessary for prompting user for a new value
@@ -173,10 +270,6 @@ namespace Rock.Field.Types
             return editor;
         }
 
-        #endregion
-
-        #region Formatting
-
         /// <summary>
         /// Formats the value as HTML.
         /// </summary>
@@ -209,24 +302,6 @@ namespace Rock.Field.Types
             return System.Web.HttpUtility.HtmlEncode( FormatValue( parentControl, entityTypeId, entityId, value, configurationValues, condensed ) );
         }
 
-        #endregion
-
-        #region FilterControl
-
-        /// <summary>
-        /// /*Get*/s the type of the filter comparison.
-        /// </summary>
-        /// <value>
-        /// The type of the filter comparison.
-        /// </value>
-        public override Model.ComparisonType FilterComparisonType
-        {
-            get
-            {
-                return ComparisonHelper.StringFilterComparisonTypes;
-            }
-        }
-
         /// <summary>
         /// Gets the filter value control.
         /// </summary>
@@ -243,6 +318,7 @@ namespace Rock.Field.Types
             return tbValue;
         }
 
+#endif
         #endregion
     }
 }

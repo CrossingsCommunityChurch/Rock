@@ -28,6 +28,8 @@ using Rock.Communication;
 using Rock.Data;
 using Rock.Mobile;
 using Rock.Model;
+using Rock.Security;
+using Rock.Utility.Enums;
 using Rock.Web.Cache;
 
 namespace Rock.Blocks.Types.Mobile.Security
@@ -35,12 +37,13 @@ namespace Rock.Blocks.Types.Mobile.Security
     /// <summary>
     /// Provides an interface for the user to safely identify themselves and create a login.
     /// </summary>
-    /// <seealso cref="Rock.Blocks.RockMobileBlockType" />
+    /// <seealso cref="Rock.Blocks.RockBlockType" />
 
     [DisplayName( "Onboard Person" )]
     [Category( "Mobile > Security" )]
     [Description( "Provides an interface for the user to safely identify themselves and create a login." )]
     [IconCssClass( "fa fa-plane-departure" )]
+    [SupportedSiteTypes( Model.SiteType.Mobile )]
 
     #region Block Attributes
 
@@ -109,6 +112,7 @@ namespace Rock.Blocks.Types.Mobile.Security
         DefinedTypeGuid = SystemGuid.DefinedType.CAMPUS_TYPE,
         IsRequired = true,
         DefaultValue = SystemGuid.DefinedValue.CAMPUS_TYPE_PHYSICAL,
+        AllowMultiple = true,
         Category = AttributeCategories.Campus,
         Key = AttributeKeys.DisplayCampusTypes,
         Order = 0 )]
@@ -118,6 +122,7 @@ namespace Rock.Blocks.Types.Mobile.Security
         DefinedTypeGuid = SystemGuid.DefinedType.CAMPUS_STATUS,
         IsRequired = true,
         DefaultValue = SystemGuid.DefinedValue.CAMPUS_STATUS_OPEN,
+        AllowMultiple = true,
         Category = AttributeCategories.Campus,
         Key = AttributeKeys.DisplayCampusStatuses,
         Order = 1 )]
@@ -152,7 +157,7 @@ namespace Rock.Blocks.Types.Mobile.Security
         Order = 0 )]
 
     [LinkedPage( "Login Page",
-        Description = "The page that will be used if allowing login by existing account credentials.",
+        Description = "The page to use when allowing log in by existing account credentials.",
         IsRequired = false,
         Category = AttributeCategories.Pages,
         Key = AttributeKeys.LoginPage,
@@ -221,7 +226,7 @@ namespace Rock.Blocks.Types.Mobile.Security
     [TextField( "Personal Information Screen Subtitle",
         Description = "The text to display at the top of the Personal Information screen underneath the title. <span class='tip tip-lava'></span>",
         IsRequired = true,
-        DefaultValue = "The more we know the more we can taylor our ministry to you.",
+        DefaultValue = "The more we know the more we can tailor our ministry to you.",
         Category = AttributeCategories.Titles,
         Key = AttributeKeys.PersonalInformationScreenSubtitle,
         Order = 7 )]
@@ -407,7 +412,9 @@ namespace Rock.Blocks.Types.Mobile.Security
 
     #endregion
 
-    public class OnboardPerson : RockMobileBlockType
+    [Rock.SystemGuid.EntityTypeGuid( Rock.SystemGuid.EntityType.MOBILE_SECURITY_ONBOARD_PERSON )]
+    [Rock.SystemGuid.BlockTypeGuid( "9544EE9E-07C2-4F14-9C93-3B16EBF0CC47")]
+    public class OnboardPerson : RockBlockType
     {
         #region Block Attributes
 
@@ -440,7 +447,7 @@ namespace Rock.Blocks.Types.Mobile.Security
         /// <summary>
         /// The block setting attribute keys for the <see cref="OnboardPerson"/> block.
         /// </summary>
-        public static class AttributeKeys
+        private static class AttributeKeys
         {
             /// <summary>
             /// The allow skip of on-boarding key.
@@ -723,6 +730,12 @@ namespace Rock.Blocks.Types.Mobile.Security
         public int ValidationCodeAttempts => GetAttributeValue( AttributeKeys.ValidationCodeAttempts ).AsInteger();
 
         /// <summary>
+        /// Gets the protection profiles that will be used to prevent matching.
+        /// </summary>
+        /// <value>The protection profiles that will be used to prevent matching.</value>
+        public List<AccountProtectionProfile> DisableMatchingProtectionProfiles => new SecuritySettingsService().SecuritySettings.DisablePasswordlessSignInForAccountProtectionProfiles;
+
+        /// <summary>
         /// Gets the display campus type guids.
         /// </summary>
         /// <value>
@@ -817,6 +830,14 @@ namespace Rock.Blocks.Types.Mobile.Security
         ///   <c>true</c> if the email field should be hidden if value is known; otherwise, <c>false</c>.
         /// </value>
         public bool HideEmailIfKnown => GetAttributeValue( AttributeKeys.HideEmailIfKnown ).AsBoolean();
+
+        /// <summary>
+        /// Gets a value indicating whether the notification screen should be shown.
+        /// </summary>
+        /// <value>
+        ///   <c>true</c> if the notification screen should be shown; otherwise, <c>false</c>.
+        /// </value>
+        public bool ShowNotificationsRequest => GetAttributeValue( AttributeKeys.ShowNotificationsRequest ).AsBoolean();
 
         /// <summary>
         /// Gets a value indicating whether the campus field should be hidden if value is known.
@@ -998,21 +1019,8 @@ namespace Rock.Blocks.Types.Mobile.Security
 
         #region IRockMobileBlockType Implementation
 
-        /// <summary>
-        /// Gets the required mobile application binary interface version required to render this block.
-        /// </summary>
-        /// <value>
-        /// The required mobile application binary interface version required to render this block.
-        /// </value>
-        public override int RequiredMobileAbiVersion => 2;
-
-        /// <summary>
-        /// Gets the class name of the mobile block to use during rendering on the device.
-        /// </summary>
-        /// <value>
-        /// The class name of the mobile block to use during rendering on the device
-        /// </value>
-        public override string MobileBlockType => "Rock.Mobile.Blocks.Security.OnboardPerson";
+        /// <inheritdoc/>
+        public override Version RequiredMobileVersion => new Version( 1, 2 );
 
         /// <summary>
         /// Gets the property values that will be sent to the device in the application bundle.
@@ -1029,7 +1037,7 @@ namespace Rock.Blocks.Types.Mobile.Security
                 return new Rock.Common.Mobile.Blocks.Security.OnboardPerson.Configuration
                 {
                     CanAuthenticateByEmail = MediumContainer.HasActiveEmailTransport() && systemCommunication != null,
-                    CanAuthenticateBySms = MediumContainer.HasActiveSmsTransport() && systemCommunication?.SMSFromDefinedValueId != null,
+                    CanAuthenticateBySms = MediumContainer.HasActiveSmsTransport() && systemCommunication?.SmsFromSystemPhoneNumberId != null,
                     AllowSkipOfOnboarding = AllowSkipOfOnboarding,
                     CompletedPageGuid = CompletedPageGuid ?? Guid.Empty,
                     LoginPageGuid = LoginPageGuid,
@@ -1042,7 +1050,7 @@ namespace Rock.Blocks.Types.Mobile.Security
                     BirthDateVisibility = BirthDateVisibility,
                     HideBirthDateIfKnown = HideBirthDateIfKnown,
                     Interests = GetInterests( rockContext ),
-                    RequestNotificationPermission = true,
+                    RequestNotificationPermission = ShowNotificationsRequest,
                     Campuses = GetDisplayCampuses( rockContext ),
                     OnlineCampusGuid = OnlineCampusGuid,
                     DoNotAttendCampusGuid = DoNotAttendCampusGuid,
@@ -1289,7 +1297,7 @@ namespace Rock.Blocks.Types.Mobile.Security
                 Email = details.Email,
                 Gender = ToWeb( details.Gender ) ?? Rock.Model.Gender.Unknown,
                 IsEmailActive = true,
-                EmailPreference = EmailPreference.EmailAllowed,
+                EmailPreference = Rock.Model.EmailPreference.EmailAllowed,
                 RecordTypeValueId = DefinedValueCache.Get( Rock.SystemGuid.DefinedValue.PERSON_RECORD_TYPE_PERSON.AsGuid() ).Id,
                 ConnectionStatusValueId = dvcConnectionStatus?.Id,
                 RecordStatusValueId = dvcRecordStatus?.Id
@@ -1393,7 +1401,7 @@ namespace Rock.Blocks.Types.Mobile.Security
             person.Email = details.Email;
 
             var familyGroup = person.GetFamily( rockContext );
-            if ( familyGroup != null )
+            if ( familyGroup != null && details.CampusGuid.HasValue )
             {
                 familyGroup.CampusId = CampusCache.Get( details.CampusGuid.Value ).Id;
             }
@@ -1473,7 +1481,7 @@ namespace Rock.Blocks.Types.Mobile.Security
                     }
 
                     groupMember.GroupMemberStatus = GroupMemberStatus.Active;
-                    groupMember.CommunicationPreference = CommunicationType.RecipientPreference;
+                    groupMember.CommunicationPreference = Model.CommunicationType.RecipientPreference;
 
                     if ( groupMember.IsValidGroupMember( rockContext ) )
                     {
@@ -1625,6 +1633,16 @@ namespace Rock.Blocks.Types.Mobile.Security
                     return ActionBadRequest( "Missing required information to send code." );
                 }
 
+                // If we have a matching person, check if it is a protected
+                // profile account that must not be used.
+                if ( person != null )
+                {
+                    if ( DisableMatchingProtectionProfiles.Contains( person.AccountProtectionProfile ) )
+                    {
+                        return ActionBadRequest( "It appears you have an account in our system that has security access which requires you to log in with a username and password." );
+                    }
+                }
+
                 // Generate the identify verification code that the user will need to enter.
                 var identityVerification = identityVerificationService.CreateIdentityVerificationRecord( RequestContext.ClientInformation.IpAddress, IPThrottleLimit, refNumber );
                 bool success = false;
@@ -1642,11 +1660,7 @@ namespace Rock.Blocks.Types.Mobile.Security
                 // on in the event of an error.
                 if ( !success )
                 {
-                    return ActionOk( new SendCodeResponse
-                    {
-                        IsSuccess = false,
-                        Message = "Unable to send code."
-                    } );
+                    return ActionInternalServerError( "Unable to send code." );
                 }
 
                 // Create our encrypted state to track where we are in the process.
@@ -1725,12 +1739,12 @@ namespace Rock.Blocks.Types.Mobile.Security
         }
 
         /// <summary>
-        /// Attempts to perform final login of the person.
+        /// Attempts to perform final log in of the person.
         /// </summary>
         /// <param name="state">The custom state data that was sent to the client.</param>
         /// <param name="personalDeviceGuid">The personal device unique identifier that the client has been assigned.</param>
         /// <param name="details">The details that the individual filled out.</param>
-        /// <returns>A <see cref="CreatePersonResponse"/> that contains the login result or an error object.</returns>
+        /// <returns>A <see cref="CreatePersonResponse"/> that contains the log in result or an error object.</returns>
         /// <remarks>This can be removed once all mobile apps are on shell v3 or later.</remarks>
         [RockObsolete( "1.13" )]
         [Obsolete]
@@ -1748,10 +1762,10 @@ namespace Rock.Blocks.Types.Mobile.Security
         }
 
         /// <summary>
-        /// Attempts to perform final login of the person.
+        /// Attempts to perform final log in of the person.
         /// </summary>
         /// <param name="request">The details of the request.</param>
-        /// <returns>A <see cref="CreatePersonResponse"/> that contains the login result or an error object.</returns>
+        /// <returns>A <see cref="CreatePersonResponse"/> that contains the log in result or an error object.</returns>
         [BlockAction]
         public BlockActionResult CreatePerson( CreatePersonRequest request )
         {
@@ -1836,6 +1850,16 @@ namespace Rock.Blocks.Types.Mobile.Security
                         {
                             CreateUser( person, request.Details.UserName, request.Details.Password, true, rockContext );
                         }
+                        else if ( username == null )
+                        {
+                            // No existing username, no manually created username.
+                            // We need to generate a user so that we can properly
+                            // log them in.
+                            var newPassword = Password.GeneratePassword();
+                            username = Rock.Security.Authentication.Database.GenerateUsername( person.NickName, person.LastName );
+
+                            CreateUser( person, username, newPassword, true, rockContext );
+                        }
 
                         if ( request.Details.Interests.Any() )
                         {
@@ -1851,7 +1875,11 @@ namespace Rock.Blocks.Types.Mobile.Security
                             if ( personalDevice != null )
                             {
                                 personalDevice.PersonAliasId = person.PrimaryAliasId;
-                                personalDevice.DeviceRegistrationId = request.Details.PushToken;
+                                if ( ShowNotificationsRequest )
+                                {
+                                    personalDevice.DeviceRegistrationId = request.Details.PushToken;
+                                    personalDevice.NotificationsEnabled = request.Details.PushToken.IsNotNullOrWhiteSpace();
+                                }
 
                                 rockContext.SaveChanges();
                             }
@@ -1860,16 +1888,9 @@ namespace Rock.Blocks.Types.Mobile.Security
 
                     var mobilePerson = MobileHelper.GetMobilePerson( person, siteCache );
 
-                    // Set the authentication token to either a normal token or
-                    // an impersonated token if we don't have a normal user name.
-                    if ( username.IsNotNullOrWhiteSpace() )
-                    {
-                        mobilePerson.AuthToken = MobileHelper.GetAuthenticationToken( username );
-                    }
-                    else
-                    {
-                        mobilePerson.AuthToken = MobileHelper.GetAuthenticationToken( person.GetImpersonationParameter() );
-                    }
+                    // Set the authentication token to either a normal token so
+                    // they can log in.
+                    mobilePerson.AuthToken = MobileHelper.GetAuthenticationToken( username );
 
                     return ActionOk( new CreatePersonResponse
                     {
@@ -1877,8 +1898,10 @@ namespace Rock.Blocks.Types.Mobile.Security
                         Person = mobilePerson
                     } );
                 }
-                catch
+                catch ( Exception ex )
                 {
+                    ExceptionLogService.LogException( ex );
+
                     return ActionOk( new CreatePersonResponse
                     {
                         IsSuccess = false,
@@ -1905,6 +1928,12 @@ namespace Rock.Blocks.Types.Mobile.Security
             using ( var rockContext = new RockContext() )
             {
                 var person = new PersonService( rockContext ).Get( RequestContext.CurrentPerson.Id );
+                var username = RequestContext.CurrentUser.UserName;
+
+                if ( username == null )
+                {
+                    username = person.Users.FirstOrDefault( a => ( a.IsConfirmed ?? true ) && !( a.IsLockedOut ?? false ) )?.UserName;
+                }
 
                 rockContext.WrapTransaction( () =>
                 {
@@ -1933,8 +1962,22 @@ namespace Rock.Blocks.Types.Mobile.Security
                         if ( personalDevice != null )
                         {
                             personalDevice.PersonAliasId = person.PrimaryAliasId;
-                            personalDevice.DeviceRegistrationId = details.PushToken;
+                            if ( ShowNotificationsRequest )
+                            {
+                                personalDevice.DeviceRegistrationId = details.PushToken;
+                                personalDevice.NotificationsEnabled = details.PushToken.IsNotNullOrWhiteSpace();
+                            }
                         }
+                    }
+
+                    if ( username == null )
+                    {
+                        // No existing username. We need to generate a user
+                        // so that we can properly log them in.
+                        var newPassword = Password.GeneratePassword();
+                        username = Rock.Security.Authentication.Database.GenerateUsername( person.NickName, person.LastName );
+
+                        CreateUser( person, username, newPassword, true, rockContext );
                     }
 
                     rockContext.SaveChanges();
@@ -1942,16 +1985,8 @@ namespace Rock.Blocks.Types.Mobile.Security
 
                 var mobilePerson = MobileHelper.GetMobilePerson( person, PageCache.Layout.Site );
 
-                // Set the authentication token to either a normal token or
-                // an impersonated token if we don't have a normal user name.
-                if ( RequestContext.CurrentUser.Id != 0 )
-                {
-                    mobilePerson.AuthToken = MobileHelper.GetAuthenticationToken( RequestContext.CurrentUser.UserName );
-                }
-                else
-                {
-                    mobilePerson.AuthToken = MobileHelper.GetAuthenticationToken( person.GetImpersonationParameter() );
-                }
+                // Set the authentication token so they get/stay logged in.
+                mobilePerson.AuthToken = MobileHelper.GetAuthenticationToken( username );
 
                 return ActionOk( new
                 {

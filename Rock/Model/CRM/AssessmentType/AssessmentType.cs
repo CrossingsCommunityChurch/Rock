@@ -1,4 +1,4 @@
-﻿// <copyright>
+// <copyright>
 // Copyright by the Spark Development Network
 //
 // Licensed under the Rock Community License (the "License");
@@ -33,6 +33,7 @@ namespace Rock.Model
     [RockDomain( "CRM" )]
     [Table( "AssessmentType" )]
     [DataContract]
+    [Rock.SystemGuid.EntityTypeGuid( "D17A28AC-F529-4AB0-A790-C21F9E74AC89")]
     public partial class AssessmentType : Model<AssessmentType>, IHasActiveFlag, ICacheable
     {
         #region Entity Properties
@@ -54,7 +55,7 @@ namespace Rock.Model
         /// <value>
         /// A <see cref="System.String"/> for the Description.
         /// </value>
-        [MaxLength( 100 )]
+        [DataMember]
         public string Description { get; set; }
 
         /// <summary>

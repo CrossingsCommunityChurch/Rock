@@ -72,6 +72,7 @@ namespace RockWeb.Blocks.Communication
 
     #endregion Block Attributes
 
+    [Rock.SystemGuid.BlockTypeGuid( Rock.SystemGuid.BlockType.COMMUNICATION_DETAIL )]
     public partial class CommunicationDetail : RockBlock
     {
         #region Attribute Keys
@@ -222,6 +223,7 @@ namespace RockWeb.Blocks.Communication
         {
             base.OnInit( e );
 
+            RockPage.AddCSSLink( "~/Styles/Blocks/Communication/CommunicationDetail.css", true );
             InitializeAnalyticsPanelControls();
 
             InitializeInteractionsList();
@@ -361,11 +363,13 @@ namespace RockWeb.Blocks.Communication
         {
             // Save Recipients List column selection.
             var settings = new RecipientListPreferences();
+            var preferences = GetBlockPersonPreferences();
 
             settings.SelectedProperties = cblProperties.SelectedValues;
             settings.SelectedAttributes = lbAttributes.SelectedValues;
 
-            this.SetBlockUserPreference( UserPreferenceKey.RecipientListSettings, settings.ToJson(), true );
+            preferences.SetValue( UserPreferenceKey.RecipientListSettings, settings.ToJson() );
+            preferences.Save();
         }
 
         /// <summary>
@@ -374,7 +378,8 @@ namespace RockWeb.Blocks.Communication
         private void LoadRecipientListPreferences()
         {
             // Load Recipients List column selection.
-            var settings = this.GetBlockUserPreference( UserPreferenceKey.RecipientListSettings ).FromJsonOrNull<RecipientListPreferences>();
+            var preferences = GetBlockPersonPreferences();
+            var settings = preferences.GetValue( UserPreferenceKey.RecipientListSettings ).FromJsonOrNull<RecipientListPreferences>();
 
             if ( settings == null )
             {
@@ -730,7 +735,7 @@ namespace RockWeb.Blocks.Communication
                     BCCEmails = communication.BCCEmails,
                     Message = "{% raw %}" + communication.Message + "{% endraw %}",
                     MessageMetaData = communication.MessageMetaData,
-                    SMSFromDefinedValueId = communication.SMSFromDefinedValueId,
+                    SmsFromSystemPhoneNumberId = communication.SmsFromSystemPhoneNumberId,
                     SMSMessage = communication.SMSMessage,
                     PushTitle = communication.PushTitle,
                     PushMessage = communication.PushMessage,
@@ -788,7 +793,7 @@ namespace RockWeb.Blocks.Communication
         #region Interactions Grid Events
 
         /// <summary>
-        /// Handles the GridRebind event of the Interactions grid controls.
+        /// Handles the GridRebind event of the gInteractions grid controls.
         /// </summary>
         /// <param name="sender">The source of the event.</param>
         /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
@@ -908,7 +913,7 @@ namespace RockWeb.Blocks.Communication
         private bool _GridIsCommunication = false;
 
         /// <summary>
-        /// Handles the GridRebind event of the Recipient grid controls.
+        /// Handles the GridRebind event of the gRecipients grid controls.
         /// </summary>
         /// <param name="sender">The source of the event.</param>
         /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
@@ -991,7 +996,7 @@ namespace RockWeb.Blocks.Communication
         /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
         private void rFilter_ClearFilterClick( object sender, EventArgs e )
         {
-            rFilter.DeleteUserPreferences();
+            rFilter.DeleteFilterPreferences();
 
             BindRecipientsFilter();
 
@@ -1024,7 +1029,7 @@ namespace RockWeb.Blocks.Communication
             // Overwrite the map with the settings stored in the user preferences.
             foreach ( var key in settings.Keys.ToList() )
             {
-                settings[key] = rFilter.GetUserPreference( key );
+                settings[key] = rFilter.GetFilterPreference( key );
             }
 
             // Apply the map to update the filter controls.
@@ -1045,7 +1050,7 @@ namespace RockWeb.Blocks.Communication
 
             foreach ( var kvp in settings )
             {
-                rFilter.SaveUserPreference( kvp.Key, kvp.Value );
+                rFilter.SetFilterPreference( kvp.Key, kvp.Value );
             }
         }
 
@@ -1966,7 +1971,7 @@ namespace RockWeb.Blocks.Communication
                     sb.Append( "<div class='row'><div class='col-md-12'><ul>" );
                     foreach ( var binaryFile in emailAttachments.Select( a => a.BinaryFile ).ToList() )
                     {
-                        sb.AppendFormat( "<li><a target='_blank' href='{0}GetFile.ashx?id={1}'>{2}</a></li>",
+                        sb.AppendFormat( "<li><a target='_blank' rel='noopener noreferrer' href='{0}GetFile.ashx?id={1}'>{2}</a></li>",
                             System.Web.VirtualPathUtility.ToAbsolute( "~" ), binaryFile.Id, binaryFile.FileName );
                     }
                     sb.Append( "</ul></div></div>" );
@@ -2003,9 +2008,9 @@ namespace RockWeb.Blocks.Communication
                     sb.AppendLine( "<div id='smsTabContent' class='tab-pane h-100'><div class='row'>" );
                 }
 
-                if ( communication.SMSFromDefinedValue != null )
+                if ( communication.SmsFromSystemPhoneNumber != null )
                 {
-                    AppendStaticControlMediumData( sb, "From", string.Format( "{0} ({1})", communication.SMSFromDefinedValue.Description, communication.SMSFromDefinedValue.Value ), "col-xs-12" );
+                    AppendStaticControlMediumData( sb, "From", string.Format( "{0} ({1})", communication.SmsFromSystemPhoneNumber.Name, communication.SmsFromSystemPhoneNumber.Number), "col-xs-12" );
                 }
 
                 AppendStaticControlMediumData( sb, "Message", communication.SMSMessage, "col-xs-12" );

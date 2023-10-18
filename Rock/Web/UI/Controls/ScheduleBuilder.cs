@@ -24,9 +24,10 @@ using System.Web.UI;
 using System.Web.UI.WebControls;
 
 using Ical.Net;
-using Ical.Net.Serialization.iCalendar.Serializers;
 using Ical.Net.DataTypes;
 using Calendar = Ical.Net.Calendar;
+using Ical.Net.CalendarComponents;
+using Ical.Net.Serialization;
 
 namespace Rock.Web.UI.Controls
 {
@@ -745,7 +746,7 @@ END:VCALENDAR
                 }
             }
 
-            var calendarEvent = new Event();
+            var calendarEvent = new CalendarEvent();
             calendarEvent.DtStart = new CalDateTime( _dpStartDateTime.SelectedDateTime.Value );
             calendarEvent.DtStamp = new CalDateTime( _hfCalendarEventDTStamp.Value.AsDateTime() ?? RockDateTime.Now );
             calendarEvent.Uid = _hfCalendarEventUid.Value;
@@ -995,9 +996,9 @@ END:VCALENDAR
                 _radDailyEveryXDays.Checked = true;
                 _tbDailyEveryXDays.Text = "1";
 
-                StringReader stringReader = new StringReader( string.IsNullOrWhiteSpace( value ) ? iCalendarContentEmptyEvent : value );
-                var calendarList = Calendar.LoadFromStream( stringReader );
-                Event calendarEvent = null;
+                var stringReader = new StringReader( string.IsNullOrWhiteSpace( value ) ? iCalendarContentEmptyEvent : value );
+                var calendarList = CalendarCollection.Load( stringReader );
+                CalendarEvent calendarEvent = null;
                 Calendar calendar = null;
                 if ( calendarList.Count > 0 )
                 {
@@ -1007,10 +1008,10 @@ END:VCALENDAR
                 // just in case we couldn't get a schedule out of it, load the default
                 if ( calendar == null )
                 {
-                    calendarList = Calendar.LoadFromStream( new StringReader( iCalendarContentEmptyEvent ) );
+                    calendarList = CalendarCollection.Load( new StringReader( iCalendarContentEmptyEvent ) );
                     if ( calendarList.Count > 0 )
                     {
-                        calendar = calendarList[0] as Calendar;
+                        calendar = calendarList[0];
                     }
                 }
 
@@ -1020,7 +1021,7 @@ END:VCALENDAR
                     return;
                 }
 
-                calendarEvent = calendar.Events[0] as Event;
+                calendarEvent = calendar.Events[0];
 
                 _hfCalendarEventDTStamp.Value = calendarEvent.DtStamp?.AsSystemLocal.ToISO8601DateString();
                 _hfCalendarEventUid.Value = calendarEvent.Uid.ToString();
@@ -1605,7 +1606,7 @@ END:VCALENDAR
             _dpSpecificDate.AddCssClass( "specific-date" );
             _dpSpecificDate.RenderControl( writer );
             writer.Write( @"
-                <div class='actions'>
+                <div class='control-actions'>
                     <a class='btn btn-primary btn-xs add-specific-date-ok'>
                         <span>OK</span>
                     </a>
@@ -1636,7 +1637,7 @@ END:VCALENDAR
             writer.RenderBeginTag( HtmlTextWriterTag.Div );
             _radDailyEveryXDays.Text = "Every";
             _radDailyEveryXDays.RenderControl( writer );
-            _tbDailyEveryXDays.AddCssClass( "margin-l-sm" );
+
             _tbDailyEveryXDays.RenderControl( writer );
             writer.RenderEndTag();
 
@@ -1709,7 +1710,7 @@ END:VCALENDAR
             writer.RenderBeginTag( HtmlTextWriterTag.Div );
             _radMonthlyDayX.Text = "Day";
             _radMonthlyDayX.RenderControl( writer );
-            _tbMonthlyDayX.AddCssClass( "margin-l-sm" );
+
             _tbMonthlyDayX.RenderControl( writer );
             writer.Write( "<span> of every </span>" );
             _tbMonthlyXMonths.RenderControl( writer );
@@ -1724,11 +1725,10 @@ END:VCALENDAR
 
             writer.AddAttribute( "class", "input-group input-width-xl" );
             writer.RenderBeginTag( HtmlTextWriterTag.Div );
-            _lbMonthlyNth.AddCssClass( "margin-l-sm" );
+
             _lbMonthlyNth.RenderControl( writer );
             writer.RenderEndTag();
 
-            writer.Write( "<span> </span>" );
             _ddlMonthlyDayName.RenderControl( writer );
             writer.RenderEndTag();
 
@@ -1764,7 +1764,7 @@ END:VCALENDAR
             writer.RenderBeginTag( HtmlTextWriterTag.Div );
             _radEndByDate.Text = "End by ";
             _radEndByDate.RenderControl( writer );
-            _dpEndBy.AddCssClass( "margin-l-sm" );
+
             _dpEndBy.RenderControl( writer );
             writer.RenderEndTag();
 
@@ -1772,7 +1772,7 @@ END:VCALENDAR
             writer.RenderBeginTag( HtmlTextWriterTag.Div );
             _radEndByOccurrenceCount.Text = "End after ";
             _radEndByOccurrenceCount.RenderControl( writer );
-            _tbEndByOccurrenceCount.AddCssClass( "margin-l-sm" );
+
             _tbEndByOccurrenceCount.RenderControl( writer );
             writer.Write( "<span> occurrences</span>" );
             writer.RenderEndTag();
@@ -1816,8 +1816,8 @@ END:VCALENDAR
             writer.RenderBeginTag( HtmlTextWriterTag.Div );
             _dpExclusionDateRange.RenderControl( writer );
             writer.Write( @"
-                <div class='actions'>
-                    <a class='btn btn-primary btn-xs add-exclusion-daterange-ok'>
+                <div class='control-actions'>
+                    <a class='btn btn-primary btn-xs add-exclusion-daterange-ok ml-3'>
                         <span>OK</span>
                     </a>
                     <a class='btn btn-link btn-xs add-exclusion-daterange-cancel'>

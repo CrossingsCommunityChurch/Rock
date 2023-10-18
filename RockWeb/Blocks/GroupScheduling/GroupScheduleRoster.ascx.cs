@@ -69,6 +69,7 @@ namespace RockWeb.Blocks.GroupScheduling
         Order = 2 )]
 
     #endregion Block Attributes
+    [Rock.SystemGuid.BlockTypeGuid( "730F5D9E-A411-48F2-BBDF-51146C510817" )]
     public partial class GroupScheduleRoster : RockBlock
     {
         private static class AttributeDefault
@@ -144,7 +145,8 @@ namespace RockWeb.Blocks.GroupScheduling
                 UpdateConfigurationFromUrl();
                 UpdateLiveRefreshConfiguration( this.GetAttributeValue( AttributeKey.EnableLiveRefresh ).AsBoolean() );
 
-                RosterConfiguration rosterConfiguration = this.GetBlockUserPreference( UserPreferenceKey.RosterConfigurationJSON )
+                var preferences = GetBlockPersonPreferences();
+                RosterConfiguration rosterConfiguration = preferences.GetValue( UserPreferenceKey.RosterConfigurationJSON )
                 .FromJsonOrNull<RosterConfiguration>() ?? new RosterConfiguration();
 
                 if ( !rosterConfiguration.IsConfigured() )
@@ -210,7 +212,8 @@ namespace RockWeb.Blocks.GroupScheduling
   If PageParameters are used, we use the same behavior as the various Analytics blocks  which is
     - Set UserPrefs from URL when first loaded, then Edit/Use/Save UserPrefs like usual
 */
-            RosterConfiguration rosterConfiguration = this.GetBlockUserPreference( UserPreferenceKey.RosterConfigurationJSON )
+            var preferences = GetBlockPersonPreferences();
+            RosterConfiguration rosterConfiguration = preferences.GetValue( UserPreferenceKey.RosterConfigurationJSON )
                 .FromJsonOrNull<RosterConfiguration>() ?? new RosterConfiguration();
 
             if ( this.PageParameter( PageParameterKey.GroupIds ).IsNotNullOrWhiteSpace() )
@@ -236,8 +239,20 @@ namespace RockWeb.Blocks.GroupScheduling
                 rosterConfiguration.ScheduleIds = this.PageParameter( PageParameterKey.ScheduleIds ).Split( ',' ).AsIntegerList().ToArray();
             }
 
+            if ( this.PageParameter( PageParameterKey.OccurrenceDate ).IsNotNullOrWhiteSpace() )
+            {
+                var occurrenceDate = this.PageParameter( PageParameterKey.OccurrenceDate ).AsDateTime();
+                dpOccurrenceDate.Enabled = !occurrenceDate.HasValue;
+                if ( occurrenceDate.HasValue )
+                {
+                    // if ScheduleIds is a page parameter, use that as the ScheduleIds
+                    rosterConfiguration.OccurrenceDate = occurrenceDate;
+                }
+            }
+
             // just in case URL updated any configuration, save it back to user preferences
-            this.SetBlockUserPreference( UserPreferenceKey.RosterConfigurationJSON, rosterConfiguration.ToJson() );
+            preferences.SetValue( UserPreferenceKey.RosterConfigurationJSON, rosterConfiguration.ToJson() );
+            preferences.Save();
         }
 
         #endregion
@@ -276,7 +291,8 @@ namespace RockWeb.Blocks.GroupScheduling
         /// </summary>
         private void PopulateRoster( ViewStateMode viewStateMode = ViewStateMode.Disabled )
         {
-            RosterConfiguration rosterConfiguration = this.GetBlockUserPreference( UserPreferenceKey.RosterConfigurationJSON )
+            var preferences = GetBlockPersonPreferences();
+            RosterConfiguration rosterConfiguration = preferences.GetValue( UserPreferenceKey.RosterConfigurationJSON )
                 .FromJsonOrNull<RosterConfiguration>() ?? new RosterConfiguration();
 
             if ( !rosterConfiguration.IsConfigured() )
@@ -310,7 +326,7 @@ namespace RockWeb.Blocks.GroupScheduling
             var attendanceOccurrenceService = new AttendanceOccurrenceService( rockContext );
 
             // An OccurrenceDate probably won't be included in the URL, but just in case
-            DateTime? occurrenceDate = this.PageParameter( PageParameterKey.OccurrenceDate ).AsDateTime();
+            DateTime? occurrenceDate = rosterConfiguration.OccurrenceDate;
             if ( !occurrenceDate.HasValue )
             {
                 occurrenceDate = RockDateTime.Today;
@@ -350,6 +366,7 @@ namespace RockWeb.Blocks.GroupScheduling
                         ScheduledAttendanceItemStatus = Attendance.GetScheduledAttendanceItemStatus( a.RSVP, a.ScheduledToAttend ),
                         Person = a.PersonAlias.Person,
                         GroupMember = a.Occurrence.Group.Members.FirstOrDefault( gm => gm.PersonId == a.PersonAlias.PersonId ),
+                        GroupMembers = a.Occurrence.Group.Members.Where( gm => gm.PersonId == a.PersonAlias.PersonId ).ToList(),
                         CurrentlyCheckedIn = a.DidAttend == true
                     } )
                     .ToList() );
@@ -436,7 +453,8 @@ namespace RockWeb.Blocks.GroupScheduling
             // don't do the live refresh when the configuration dialog is showing
             UpdateLiveRefreshConfiguration( false );
 
-            RosterConfiguration rosterConfiguration = this.GetBlockUserPreference( UserPreferenceKey.RosterConfigurationJSON )
+            var preferences = GetBlockPersonPreferences();
+            RosterConfiguration rosterConfiguration = preferences.GetValue( UserPreferenceKey.RosterConfigurationJSON )
                             .FromJsonOrNull<RosterConfiguration>();
 
             if ( rosterConfiguration == null )
@@ -453,7 +471,7 @@ namespace RockWeb.Blocks.GroupScheduling
 
             UpdateLocationListFromSelectedSchedules();
             cblLocations.SetValues( rosterConfiguration.LocationIds ?? new int[0] );
-
+            dpOccurrenceDate.SelectedDate = rosterConfiguration.OccurrenceDate;
             cbDisplayRole.Checked = rosterConfiguration.DisplayRole;
 
             mdRosterConfiguration.Show();
@@ -628,7 +646,8 @@ namespace RockWeb.Blocks.GroupScheduling
         /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
         protected void mdRosterConfiguration_SaveClick( object sender, EventArgs e )
         {
-            RosterConfiguration rosterConfiguration = this.GetBlockUserPreference( UserPreferenceKey.RosterConfigurationJSON )
+            var preferences = GetBlockPersonPreferences();
+            RosterConfiguration rosterConfiguration = preferences.GetValue( UserPreferenceKey.RosterConfigurationJSON )
                 .FromJsonOrNull<RosterConfiguration>();
 
             if ( rosterConfiguration == null )
@@ -641,8 +660,11 @@ namespace RockWeb.Blocks.GroupScheduling
             rosterConfiguration.LocationIds = cblLocations.SelectedValuesAsInt.ToArray();
             rosterConfiguration.ScheduleIds = lbSchedules.SelectedValuesAsInt.ToArray();
             rosterConfiguration.DisplayRole = cbDisplayRole.Checked;
+            rosterConfiguration.OccurrenceDate = dpOccurrenceDate.SelectedDate;
 
-            this.SetBlockUserPreference( UserPreferenceKey.RosterConfigurationJSON, rosterConfiguration.ToJson() );
+            preferences.SetValue( UserPreferenceKey.RosterConfigurationJSON, rosterConfiguration.ToJson() );
+            preferences.Save();
+
             mdRosterConfiguration.Hide();
 
             UpdateLiveRefreshConfiguration( this.GetAttributeValue( AttributeKey.EnableLiveRefresh ).AsBoolean() );
@@ -696,6 +718,8 @@ namespace RockWeb.Blocks.GroupScheduling
 
             public bool DisplayRole { get; set; }
 
+            public DateTime? OccurrenceDate { get; set; }
+
             public bool IsConfigured()
             {
                 return PickedGroupIds != null && LocationIds != null && ScheduleIds != null;
@@ -709,6 +733,8 @@ namespace RockWeb.Blocks.GroupScheduling
             public Person Person { get; set; }
 
             public GroupMember GroupMember { get; set; }
+
+            public List<GroupMember> GroupMembers { get; set; }
 
             public bool CurrentlyCheckedIn { get; set; }
         }

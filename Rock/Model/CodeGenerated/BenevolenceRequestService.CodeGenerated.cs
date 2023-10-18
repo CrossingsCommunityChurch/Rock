@@ -23,10 +23,7 @@
 using System;
 using System.Linq;
 
-using Rock.Attribute;
 using Rock.Data;
-using Rock.ViewModel;
-using Rock.Web.Cache;
 
 namespace Rock.Model
 {
@@ -57,60 +54,6 @@ namespace Rock.Model
             return true;
         }
     }
-
-    /// <summary>
-    /// BenevolenceRequest View Model Helper
-    /// </summary>
-    [DefaultViewModelHelper( typeof( BenevolenceRequest ) )]
-    public partial class BenevolenceRequestViewModelHelper : ViewModelHelper<BenevolenceRequest, Rock.ViewModel.BenevolenceRequestViewModel>
-    {
-        /// <summary>
-        /// Converts the model to a view model.
-        /// </summary>
-        /// <param name="model">The entity.</param>
-        /// <param name="currentPerson">The current person.</param>
-        /// <param name="loadAttributes">if set to <c>true</c> [load attributes].</param>
-        /// <returns></returns>
-        public override Rock.ViewModel.BenevolenceRequestViewModel CreateViewModel( BenevolenceRequest model, Person currentPerson = null, bool loadAttributes = true )
-        {
-            if ( model == null )
-            {
-                return default;
-            }
-
-            var viewModel = new Rock.ViewModel.BenevolenceRequestViewModel
-            {
-                Id = model.Id,
-                Guid = model.Guid,
-                CampusId = model.CampusId,
-                CaseWorkerPersonAliasId = model.CaseWorkerPersonAliasId,
-                CellPhoneNumber = model.CellPhoneNumber,
-                ConnectionStatusValueId = model.ConnectionStatusValueId,
-                Email = model.Email,
-                FirstName = model.FirstName,
-                GovernmentId = model.GovernmentId,
-                HomePhoneNumber = model.HomePhoneNumber,
-                LastName = model.LastName,
-                LocationId = model.LocationId,
-                ProvidedNextSteps = model.ProvidedNextSteps,
-                RequestDateTime = model.RequestDateTime,
-                RequestedByPersonAliasId = model.RequestedByPersonAliasId,
-                RequestStatusValueId = model.RequestStatusValueId,
-                RequestText = model.RequestText,
-                ResultSummary = model.ResultSummary,
-                WorkPhoneNumber = model.WorkPhoneNumber,
-                CreatedDateTime = model.CreatedDateTime,
-                ModifiedDateTime = model.ModifiedDateTime,
-                CreatedByPersonAliasId = model.CreatedByPersonAliasId,
-                ModifiedByPersonAliasId = model.ModifiedByPersonAliasId,
-            };
-
-            AddAttributesToViewModel( model, viewModel, currentPerson, loadAttributes );
-            ApplyAdditionalPropertiesAndSecurityToViewModel( model, viewModel, currentPerson, loadAttributes );
-            return viewModel;
-        }
-    }
-
 
     /// <summary>
     /// Generated Extension Methods
@@ -168,6 +111,7 @@ namespace Rock.Model
         public static void CopyPropertiesFrom( this BenevolenceRequest target, BenevolenceRequest source )
         {
             target.Id = source.Id;
+            target.BenevolenceTypeId = source.BenevolenceTypeId;
             target.CampusId = source.CampusId;
             target.CaseWorkerPersonAliasId = source.CaseWorkerPersonAliasId;
             target.CellPhoneNumber = source.CellPhoneNumber;
@@ -195,20 +139,5 @@ namespace Rock.Model
             target.ForeignId = source.ForeignId;
 
         }
-
-        /// <summary>
-        /// Creates a view model from this entity
-        /// </summary>
-        /// <param name="model">The entity.</param>
-        /// <param name="currentPerson" >The currentPerson.</param>
-        /// <param name="loadAttributes" >Load attributes?</param>
-        public static Rock.ViewModel.BenevolenceRequestViewModel ToViewModel( this BenevolenceRequest model, Person currentPerson = null, bool loadAttributes = false )
-        {
-            var helper = new BenevolenceRequestViewModelHelper();
-            var viewModel = helper.CreateViewModel( model, currentPerson, loadAttributes );
-            return viewModel;
-        }
-
     }
-
 }

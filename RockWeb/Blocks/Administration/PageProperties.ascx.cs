@@ -28,6 +28,7 @@ using Rock.Data;
 using Rock.Model;
 using Rock.Security;
 using Rock.Services.NuGet;
+using Rock.Tasks;
 using Rock.Utility;
 using Rock.Web;
 using Rock.Web.Cache;
@@ -43,20 +44,24 @@ namespace RockWeb.Blocks.Administration
     [Category( "Administration" )]
     [Description( "Displays the page properties." )]
 
+    #region Block Attributes
     [BooleanField(
-        name: "Enable Full Edit Mode",
-        description: "Have the block initially show a readonly summary view, in a panel, with Edit and Delete buttons. Also include Save and Cancel buttons.",
-        defaultValue: false,
-        order: 1,
-        key: AttributeKey.EnableFullEditMode )]
+        "Enable Full Edit Mode",
+        Key = AttributeKey.EnableFullEditMode,
+        Description = "Have the block initially show a readonly summary view, in a panel, with Edit and Delete buttons. Also include Save and Cancel buttons.",
+        DefaultBooleanValue = false,
+        Order = 1 )]
 
     [LinkedPage(
-        name: "Median Time to Serve Detail Page",
-        description: "The page that shows details about about the median time to serve was calculated.",
-        defaultValue: Rock.SystemGuid.Page.PAGE_VIEWS,
-        order: 2,
-        key: AttributeKey.MedianTimeDetailPage )]
+        "Median Time to Serve Detail Page",
+        Key = AttributeKey.MedianTimeDetailPage,
+        Description = "The page that shows details about the median time to serve was calculated.",
+        DefaultValue = Rock.SystemGuid.Page.PAGE_VIEWS,
+        Order = 2 )]
 
+    #endregion Block Attributes
+
+    [Rock.SystemGuid.BlockTypeGuid( "C7988C3E-822D-4E73-882E-9B7684398BAA" )]
     public partial class PageProperties : RockBlock
     {
         #region Keys
@@ -94,8 +99,6 @@ namespace RockWeb.Blocks.Administration
 
         #region Fields
 
-        //// Import/Export hidden until we have time to get it working again.
-        //// private readonly List<string> _tabs = new List<string> { "Basic Settings", "Display Settings", "Advanced Settings", "Import/Export"} ;
         private readonly List<string> _tabs = new List<string> { "Basic Settings", "Display Settings", "Advanced Settings" };
 
         #endregion
@@ -160,28 +163,22 @@ namespace RockWeb.Blocks.Administration
                     var blockContexts = new List<BlockContextsInfo>();
                     foreach ( var block in pageCache.Blocks )
                     {
-                        try
+                        foreach ( var context in block.ContextTypesRequired )
                         {
-                            var blockControl = TemplateControl.LoadControl( block.BlockType.Path ) as RockBlock;
-                            if ( blockControl != null )
+                            var blockContextsInfo = blockContexts.FirstOrDefault( t => t.EntityTypeName == context.Name );
+                            if ( blockContextsInfo == null )
                             {
-                                blockControl.SetBlock( pageCache, block );
-                                foreach ( var context in blockControl.ContextTypesRequired )
+                                blockContextsInfo = new BlockContextsInfo
                                 {
-                                    var blockContextsInfo = blockContexts.FirstOrDefault( t => t.EntityTypeName == context.Name );
-                                    if ( blockContextsInfo == null )
-                                    {
-                                        blockContextsInfo = new BlockContextsInfo { EntityTypeName = context.Name, EntityTypeFriendlyName = context.FriendlyName, BlockList = new List<BlockCache>() };
-                                        blockContexts.Add( blockContextsInfo );
-                                    }
+                                    EntityTypeName = context.Name,
+                                    EntityTypeFriendlyName = context.FriendlyName,
+                                    BlockList = new List<BlockCache>()
+                                };
 
-                                    blockContextsInfo.BlockList.Add( block );
-                                }
+                                blockContexts.Add( blockContextsInfo );
                             }
-                        }
-                        catch
-                        {
-                            // if the blocktype can't compile, just ignore it since we are just trying to find out if it had a blockContext
+
+                            blockContextsInfo.BlockList.Add( block );
                         }
                     }
 
@@ -563,6 +560,10 @@ namespace RockWeb.Blocks.Administration
             cbIncludeAdminFooter.Checked = page.IncludeAdminFooter;
             cbAllowIndexing.Checked = page.AllowIndexing;
 
+            cbEnableRateLimiting.Checked = page.IsRateLimited;
+            nbRateLimitPeriod.IntegerValue = page.RateLimitPeriod;
+            nbRequestPerPeriod.IntegerValue = page.RateLimitRequestPerPeriod;
+
             if ( page.CacheControlHeaderSettings != null )
             {
                 cpCacheSettings.CurrentCacheability = JsonConvert.DeserializeObject<RockCacheability>( page.CacheControlHeaderSettings );
@@ -771,6 +772,17 @@ namespace RockWeb.Blocks.Administration
 
             page.CacheControlHeaderSettings = cpCacheSettings.CurrentCacheability.ToJson();
 
+            if ( cbEnableRateLimiting.Checked )
+            {
+                page.RateLimitPeriod = nbRateLimitPeriod.IntegerValue;
+                page.RateLimitRequestPerPeriod = nbRequestPerPeriod.IntegerValue;
+            }
+            else
+            {
+                page.RateLimitPeriod = null;
+                page.RateLimitRequestPerPeriod = null;
+            }
+
             page.Description = tbDescription.Text;
             page.HeaderContent = ceHeaderContent.Text;
 
@@ -830,85 +842,6 @@ namespace RockWeb.Blocks.Administration
                 ScriptManager.RegisterStartupScript( this.Page, this.GetType(), "close-modal", script, true );
 
                 hfPageId.Value = page.Id.ToString();
-            }
-        }
-
-        /// <summary>
-        /// Handles the Click event of the lbExport control.
-        /// </summary>
-        /// <param name="sender">The source of the event.</param>
-        /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
-        protected void lbExport_Click( object sender, EventArgs e )
-        {
-            int? pageId = hfPageId.Value.AsIntegerOrNull();
-            if ( pageId.HasValue )
-            {
-                var pageService = new PageService( new RockContext() );
-                var page = pageService.Get( pageId.Value );
-                var packageService = new PackageService();
-                var pageName = page.InternalName.Replace( " ", "_" ) + ( cbExportChildren.Checked ? "_wChildPages" : string.Empty );
-                using ( var stream = packageService.ExportPage( page, cbExportChildren.Checked ) )
-                {
-                    EnableViewState = false;
-                    Response.Clear();
-                    Response.ContentType = "application/octet-stream";
-                    Response.AddHeader( "content-disposition", "attachment; filename=" + pageName + ".nupkg" );
-                    Response.Charset = string.Empty;
-                    Response.BinaryWrite( stream.ToArray() );
-                    Response.Flush();
-                    Response.End();
-                }
-            }
-        }
-
-        /// <summary>
-        /// Handles the Click event of the lbImport control.
-        /// </summary>
-        /// <param name="sender">The source of the event.</param>
-        /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
-        protected void lbImport_Click( object sender, EventArgs e )
-        {
-            int? pageId = hfPageId.Value.AsIntegerOrNull();
-            var page = PageCache.Get( pageId ?? 0 );
-            if ( page != null )
-            {
-                var extension = fuImport.FileName.Substring( fuImport.FileName.LastIndexOf( '.' ) );
-
-                if ( fuImport.PostedFile == null && extension != ".nupkg" )
-                {
-                    var errors = new List<string> { "Please attach an export file when trying to import a package." };
-                    rptImportErrors.DataSource = errors;
-                    rptImportErrors.DataBind();
-                    rptImportErrors.Visible = true;
-                    pnlImportSuccess.Visible = false;
-                    return;
-                }
-
-                var packageService = new PackageService();
-                bool importResult;
-
-                importResult = packageService.ImportPage( fuImport.FileBytes, fuImport.FileName, page.Id, page.Layout.SiteId );
-
-                if ( !importResult )
-                {
-                    rptImportErrors.DataSource = packageService.ErrorMessages;
-                    rptImportErrors.DataBind();
-                    rptImportErrors.Visible = true;
-                    pnlImportSuccess.Visible = false;
-                }
-                else
-                {
-                    pnlImportSuccess.Visible = true;
-                    rptImportWarnings.Visible = false;
-                    rptImportErrors.Visible = false;
-
-                    if ( packageService.WarningMessages.Count > 0 )
-                    {
-                        rptImportErrors.DataSource = packageService.WarningMessages;
-                        rptImportErrors.DataBind();
-                        rptImportWarnings.Visible = true;
-                    }
-                }
             }
         }
 
@@ -1034,28 +967,24 @@ namespace RockWeb.Blocks.Administration
                 pnlBasicProperty.Visible = true;
                 pnlDisplaySettings.Visible = false;
                 pnlAdvancedSettings.Visible = false;
-                pnlImportExport.Visible = false;
             }
             else if ( CurrentTab.Equals( "Display Settings" ) )
             {
                 pnlBasicProperty.Visible = false;
                 pnlDisplaySettings.Visible = true;
                 pnlAdvancedSettings.Visible = false;
-                pnlImportExport.Visible = false;
             }
             else if ( CurrentTab.Equals( "Advanced Settings" ) )
             {
                 pnlBasicProperty.Visible = false;
                 pnlDisplaySettings.Visible = false;
                 pnlAdvancedSettings.Visible = true;
-                pnlImportExport.Visible = false;
             }
             else if ( CurrentTab.Equals( "Import/Export" ) )
             {
                 pnlBasicProperty.Visible = false;
                 pnlDisplaySettings.Visible = false;
                 pnlAdvancedSettings.Visible = false;
-                pnlImportExport.Visible = true;
             }
         }
 
@@ -1132,9 +1061,13 @@ namespace RockWeb.Blocks.Administration
 
                 if ( cbDeleteInteractions.Checked )
                 {
-                    var interactionComponentService = new InteractionComponentService( rockContext );
-                    var componentQuery = interactionComponentService.QueryByPage( page );
-                    interactionComponentService.DeleteRange( componentQuery );
+                    var deleteInteractionsMsg = new DeleteInteractions.Message
+                    {
+                        PageId = page.Id,
+                        SiteId = page.SiteId
+                    };
+
+                    deleteInteractionsMsg.Send();
                 }
 
                 rockContext.SaveChanges();

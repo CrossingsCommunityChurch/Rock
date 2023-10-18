@@ -35,6 +35,9 @@ namespace Rock.Client
         public int AttendanceOccurrenceGroupId { get; set; }
 
         /// <summary />
+        public Int32[] AttendanceOccurrenceLocationIds { get; set; }
+
+        /// <summary />
         // Made Obsolete in Rock "1.12"
         [Obsolete( "Use AttendanceOccurrenceScheduleIds instead", false )]
         public int AttendanceOccurrenceScheduleId { get; set; }
@@ -55,10 +58,19 @@ namespace Rock.Client
         public List<int> ResourceAdditionalPersonIds { get; set; }
 
         /// <summary />
+        public Guid? ResourceDataViewGuid { get; set; }
+
+        /// <summary />
         public int? ResourceDataViewId { get; set; }
 
         /// <summary />
+        public Guid? ResourceGroupGuid { get; set; }
+
+        /// <summary />
         public int? ResourceGroupId { get; set; }
+
+        /// <summary />
+        public Rock.Client.Enums.GroupSchedulerResourceListSourceType? ResourceListSourceType { get; set; }
 
         /// <summary>
         /// Copies the base properties from a source SchedulerResourceParameters object
@@ -67,6 +79,7 @@ namespace Rock.Client
         public void CopyPropertiesFrom( SchedulerResourceParameters source )
         {
             this.AttendanceOccurrenceGroupId = source.AttendanceOccurrenceGroupId;
+            this.AttendanceOccurrenceLocationIds = source.AttendanceOccurrenceLocationIds;
             #pragma warning disable 612, 618
             this.AttendanceOccurrenceScheduleId = source.AttendanceOccurrenceScheduleId;
             #pragma warning restore 612, 618
@@ -75,8 +88,11 @@ namespace Rock.Client
             this.GroupMemberFilterType = source.GroupMemberFilterType;
             this.LimitToPersonId = source.LimitToPersonId;
             this.ResourceAdditionalPersonIds = source.ResourceAdditionalPersonIds;
+            this.ResourceDataViewGuid = source.ResourceDataViewGuid;
             this.ResourceDataViewId = source.ResourceDataViewId;
+            this.ResourceGroupGuid = source.ResourceGroupGuid;
             this.ResourceGroupId = source.ResourceGroupId;
+            this.ResourceListSourceType = source.ResourceListSourceType;
 
         }
     }

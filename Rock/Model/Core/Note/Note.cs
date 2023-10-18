@@ -32,6 +32,7 @@ namespace Rock.Model
     [RockDomain( "Core" )]
     [Table( "Note" )]
     [DataContract]
+    [Rock.SystemGuid.EntityTypeGuid( Rock.SystemGuid.EntityType.NOTE )]
     public partial class Note : Model<Note>
     {
         #region Entity Properties
@@ -119,6 +120,8 @@ namespace Rock.Model
         /// The approval status.
         /// </value>
         [DataMember]
+        [Obsolete( "This property is no longer used and will be removed in the future." )]
+        [RockObsolete( "1.16" )]
         public NoteApprovalStatus ApprovalStatus { get; set; }
 
         /// <summary>
@@ -129,6 +132,8 @@ namespace Rock.Model
         /// performed on this add.
         /// </value>
         [DataMember]
+        [Obsolete( "This property is no longer used and will be removed in the future." )]
+        [RockObsolete( "1.16" )]
         public int? ApprovedByPersonAliasId { get; set; }
 
         /// <summary>
@@ -138,6 +143,8 @@ namespace Rock.Model
         /// The approved date.
         /// </value>
         [DataMember]
+        [Obsolete( "This property is no longer used and will be removed in the future." )]
+        [RockObsolete( "1.16" )]
         public DateTime? ApprovedDateTime { get; set; }
 
         /// <summary>
@@ -156,6 +163,8 @@ namespace Rock.Model
         ///   <c>true</c> if [approvals sent]; otherwise, <c>false</c>.
         /// </value>
         [DataMember]
+        [Obsolete( "This property is no longer used and will be removed in the future." )]
+        [RockObsolete( "1.16" )]
         public bool ApprovalsSent { get; set; }
 
         /// <summary>
@@ -235,7 +244,7 @@ namespace Rock.Model
         [DataMember]
         public virtual ICollection<NoteAttachment> Attachments { get; set; } = new Collection<NoteAttachment>();
 
-        #endregion Navigation Properties
+        #endregion
     }
 
     #region Entity Configuration

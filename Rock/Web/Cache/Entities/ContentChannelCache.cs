@@ -18,7 +18,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.Serialization;
-
+using Rock.Cms;
 using Rock.Data;
 using Rock.Model;
 using Rock.Security;
@@ -164,6 +164,15 @@ namespace Rock.Web.Cache
         public bool IsIndexEnabled { get; private set; }
 
         /// <summary>
+        /// Gets or sets a value indicating whether [enable personalization].
+        /// </summary>
+        /// <value>
+        ///   <c>true</c> if [enable personalization]; otherwise, <c>false</c>.
+        /// </value>
+        [DataMember]
+        public bool EnablePersonalization { get; private set; }
+
+        /// <summary>
         /// Gets or sets the category ids.
         /// </summary>
         /// <value>
@@ -184,7 +193,7 @@ namespace Rock.Web.Cache
             {
                 var supportedActions = base.SupportedActions;
                 supportedActions.AddOrReplace( Authorization.APPROVE, "The roles and/or users that have access to approve channel items." );
-                supportedActions.AddOrReplace( Authorization.INTERACT, "The roles and/or users that have access to intertact with the channel item." );
+                supportedActions.AddOrReplace( Authorization.INTERACT, "The roles and/or users that have access to interact with the channel item." );
                 return supportedActions;
             }
         }
@@ -323,6 +332,34 @@ namespace Rock.Web.Cache
         /// </value>
         public ContentChannelTypeCache ContentChannelType => ContentChannelTypeCache.Get( ContentChannelTypeId );
 
+        /// <summary>
+        /// Gets the content library configuration json.
+        /// </summary>
+        /// <value>
+        /// The content library configuration json.
+        /// </value>
+        [DataMember]
+        public string ContentLibraryConfigurationJson
+        {
+            get
+            {
+                return ContentLibraryConfiguration?.ToJson();
+            }
+
+            set
+            {
+                ContentLibraryConfiguration = value.FromJsonOrNull<ContentLibraryConfiguration>() ?? new ContentLibraryConfiguration();
+            }
+        }
+
+        /// <summary>
+        /// Gets the content library configuration.
+        /// </summary>
+        /// <value>
+        /// The content library configuration.
+        /// </value>
+        public ContentLibraryConfiguration ContentLibraryConfiguration { get; set; }
+
         #endregion
 
         #region Public Methods
@@ -352,7 +389,9 @@ namespace Rock.Web.Cache
             ContentControlType = contentChannel.ContentControlType;
             RootImageDirectory = contentChannel.RootImageDirectory;
             IsIndexEnabled = contentChannel.IsIndexEnabled;
+            EnablePersonalization = contentChannel.EnablePersonalization;
             CategoryIds = contentChannel.Categories.Select( c => c.Id ).ToList();
+            ContentLibraryConfigurationJson = contentChannel.ContentLibraryConfigurationJson;
         }
 
         /// <summary>

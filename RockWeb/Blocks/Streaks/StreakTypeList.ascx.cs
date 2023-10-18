@@ -44,6 +44,7 @@ namespace RockWeb.Blocks.Streaks
 
     #endregion Block Attributes
 
+    [Rock.SystemGuid.BlockTypeGuid( "DDE31844-B024-472E-9B21-E094DFC40CAB" )]
     public partial class StreakTypeList : RockBlock
     {
         #region Keys
@@ -177,7 +178,7 @@ namespace RockWeb.Blocks.Streaks
         /// <param name="e">The <see cref="EventArgs" /> instance containing the event data.</param>
         protected void rFilter_ApplyFilterClick( object sender, EventArgs e )
         {
-            rFilter.SaveUserPreference( UserPreferenceKey.Active, ddlActiveFilter.SelectedValue );
+            rFilter.SetFilterPreference( UserPreferenceKey.Active, ddlActiveFilter.SelectedValue );
             BindGrid();
         }
 
@@ -188,7 +189,7 @@ namespace RockWeb.Blocks.Streaks
         /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
         protected void rFilter_ClearFilterClick( object sender, EventArgs e )
         {
-            rFilter.DeleteUserPreferences();
+            rFilter.DeleteFilterPreferences();
             BindFilter();
         }
 
@@ -284,7 +285,7 @@ namespace RockWeb.Blocks.Streaks
         /// </summary>
         private void BindFilter()
         {
-            ddlActiveFilter.SetValue( rFilter.GetUserPreference( UserPreferenceKey.Active ) );
+            ddlActiveFilter.SetValue( rFilter.GetFilterPreference( UserPreferenceKey.Active ) );
         }
 
         /// <summary>
@@ -297,7 +298,7 @@ namespace RockWeb.Blocks.Streaks
             var streakTypeQuery = GetStreakTypeService().Queryable().AsNoTracking();
 
             // Filter by: Active
-            var activeFilter = rFilter.GetUserPreference( UserPreferenceKey.Active ).ToLower();
+            var activeFilter = rFilter.GetFilterPreference( UserPreferenceKey.Active ).ToLower();
 
             switch ( activeFilter )
             {

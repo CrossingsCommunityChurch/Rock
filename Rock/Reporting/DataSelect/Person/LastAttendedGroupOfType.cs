@@ -1,4 +1,4 @@
-﻿// <copyright>
+// <copyright>
 // Copyright by the Spark Development Network
 //
 // Licensed under the Rock Community License (the "License");
@@ -35,6 +35,7 @@ namespace Rock.Reporting.DataSelect.Person
     [Description( "Show the date of the last attendance in a group of type." )]
     [Export( typeof( DataSelectComponent ) )]
     [ExportMetadata( "ComponentName", "Select last attendance date of a person in a specific type of group." )]
+    [Rock.SystemGuid.EntityTypeGuid( "F3C67ECD-5E80-4807-8F90-6AD110674ADF")]
     public class LastAttendedGroupOfType : DataSelectComponent
     {
         #region Properties
@@ -159,7 +160,7 @@ namespace Rock.Reporting.DataSelect.Person
             var groupTypePicker = new GroupTypePicker();
             groupTypePicker.ID = parentControl.ID + "_0";
             groupTypePicker.Label = "Group Type";
-            groupTypePicker.GroupTypes = new GroupTypeService( new RockContext() ).Queryable().OrderBy( a => a.Order ).ThenBy( a => a.Name ).ToList();
+            groupTypePicker.GroupTypes = new GroupTypeService( new RockContext() ).Queryable().ToList();
             groupTypePicker.AutoPostBack = true;
             parentControl.Controls.Add( groupTypePicker );
 

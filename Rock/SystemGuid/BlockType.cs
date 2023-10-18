@@ -128,6 +128,11 @@ namespace Rock.SystemGuid
         /// </summary>
         public const string CONVERT_BUSINESS = "115A7725-6760-4E86-8171-57F4A3CF6909";
 
+        /// <summary>
+        /// The financial account search block type
+        /// </summary>
+        public const string FINANCIAL_ACCOUNT_SEARCH = "867E32A8-786E-4090-BE2B-6BE780440D44";
+
         #endregion
 
         /// <summary>
@@ -300,9 +305,34 @@ namespace Rock.SystemGuid
         public const string MOBILE_CONNECTION_CONNECTION_REQUEST_DETAIL = "EF537CC9-5E53-4832-A473-0D5EA439C296";
 
         /// <summary>
+        /// The mobile Core &gt; <see cref="Rock.Blocks.Types.Mobile.Core.Search"/> block type.
+        /// </summary>
+        public const string MOBILE_CORE_SEARCH = "41174BEA-6567-430C-AAD4-A89A5CF70FB0";
+
+        /// <summary>
         /// The mobile Groups &gt; <see cref="Rock.Blocks.Types.Mobile.Groups.GroupRegistration">Group Registration</see> block type.
         /// </summary>
         public const string MOBILE_GROUPS_GROUP_REGISTRATION = "8A42E4FA-9FE1-493C-B6D8-7A766D96E912";
+
+        /// <summary>
+        /// The mobile groups <see cref="Rock.Blocks.Types.Mobile.Groups.GroupSchedulePreference">Group Schedule Preference</see> block type.
+        /// </summary>
+        public const string MOBILE_GROUPS_GROUP_SCHEDULE_PREFERENCE = "F6D0A258-F97E-4561-B881-ACBF985F89DC";
+
+        /// <summary>
+        /// The mobile groups <see cref="Rock.Blocks.Types.Mobile.Groups.GroupScheduleSignUp">Group Schedule Sign Up</see> block type.
+        /// </summary>
+        public const string MOBILE_GROUPS_GROUP_SCHEDULE_SIGNUP = "CA27CB14-22FD-4DE6-9C3B-0EAA0AA84708";
+
+        /// <summary>
+        /// The mobile groups <see cref="Rock.Blocks.Types.Mobile.Groups.GroupSchedulePreference">Group Schedule Preference</see> block type.
+        /// </summary>
+        public const string MOBILE_GROUPS_GROUP_SCHEDULE_TOOLBOX = "E00F3C6D-D007-4408-8A41-AD2A6AB29D6E";
+
+        /// <summary>
+        /// The mobile groups <see cref="Rock.Blocks.Types.Mobile.Groups.GroupScheduleUnavailability">Group Schedule Unavailability</see> block type.
+        /// </summary>
+        public const string MOBILE_GROUPS_GROUP_SCHEDULE_UNAVAILABILITY = "AEFF246D-A514-4D46-801E-D717E1D1D209";
 
         /// <summary>
         /// The mobile Groups &gt; <see cref="Rock.Blocks.Types.Mobile.Groups.GroupFinder">Group Finder</see> block type.
@@ -313,6 +343,36 @@ namespace Rock.SystemGuid
         /// The mobile Prayer &gt; Prayer Card View block type.
         /// </summary>
         public const string MOBILE_PRAYER_PRAYER_CARD_VIEW = "CA75C558-9345-47E7-99AF-D8191D31D00D";
+
+        /// <summary>
+        /// The mobile Reminders &gt; <see cref="Rock.Blocks.Types.Mobile.Reminders.ReminderList">Reminder List</see> block type.
+        /// </summary>
+        public const string MOBILE_REMINDERS_REMINDER_LIST = "E3FD3E7B-BF9D-4008-B71D-DF857DC20D7B";
+
+        /// <summary>
+        /// The mobile Reminders &gt; <see cref="Rock.Blocks.Types.Mobile.Reminders.ReminderList">Reminder Dashboard</see> block type.
+        /// </summary>
+        public const string MOBILE_REMINDERS_REMINDER_DASHBOARD = "223F5122-C93A-44CD-BFB7-AF990A2B6B65";
+
+        /// <summary>
+        /// The mobile Reminders &gt; <see cref="Rock.Blocks.Types.Mobile.Reminders.ReminderList">Reminder Edit</see> block type.
+        /// </summary>
+        public const string MOBILE_REMINDERS_REMINDER_EDIT = "BA26C29E-660C-470D-9FEA-5830DB15E935";
+
+        /// <summary>
+        /// The GUID for the entity <see cref="Rock.Blocks.Types.Mobile.Crm.PersonProfile"/>.
+        /// </summary>
+        public const string MOBILE_CRM_PERSON_PROFILE = "F97E2359-BB2D-4534-821D-870F853CA5CC";
+
+        /// <summary>
+        /// The mobile attribute values &gt; <see cref="Rock.Blocks.Types.Mobile.Core.AttributeValues">Attribute Values</see> block type.
+        /// </summary>
+        public const string MOBILE_CORE_ATTRIBUTE_VALUES = "DF110543-C295-4DD9-B06E-82640AC63610";
+
+        /// <summary>
+        /// The mobile group members &gt; <see cref="Rock.Blocks.Types.Mobile.Crm.GroupMembers">Group Members</see> block type.
+        /// </summary>
+        public const string MOBILE_CRM_GROUP_MEMBERS  = "1F1E7598-8D51-4750-8D61-E5791A226FDB";
 
         #endregion
 
@@ -334,6 +394,66 @@ namespace Rock.SystemGuid
         public const string OBSIDIAN_EXAMPLE_FIELD_TYPE_GALLERY = "B9C209C2-ABB8-4B48-A68E-944572007B03";
 
         #endregion Obsidian Block Types
+
+        #region Reporting Block Types
+
+        /// <summary>
+        /// Data Views with persistence enabled block Guid
+        /// </summary>
+        public const string PERSISTED_DATA_VIEW_LIST = "3C4FAFAE-41D1-4FF2-B6DC-FF99CD4DABBE";
+
+        /// <summary>
+        /// The dataview search results block type
+        /// </summary>
+        public const string DATAVIEW_SEARCH_RESULTS = "BFB625F7-75CA-48FE-9C82-90E47374242B";
+
+        /// <summary>
+        /// The report search results block type
+        /// </summary>
+        public const string REPORT_SEARCH_RESULTS = "13955B32-11F4-4606-8C31-4C6E5324C81A";
+
+        #endregion Reporting Block Types
+
+        #region Steps Block Types
+
+        /// <summary>
+        /// The Step Flow
+        /// </summary>
+        public const string STEP_FLOW = "2B4E0128-BCDF-48BF-AEC9-85001169DA3E";
+        #endregion Steps Block Types
+
+        #region Reporting Block Types
+
+        /// <summary>
+        /// The reporting dashboard liquid/lava dashboard widget.
+        /// </summary>
+        public const string REPORTING_LAVA_DASHBOARD_WIDGET = "AC19A4F3-2E88-487E-8E88-377C1C20DBD5";
+
+        #endregion Reporting Block Types
+
+        #region Reminder Block Types
+
+        /// <summary>
+        /// The reminder edit block.
+        /// </summary>
+        public const string REMINDER_EDIT = "7CE0E052-1400-4AC1-8AE0-ABF770A1B11E";
+
+        /// <summary>
+        /// The reminder links block.
+        /// </summary>
+        public const string REMINDER_LINKS = "EC59B6D6-5CA1-4367-9109-CDDC92357D35";
+
+        /// <summary>
+        /// The reminder list block.
+        /// </summary>
+        public const string REMINDER_LIST = "FC8DC018-C702-4A23-81BA-DF9DD6008CB6";
+
+        /// <summary>
+        /// The reminder types block.
+        /// </summary>
+        public const string REMINDER_TYPES = "E4161700-6882-4A50-B362-8E4C8F37C79D";
+
+        #endregion Reminder Block Types
 
         /// <summary>
         /// The contribution statement lava (Legacy)

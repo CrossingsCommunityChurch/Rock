@@ -25,6 +25,7 @@ using Rock.Web.UI.Controls;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Data.Entity;
 using System.Linq;
 using System.Web.UI;
 
@@ -53,6 +54,7 @@ namespace RockWeb.Blocks.Steps
 
     #endregion Block Attributes
 
+    [Rock.SystemGuid.BlockTypeGuid( "429A817E-1379-4BCC-AEFE-01D9C75273E5" )]
     public partial class StepProgramList : RockBlock
     {
         #region Attribute Keys
@@ -135,6 +137,25 @@ namespace RockWeb.Blocks.Steps
             gStepProgram.Actions.ShowAdd = canAddEditDelete;
             gStepProgram.IsDeleteEnabled = canAddEditDelete;
 
+            // make a custom delete confirmation dialog
+            gStepProgram.ShowConfirmDeleteDialog = false;
+
+            string deleteScript = @"
+    $('table.js-grid-stepProgram-list a.grid-delete-button').on('click', function( e ){
+        var $btn = $(this);
+        e.preventDefault();
+
+        var confirmMsg = 'Are you sure you want to delete this Step Program? All associated Step Types and Step Participants will also be deleted!';
+
+        Rock.dialogs.confirm(confirmMsg, function (result) {
+            if (result) {
+                window.location = e.target.href ? e.target.href : e.target.parentElement.href;
+            }
+        });
+    });
+";
+            ScriptManager.RegisterStartupScript(gStepProgram, gStepProgram.GetType(), "deleteStepProgramScript", deleteScript, true);
+
             var reorderField = gStepProgram.ColumnsOfType<ReorderField>().FirstOrDefault();
 
             if ( reorderField != null )
@@ -194,8 +215,8 @@ namespace RockWeb.Blocks.Steps
         {
             int? categoryId = cpCategory.SelectedValueAsInt();
 
-            rFilter.SaveUserPreference( "Category", categoryId.HasValue ? categoryId.Value.ToString() : string.Empty );
-            rFilter.SaveUserPreference( "Active", ddlActiveFilter.SelectedValue );
+            rFilter.SetFilterPreference( "Category", categoryId.HasValue ? categoryId.Value.ToString() : string.Empty );
+            rFilter.SetFilterPreference( "Active", ddlActiveFilter.SelectedValue );
 
             BindGrid();
         }
@@ -207,7 +228,7 @@ namespace RockWeb.Blocks.Steps
         /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
         protected void rFilter_ClearFilterClick( object sender, EventArgs e )
         {
-            rFilter.DeleteUserPreferences();
+            rFilter.DeleteFilterPreferences();
 
             BindFilter();
         }
@@ -358,7 +379,7 @@ namespace RockWeb.Blocks.Steps
         /// </summary>
         private void BindFilter()
         {
-            var categoryId = rFilter.GetUserPreference( "Category" ).AsIntegerOrNull();
+            var categoryId = rFilter.GetFilterPreference( "Category" ).AsIntegerOrNull();
             if ( categoryId > 0 )
             {
                 cpCategory.SetValue( categoryId );
@@ -368,7 +389,7 @@ namespace RockWeb.Blocks.Steps
                 cpCategory.SetValue( null );
             }
 
-            ddlActiveFilter.SetValue( rFilter.GetUserPreference( "Active" ) );
+            ddlActiveFilter.SetValue( rFilter.GetFilterPreference( "Active" ) );
         }
 
         /// <summary>
@@ -379,7 +400,10 @@ namespace RockWeb.Blocks.Steps
             var dataContext = new RockContext();
 
             var stepProgramsQry = new StepProgramService( dataContext )
-                .Queryable();
+                .Queryable()
+                .AsNoTracking()
+                .Include( a => a.Category)
+                .Include( a => a.StepTypes );
 
             // Filter by: Category
             if ( _categoryGuids.Any() )
@@ -388,7 +412,7 @@ namespace RockWeb.Blocks.Steps
             }
             else
             {
-                var categoryId = rFilter.GetUserPreference( "Category" ).AsIntegerOrNull();
+                var categoryId = rFilter.GetFilterPreference( "Category" ).AsIntegerOrNull();
 
                 if ( categoryId.HasValue && categoryId > 0 )
                 {
@@ -397,7 +421,7 @@ namespace RockWeb.Blocks.Steps
             }
 
             // Filter by: Active
-            var activeFilter = rFilter.GetUserPreference( "Active" ).ToLower();
+            var activeFilter = rFilter.GetFilterPreference( "Active" ).ToLower();
 
             switch ( activeFilter )
             {
@@ -415,20 +439,22 @@ namespace RockWeb.Blocks.Steps
             // Retrieve the Step Program data models and create corresponding view models to display in the grid.
             var stepService = new StepService( dataContext );
 
-            var completedStepsQry = stepService.Queryable().Where( x => x.StepStatus != null && x.StepStatus.IsCompleteStatus );
+            var completedStepsQry = stepService.Queryable().Where( x => x.StepStatus != null && x.StepStatus.IsCompleteStatus && x.StepType.IsActive );
 
-            var stepPrograms = stepProgramsQry.Select( x =>
-                new StepProgramListItemViewModel
-                {
-                    Id = x.Id,
-                    Name = x.Name,
-                    IconCssClass = x.IconCssClass,
-                    Category = x.Category.Name,
-                    StepTypeCount = x.StepTypes.Count,
-                    StepCompletedCount = completedStepsQry.Count( y => y.StepType.StepProgramId == x.Id )
-                } )
+            var stepPrograms = stepProgramsQry
+                .AsEnumerable()
+                .Where( g => g.IsAuthorized( Rock.Security.Authorization.VIEW, CurrentPerson ) )
+                .Select( x =>
+                    new StepProgramListItemViewModel
+                    {
+                        Id = x.Id,
+                        Name = x.Name,
+                        IconCssClass = x.IconCssClass,
+                        Category = x.Category?.Name,
+                        StepTypeCount = x.StepTypes.Count( m => m.IsActive ),
+                        StepCompletedCount = completedStepsQry.Count( y => y.StepType.StepProgramId == x.Id )
+                    } )
                 .ToList();
-
             gStepProgram.DataSource = stepPrograms;
 
             gStepProgram.DataBind();

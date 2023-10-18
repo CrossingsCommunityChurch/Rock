@@ -16,9 +16,12 @@
 //
 using System;
 using System.Collections.Generic;
+using System.Linq;
+#if WEBFORMS
 using System.Web.UI;
 using System.Web.UI.WebControls;
-
+#endif
+using Rock.Attribute;
 using Rock.Model;
 using Rock.Web.UI.Controls;
 
@@ -28,10 +31,39 @@ namespace Rock.Field.Types
     /// Field Type used to display a dropdown list of genders
     /// </summary>
     [Serializable]
+    [RockPlatformSupport( Utility.RockPlatform.WebForms | Utility.RockPlatform.Obsidian )]
+    [IconSvg( @"<svg xmlns=""http://www.w3.org/2000/svg"" viewBox=""0 0 16 16""><path d=""M6.69,2.31A1.31,1.31,0,1,1,8,3.62,1.31,1.31,0,0,1,6.69,2.31ZM8.22,4.5h.19a2.63,2.63,0,0,1,2.25,1.27l1.59,2.65a.88.88,0,0,1-1.5.91L10,8v6.1a.88.88,0,1,1-1.75,0ZM5.22,6A3.06,3.06,0,0,1,7.78,4.5v9.63a.88.88,0,0,1-1.75,0V11.5H5.54a.44.44,0,0,1-.41-.58l1-3.14L5.25,9.33a.88.88,0,0,1-1.5-.91Z""/></svg>" )]
+    [Rock.SystemGuid.FieldTypeGuid( Rock.SystemGuid.FieldType.GENDER )]
     public class GenderFieldType : FieldType
     {
         #region Configuration
         private const string HIDE_UNKNOWN_GENDER_KEY = "hideUnknownGender";
+
+        #endregion Configuration
+
+        #region Edit Control
+
+        /// <inheritdoc/>
+        public override string GetTextValue( string value, Dictionary<string, string> configurationValues )
+        {
+            if ( value.IsNullOrWhiteSpace() )
+            {
+                return string.Empty;
+            }
+
+            if ( configurationValues.GetValueOrNull( HIDE_UNKNOWN_GENDER_KEY ).AsBooleanOrNull() ?? false )
+            {
+                return value.ConvertToEnum<Gender>().ConvertToString();
+            }
+
+            return value.ConvertToEnum<Gender>( Gender.Unknown ).ConvertToString();
+        }
+
+        #endregion
+
+
+        #region WebForms
+#if WEBFORMS
 
         /// <inheritdoc />
         public override List<string> ConfigurationKeys()
@@ -94,32 +126,12 @@ namespace Rock.Field.Types
             }
         }
 
-        #endregion Configuration
-
-        #region Edit Control
-
-        /// <inheritdoc/>
-        public override string GetTextValue( string value, Dictionary<string, ConfigurationValue> configurationValues )
-        {
-            if (value.IsNullOrWhiteSpace())
-            {
-                return string.Empty;
-            }
-
-            if ( configurationValues.GetValueOrNull( HIDE_UNKNOWN_GENDER_KEY ).AsBooleanOrNull() ?? false )
-            {
-                return value.ConvertToEnum<Gender>().ConvertToString();
-            }
-
-            return value.ConvertToEnum<Gender>( Gender.Unknown ).ConvertToString();
-        }
-
         /// <inheritdoc />
         public override string FormatValue( Control parentControl, string value, Dictionary<string, ConfigurationValue> configurationValues, bool condensed )
         {
             return !condensed
-                ? GetTextValue( value, configurationValues )
-                : GetCondensedTextValue( value, configurationValues );
+                ? GetTextValue( value, configurationValues.ToDictionary( k => k.Key, k => k.Value.Value ) )
+                : GetCondensedTextValue( value, configurationValues.ToDictionary( k => k.Key, k => k.Value.Value ) );
         }
 
         /// <inheritdoc />
@@ -162,6 +174,7 @@ namespace Rock.Field.Types
             editControl?.SetValue( value );
         }
 
+#endif
         #endregion
 
     }

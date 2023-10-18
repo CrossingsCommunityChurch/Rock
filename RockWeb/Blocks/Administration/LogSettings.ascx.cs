@@ -33,6 +33,7 @@ namespace RockWeb.Blocks.Administration
     [System.ComponentModel.Category( "Administration" )]
     [System.ComponentModel.Description( "Block to edit rock log settings." )]
 
+    [Rock.SystemGuid.BlockTypeGuid( "6ABC44FD-C4D7-4E30-8537-3A065B493453" )]
     public partial class LogSettings : RockBlock
     {
         #region Control Methods
@@ -57,6 +58,7 @@ namespace RockWeb.Blocks.Administration
             if ( !IsUserAuthorized( Authorization.EDIT ) )
             {
                 btnEdit.Visible = false;
+                btnDeleteLog.Visible = false;
             }
 
             if ( !Page.IsPostBack )
@@ -69,6 +71,7 @@ namespace RockWeb.Blocks.Administration
         #region Control Events
         protected void btnLoggingSave_Click( object sender, EventArgs e )
         {
+            Page.Validate();
             if ( !Page.IsValid || !IsUserAuthorized( Authorization.EDIT ) )
             {
                 return;
@@ -101,17 +104,22 @@ namespace RockWeb.Blocks.Administration
 
             RockLogger.Log.Delete();
 
-            ShowHideEditForm( false, null );
-
-            nbLoggingMessage.NotificationBoxType = NotificationBoxType.Success;
-            nbLoggingMessage.Title = string.Empty;
-            nbLoggingMessage.Text = "The log files were successfully deleted.";
+            this.NavigateToCurrentPage();
         }
 
         protected void btnEdit_Click( object sender, EventArgs e )
         {
+            // Hide any previous notifications.
+            nbLoggingMessage.Visible = false;
+
             ShowHideEditForm( true, null );
         }
+
+        protected void btnCancel_Click( object sender, EventArgs e )
+        {
+            ShowHideEditForm( false, null );
+        }
+
         #endregion
 
         #region Internal Methods

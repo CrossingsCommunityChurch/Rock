@@ -17,6 +17,7 @@
 using System;
 using System.Collections.Generic;
 using System.Data.Entity;
+using System.Data.Entity.Core.Objects;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
@@ -133,6 +134,23 @@ namespace Rock
         public static List<int> AsIntegerList( this IEnumerable<string> items )
         {
             return items.Select( a => a.AsIntegerOrNull() ).Where( a => a.HasValue ).Select( a => a.Value ).ToList();
+        }
+
+        /// <summary>
+        /// Converts a <see cref="IEnumerable{T}"/> of <see cref="string"/> values into
+        /// their enumeration type. Only returns values that can be converted
+        /// to <typeparamref name="T"/>.
+        /// </summary>
+        /// <typeparam name="T">The enumeration type to be converted to.</typeparam>
+        /// <param name="items">The items to be converted.</param>
+        /// <returns>A list of <typeparamref name="T"/> enumeration values.</returns>
+        public static List<T> AsEnumList<T>( this IEnumerable<string> items )
+            where T : struct
+        {
+            return items.Select( a => a.ConvertToEnumOrNull<T>() )
+                .Where( a => a.HasValue )
+                .Select( a => a.Value )
+                .ToList();
         }
 
         /// <summary>
@@ -348,7 +366,8 @@ namespace Rock
                             && method.GetParameters().Length == 2 )
                     .MakeGenericMethod( typeof( T ), type )
                     .Invoke( null, new object[] { source, lambda } );
-            return (IOrderedQueryable<T>)result;
+
+            return ( IOrderedQueryable<T> ) result;
         }
 
         /// <summary>
@@ -685,6 +704,44 @@ namespace Rock
             return qry;
         }
 
+        /// <summary>
+        /// Gets the underlying <see cref="ObjectQuery{T}"/> that represents the provided <see cref="IQueryable{T}"/>.
+        /// <para>
+        /// This is useful to gain access to the actual SQL query and parameters that will be executed against the database.
+        /// </para>
+        /// </summary>
+        /// <remarks>
+        /// https://www.stevefenton.co.uk/blog/2015/07/getting-the-sql-query-from-an-entity-framework-iqueryable/
+        /// </remarks>
+        /// <typeparam name="T">The type of the source query.</typeparam>
+        /// <param name="source">The source query.</param>
+        /// <returns>The underlying <see cref="ObjectQuery{T}"/> that represents the provided <see cref="IQueryable{T}"/>.</returns>
+        internal static ObjectQuery<T> ToObjectQuery<T>( this IQueryable<T> source )
+        {
+            try
+            {
+                var internalQueryField = source
+                    .GetType()
+                    .GetFields( BindingFlags.NonPublic | BindingFlags.Instance )
+                    .Where( f => f.Name.Equals( "_internalQuery" ) )
+                    .FirstOrDefault();
+
+                var internalQuery = internalQueryField.GetValue( source );
+
+                var objectQueryField = internalQuery
+                    .GetType()
+                    .GetFields( BindingFlags.NonPublic | BindingFlags.Instance )
+                    .Where( f => f.Name.Equals( "_objectQuery" ) )
+                    .FirstOrDefault();
+
+                return objectQueryField.GetValue( internalQuery ) as ObjectQuery<T>;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
         #endregion IQueryable extensions
 
         #region Expression extensions
@@ -763,5 +820,101 @@ namespace Rock
         }
 
         #endregion
+    }
+
+    /// <summary>
+    /// Provides additional logical operations to simplify the process of constructing Linq predicates.
+    /// </summary>
+    /// <remarks>
+    /// Adapted from https://petemontgomery.wordpress.com/2011/02/10/a-universal-predicatebuilder/.
+    /// </remarks>
+    public static class LinqPredicateBuilder
+    {
+        /// <summary>
+        /// Creates a predicate that evaluates to true.
+        /// </summary>
+        public static Expression<Func<T, bool>> True<T>() { return param => true; }
+
+        /// <summary>
+        /// Creates a predicate that evaluates to false.
+        /// </summary>
+        public static Expression<Func<T, bool>> False<T>() { return param => false; }
+
+        /// <summary>
+        /// Creates a predicate expression from the specified lambda expression.
+        /// </summary>
+        public static Expression<Func<T, bool>> Create<T>( Expression<Func<T, bool>> predicate ) { return predicate; }
+
+        /// <summary>
+        /// Combines the first predicate with the second using the logical "and".
+        /// </summary>
+        public static Expression<Func<T, bool>> And<T>( this Expression<Func<T, bool>> first, Expression<Func<T, bool>> second )
+        {
+            return first.Compose( second, Expression.AndAlso );
+        }
+
+        /// <summary>
+        /// Combines the first predicate with the second using the logical "or".
+        /// </summary>
+        public static Expression<Func<T, bool>> Or<T>( this Expression<Func<T, bool>> first, Expression<Func<T, bool>> second )
+        {
+            return first.Compose( second, Expression.OrElse );
+        }
+
+        /// <summary>
+        /// Negates the predicate.
+        /// </summary>
+        public static Expression<Func<T, bool>> Not<T>( this Expression<Func<T, bool>> expression )
+        {
+            var negated = Expression.Not( expression.Body );
+            return Expression.Lambda<Func<T, bool>>( negated, expression.Parameters );
+        }
+
+        /// <summary>
+        /// Combines the first expression with the second using the specified merge function.
+        /// </summary>
+        static Expression<T> Compose<T>( this Expression<T> first, Expression<T> second, Func<Expression, Expression, Expression> merge )
+        {
+            // Map expression parameters of second to parameters of first.
+            var map = first.Parameters
+                .Select( ( f, i ) => new { f, s = second.Parameters[i] } )
+                .ToDictionary( p => p.s, p => p.f );
+
+            // Replace parameters in the second lambda expression with the parameters in the first.
+            var secondBody = ParameterRebinder.ReplaceParameters( map, second.Body );
+
+            // Create a merged lambda expression with parameters from the first expression.
+            return Expression.Lambda<T>( merge( first.Body, secondBody ), first.Parameters );
+        }
+
+        /// <summary>
+        /// An Expression Visitor that replaces one parameter with another in an Expression.
+        /// </summary>
+        private class ParameterRebinder : ExpressionVisitor
+        {
+            readonly Dictionary<ParameterExpression, ParameterExpression> map;
+
+            ParameterRebinder( Dictionary<ParameterExpression, ParameterExpression> map )
+            {
+                this.map = map ?? new Dictionary<ParameterExpression, ParameterExpression>();
+            }
+
+            public static Expression ReplaceParameters( Dictionary<ParameterExpression, ParameterExpression> map, Expression exp )
+            {
+                return new ParameterRebinder( map ).Visit( exp );
+            }
+
+            protected override Expression VisitParameter( ParameterExpression p )
+            {
+                ParameterExpression replacement;
+
+                if ( map.TryGetValue( p, out replacement ) )
+                {
+                    p = replacement;
+                }
+
+                return base.VisitParameter( p );
+            }
+        }
     }
 }

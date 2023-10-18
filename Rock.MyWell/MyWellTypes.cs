@@ -1386,6 +1386,16 @@ namespace Rock.MyWell
         /// </value>
         [JsonProperty( "updated_at" )]
         public DateTime? UpdatedDateTimeUTC { get; set; }
+
+        /// <summary>
+        /// Newtonsoft.Json.JsonExtensionData instructs the Newtonsoft.Json.JsonSerializer to deserialize properties with no
+        /// matching class member into the specified collection
+        /// </summary>
+        /// <value>
+        /// The other data.
+        /// </value>
+        [Newtonsoft.Json.JsonExtensionData( ReadData = true, WriteData = false )]
+        public IDictionary<string, Newtonsoft.Json.Linq.JToken> _additionalData { get; set; }
     }
 
     /// <summary>
@@ -1445,7 +1455,22 @@ namespace Rock.MyWell
         /// The data.
         /// </value>
         [JsonProperty( "data" )]
-        public object Data { get; set; }
+        public TransactionVoidRefundResponseData Data { get; set; }
+    }
+
+    /// <summary>
+    /// Class TransactionVoidRefundResponseData.
+    /// Implements the <see cref="Rock.MyWell.TransactionResponseData" />
+    /// </summary>
+    /// <seealso cref="Rock.MyWell.TransactionResponseData" />
+    public class TransactionVoidRefundResponseData : TransactionResponseData
+    {
+        /// <summary>
+        /// Gets or sets the referenced transaction identifier.
+        /// </summary>
+        /// <value>The referenced transaction identifier.</value>
+        [JsonProperty( "referenced_transaction_id" )]
+        public string ReferencedTransactionId { get; set; }
     }
 
     #endregion Transactions
@@ -2108,6 +2133,13 @@ namespace Rock.MyWell
         public QuerySearchInt SearchAmount { get; set; }
 
         /// <summary>
+        /// The Type of transaction to limit the search to
+        /// </summary>
+        /// <value>The type.</value>
+        [JsonProperty( "type", NullValueHandling = NullValueHandling.Ignore )]
+        public QuerySearchTransactionType TransactionTypeSearch { get; set; }
+
+        /// <summary>
         /// Gets or sets the date range (optional).
         /// </summary>
         /// <value>
@@ -2117,15 +2149,16 @@ namespace Rock.MyWell
         public QueryDateTimeRange DateTimeRangeUTC { get; set; }
 
         /// <summary>
-        /// Maximum records to return (0-100, optional)
-        /// Gets or sets the limit (MyWell default is 10, but we can set it to 0 to get all of them )
+        /// Maximum records to return (0-2500, optional. If left null, default is 10)
+        /// Gets or sets the limit. We can't specify "All", so we'll have to fetch until
+        /// we get them all.
         /// https://sandbox.gotnpgateway.com/docs/api/#search-transactions
         /// </summary>
         /// <value>
         /// The limit.
         /// </value>
         [JsonProperty( "limit", NullValueHandling = NullValueHandling.Ignore )]
-        public int? Limit { get; set; } = 0;
+        public int? Limit { get; set; } = null;
 
         /// <summary>
         /// Number of records to offset the return by (optional)
@@ -2162,6 +2195,23 @@ namespace Rock.MyWell
         [JsonProperty( "value" )]
         public string SearchValue { get; set; }
     }
+
+    /// <summary>
+    /// Searching by <see cref="TransactionType"/>
+    /// </summary>
+    public class QuerySearchTransactionType : QuerySearchString
+    {
+        /// <summary>
+        /// Initializes a new instance of the <see cref="QuerySearchTransactionType"/> class.
+        /// </summary>
+        /// <param name="transactionType">Type of the transaction.</param>
+        public QuerySearchTransactionType( TransactionType transactionType )
+        {
+            this.ComparisonOperator = "=";
+            this.SearchValue = transactionType.ToString();
+        }
+    }
+
 
     /// <summary>
     /// Searching by the Customer property of a record
@@ -2317,6 +2367,16 @@ namespace Rock.MyWell
         /// </value>
         [JsonProperty( "idempotency_time" )]
         public int IdempotencyTime { get; set; }
+
+        /// <summary>
+        /// Gets the type of the transaction.
+        /// </summary>
+        /// <value>The type of the transaction.</value>
+        [JsonIgnore]
+        public TransactionType? TransactionType
+        {
+            get => this.Type.ConvertToEnumOrNull<TransactionType>( MyWell.TransactionType.other );
+        }
 
         /// <summary>
         /// Gets or sets the type.
@@ -3164,25 +3224,47 @@ namespace Rock.MyWell
     }
 
     /// <summary>
-    /// 
+    /// Possible Transaction Types are at https://sandbox.gotnpgateway.com/docs/api/#upload-batch-file
+    /// It is possible there are more, but the documentation doesn't mention any
+    /// But just in case, we'll throw unexpected ones into 'other'
     /// </summary>
     [JsonConverter( typeof( StringEnumConverter ) )]
     public enum TransactionType
     {
         /// <summary>
-        /// The sale
+        /// verification
         /// </summary>
-        sale,
+        verification,
 
         /// <summary>
-        /// The authorize
+        /// authorize
         /// </summary>
         authorize,
 
         /// <summary>
-        /// The credit
+        /// capture
         /// </summary>
-        credit
+        capture,
+
+        /// <summary>
+        /// sale
+        /// </summary>
+        sale,
+
+        /// <summary>
+        /// credit
+        /// </summary>
+        credit,
+
+        /// <summary>
+        /// refund
+        /// </summary>
+        refund,
+
+        /// <summary>
+        /// Something we didn't expect
+        /// </summary>
+        other,
     }
 
     /// <summary>

@@ -71,6 +71,7 @@ namespace Rock.Workflow.Action
         IsRequired = true,
         Order = 4,
         Key = AttributeKey.EmptyValueHandling )]
+    [Rock.SystemGuid.EntityTypeGuid( "2B3502EA-5531-4345-AA01-23AE273F0B6F")]
     public class SetEntityProperty : ActionComponent
     {
 
@@ -213,6 +214,12 @@ namespace Rock.Workflow.Action
             if ( objectType.IsEnum )
             {
                 return string.IsNullOrWhiteSpace( theObject ) ? null : Enum.Parse( objectType, theObject, true );
+            }
+
+            // C# SetProperty can't take a string representation of a Guid (Fixes: #3183)
+            if ( objectType.Name == "Guid" )
+            {
+                return theObject.AsGuidOrNull();
             }
 
             Type underType = Nullable.GetUnderlyingType( objectType );

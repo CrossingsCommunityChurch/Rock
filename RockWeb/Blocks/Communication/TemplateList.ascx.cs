@@ -48,6 +48,7 @@ namespace RockWeb.Blocks.Communication
         Order = 1,
         Key = AttributeKey.PersonalTemplatesView )]
     #endregion Block Attributes
+    [Rock.SystemGuid.BlockTypeGuid( "EACDBBD4-C355-4D38-B604-779BC55D3876" )]
     public partial class TemplateList : RockBlock, ICustomGridColumns
     {
         #region Attribute Keys
@@ -172,12 +173,12 @@ namespace RockWeb.Blocks.Communication
         {
             if ( _canFilterCreatedBy )
             {
-                rFilter.SaveUserPreference( "Created By", ppCreatedBy.PersonId.ToString() );
+                rFilter.SetFilterPreference( "Created By", ppCreatedBy.PersonId.ToString() );
             }
 
-            rFilter.SaveUserPreference( "Category", cpCategory.SelectedValue );
-            rFilter.SaveUserPreference( "Supports", ddlSupports.SelectedValue );
-            rFilter.SaveUserPreference( "Active", ddlActiveFilter.SelectedValue );
+            rFilter.SetFilterPreference( "Category", cpCategory.SelectedValue );
+            rFilter.SetFilterPreference( "Supports", ddlSupports.SelectedValue );
+            rFilter.SetFilterPreference( "Active", ddlActiveFilter.SelectedValue );
 
             BindGrid();
         }
@@ -189,7 +190,7 @@ namespace RockWeb.Blocks.Communication
         /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
         protected void rFilter_ClearFilterClick( object sender, EventArgs e )
         {
-            rFilter.DeleteUserPreferences();
+            rFilter.DeleteFilterPreferences();
             BindFilter();
         }
 
@@ -366,12 +367,12 @@ namespace RockWeb.Blocks.Communication
         {
             if ( !_canFilterCreatedBy )
             {
-                rFilter.SaveUserPreference( "Created By", string.Empty );
+                rFilter.SetFilterPreference( "Created By", string.Empty );
             }
 
             if ( _canFilterCreatedBy )
             {
-                var personId = rFilter.GetUserPreference( "Created By" ).AsIntegerOrNull();
+                var personId = rFilter.GetFilterPreference( "Created By" ).AsIntegerOrNull();
                 if ( personId.HasValue && personId != 0 )
                 {
                     var personService = new PersonService( new RockContext() );
@@ -387,7 +388,7 @@ namespace RockWeb.Blocks.Communication
                 }
             }
 
-            var categoryId = rFilter.GetUserPreference( "Category" ).AsIntegerOrNull();
+            var categoryId = rFilter.GetFilterPreference( "Category" ).AsIntegerOrNull();
             if ( categoryId > 0 )
             {
                 cpCategory.SetValue( categoryId );
@@ -397,8 +398,8 @@ namespace RockWeb.Blocks.Communication
                 cpCategory.SetValue( null );
             }
 
-            ddlActiveFilter.SetValue( rFilter.GetUserPreference( "Active" ) );
-            ddlSupports.SetValue( rFilter.GetUserPreference( "Supports" ) );
+            ddlActiveFilter.SetValue( rFilter.GetFilterPreference( "Active" ) );
+            ddlSupports.SetValue( rFilter.GetFilterPreference( "Supports" ) );
         }
 
         /// <summary>
@@ -411,7 +412,7 @@ namespace RockWeb.Blocks.Communication
 
             if ( _canFilterCreatedBy )
             {
-                var personId = rFilter.GetUserPreference( "Created By" ).AsIntegerOrNull();
+                var personId = rFilter.GetFilterPreference( "Created By" ).AsIntegerOrNull();
                 if ( personId.HasValue && personId != 0 )
                 {
                     communicationTemplateQry = communicationTemplateQry
@@ -421,13 +422,13 @@ namespace RockWeb.Blocks.Communication
                 }
             }
 
-            var categoryId = rFilter.GetUserPreference( "Category" ).AsIntegerOrNull();
+            var categoryId = rFilter.GetFilterPreference( "Category" ).AsIntegerOrNull();
             if ( categoryId.HasValue && categoryId > 0 )
             {
                 communicationTemplateQry = communicationTemplateQry.Where( a => a.CategoryId.HasValue && a.CategoryId.Value == categoryId.Value );
             }
 
-            var activeFilter = rFilter.GetUserPreference( "Active" );
+            var activeFilter = rFilter.GetFilterPreference( "Active" );
             switch ( activeFilter )
             {
                 case "Active":
@@ -455,7 +456,7 @@ namespace RockWeb.Blocks.Communication
                 }
             }
 
-            var supports = rFilter.GetUserPreference( "Supports" );
+            var supports = rFilter.GetFilterPreference( "Supports" );
             switch ( supports )
             {
                 case "Email Wizard":

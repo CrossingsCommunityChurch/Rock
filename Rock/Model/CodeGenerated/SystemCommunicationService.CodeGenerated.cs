@@ -23,10 +23,7 @@
 using System;
 using System.Linq;
 
-using Rock.Attribute;
 using Rock.Data;
-using Rock.ViewModel;
-using Rock.Web.Cache;
 
 namespace Rock.Model
 {
@@ -57,6 +54,12 @@ namespace Rock.Model
 
             // ignoring Communication,SystemCommunicationId
 
+            if ( new Service<FinancialTransactionAlertType>( Context ).Queryable().Any( a => a.AccountParticipantSystemCommunicationId == item.Id ) )
+            {
+                errorMessage = string.Format( "This {0} is assigned to a {1}.", SystemCommunication.FriendlyTypeName, FinancialTransactionAlertType.FriendlyTypeName );
+                return false;
+            }
+
             if ( new Service<FinancialTransactionAlertType>( Context ).Queryable().Any( a => a.SystemCommunicationId == item.Id ) )
             {
                 errorMessage = string.Format( "This {0} is assigned to a {1}.", SystemCommunication.FriendlyTypeName, FinancialTransactionAlertType.FriendlyTypeName );
@@ -72,6 +75,12 @@ namespace Rock.Model
             if ( new Service<GroupSync>( Context ).Queryable().Any( a => a.WelcomeSystemCommunicationId == item.Id ) )
             {
                 errorMessage = string.Format( "This {0} is assigned to a {1}.", SystemCommunication.FriendlyTypeName, GroupSync.FriendlyTypeName );
+                return false;
+            }
+
+            if ( new Service<GroupType>( Context ).Queryable().Any( a => a.AttendanceReminderSystemCommunicationId == item.Id ) )
+            {
+                errorMessage = string.Format( "This {0} is assigned to a {1}.", SystemCommunication.FriendlyTypeName, GroupType.FriendlyTypeName );
                 return false;
             }
 
@@ -107,65 +116,6 @@ namespace Rock.Model
             return true;
         }
     }
-
-    /// <summary>
-    /// SystemCommunication View Model Helper
-    /// </summary>
-    [DefaultViewModelHelper( typeof( SystemCommunication ) )]
-    public partial class SystemCommunicationViewModelHelper : ViewModelHelper<SystemCommunication, Rock.ViewModel.SystemCommunicationViewModel>
-    {
-        /// <summary>
-        /// Converts the model to a view model.
-        /// </summary>
-        /// <param name="model">The entity.</param>
-        /// <param name="currentPerson">The current person.</param>
-        /// <param name="loadAttributes">if set to <c>true</c> [load attributes].</param>
-        /// <returns></returns>
-        public override Rock.ViewModel.SystemCommunicationViewModel CreateViewModel( SystemCommunication model, Person currentPerson = null, bool loadAttributes = true )
-        {
-            if ( model == null )
-            {
-                return default;
-            }
-
-            var viewModel = new Rock.ViewModel.SystemCommunicationViewModel
-            {
-                Id = model.Id,
-                Guid = model.Guid,
-                Bcc = model.Bcc,
-                Body = model.Body,
-                CategoryId = model.CategoryId,
-                Cc = model.Cc,
-                CssInliningEnabled = model.CssInliningEnabled,
-                From = model.From,
-                FromName = model.FromName,
-                IsActive = model.IsActive,
-                IsSystem = model.IsSystem,
-                LavaFieldsJson = model.LavaFieldsJson,
-                PushData = model.PushData,
-                PushImageBinaryFileId = model.PushImageBinaryFileId,
-                PushMessage = model.PushMessage,
-                PushOpenAction = ( int? ) model.PushOpenAction,
-                PushOpenMessage = model.PushOpenMessage,
-                PushSound = model.PushSound,
-                PushTitle = model.PushTitle,
-                SMSFromDefinedValueId = model.SMSFromDefinedValueId,
-                SMSMessage = model.SMSMessage,
-                Subject = model.Subject,
-                Title = model.Title,
-                To = model.To,
-                CreatedDateTime = model.CreatedDateTime,
-                ModifiedDateTime = model.ModifiedDateTime,
-                CreatedByPersonAliasId = model.CreatedByPersonAliasId,
-                ModifiedByPersonAliasId = model.ModifiedByPersonAliasId,
-            };
-
-            AddAttributesToViewModel( model, viewModel, currentPerson, loadAttributes );
-            ApplyAdditionalPropertiesAndSecurityToViewModel( model, viewModel, currentPerson, loadAttributes );
-            return viewModel;
-        }
-    }
-
 
     /// <summary>
     /// Generated Extension Methods
@@ -242,7 +192,10 @@ namespace Rock.Model
             target.PushOpenMessage = source.PushOpenMessage;
             target.PushSound = source.PushSound;
             target.PushTitle = source.PushTitle;
+            #pragma warning disable 612, 618
             target.SMSFromDefinedValueId = source.SMSFromDefinedValueId;
+            #pragma warning restore 612, 618
+            target.SmsFromSystemPhoneNumberId = source.SmsFromSystemPhoneNumberId;
             target.SMSMessage = source.SMSMessage;
             target.Subject = source.Subject;
             target.Title = source.Title;
@@ -255,20 +208,5 @@ namespace Rock.Model
             target.ForeignId = source.ForeignId;
 
         }
-
-        /// <summary>
-        /// Creates a view model from this entity
-        /// </summary>
-        /// <param name="model">The entity.</param>
-        /// <param name="currentPerson" >The currentPerson.</param>
-        /// <param name="loadAttributes" >Load attributes?</param>
-        public static Rock.ViewModel.SystemCommunicationViewModel ToViewModel( this SystemCommunication model, Person currentPerson = null, bool loadAttributes = false )
-        {
-            var helper = new SystemCommunicationViewModelHelper();
-            var viewModel = helper.CreateViewModel( model, currentPerson, loadAttributes );
-            return viewModel;
-        }
-
     }
-
 }

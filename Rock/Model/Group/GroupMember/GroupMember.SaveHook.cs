@@ -20,10 +20,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 
-using Humanizer;
-
 using Rock.Data;
 using Rock.Tasks;
+using Rock.Transactions;
 using Rock.Web.Cache;
 
 namespace Rock.Model
@@ -44,49 +43,24 @@ namespace Rock.Model
             protected override void PreSave()
             {
                 var rockContext = ( RockContext ) this.RockContext;
-                string errorMessage;
-                if ( State != EntityContextState.Deleted
+                if ( this.State != EntityContextState.Deleted
                      && Entity.IsArchived == false
                      && Entity.GroupMemberStatus != GroupMemberStatus.Inactive )
                 {
-                    if ( !Entity.ValidateGroupMembership( rockContext, out errorMessage ) )
+                    // Bypass Group Member requirement check when group member is unarchived; instead, we'll show "does not meet" symbol in group member list.
+                    var previousIsArchived = this.State == EntityContextState.Modified && OriginalValues[nameof( GroupMember.IsArchived )].ToStringSafe().AsBoolean();
+                    if ( !previousIsArchived )
                     {
-                        var ex = new GroupMemberValidationException( errorMessage );
-                        ExceptionLogService.LogException( ex );
-                        throw ex;
+                        if ( !Entity.IsValidGroupMember( rockContext ) )
+                        {
+                            var message = Entity.ValidationResults != null
+                                ? Entity.ValidationResults.AsDelimited( "; " )
+                                : string.Empty;
+
+                            throw new GroupMemberValidationException( message );
+                        }
                     }
                 }
-
-                var updateGroupMemberMsg = new UpdateGroupMember.Message
-                {
-                    State = State,
-                    GroupId = Entity.GroupId,
-                    PersonId = Entity.PersonId,
-                    GroupMemberStatus = Entity.GroupMemberStatus,
-                    GroupMemberRoleId = Entity.GroupRoleId,
-                    IsArchived = Entity.IsArchived
-                };
-
-                if ( Entity.Group != null )
-                {
-                    updateGroupMemberMsg.GroupTypeId = Entity.Group.GroupTypeId;
-                }
-
-                // If this isn't a new group member, get the previous status and role values
-                if ( State == EntityContextState.Modified )
-                {
-                    updateGroupMemberMsg.PreviousGroupMemberStatus = ( GroupMemberStatus ) OriginalValues[nameof( GroupMember.GroupMemberStatus )].ToStringSafe().ConvertToEnum<GroupMemberStatus>();
-                    updateGroupMemberMsg.PreviousGroupMemberRoleId = OriginalValues[nameof( GroupMember.GroupRoleId )].ToStringSafe().AsInteger();
-                    updateGroupMemberMsg.PreviousIsArchived = OriginalValues[nameof( GroupMember.IsArchived )].ToStringSafe().AsBoolean();
-                }
-
-                // If this isn't a deleted group member, get the group member guid
-                if ( State != EntityContextState.Deleted )
-                {
-                    updateGroupMemberMsg.GroupMemberGuid = Entity.Guid;
-                }
-
-                updateGroupMemberMsg.Send();
 
                 int? oldPersonId = null;
                 int? newPersonId = null;
@@ -165,6 +139,7 @@ namespace Rock.Model
 
                 if ( group != null )
                 {
+                    this.Entity.GroupTypeId = group.GroupTypeId;
                     string oldGroupName = group.Name;
                     if ( oldGroupId.HasValue && oldGroupId.Value != group.Id )
                     {
@@ -226,12 +201,12 @@ namespace Rock.Model
                     {
                         // Updated same person in group
                         var historyItem = HistoryChanges.First( h => h.PersonId == newPersonId.Value && h.GroupId == newGroupId.Value );
-                        History.EvaluateChange( historyItem.PersonHistoryChangeList, $"{historyItem.Caption} Role", OriginalValues["GroupRoleId"].ToStringSafe().AsIntegerOrNull(), Entity.GroupRole, Entity.GroupRoleId, rockContext );
-                        History.EvaluateChange( historyItem.PersonHistoryChangeList, $"{historyItem.Caption} Note", OriginalValues["Note"].ToStringSafe(), Entity.Note );
-                        History.EvaluateChange( historyItem.PersonHistoryChangeList, $"{historyItem.Caption} Status", OriginalValues["GroupMemberStatus"].ToStringSafe().ConvertToEnum<GroupMemberStatus>(), Entity.GroupMemberStatus );
-                        History.EvaluateChange( historyItem.PersonHistoryChangeList, $"{historyItem.Caption} Communication Preference", OriginalValues["CommunicationPreference"].ToStringSafe().ConvertToEnum<CommunicationType>(), Entity.CommunicationPreference );
-                        History.EvaluateChange( historyItem.PersonHistoryChangeList, $"{historyItem.Caption} Guest Count", OriginalValues["GuestCount"].ToStringSafe().AsIntegerOrNull(), Entity.GuestCount );
-                        History.EvaluateChange( historyItem.PersonHistoryChangeList, $"{historyItem.Caption} Archived", OriginalValues["IsArchived"].ToStringSafe().AsBoolean(), Entity.IsArchived );
+                        History.EvaluateChange( historyItem.PersonHistoryChangeList, $"{historyItem.Caption} Role", OriginalValues[nameof( Entity.GroupRoleId )].ToStringSafe().AsIntegerOrNull(), Entity.GroupRole, Entity.GroupRoleId, rockContext );
+                        History.EvaluateChange( historyItem.PersonHistoryChangeList, $"{historyItem.Caption} Note", OriginalValues[nameof( Entity.Note )].ToStringSafe(), Entity.Note );
+                        History.EvaluateChange( historyItem.PersonHistoryChangeList, $"{historyItem.Caption} Status", OriginalValues[nameof( Entity.GroupMemberStatus )].ToStringSafe().ConvertToEnum<GroupMemberStatus>(), Entity.GroupMemberStatus );
+                        History.EvaluateChange( historyItem.PersonHistoryChangeList, $"{historyItem.Caption} Communication Preference", OriginalValues[nameof( Entity.CommunicationPreference )].ToStringSafe().ConvertToEnum<CommunicationType>(), Entity.CommunicationPreference );
+                        History.EvaluateChange( historyItem.PersonHistoryChangeList, $"{historyItem.Caption} Guest Count", OriginalValues[nameof( Entity.GuestCount )].ToStringSafe().AsIntegerOrNull(), Entity.GuestCount );
+                        History.EvaluateChange( historyItem.PersonHistoryChangeList, $"{historyItem.Caption} Archived", OriginalValues[nameof( Entity.IsArchived )].ToStringSafe().AsBoolean(), Entity.IsArchived );
 
                         // If the groupmember was Archived, make sure it is the first GroupMember History change (since they get summarized when doing a HistoryLog and Timeline
                         bool origIsArchived = OriginalValues[nameof( GroupMember.IsArchived )].ToStringSafe().AsBoolean();
@@ -269,19 +244,6 @@ namespace Rock.Model
                         var deletedMemberPerson = Entity.Person ?? new PersonService( rockContext ).Get( Entity.PersonId );
 
                         historyItem.GroupMemberHistoryChangeList.AddChange( History.HistoryVerb.RemovedFromGroup, History.HistoryChangeType.Record, $"{deletedMemberPerson?.FullName}" ).SetCaption( $"{deletedMemberPerson?.FullName}" );
-                    }
-
-                    // process universal search indexing if required
-                    var groupType = GroupTypeCache.Get( group.GroupTypeId );
-                    if ( groupType != null && groupType.IsIndexEnabled )
-                    {
-                        var processEntityTypeIndexMsg = new ProcessEntityTypeIndex.Message
-                        {
-                            EntityTypeId = groupType.Id,
-                            EntityId = group.Id
-                        };
-
-                        processEntityTypeIndexMsg.Send();
                     }
                 }
 
@@ -392,7 +354,6 @@ namespace Rock.Model
                         PersonService.UpdatePrimaryFamily( Entity.PersonId, rockContext );
                         PersonService.UpdateGivingLeaderId( Entity.PersonId, rockContext );
 
-
                         GroupService.UpdateGroupSalutations( Entity.GroupId, rockContext );
 
                         if ( _preSaveChangesOldGroupId.HasValue && _preSaveChangesOldGroupId.Value != Entity.GroupId )
@@ -420,13 +381,13 @@ namespace Rock.Model
                             
                              */
 
-                            if ( Entity.Group.ElevatedSecurityLevel >= Utility.Enums.ElevatedSecurityLevel.High
+                            if ( Entity.Group.ElevatedSecurityLevel >= Utility.Enums.ElevatedSecurityLevel.Extreme
                                 && Entity.Person.AccountProtectionProfile < Utility.Enums.AccountProtectionProfile.Extreme )
                             {
                                 Entity.Person.AccountProtectionProfile = Utility.Enums.AccountProtectionProfile.Extreme;
                                 rockContext.SaveChanges();
                             }
-                            else if ( Entity.Group.ElevatedSecurityLevel >= Utility.Enums.ElevatedSecurityLevel.Low
+                            else if ( Entity.Group.ElevatedSecurityLevel >= Utility.Enums.ElevatedSecurityLevel.High
                                 && Entity.Person.AccountProtectionProfile < Utility.Enums.AccountProtectionProfile.High )
                             {
                                 Entity.Person.AccountProtectionProfile = Utility.Enums.AccountProtectionProfile.High;
@@ -435,6 +396,55 @@ namespace Rock.Model
                         }
                     }
                 }
+
+                // process universal search indexing if required
+                var groupType = GroupTypeCache.Get( this.Entity.GroupTypeId );
+                if ( groupType != null && groupType.IsIndexEnabled && this.Entity.Group.IsActive )
+                {
+                    var GroupEntityTypeId = EntityTypeCache.GetId( Rock.SystemGuid.EntityType.GROUP );
+                    var groupIndexTransaction = new IndexEntityTransaction( new EntityIndexInfo() { EntityTypeId = GroupEntityTypeId.Value, EntityId = this.Entity.GroupId } );
+                    groupIndexTransaction.Enqueue();
+                }
+
+                SendUpdateGroupMemberMessage();
+            }
+
+            /// <summary>
+            /// Sends the update group member message.
+            /// Don't do this in pre-save as it can cause a Race Condition with the message bus and the DB save.
+            /// </summary>
+            private void SendUpdateGroupMemberMessage()
+            {
+                var updateGroupMemberMsg = new UpdateGroupMember.Message
+                {
+                    State = State,
+                    GroupId = Entity.GroupId,
+                    PersonId = Entity.PersonId,
+                    GroupMemberStatus = Entity.GroupMemberStatus,
+                    GroupMemberRoleId = Entity.GroupRoleId,
+                    IsArchived = Entity.IsArchived
+                };
+
+                if ( Entity.Group != null )
+                {
+                    updateGroupMemberMsg.GroupTypeId = Entity.Group.GroupTypeId;
+                }
+
+                // If this isn't a new group member, get the previous status and role values
+                if ( State == EntityContextState.Modified )
+                {
+                    updateGroupMemberMsg.PreviousGroupMemberStatus = OriginalValues[nameof( GroupMember.GroupMemberStatus )].ToStringSafe().ConvertToEnum<GroupMemberStatus>();
+                    updateGroupMemberMsg.PreviousGroupMemberRoleId = OriginalValues[nameof( GroupMember.GroupRoleId )].ToStringSafe().AsInteger();
+                    updateGroupMemberMsg.PreviousIsArchived = OriginalValues[nameof( GroupMember.IsArchived )].ToStringSafe().AsBoolean();
+                }
+
+                // If this isn't a deleted group member, get the group member guid
+                if ( State != EntityContextState.Deleted )
+                {
+                    updateGroupMemberMsg.GroupMemberGuid = Entity.Guid;
+                }
+
+                updateGroupMemberMsg.Send();
             }
         }
     }

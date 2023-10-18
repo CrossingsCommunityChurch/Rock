@@ -21,6 +21,7 @@ using System.Data.Entity.Spatial;
 using System.Data.SqlTypes;
 using System.Drawing;
 using System.Linq;
+using System.Reflection;
 using System.Text.RegularExpressions;
 using System.Web.UI;
 using System.Web.UI.HtmlControls;
@@ -32,10 +33,10 @@ using Rock.Web.Cache;
 namespace Rock.Web.UI.Controls
 {
     /// <summary>
-    /// This control will create a Google map with drawring tools that
+    /// This control will create a Google map with drawing tools that
     /// allows the user to define a single point or a polygon which forms a geo-fence
     /// depending on the <see cref="Rock.Web.UI.Controls.GeoPicker.ManagerDrawingMode.Point"/>.
-    /// 
+    ///
     /// To use on a page or usercontrol:
     /// <example>
     /// <code>
@@ -54,10 +55,10 @@ namespace Rock.Web.UI.Controls
     ///    DbGeography point = gpGeoPoint.SelectedValue;
     /// </code>
     /// </example>
-    /// 
+    ///
     /// If you wish to set an appropriate, initial center point you can use the <see cref="CenterPoint"/> property.
     /// </summary>
-    public class GeoPicker : CompositeControl, IRockControl
+    public class GeoPicker : CompositeControl, IRockControl, IDisplayRequiredIndicator
     {
         #region IRockControl implementation
 
@@ -198,8 +199,24 @@ namespace Rock.Web.UI.Controls
         public string ValidationGroup
         {
             get { return ViewState["ValidationGroup"] as string; }
-            set { ViewState["ValidationGroup"] = value; }
+            set
+            {
+                EnsureChildControls();
+
+                ViewState["ValidationGroup"] = value;
+                _validator.ValidationGroup = value;
+            }
         }
+
+        /// <summary>
+        /// Sets the validation message display mode for the control.
+        /// </summary>
+        public ValidatorDisplay ValidationDisplay
+        {
+            get { return ViewState["ValidationDisplay"].ToStringSafe().ConvertToEnum<ValidatorDisplay>( ValidatorDisplay.None ); }
+            set { ViewState["ValidationDisplay"] = value; }
+        }
+
 
         /// <summary>
         /// Gets a value indicating whether this instance is valid.
@@ -211,7 +228,10 @@ namespace Rock.Web.UI.Controls
         {
             get
             {
-                return !Required || RequiredFieldValidator == null || RequiredFieldValidator.IsValid;
+                EnsureChildControls();
+                var isValid = ( !Required || RequiredFieldValidator == null || RequiredFieldValidator.IsValid )
+                              && _validator.IsValid;
+                return isValid;
             }
         }
 
@@ -244,11 +264,14 @@ namespace Rock.Web.UI.Controls
         #region Controls
 
         private HiddenField _hfGeoDisplayName;
-        private HiddenField _hfGeoPath;
-        private HtmlAnchor _btnSelect;
-        private HtmlAnchor _btnSelectNone;
+        private HiddenFieldWithClass _hfGeoPath;
+        private HtmlButton _btnSelect;
+        private HtmlButton _btnSelectNone;
 
         #endregion
+
+        // Server-side validator.
+        private CustomValidator _validator = null;
 
         #region Properties
 
@@ -279,8 +302,8 @@ namespace Rock.Web.UI.Controls
         /// </value>
         public DbGeography CenterPoint
         {
-            get 
-            { 
+            get
+            {
                 string centerLat = ViewState["CenterLat"] as string;
                 string centerLong = ViewState["CenterLong"] as string;
                 if (!string.IsNullOrWhiteSpace(centerLat) && !string.IsNullOrWhiteSpace(centerLong))
@@ -465,7 +488,7 @@ namespace Rock.Web.UI.Controls
         /// </summary>
         /// <value>
         ///   A style guid as found in the defined values (e.g., Rock, Retro, Old Timey, etc.) for the Map Styles
-        ///   defined type (<see cref="Rock.SystemGuid.DefinedType.MAP_STYLES" />). 
+        ///   defined type (<see cref="Rock.SystemGuid.DefinedType.MAP_STYLES" />).
         /// </value>
         [
         Bindable( true ),
@@ -478,7 +501,7 @@ namespace Rock.Web.UI.Controls
             get
             {
                 string guid = ViewState["MapStyleValueGuid"] as string;
-                return (guid == null) ? Rock.SystemGuid.DefinedValue.MAP_STYLE_ROCK.AsGuid() :  guid.AsGuid();
+                return ( guid == null ) ? Rock.SystemGuid.DefinedValue.MAP_STYLE_ROCK.AsGuid() : guid.AsGuid();
             }
             set { ViewState["MapStyleValueGuid"] = value.ToString(); }
         }
@@ -501,6 +524,22 @@ namespace Rock.Web.UI.Controls
 
         #endregion
 
+        #region IDisplayRequiredIndicator
+
+        /// <summary>
+        /// Gets or sets a value indicating whether to show the Required indicator when Required=true
+        /// </summary>
+        /// <value>
+        /// <c>true</c> if [display required indicator]; otherwise, <c>false</c>.
+        /// </value>
+        public bool DisplayRequiredIndicator
+        {
+            get { return ViewState["DisplayRequiredIndicator"] as bool? ?? true; }
+            set { ViewState["DisplayRequiredIndicator"] = value; }
+        }
+
+        #endregion
+
         #region Constructor
 
         /// <summary>
@@ -508,11 +547,14 @@ namespace Rock.Web.UI.Controls
         /// </summary>
         public GeoPicker()
         {
+            RockControlHelper.Init( this );
+
             RequiredFieldValidator = new HiddenFieldValidator();
-            HelpBlock = new HelpBlock();
-            WarningBlock = new WarningBlock();
-            _btnSelect = new HtmlAnchor();
-            _btnSelectNone = new HtmlAnchor();
+            _btnSelect = new HtmlButton();
+            _btnSelectNone = new HtmlButton();
+
+            // Default validation display mode to use the ValidationSummary control rather than inline.
+            ValidationDisplay = ValidatorDisplay.None;
         }
 
         #endregion
@@ -545,11 +587,9 @@ namespace Rock.Web.UI.Controls
 
             // TBD TODO -- do I need this hfGeoDisplayName_???
             _hfGeoDisplayName = new HiddenField();
-            _hfGeoDisplayName.ClientIDMode = System.Web.UI.ClientIDMode.Static;
             _hfGeoDisplayName.ID = string.Format( "hfGeoDisplayName_{0}", this.ClientID );
-            _hfGeoPath = new HiddenField();
-            _hfGeoPath.ClientIDMode = System.Web.UI.ClientIDMode.Static;
-            _hfGeoPath.ID = string.Format( "hfGeoPath_{0}", this.ClientID );
+            _hfGeoPath = new HiddenFieldWithClass();
+            _hfGeoPath.ID = "hfGeoPath";
 
             if ( ModePanel != null )
             {
@@ -557,7 +597,9 @@ namespace Rock.Web.UI.Controls
             }
 
             _btnSelect.ClientIDMode = System.Web.UI.ClientIDMode.Static;
-            _btnSelect.Attributes["class"] = "btn btn-xs btn-primary";
+            _btnSelect.Attributes["role"] = "button";
+            _btnSelect.Attributes["type"] = "button";
+            _btnSelect.Attributes["class"] = "btn btn-xs btn-primary js-geopicker-select";
             _btnSelect.ID = string.Format( "btnSelect_{0}", this.ClientID );
             _btnSelect.InnerText = "Done";
             _btnSelect.CausesValidation = false;
@@ -569,7 +611,10 @@ namespace Rock.Web.UI.Controls
             }
 
             _btnSelectNone.ClientIDMode = ClientIDMode.Static;
-            _btnSelectNone.Attributes["class"] = "picker-select-none";
+            _btnSelectNone.Attributes["role"] = "button";
+            _btnSelectNone.Attributes["type"] = "button";
+            _btnSelectNone.Attributes["aria-label"] = "Clear selection";
+            _btnSelectNone.Attributes["class"] = "btn picker-select-none";
             _btnSelectNone.ID = string.Format( "btnSelectNone_{0}", this.ClientID );
             _btnSelectNone.InnerHtml = "<i class='fa fa-times'></i>";
             _btnSelectNone.CausesValidation = false;
@@ -588,6 +633,14 @@ namespace Rock.Web.UI.Controls
 
             RequiredFieldValidator.InitialValue = "0";
             RequiredFieldValidator.ControlToValidate = _hfGeoPath.ID;
+
+            _validator = new CustomValidator();
+            _validator.ID = this.ID + "_CV";
+            _validator.Display = ValidatorDisplay.None;
+            _validator.CssClass = "validation-error help-inline";
+            _validator.EnableClientScript = false;
+            _validator.ServerValidate += _validator_ServerValidate;
+            Controls.Add( _validator );
         }
 
         /// <summary>
@@ -637,12 +690,16 @@ namespace Rock.Web.UI.Controls
                 writer.Write( string.Format( @"
                     <a class='picker-label' href='#'>
                         <i class='fa fa-map-marker'></i>
-                        <span id='selectedGeographyLabel_{0}'>{1}</span>
-                        <b class='fa fa-caret-down pull-right'></b>
-                    </a>", this.ClientID, this.GeoDisplayName ) );
+                        <span id='selectedGeographyLabel_{0}'>{1}</span>", this.ClientID, this.GeoDisplayName ) );
                 writer.WriteLine();
-                
+
                 _btnSelectNone.RenderControl( writer );
+
+                writer.Write( @"
+                        <b class='fa fa-caret-down'></b>
+                    </a>" );
+                writer.WriteLine();
+
 
                 // picker menu
                 writer.AddAttribute( "class", "picker-menu dropdown-menu" );
@@ -709,6 +766,14 @@ namespace Rock.Web.UI.Controls
                 writer.RenderEndTag();
             }
 
+            if ( this.RequiredFieldValidator != null )
+            {
+                this.RequiredFieldValidator.Display = this.ValidationDisplay;
+            }
+
+            _validator.Display = this.ValidationDisplay;
+            _validator.RenderControl( writer );
+
             // controls div
             writer.RenderEndTag();
 
@@ -729,7 +794,7 @@ namespace Rock.Web.UI.Controls
                 GeoDisplayName = Rock.Constants.None.TextHtml;
             }
         }
-        
+
         /// <summary>
         /// Registers the java script.
         /// </summary>
@@ -891,7 +956,7 @@ if ($('#{1}').length > 0)
 
         /// <summary>
         /// Attempt to determine if the polygon is clockwise or counter-clockwise.
-        /// Thank you dominoc!  
+        /// Thank you dominoc!
         /// http://dominoc925.blogspot.com/2012/03/c-code-to-determine-if-polygon-vertices.html
         /// </summary>
         /// <param name="polygon"></param>
@@ -943,7 +1008,7 @@ if ($('#{1}').length > 0)
                     errorMessage = "The selected geo-fence path is invalid.";
                     return false;
                 }
-                
+
                 if ( sqlGeography.STNumGeometries() > 1 )
                 {
                     errorMessage=  "The geo-fence has overlapping lines or is made up of multiple polygons. Only one polygon is allowed.";
@@ -984,7 +1049,7 @@ if ($('#{1}').length > 0)
                 SelectGeography( sender, e );
             }
         }
-        
+
         /// <summary>
         /// Gets or sets the select dbGeography.
         /// </summary>
@@ -992,6 +1057,66 @@ if ($('#{1}').length > 0)
         /// The select dbGeography.
         /// </value>
         public event EventHandler SelectGeography;
+
+        /// <summary>
+        /// Handles the ServerValidate event for the custom validator.
+        /// </summary>
+        /// <param name="source"></param>
+        /// <param name="args"></param>
+        private void _validator_ServerValidate( object source, ServerValidateEventArgs args )
+        {
+            string validationMessage = null;
+            bool isValid = false;
+
+            var controlName = this.Label ?? "GeoPicker";
+
+            // Check if a required value is missing.
+            if ( this.Required
+                 && string.IsNullOrWhiteSpace( _hfGeoPath.Value ) )
+            {
+                validationMessage = $"{controlName} is required.";
+            }
+            else
+            {
+                // Validate the selection.
+                if ( this.DrawingMode == ManagerDrawingMode.Polygon )
+                {
+                    // Verify that a valid geofence has been selected.
+                    isValid = IsGeoFenceValid( out validationMessage );
+                    if ( !isValid )
+                    {
+                        validationMessage = $"{controlName} is invalid. {validationMessage}";
+                    }
+                }
+                else
+                {
+                    // Try to create a DbGeography point from the control settings.
+                    // This will fail if the settings don't represent a valid map location.
+                    // There is no way to create an invalid point on the map selector,
+                    // so this check only exists to prevent invalid values from being injected by any other means.
+                    DbGeography gp;
+                    try
+                    {
+                        gp = this.GeoPoint;
+                        isValid = true;
+                    }
+                    catch ( TargetInvocationException ex )
+                    {
+                        validationMessage = $"{controlName} value is invalid. { ex?.InnerException?.Message }";
+                    }
+                    catch ( Exception ex )
+                    {
+                        validationMessage = $"{controlName} value is invalid. { ex.Message }";
+                    }
+                }
+            }
+
+            // Set the error message for both in-line display and validation summary.
+            _validator.Text = null;
+            _validator.ErrorMessage = validationMessage;
+
+            args.IsValid = isValid;
+        }
 
         #endregion
 

@@ -22,6 +22,7 @@ using System.Web.UI;
 using System.Web.UI.HtmlControls;
 using System.Web.UI.WebControls;
 
+using Rock.Attribute;
 using Rock.Data;
 using Rock.Model;
 using Rock.Reporting;
@@ -35,6 +36,11 @@ namespace Rock.Field
     [Serializable]
     public abstract class FieldType : IFieldType
     {
+        /// <summary>
+        /// The condensed truncate length
+        /// </summary>
+        public static readonly int CondensedTruncateLength = 100;
+
         #region Constructors
 
         /// <summary>
@@ -58,9 +64,21 @@ namespace Rock.Field
         }
 
         /// <inheritdoc/>
-        public virtual Dictionary<string, string> GetClientConfigurationValues( Dictionary<string, ConfigurationValue> configurationValues )
+        [RockInternal( "1.13.4" )]
+        public virtual Dictionary<string, string> GetPublicConfigurationValues( Dictionary<string, string> privateConfigurationValues, ConfigurationValueUsage usage, string value )
         {
-            return configurationValues.ToDictionary( kvp => kvp.Key, kvp => kvp.Value.Value );
+            // Create a new dictionary to protect against the passed dictionary
+            // being changed after we are called.
+            return new Dictionary<string, string>( privateConfigurationValues );
+        }
+
+        /// <inheritdoc/>
+        [RockInternal( "1.13.4" )]
+        public virtual Dictionary<string, string> GetPrivateConfigurationValues( Dictionary<string, string> publicConfigurationValues )
+        {
+            // Create a new dictionary to protect against the passed dictionary
+            // being changed after we are called.
+            return new Dictionary<string, string>( publicConfigurationValues );
         }
 
         /// <summary>
@@ -91,6 +109,13 @@ namespace Rock.Field
         {
         }
 
+        /// <inheritdoc/>
+        [RockInternal( "1.13.4" )]
+        public virtual Dictionary<string, string> GetPublicEditConfigurationProperties( Dictionary<string, string> privateConfigurationValues )
+        {
+            return new Dictionary<string, string>();
+        }
+
         #endregion
 
         #region Formatting
@@ -103,28 +128,48 @@ namespace Rock.Field
             get { return HorizontalAlign.Left; }
         }
 
+        /// <remarks>
+        ///     <inheritdoc/>
+        ///     <para>Subclasses should not call the base implementation unless they have a specific reason to.</para>
+        /// </remarks>
         /// <inheritdoc/>
-        public virtual string GetTextValue( string value, Dictionary<string, ConfigurationValue> configurationValues )
+        [RockInternal( "1.13.2" )]
+        public virtual string GetTextValue( string privateValue, Dictionary<string, string> privateConfigurationValues )
         {
-            return value;
+            return privateValue;
         }
 
+        /// <remarks>
+        ///     <inheritdoc/>
+        ///     <para>Subclasses should not call the base implementation unless they have a specific reason to.</para>
+        /// </remarks>
         /// <inheritdoc/>
-        public virtual string GetHtmlValue( string value, Dictionary<string, ConfigurationValue> configurationValues )
+        [RockInternal( "1.13.2" )]
+        public virtual string GetHtmlValue( string privateValue, Dictionary<string, string> privateConfigurationValues )
         {
-            return GetTextValue( value, configurationValues );
+            return GetTextValue( privateValue, privateConfigurationValues )?.EncodeHtml();
         }
 
+        /// <remarks>
+        ///     <inheritdoc/>
+        ///     <para>Subclasses should not call the base implementation unless they have a specific reason to.</para>
+        /// </remarks>
         /// <inheritdoc/>
-        public virtual string GetCondensedTextValue( string value, Dictionary<string, ConfigurationValue> configurationValues )
+        [RockInternal( "1.13.2" )]
+        public virtual string GetCondensedTextValue( string privateValue, Dictionary<string, string> privateConfigurationValues )
         {
-            return GetTextValue( value, configurationValues ).Truncate( 100 );
+            return GetTextValue( privateValue, privateConfigurationValues )?.Truncate( CondensedTruncateLength );
         }
 
+        /// <remarks>
+        ///     <inheritdoc/>
+        ///     <para>Subclasses should not call the base implementation unless they have a specific reason to.</para>
+        /// </remarks>
         /// <inheritdoc/>
-        public virtual string GetCondensedHtmlValue( string value, Dictionary<string, ConfigurationValue> configurationValues )
+        [RockInternal( "1.13.2" )]
+        public virtual string GetCondensedHtmlValue( string privateValue, Dictionary<string, string> privateConfigurationValues )
         {
-            return GetCondensedTextValue( value, configurationValues );
+            return GetHtmlValue( privateValue, privateConfigurationValues );
         }
 
         /// <summary>
@@ -139,7 +184,7 @@ namespace Rock.Field
         {
             if ( condensed )
             {
-                return value.Truncate( 100 );
+                return value.Truncate( CondensedTruncateLength );
             }
 
             return value;
@@ -250,21 +295,24 @@ namespace Rock.Field
         public virtual bool HasDefaultControl => true;
 
         /// <inheritdoc/>
-        public virtual string GetClientValue( string value, Dictionary<string, ConfigurationValue> configurationValues )
+        [RockInternal( "1.13.2" )]
+        public virtual string GetPublicValue( string privateValue, Dictionary<string, string> privateConfigurationValues )
         {
-            return value;
+            return privateValue;
         }
 
         /// <inheritdoc/>
-        public virtual string GetClientEditValue( string value, Dictionary<string, ConfigurationValue> configurationValues )
+        [RockInternal( "1.13.2" )]
+        public virtual string GetPublicEditValue( string privateValue, Dictionary<string, string> privateConfigurationValues )
         {
-            return GetClientValue( value, configurationValues );
+            return GetPublicValue( privateValue, privateConfigurationValues );
         }
 
         /// <inheritdoc/>
-        public virtual string GetValueFromClient( string clientValue, Dictionary<string, ConfigurationValue> configurationValues )
+        [RockInternal( "1.13.2" )]
+        public virtual string GetPrivateEditValue( string publicValue, Dictionary<string, string> privateConfigurationValues )
         {
-            return clientValue;
+            return publicValue;
         }
 
         /// <summary>
@@ -407,6 +455,53 @@ namespace Rock.Field
 
         #region Filter Control
 
+        /// <inheritdoc/>
+        [RockInternal( "1.13.2" )]
+        public virtual ComparisonValue GetPublicFilterValue( string privateValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            var values = privateValue.FromJsonOrNull<List<string>>();
+
+            if ( values == null || values.Count == 0 )
+            {
+                return new ComparisonValue
+                {
+                    Value = string.Empty
+                };
+            }
+            else if ( values.Count == 1 )
+            {
+                return new ComparisonValue
+                {
+                    Value = GetPublicEditValue( values[0], privateConfigurationValues )
+                };
+            }
+            else
+            {
+                return new ComparisonValue
+                {
+                    ComparisonType = values[0].ConvertToEnumOrNull<ComparisonType>(),
+                    Value = GetPublicEditValue( values[1], privateConfigurationValues )
+                };
+            }
+        }
+
+        /// <inheritdoc/>
+        [RockInternal( "1.13.2" )]
+        public virtual string GetPrivateFilterValue( ComparisonValue publicValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            var values = new List<string>();
+
+            if ( publicValue.ComparisonType.HasValue )
+            {
+                values.Add( publicValue.ComparisonType.ConvertToInt().ToString() );
+            }
+
+            values.Add( publicValue.Value != null ? GetPrivateEditValue( publicValue.Value, privateConfigurationValues ) : string.Empty );
+
+            return values.ToJson();
+        }
+
+
         /// <summary>
         /// Creates the control needed to filter (query) values using this field type.
         /// </summary>
@@ -437,17 +532,17 @@ namespace Rock.Field
                 if ( !compareControl.Visible )
                 {
                     col1Class = string.Empty;
-                    col2Class = "col-md-12";
+                    col2Class = "col-xs-12 col-md-12";
                 }
                 else if ( compareControl is Label )
                 {
-                    col1Class = "col-md-2";
-                    col2Class = "col-md-10";
+                    col1Class = "col-xs-12 col-md-2";
+                    col2Class = "col-xs-12 col-md-10";
                 }
                 else
                 {
-                    col1Class = "col-md-4";
-                    col2Class = "col-md-8";
+                    col1Class = "col-xs-12 col-md-4";
+                    col2Class = "col-xs-12 col-md-8";
                 }
 
                 col1.AddCssClass( col1Class );
@@ -534,12 +629,9 @@ namespace Rock.Field
         /// <returns></returns>
         public virtual Control FilterValueControl( Dictionary<string, ConfigurationValue> configurationValues, string id, bool required, FilterMode filterMode )
         {
-            var control = EditControl( configurationValues, id );
-            if ( control != null )
-            {
-                control.ID = string.Format( "{0}_ctlCompareValue", id );
-            }
+            id = $"{id ?? string.Empty}_ctlCompareValue";
 
+            var control = EditControl( configurationValues, id );
             if ( control is WebControl )
             {
                 ( ( WebControl ) control ).AddCssClass( "js-filter-control" );
@@ -1015,6 +1107,55 @@ namespace Rock.Field
 
         #endregion
 
+        #region Persistence
+
+        /// <inheritdoc/>
+        public virtual bool IsPersistedValueSupported( Dictionary<string, string> privateConfigurationValues )
+        {
+            return true;
+        }
+
+        /// <inheritdoc/>
+        public virtual bool IsPersistedValueVolatile( Dictionary<string, string> privateConfigurationValues )
+        {
+            // Rock native field types by default are not volatile, third
+            // party field types are volatile by default.
+            if ( GetType().Assembly == typeof( FieldType ).Assembly )
+            {
+                return false;
+            }
+            else
+            {
+                return true;
+            }
+        }
+
+        /// <inheritdoc/>
+        public virtual string GetPersistedValuePlaceholder( Dictionary<string, string> privateConfigurationValues )
+        {
+            return Rock.Constants.DisplayStrings.PersistedValuesAreNotSupported;
+        }
+
+        /// <inheritdoc/>
+        public virtual bool IsPersistedValueInvalidated( Dictionary<string, string> oldPrivateConfigurationValues, Dictionary<string, string> newPrivateConfigurationValues )
+        {
+            return false;
+        }
+
+        /// <inheritdoc/>
+        public virtual PersistedValues GetPersistedValues( string privateValue, Dictionary<string, string> privateConfigurationValues, IDictionary<string, object> cache )
+        {
+            return new PersistedValues
+            {
+                TextValue = GetTextValue( privateValue, privateConfigurationValues ),
+                HtmlValue = GetHtmlValue( privateValue, privateConfigurationValues ),
+                CondensedTextValue = GetCondensedTextValue( privateValue, privateConfigurationValues ),
+                CondensedHtmlValue = GetCondensedHtmlValue( privateValue, privateConfigurationValues )
+            };
+        }
+
+        #endregion
+
         #region Event Handlers
 
         /// <summary>
@@ -1034,6 +1175,46 @@ namespace Rock.Field
         /// Occurs when [qualifier updated].
         /// </summary>
         public event EventHandler QualifierUpdated;
+
+        #endregion
+
+        #region Utility Methods
+
+        /// <summary>
+        /// Utility method to convert a string of delimited unique identifiers
+        /// into their integer identifier equivalents.
+        /// </summary>
+        /// <param name="guidValues">The string that contains the delimited unique identifiers.</param>
+        /// <param name="converter">The function to handle the conversion, <c>null</c> return values are removed.</param>
+        /// <returns>A delimited string of integer identifiers.</returns>
+        internal static string ConvertDelimitedGuidsToIds( string guidValues, Func<Guid, int?> converter )
+        {
+            return guidValues
+                .SplitDelimitedValues()
+                .AsGuidList()
+                .Select( v => converter( v ) )
+                .Where( v => v.HasValue )
+                .Select( v => v.Value.ToString() )
+                .JoinStrings( "," );
+        }
+
+        /// <summary>
+        /// Utility method to convert a string of delimited integer identifiers
+        /// into their unique identifier equivalents.
+        /// </summary>
+        /// <param name="idValues">The string that contains the delimited integer identifiers.</param>
+        /// <param name="converter">The function to handle the conversion, <c>null</c> return values are removed.</param>
+        /// <returns>A delimited string of unique identifiers.</returns>
+        internal static string ConvertDelimitedIdsToGuids( string idValues, Func<int, Guid?> converter )
+        {
+            return idValues
+                .SplitDelimitedValues()
+                .AsIntegerList()
+                .Select( v => converter( v ) )
+                .Where( v => v.HasValue )
+                .Select( v => v.Value.ToString() )
+                .JoinStrings( "," );
+        }
 
         #endregion
     }

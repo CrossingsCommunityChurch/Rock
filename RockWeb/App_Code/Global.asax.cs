@@ -26,12 +26,14 @@ using System.Web.Caching;
 using System.Web.Http;
 using System.Web.Optimization;
 using System.Web.Routing;
-
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Trace;
 using Rock;
 using Rock.Communication;
 using Rock.Data;
 using Rock.Logging;
 using Rock.Model;
+using Rock.Observability;
 using Rock.Transactions;
 using Rock.Utility;
 using Rock.Utility.Settings;
@@ -55,6 +57,9 @@ namespace RockWeb
 
         // cache callback object
         private static CacheItemRemovedCallback _onCacheRemove = null;
+
+        public static Thread CompileThemesThread = null;
+        public static Thread BlockTypeCompilationThread = null;
 
         #endregion
 
@@ -120,6 +125,9 @@ namespace RockWeb
 
             Rock.Bus.RockMessageBus.IsRockStarted = false;
             QueueInUse = false;
+
+            // Start-up the observability features
+            ObservabilityHelper.ConfigureObservability( true );
 
             /* 2020-05-20 MDP
                 * Prior to Application_Start, Rock.WebStartup has an AssemblyInitializer class that runs as a PreApplicationStartMethod.
@@ -192,9 +200,20 @@ namespace RockWeb
 
                 ExceptionLogService.AlwaysLogToFile = false;
 
+                Task.Run( () => WarmupCache() );
+
                 // Perform any Rock startups
                 RunStartups();
 
+                bool runJobsInContext = Convert.ToBoolean( ConfigurationManager.AppSettings["RunJobsInIISContext"] );
+                if ( runJobsInContext )
+                {
+                    RockApplicationStartupHelper.LogStartupMessage( "Starting Job Scheduler" );
+                    Debug.WriteLine( "Starting Job Scheduler" );
+                    ServiceJobService.StartQuartzScheduler();
+                    Debug.WriteLine( "Job Scheduler Started" );
+                    RockApplicationStartupHelper.LogStartupMessage( "Job Scheduler Started" );
+                }
             }
             catch ( Exception ex )
             {
@@ -215,7 +234,38 @@ namespace RockWeb
 
             StartCompileThemesThread();
 
+            StartEnsureChromeEngineThread();
+
             Rock.Bus.RockMessageBus.IsRockStarted = true;
+        }
+
+        /// <summary>
+        /// Warms the cache up by loading various cache types into memory that
+        /// are most likely required for normal operation. This ensures that if
+        /// Rock starts up without a request coming in that many things will
+        /// be in cache already before the first request comes in.
+        /// </summary>
+        private static void WarmupCache()
+        {
+            var sw = Stopwatch.StartNew();
+
+            // These have probably already been loaded, but make sure they are still hot.
+            EntityTypeCache.All();
+            FieldTypeCache.All();
+
+            // Load additional cache items that are most likely going to be required for
+            // normal operation.
+            AttributeCache.All();
+            GroupTypeCache.All();
+            BlockTypeCache.All();
+            BlockCache.All();
+            DefinedTypeCache.All();
+            DefinedValueCache.All();
+            CategoryCache.All();
+
+            sw.Stop();
+
+            RockApplicationStartupHelper.ShowDebugTimingMessage( "Warmup Cache", sw.Elapsed.TotalMilliseconds );
         }
 
         // This is used to cancel our CompileThemesThread and BlockTypeCompilationThread if they aren't done when Rock shuts down
@@ -227,26 +277,54 @@ namespace RockWeb
         private static void StartCompileThemesThread()
         {
             // compile less files
-            new Thread( () =>
+            CompileThemesThread = new Thread( () =>
             {
                 /* Set to background thread so that this thread doesn't prevent Rock from shutting down. */
                 var stopwatchCompileLess = Stopwatch.StartNew();
 
                 Thread.CurrentThread.IsBackground = true;
                 string messages = string.Empty;
+                bool onlyCompileIfNeeded = true;
 
                 // Pass in a CancellationToken so we can stop compiling if Rock shuts down before it is done
-                RockTheme.CompileAll( out messages, _threadCancellationTokenSource.Token );
+                RockTheme.CompileAll( onlyCompileIfNeeded, out messages, _threadCancellationTokenSource.Token );
                 if ( System.Web.Hosting.HostingEnvironment.IsDevelopmentEnvironment )
                 {
                     if ( messages.IsNullOrWhiteSpace() )
                     {
-                        System.Diagnostics.Debug.WriteLine( string.Format( "[{0,5:#} seconds] Less files compiled successfully. ", +stopwatchCompileLess.Elapsed.TotalSeconds ) );
+                        if ( stopwatchCompileLess.Elapsed.TotalSeconds < 1 )
+                        {
+                            System.Diagnostics.Debug.WriteLine( string.Format( "[{0,5:#} ms] Less Files Compiled", stopwatchCompileLess.Elapsed.TotalMilliseconds ) );
+                        }
+                        else
+                        {
+                            System.Diagnostics.Debug.WriteLine( string.Format( "[{0,5:#} seconds] Less Files Compiled", +stopwatchCompileLess.Elapsed.TotalSeconds ) );
+                        }
                     }
                     else
                     {
                         System.Diagnostics.Debug.WriteLine( "RockTheme.CompileAll messages: " + messages );
                     }
+                }
+            } );
+
+            CompileThemesThread.Start();
+        }
+
+        private static void StartEnsureChromeEngineThread()
+        {
+            new Thread( () =>
+            {
+                /* Set to background thread so that this thread doesn't prevent Rock from shutting down. */
+                Thread.CurrentThread.IsBackground = true;
+
+                try
+                {
+                    Rock.Pdf.PdfGenerator.EnsureChromeEngineInstalled();
+                }
+                catch ( Exception ex )
+                {
+                    LogError( ex, null );
                 }
             } ).Start();
         }
@@ -272,7 +350,7 @@ namespace RockWeb
         /// </summary>
         private static void StartBlockTypeCompilationThread()
         {
-            new Thread( () =>
+            BlockTypeCompilationThread = new Thread( () =>
             {
                 // Set to background thread so that this thread doesn't prevent Rock from shutting down.
                 Thread.CurrentThread.IsBackground = true;
@@ -291,8 +369,10 @@ namespace RockWeb
                 // Pass in a CancellationToken so we can stop compiling if Rock shuts down before it is done
                 BlockTypeService.VerifyBlockTypeInstanceProperties( allUsedBlockTypeIds, _threadCancellationTokenSource.Token );
 
-                Debug.WriteLine( string.Format( "[{0,5:#} seconds] All block types Compiled", stopwatchCompileBlockTypes.Elapsed.TotalSeconds ) );
-            } ).Start();
+                Debug.WriteLine( string.Format( "[{0,5:#} seconds] Block Types Compiled", stopwatchCompileBlockTypes.Elapsed.TotalSeconds ) );
+            } );
+
+            BlockTypeCompilationThread.Start();
         }
 
         /// <summary>
@@ -432,6 +512,17 @@ namespace RockWeb
                                 context.Response.StatusCode = 404;
                                 return;
                             }
+
+                            // Check for client\remote host disconnection error specifically SignalR or web-socket connections
+                            // Ignore this error as it indicates the server it trying to write a response to a disconnected client.
+                            if( httpEx.Message.IsNotNullOrWhiteSpace() && httpEx.StackTrace.IsNotNullOrWhiteSpace() &&
+                                httpEx.Message.Contains( "The remote host closed the connection." ) &&
+                                httpEx.StackTrace.Contains( "Microsoft.AspNet.SignalR.Owin.ServerResponse.Write" ) )
+                            {
+                                context.ClearError();
+                                context.Response.StatusCode = 200;
+                                return;
+                            }
                         }
                     }
                     catch
@@ -456,7 +547,7 @@ namespace RockWeb
                             ex = newEx;
                         }
                     }
-
+                                      
                     if ( !( ex is HttpRequestValidationException ) )
                     {
                         SendNotification( ex );
@@ -521,10 +612,7 @@ namespace RockWeb
                 bool runJobsInContext = Convert.ToBoolean( ConfigurationManager.AppSettings["RunJobsInIISContext"] );
                 if ( runJobsInContext )
                 {
-                    if ( RockApplicationStartupHelper.QuartzScheduler != null )
-                    {
-                        RockApplicationStartupHelper.QuartzScheduler.Shutdown();
-                    }
+                    ServiceJobService.ShutdownQuartzScheduler();
                 }
 
                 // Process the transaction queue
@@ -826,7 +914,8 @@ namespace RockWeb
         #region Static Methods
 
         /// <summary>
-        /// Adds the call back.
+        /// Adds the call back that is used to Drain the Transaction Queue every 60 seconds
+        /// and do KeepAlive (if Configured)
         /// </summary>
         public static void AddCallBack()
         {
@@ -904,7 +993,7 @@ namespace RockWeb
         #region Event Handlers
 
         /// <summary>
-        /// Caches the item removed.
+        /// Called every 60 seconds to Drain Transaction Queue and Keep Alive (if configured)
         /// </summary>
         /// <param name="k">The k.</param>
         /// <param name="v">The v.</param>
@@ -921,20 +1010,10 @@ namespace RockWeb
                     // add cache item again
                     AddCallBack();
 
-                    var keepAliveUrl = GetKeepAliveUrl();
-
-                    // call a page on the site to keep IIS alive
-                    if ( !string.IsNullOrWhiteSpace( keepAliveUrl ) )
+                    bool enableKeepAlive = Rock.Web.SystemSettings.GetValue( Rock.SystemKey.SystemSetting.ENABLE_KEEP_ALIVE ).AsBoolean();
+                    if ( enableKeepAlive )
                     {
-                        try
-                        {
-                            WebRequest request = WebRequest.Create( keepAliveUrl );
-                            WebResponse response = request.GetResponse();
-                        }
-                        catch ( Exception ex )
-                        {
-                            LogError( new Exception( "Error doing KeepAlive request.", ex ), null );
-                        }
+                        DoKeepAlive();
                     }
                 }
                 else
@@ -948,6 +1027,37 @@ namespace RockWeb
             catch ( Exception ex )
             {
                 LogError( ex, null );
+            }
+        }
+
+        /// <summary>
+        /// Does the keep alive. Do this if Rock.SystemKey.SystemSetting.ENABLE_KEEP_ALIVE is enabled.
+        /// </summary>
+        private static void DoKeepAlive()
+        {
+            /* 04-07-2022 MDP
+
+            We call DoKeepAlive to help prevent IIS from falling asleep, but if IIS AppPool's Idle Time-out
+            is set to 0, this is not needed. The the Rock Solid Internal Hosting guide recommends that the
+            Idle Time-Out is set to 0, so we have DoKeepAlive disabled by default. If needed,
+            Rock.SystemKey.SystemSetting.ENABLE_KEEP_ALIVE can be enabled in Rock's System Settings. 
+
+            */
+            
+            var keepAliveUrl = GetKeepAliveUrl();
+
+            // call a page on the site to keep IIS alive
+            if ( !string.IsNullOrWhiteSpace( keepAliveUrl ) )
+            {
+                try
+                {
+                    WebRequest request = WebRequest.Create( keepAliveUrl );
+                    WebResponse response = request.GetResponse();
+                }
+                catch ( Exception ex )
+                {
+                    LogError( new Exception( "Error doing KeepAlive request.", ex ), null );
+                }
             }
         }
 

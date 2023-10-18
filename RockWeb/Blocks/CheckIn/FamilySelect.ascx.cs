@@ -64,6 +64,7 @@ namespace RockWeb.Blocks.CheckIn
         Order = 8,
         Key = AttributeKey.PrioritizeFamiliesForThisCampus )]
 
+    [Rock.SystemGuid.BlockTypeGuid( "6B050E12-A232-41F6-94C5-B190F4520607" )]
     public partial class FamilySelect : CheckInBlock
     {
         /* 2021-08/13 ETD
@@ -226,7 +227,7 @@ namespace RockWeb.Blocks.CheckIn
             pnlSelectFamilyPostback.Attributes["data-loading-text"] = "Loading...";
             Literal lSelectFamilyButtonHtml = e.Item.FindControl( "lSelectFamilyButtonHtml" ) as Literal;
 
-            var mergeFields = Rock.Lava.LavaHelper.GetCommonMergeFields( this.RockPage, null, new Rock.Lava.CommonMergeFieldsOptions { GetLegacyGlobalMergeFields = false } );
+            var mergeFields = Rock.Lava.LavaHelper.GetCommonMergeFields( this.RockPage, null, new Rock.Lava.CommonMergeFieldsOptions() );
             mergeFields.Add( "Family", checkInFamily );
             mergeFields.Add( "Kiosk", CurrentCheckInState.Kiosk );
             mergeFields.Add( "RegistrationModeEnabled", CurrentCheckInState.Kiosk.RegistrationModeEnabled );

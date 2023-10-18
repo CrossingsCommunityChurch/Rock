@@ -42,6 +42,7 @@ namespace RockWeb.Blocks.Core
     [LinkedPage( "Detail Page",
         Key = AttributeKey.DetailPage )]
 
+    [Rock.SystemGuid.BlockTypeGuid( "468B99CE-D276-4D30-84A9-7842933BDBCD" )]
     public partial class LocationTreeView : RockBlock
     {
         public static class AttributeKey
@@ -105,13 +106,13 @@ namespace RockWeb.Blocks.Core
                     }
                 }
             }
-
+             
 
             if ( !string.IsNullOrWhiteSpace( _LocationId ) )
             {
                 hfInitialLocationId.Value = _LocationId;
                 hfSelectedLocationId.Value = _LocationId;
-                Location Location = ( new LocationService( new RockContext() ) ).Get( int.Parse( _LocationId ) );
+                Location Location = ( new LocationService( new RockContext() ) ).Get( _LocationId, !RockPage.Site.DisablePredictableIds );
 
                 lbAddLocationChild.Enabled = Location != null && canEditBlock;
 

@@ -30,6 +30,7 @@ namespace Rock.Search.Group
     [Description("Group Name Search")]
     [Export(typeof(SearchComponent))]
     [ExportMetadata("ComponentName", "Group Name")]
+    [Rock.SystemGuid.EntityTypeGuid( "94825231-DC38-4DC0-A1D3-64B4AD6A87F0")]
     public class Name : SearchComponent
     {
         /// <summary>
@@ -49,18 +50,37 @@ namespace Rock.Search.Group
         }
 
         /// <summary>
+        /// Gets the search result entity queryable that matches the search term.
+        /// </summary>
+        /// <param name="searchTerm">The search term used to find results.</param>
+        /// <returns>A queryable of entity objects that match the search term.</returns>
+        private IQueryable<Model.Group> GetSearchResults( string searchTerm )
+        {
+            return new GroupService( new RockContext() ).Queryable()
+                .Where( g => g.GroupType.ShowInNavigation
+                    && g.Name.Contains( searchTerm ) );
+        }
+
+        /// <inheritdoc/>
+        public override IOrderedQueryable<object> SearchQuery( string searchTerm )
+        {
+            return GetSearchResults( searchTerm )
+                .OrderBy( g => g.Name );
+        }
+
+        /// <summary>
         /// Returns a list of matching groups
         /// </summary>
         /// <param name="searchterm"></param>
         /// <returns></returns>
         public override IQueryable<string> Search( string searchterm )
         {
-            return new GroupService( new RockContext() ).Queryable()
-                .Where( g => 
-                    g.GroupType.ShowInNavigation &&
-                    g.Name.Contains( searchterm ) )
+            var groupQry = ( IQueryable<Model.Group> ) SearchQuery( searchterm );
+
+            // Note: extra spaces intentional with the label span to keep the markup from showing in the search input on selection
+            return GetSearchResults( searchterm )
                 .OrderBy( g => g.Name )
-                .Select( g => g.Name );
+                .Select( g => g.Campus == null ? g.Name : g.Name + "                                               <span class='search-accessory label label-default pull-right'>" + (g.Campus.ShortCode != "" ? g.Campus.ShortCode : g.Campus.Name) + "</span>" );
         }
     }
 }

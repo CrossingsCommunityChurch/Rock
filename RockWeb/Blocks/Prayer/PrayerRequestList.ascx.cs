@@ -41,13 +41,14 @@ namespace RockWeb.Blocks.Prayer
     [SecurityAction( Authorization.APPROVE, "The roles and/or users that have access to approve prayer requests and comments." )]
 
     [LinkedPage( "Detail Page", "", false, Order = 0 )]
-    [IntegerField( "Expires After (Days)", "Number of days until the request will expire.", false, 14, "", 1, "ExpireDays" )]
+    [IntegerField( "Expires After (days)", "Number of days until the request will expire.", false, 14, "", 1, "ExpireDays" )]
     [BooleanField( "Show Prayer Count", "If enabled, the block will show the current prayer count for each request in the list.", false, "", 2 )]
     [BooleanField( "Show 'Approved' column", "If enabled, the Approved column will be shown with a Yes/No toggle button.", true, "", 3, "ShowApprovedColumn" )]
     [BooleanField( "Show Grid Filter", "If enabled, the grid filter will be visible.", true, "", 4 )]
     [BooleanField( "Show Public Only", "If enabled, it will limit the list only to the prayer requests that are public.", false, order: 5 )]
 
     [ContextAware( typeof( Rock.Model.Person ) )]
+    [Rock.SystemGuid.BlockTypeGuid( "4D6B686A-79DF-4EFC-A8BA-9841C248BF74" )]
     public partial class PrayerRequestList : RockBlock, ICustomGridColumns
     {
         #region Fields
@@ -56,16 +57,6 @@ namespace RockWeb.Blocks.Prayer
         /// The prayer request key parameter used in the QueryString for detail page.
         /// </summary>
         private static readonly string _PrayerRequestKeyParameter = "PrayerRequestId";
-
-        /// <summary>
-        /// Holds whether or not the person can add, edit, and delete.
-        /// </summary>
-        private bool _canAddEditDelete = false;
-
-        /// <summary>
-        /// Holds whether or not the person can approve requests.
-        /// </summary>
-        private bool _canApprove = false;
 
         /// <summary>
         /// Gets or sets the available attributes.
@@ -114,17 +105,25 @@ namespace RockWeb.Blocks.Prayer
             gPrayerRequests.GridRebind += gPrayerRequests_GridRebind;
 
             // Block Security and special attributes (RockPage takes care of View)
-            _canApprove = IsUserAuthorized( "Approve" );
-            _canAddEditDelete = IsUserAuthorized( Authorization.EDIT );
-            gPrayerRequests.Actions.ShowAdd = _canAddEditDelete;
-            gPrayerRequests.IsDeleteEnabled = _canAddEditDelete;
+            var canAddEditDelete = IsUserAuthorized( Authorization.EDIT );
+            gPrayerRequests.Actions.ShowAdd = canAddEditDelete;
+            gPrayerRequests.IsDeleteEnabled = canAddEditDelete;
 
-            // if there is a Person as the ContextEntity, there is no need to show the Name column
+            // If there is a Person as the ContextEntity, there is no need to show the Name column
             gPrayerRequests.GetColumnByHeaderText( "Name" ).Visible = this.ContextEntity<Rock.Model.Person>() == null;
-
-
             gPrayerRequests.GetColumnByHeaderText( "Prayer Count" ).Visible = GetAttributeValue( "ShowPrayerCount" ).AsBoolean();
-            gPrayerRequests.GetColumnByHeaderText( "Approved?" ).Visible = GetAttributeValue( "ShowApprovedColumn" ).AsBoolean();
+
+            // Is the Approved columnn supposed to show?
+            var showApprovedColumn = GetAttributeValue( "ShowApprovedColumn" ).AsBoolean();
+            gPrayerRequests.GetColumnByHeaderText( "Approved?" ).Visible = showApprovedColumn;
+
+            // But if showing, check if the person is not authorized to approve and hide the column anyhow
+            if ( showApprovedColumn && !IsUserAuthorized( Authorization.APPROVE ) )
+            {
+                gPrayerRequests.GetColumnByHeaderText( "Approved?" ).Visible = false;
+            }
+
+            AddDynamicControls();
         }
 
         /// <summary>
@@ -177,41 +176,40 @@ namespace RockWeb.Blocks.Prayer
         private void BindFilter()
         {
             // set the date range filter
-            drpDateRange.DelimitedValues = gfFilter.GetUserPreference( FilterSetting.DateRange );
+            drpDateRange.DelimitedValues = gfFilter.GetFilterPreference( FilterSetting.DateRange );
 
             // Set the Approval Status filter
-            ddlApprovedFilter.SetValue( gfFilter.GetUserPreference( FilterSetting.ApprovalStatus ) );
+            ddlApprovedFilter.SetValue( gfFilter.GetFilterPreference( FilterSetting.ApprovalStatus ) );
 
             // Set the Urgent Status filter
-            ddlUrgentFilter.SetValue( gfFilter.GetUserPreference( FilterSetting.UrgentStatus ) );
+            ddlUrgentFilter.SetValue( gfFilter.GetFilterPreference( FilterSetting.UrgentStatus ) );
 
             // Set the Public Status filter
             ddlPublicFilter.Visible = !( this.GetAttributeValue( "ShowPublicOnly" ).AsBooleanOrNull() ?? false );
             if ( !ddlPublicFilter.Visible )
             {
-                gfFilter.SaveUserPreference( FilterSetting.PublicStatus, string.Empty );
+                gfFilter.SetFilterPreference( FilterSetting.PublicStatus, string.Empty );
             }
 
             // Set the Active Status filter
-            ddlActiveFilter.SetValue( gfFilter.GetUserPreference( FilterSetting.ActiveStatus ) );
+            ddlActiveFilter.SetValue( gfFilter.GetFilterPreference( FilterSetting.ActiveStatus ) );
 
             // Set the Allow Comments filter
-            ddlAllowCommentsFilter.SetValue( gfFilter.GetUserPreference( FilterSetting.Comments ) );
+            ddlAllowCommentsFilter.SetValue( gfFilter.GetFilterPreference( FilterSetting.Comments ) );
 
             // Set the category picker's selected value
-            int selectedPrayerCategoryId = gfFilter.GetUserPreference( FilterSetting.PrayerCategory ).AsInteger();
+            int selectedPrayerCategoryId = gfFilter.GetFilterPreference( FilterSetting.PrayerCategory ).AsInteger();
             Category prayerCategory = new CategoryService( new RockContext() ).Get( selectedPrayerCategoryId );
             catpPrayerCategoryFilter.SetValue( prayerCategory );
 
-            int selectedPrayerCampusId = gfFilter.GetUserPreference( FilterSetting.PrayerCampus ).AsInteger();
+            int selectedPrayerCampusId = gfFilter.GetFilterPreference( FilterSetting.PrayerCampus ).AsInteger();
             cpPrayerCampusFilter.Campuses = CampusCache.All( false );
             cpPrayerCampusFilter.SetValue( new CampusService( new RockContext() ).Get( selectedPrayerCampusId ) );
 
             // Set the Show Expired filter
-            cbShowExpired.Checked = gfFilter.GetUserPreference( FilterSetting.ShowExpired ).AsBooleanOrNull() ?? false;
+            cbShowExpired.Checked = gfFilter.GetFilterPreference( FilterSetting.ShowExpired ).AsBooleanOrNull() ?? false;
 
             BindAttributes();
-            AddDynamicControls();
         }
 
         /// <summary>
@@ -221,58 +219,58 @@ namespace RockWeb.Blocks.Prayer
         /// <param name="e"></param>
         protected void gfFilter_ApplyFilterClick( object sender, EventArgs e )
         {
-            gfFilter.SaveUserPreference( FilterSetting.DateRange, drpDateRange.DelimitedValues );
+            gfFilter.SetFilterPreference( FilterSetting.DateRange, drpDateRange.DelimitedValues );
 
             // only save settings that are not the default "all" preference...
             if ( ddlApprovedFilter.SelectedValue == "all" )
             {
-                gfFilter.SaveUserPreference( FilterSetting.ApprovalStatus, string.Empty );
+                gfFilter.SetFilterPreference( FilterSetting.ApprovalStatus, string.Empty );
             }
             else
             {
-                gfFilter.SaveUserPreference( FilterSetting.ApprovalStatus, ddlApprovedFilter.SelectedValue );
+                gfFilter.SetFilterPreference( FilterSetting.ApprovalStatus, ddlApprovedFilter.SelectedValue );
             }
 
             if ( ddlUrgentFilter.SelectedValue == "all" )
             {
-                gfFilter.SaveUserPreference( FilterSetting.UrgentStatus, string.Empty );
+                gfFilter.SetFilterPreference( FilterSetting.UrgentStatus, string.Empty );
             }
             else
             {
-                gfFilter.SaveUserPreference( FilterSetting.UrgentStatus, ddlUrgentFilter.SelectedValue );
+                gfFilter.SetFilterPreference( FilterSetting.UrgentStatus, ddlUrgentFilter.SelectedValue );
             }
 
             if ( ddlPublicFilter.SelectedValue == "all" )
             {
-                gfFilter.SaveUserPreference( FilterSetting.PublicStatus, string.Empty );
+                gfFilter.SetFilterPreference( FilterSetting.PublicStatus, string.Empty );
             }
             else
             {
-                gfFilter.SaveUserPreference( FilterSetting.PublicStatus, ddlPublicFilter.SelectedValue );
+                gfFilter.SetFilterPreference( FilterSetting.PublicStatus, ddlPublicFilter.SelectedValue );
             }
 
             if ( ddlActiveFilter.SelectedValue == "all" )
             {
-                gfFilter.SaveUserPreference( FilterSetting.ActiveStatus, string.Empty );
+                gfFilter.SetFilterPreference( FilterSetting.ActiveStatus, string.Empty );
             }
             else
             {
-                gfFilter.SaveUserPreference( FilterSetting.ActiveStatus, ddlActiveFilter.SelectedValue );
+                gfFilter.SetFilterPreference( FilterSetting.ActiveStatus, ddlActiveFilter.SelectedValue );
             }
 
             if ( ddlAllowCommentsFilter.SelectedValue == "all" )
             {
-                gfFilter.SaveUserPreference( FilterSetting.Comments, string.Empty );
+                gfFilter.SetFilterPreference( FilterSetting.Comments, string.Empty );
             }
             else
             {
-                gfFilter.SaveUserPreference( FilterSetting.Comments, ddlAllowCommentsFilter.SelectedValue );
+                gfFilter.SetFilterPreference( FilterSetting.Comments, ddlAllowCommentsFilter.SelectedValue );
             }
 
-            gfFilter.SaveUserPreference( FilterSetting.PrayerCategory, catpPrayerCategoryFilter.SelectedValue == Rock.Constants.None.IdValue ? string.Empty : catpPrayerCategoryFilter.SelectedValue );
-            gfFilter.SaveUserPreference( FilterSetting.PrayerCampus, cpPrayerCampusFilter.SelectedValue == Rock.Constants.None.IdValue ? string.Empty : cpPrayerCampusFilter.SelectedValue );
+            gfFilter.SetFilterPreference( FilterSetting.PrayerCategory, catpPrayerCategoryFilter.SelectedValue == Rock.Constants.None.IdValue ? string.Empty : catpPrayerCategoryFilter.SelectedValue );
+            gfFilter.SetFilterPreference( FilterSetting.PrayerCampus, cpPrayerCampusFilter.SelectedValue == Rock.Constants.None.IdValue ? string.Empty : cpPrayerCampusFilter.SelectedValue );
 
-            gfFilter.SaveUserPreference( FilterSetting.ShowExpired, cbShowExpired.Checked ? "True" : string.Empty );
+            gfFilter.SetFilterPreference( FilterSetting.ShowExpired, cbShowExpired.Checked ? "True" : string.Empty );
 
             if ( AvailableAttributes != null )
             {
@@ -284,7 +282,7 @@ namespace RockWeb.Blocks.Prayer
                         try
                         {
                             var values = attribute.FieldType.Field.GetFilterValues( filterControl, attribute.QualifierValues, Rock.Reporting.FilterMode.SimpleFilter );
-                            gfFilter.SaveUserPreference( "attribute_" + attribute.Key, attribute.Name, attribute.FieldType.Field.GetFilterValues( filterControl, attribute.QualifierValues, Rock.Reporting.FilterMode.SimpleFilter ).ToJson() );
+                            gfFilter.SetFilterPreference( "attribute_" + attribute.Key, attribute.Name, attribute.FieldType.Field.GetFilterValues( filterControl, attribute.QualifierValues, Rock.Reporting.FilterMode.SimpleFilter ).ToJson() );
                         }
                         catch
                         {
@@ -426,7 +424,7 @@ namespace RockWeb.Blocks.Prayer
                             phAttributeFilters.Controls.Add( wrapper );
                         }
 
-                        string savedValue = gfFilter.GetUserPreference( "attribute_" + attribute.Key );
+                        string savedValue = gfFilter.GetFilterPreference( "attribute_" + attribute.Key );
                         if ( !string.IsNullOrWhiteSpace( savedValue ) )
                         {
                             try
@@ -768,21 +766,6 @@ namespace RockWeb.Blocks.Prayer
         {
             if ( e.Row.RowType == DataControlRowType.DataRow )
             {
-                if ( !_canApprove )
-                {
-                    foreach ( TableCell cell in e.Row.Cells )
-                    {
-                        foreach ( Control c in cell.Controls )
-                        {
-                            Toggle toggle = c as Toggle;
-                            if ( toggle != null )
-                            {
-                                toggle.Enabled = false;
-                            }
-                        }
-                    }
-                }
-
                 var prayerRequest = e.Row.DataItem as PrayerRequest;
 
                 Literal lFullname = e.Row.FindControl( "lFullname" ) as Literal;
@@ -802,7 +785,7 @@ namespace RockWeb.Blocks.Prayer
         /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
         protected void gfFilter_ClearFilterClick( object sender, EventArgs e )
         {
-            gfFilter.DeleteUserPreferences();
+            gfFilter.DeleteFilterPreferences();
             BindFilter();
         }
     }

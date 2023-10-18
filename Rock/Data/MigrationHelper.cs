@@ -16,6 +16,7 @@
 //
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 
 using Rock.Model;
@@ -91,7 +92,7 @@ namespace Rock.Data
         /// <param name="guid">The GUID.</param>
         public void UpdateEntityType( string name, string friendlyName, string assemblyName, bool isEntity, bool isSecured, string guid )
         {
-            /* 
+            /*
                02/23/2021 MDP, NA
 
                In this script, we put the AttributeIds into a @attributeIds table variable, then use that for the UPDATE
@@ -99,7 +100,7 @@ namespace Rock.Data
                to use the IX_FieldTypeId Index on Attribute, but doing a Full Table Scan on AttributeValue.
 
                Putting the AttributeIds into the table variable helped the SQL optimizer to use the IX_AttributeId index
-               on AttributeValue instead of doing the Full Table Scan. 
+               on AttributeValue instead of doing the Full Table Scan.
             */
 
 
@@ -328,13 +329,29 @@ namespace Rock.Data
         }
 
         /// <summary>
-        /// Updates the type of the mobile block.
+        /// Updates the Entity block or creates it if it is not already present in the database.
+        /// This method serves as a syntactic sugar over the <see cref="MigrationHelper.UpdateMobileBlockType(string, string, string, string)" /> which was origianlly used to add or updated the obsidian blocks.
         /// </summary>
         /// <param name="name">The name.</param>
         /// <param name="description">The description.</param>
         /// <param name="entityName">Name of the entity.</param>
         /// <param name="category">The category.</param>
         /// <param name="guid">The unique identifier.</param>
+        public void AddOrUpdateEntityBlockType( string name, string description, string entityName, string category, string guid )
+        {
+            UpdateMobileBlockType( name, description, entityName, category, guid );
+        }
+
+        /// <summary>
+        /// Updates the Entity block or creates it if it is not already present in the database.
+        /// This method was first written for the mobile blocks and later repurposed for Obsidian.
+        /// </summary>
+        /// <param name="name">The name.</param>
+        /// <param name="description">The description.</param>
+        /// <param name="entityName">Name of the entity.</param>
+        /// <param name="category">The category.</param>
+        /// <param name="guid">The unique identifier.</param>
+        // DO NOT RENAME: This method is being used by older migrations and so the name of the function should not be changed.
         public void UpdateMobileBlockType( string name, string description, string entityName, string category, string guid )
         {
             Migration.Sql( $@"
@@ -584,7 +601,7 @@ namespace Rock.Data
                 BEGIN
                     INSERT INTO [Attribute] (
                         [IsSystem],[FieldTypeId],[EntityTypeId],[EntityTypeQualifierColumn],[EntityTypeQualifierValue],
-                        [Order],[IsGridColumn],[IsMultiValue],[IsRequired],                        
+                        [Order],[IsGridColumn],[IsMultiValue],[IsRequired],
                         [Key],[Name],[DefaultValue], [Guid])
                     VALUES(
                         1,@FieldTypeId,NULL,'{Rock.Model.Attribute.SYSTEM_SETTING_QUALIFIER}','',
@@ -626,7 +643,7 @@ namespace Rock.Data
                 BEGIN
                     INSERT INTO [Attribute] (
                         [IsSystem],[FieldTypeId],[EntityTypeId],[EntityTypeQualifierColumn],[EntityTypeQualifierValue],
-                        [Order],[IsGridColumn],[IsMultiValue],[IsRequired],                        
+                        [Order],[IsGridColumn],[IsMultiValue],[IsRequired],
                         [Key],[Name],[DefaultValue], [Guid])
                     VALUES(
                         1,@FieldTypeId,NULL,'{Rock.Model.Attribute.SYSTEM_SETTING_QUALIFIER}','',
@@ -813,7 +830,7 @@ namespace Rock.Data
 
             if ( skipIfAlreadyExists )
             {
-                addPageSQL = $"if not exists (select * from [Page] where [Guid] = '{guid}') begin\n" + addPageSQL + "\nend";
+                addPageSQL = $@"if not exists (select * from [Page] where [Guid] = '{guid}') begin{Environment.NewLine}" + addPageSQL + $"{Environment.NewLine}end";
             }
 
             Migration.Sql( addPageSQL );
@@ -836,7 +853,7 @@ namespace Rock.Data
         }
 
         /// <summary>
-        /// Deletes the Page 
+        /// Deletes the Page
         /// </summary>
         /// <param name="guid">The GUID.</param>
         public void DeletePage( string guid )
@@ -891,7 +908,7 @@ namespace Rock.Data
                     INSERT INTO [PageRoute] ([IsSystem],[PageId],[Route],[Guid])
                     VALUES(1, @PageId, '{route}', {guid} )
                 END" );
-                
+
         }
 
         /// <summary>
@@ -966,7 +983,7 @@ namespace Rock.Data
         }
 
         /// <summary>
-        /// Values the tuple.
+        /// Updates the page layout.
         /// </summary>
         /// <param name="pageGuid">The page unique identifier.</param>
         /// <param name="layoutGuid">The layout unique identifier.</param>
@@ -1159,7 +1176,7 @@ WHERE [Guid] = '{pageGuid}';";
 
             if ( skipIfAlreadyExists )
             {
-                addBlockSQL = $"if not exists (select * from [Block] where [Guid] = '{guid}') begin\n" + addBlockSQL + "\nend";
+                addBlockSQL = $"if not exists (select * from [Block] where [Guid] = '{guid}') begin{Environment.NewLine}" + addBlockSQL + $"{Environment.NewLine}end";
             }
 
             Migration.Sql( addBlockSQL );
@@ -1529,7 +1546,7 @@ BEGIN
         SET @BinaryFileId = (SELECT SCOPE_IDENTITY());
     END
 
-    
+
     IF (@AddNewBinaryFileData = 1 AND @BinaryFileId IS NOT NULL)
     BEGIN
         -- Add a new BinaryFileData record whose ID matches the BinaryFile record
@@ -2163,6 +2180,8 @@ END" );
         /// <param name="defaultValue">The default value.</param>
         /// <param name="guid">The GUID.</param>
         /// <param name="key">The key. Defaults to Name without Spaces. If this is a core global attribute, specify the key with a 'core_' prefix</param>
+        [Obsolete( "Use AddOrUpdateEntityAttribute instead." )]
+        [RockObsolete( "1.13" )]
         public void AddEntityAttribute( string entityTypeName, string fieldTypeGuid, string entityTypeQualifierColumn, string entityTypeQualifierValue, string name, string category, string description, int order, string defaultValue, string guid, string key = null )
         {
             if ( !string.IsNullOrWhiteSpace( category ) )
@@ -2231,11 +2250,39 @@ END" );
         /// <param name="defaultValue">The default value.</param>
         /// <param name="guid">The unique identifier.</param>
         /// <param name="key">The key.  Defaults to Name without Spaces. If this is a core global attribute, specify the key with a 'core_' prefix</param>
+        [Obsolete( "Use AddNewEntityAttributeDeletingAllAttributeValues or AddOrUpdateEntityAttribute instead." )]
+        [RockObsolete( "1.13" )]
         public void AddNewEntityAttribute( string entityTypeName, string fieldTypeGuid, string entityTypeQualifierColumn, string entityTypeQualifierValue, string name, string abbreviatedName, string description, int order, string defaultValue, string guid, string key )
+        {
+            AddNewEntityAttributeDeletingAllAttributeValues( entityTypeName, fieldTypeGuid, entityTypeQualifierColumn, entityTypeQualifierValue, name, abbreviatedName, description, order, defaultValue, guid, key );
+        }
+
+        /// <summary>
+        /// Adds a new EntityType Attribute for the given EntityType, FieldType, and name (key).
+        /// NOTE: If the attribute exists for the EntityType, Key, EntityTypeQualifierColumn, and EntityTypeQualifierValue it will be deleted first, which also deletes the AttributeValues.
+        /// Consider using AddOrUpdateEntityAttribute if the AttributeValues should be retained.
+        /// </summary>
+        /// <param name="entityTypeName">Name of the entity type.</param>
+        /// <param name="fieldTypeGuid">The field type unique identifier.</param>
+        /// <param name="entityTypeQualifierColumn">The entity type qualifier column.</param>
+        /// <param name="entityTypeQualifierValue">The entity type qualifier value.</param>
+        /// <param name="name">The name.</param>
+        /// <param name="abbreviatedName">Name of the abbreviated.</param>
+        /// <param name="description">The description.</param>
+        /// <param name="order">The order.</param>
+        /// <param name="defaultValue">The default value.</param>
+        /// <param name="guid">The unique identifier.</param>
+        /// <param name="key">The key.</param>
+        public void AddNewEntityAttributeDeletingAllAttributeValues( string entityTypeName, string fieldTypeGuid, string entityTypeQualifierColumn, string entityTypeQualifierValue, string name, string abbreviatedName, string description, int order, string defaultValue, string guid, string key )
         {
             if ( string.IsNullOrWhiteSpace( key ) )
             {
                 key = name.Replace( " ", string.Empty );
+            }
+
+            if ( abbreviatedName.IsNullOrWhiteSpace() )
+            {
+                abbreviatedName = name.Truncate( 100, false );
             }
 
             string formattedName = name.Replace( "'", "''" );
@@ -2270,7 +2317,8 @@ END" );
                     , [DefaultValue]
                     , [IsMultiValue]
                     , [IsRequired]
-                    , [Guid])
+                    , [Guid]
+                    , [AbbreviatedName])
                 VALUES(
                       1
                     , @FieldTypeId
@@ -2285,7 +2333,8 @@ END" );
                     , '{formattedDefaultValue}'
                     , 0
                     , 0
-                    , '{guid}')" );
+                    , '{guid}'
+                    , '{abbreviatedName}')" );
         }
 
         /// <summary>
@@ -2351,9 +2400,9 @@ END" );
                         , 0
                         , '{defaultValue?.Replace( "'", "''" ) ?? string.Empty}'
                         , 0
-                        , {(isRequired == true ? 1 : 0)}
+                        , {( isRequired == true ? 1 : 0 )}
                         , '{guid}')
-                END");
+                END" );
         }
 
         /// <summary>
@@ -2957,7 +3006,7 @@ END" );
                         AND [Key] = '{key}' )
                 BEGIN
                     UPDATE [Attribute] SET
-                        , [Name] = '{name}'
+                          [Name] = '{name}'
                         , [Description] = '{formattedDescription}'
                         , [Order] = {order}
                         , [DefaultValue] = '{defaultValue}'
@@ -2985,7 +3034,7 @@ END" );
                         , [IsMultiValue]
                         , [IsRequired]
                         , [Guid]
-                        , [AbbreviatdName])
+                        , [AbbreviatedName])
                     VALUES(
                           1
                         , @FieldTypeId
@@ -3341,6 +3390,40 @@ END" );
         }
 
         /// <summary>
+        /// This is a quick fix method. DO NOT USE
+        /// </summary>
+        /// <param name="attributeGuid"></param>
+        /// <param name="key"></param>
+        /// <param name="value"></param>
+        /// <param name="guid"></param>
+        internal void AddAttributeQualifierForSQL( string attributeGuid, string key, string value, string guid )
+        {
+            value = value?.Replace( "'", "''" ) ?? "";
+            string sql = $@"
+                DECLARE @AttributeId INT = (SELECT [Id] FROM [Attribute] WHERE [Guid] = '{attributeGuid}')
+
+                IF NOT EXISTS(SELECT * FROM [AttributeQualifier] WHERE [Guid] = '{guid}')
+                BEGIN
+	                -- It's possible that the qualifier exists with a different GUID so also check for AttributeId and Key
+	                DECLARE @guid UNIQUEIDENTIFIER = (SELECT [Guid] FROM [AttributeQualifier] WHERE AttributeId = @AttributeId AND [Key] = '{key}')
+	                IF @guid IS NOT NULL
+	                BEGIN
+		                UPDATE [AttributeQualifier] SET [IsSystem] = 1, [Guid] = '{guid}', [Value] = '{value}' WHERE [Guid] = @guid
+	                END
+	                ELSE BEGIN
+		                INSERT INTO [AttributeQualifier] ([IsSystem], [AttributeId], [Key], [Value], [Guid])
+		                VALUES(1, @AttributeId, '{key}', '{value}', '{guid}')
+	                END
+                END
+                ELSE
+                BEGIN
+                    UPDATE [AttributeQualifier] SET [IsSystem] = 1, [Key] = '{key}', [Value] = '{value}' WHERE [Guid] = '{guid}'
+                END";
+
+            Migration.Sql( sql );
+        }
+
+        /// <summary>
         /// Adds the attribute qualifier.
         /// </summary>
         /// <param name="attributeGuid">The attribute unique identifier.</param>
@@ -3450,6 +3533,15 @@ END" );
                 )", workflowActionGuid ) );
         }
 
+        /// <summary>
+        /// Deletes the attribute qualifier
+        /// </summary>
+        /// <param name="guid">The unique identifier.</param>
+        public void DeleteAttributeQualifier( string guid )
+        {
+            Migration.Sql( $@"DELETE [AttributeQualifier] WHERE [Guid] = '{guid}'" );
+        }
+
         #endregion
 
         #region Block Attribute Value Methods
@@ -3525,7 +3617,7 @@ END" );
 ",
                     blockGuid,
                     attributeGuid,
-                    value.Replace( "'", "''" ),
+                    value?.Replace( "'", "''" ) ?? null,
                     ( appendToExisting ? "1" : "0" )
                 );
 
@@ -3540,7 +3632,8 @@ END" );
 			AND a.[Guid] = '{attributeGuid}'
 		)
 BEGIN
-" + addBlockValueSQL + "\nEND";
+" + addBlockValueSQL + @"
+END";
             }
 
             Migration.Sql( addBlockValueSQL );
@@ -4347,29 +4440,34 @@ BEGIN
             char allowChar = allow ? 'A' : 'D';
 
             string sql = $@"
-DECLARE @groupId INT
+DECLARE @groupId INT;
+DECLARE @order INT = {order};
+DECLARE @specialRole INT = {specialRole};
+DECLARE @action NVARCHAR(50) = '{action}';
+DECLARE @allowChar NVARCHAR(1) = '{allowChar}';
+DECLARE @entityTypeName NVARCHAR(100) = '{entityTypeName}';
 
 SET @groupId = (
 		SELECT [Id]
 		FROM [Group]
 		WHERE [Guid] = '{groupGuid}'
-		)
+		);
 
-DECLARE @entityTypeId INT
+DECLARE @entityTypeId INT;
 
 SET @entityTypeId = (
 		SELECT [Id]
 		FROM [EntityType]
-		WHERE [name] = '{entityTypeName}'
-		)
+		WHERE [name] = @entityTypeName
+		);
 
-DECLARE @entityId INT
+DECLARE @entityId INT;
 
 SET @entityId = (
 		SELECT [Id]
 		FROM [{entityTypeTableName}]
 		WHERE [{entityGuidField}] = '{entityGuid}'
-		)
+		);
 
 IF (
 		@entityId IS NOT NULL
@@ -4381,11 +4479,30 @@ BEGIN
 			FROM [Auth]
 			WHERE [EntityTypeId] = @entityTypeId
 				AND [EntityId] = @entityId
-				AND [Action] = '{action}'
-				AND [SpecialRole] = {specialRole}
+				AND [Action] = @action
+				AND [SpecialRole] = @specialRole
 				AND ISNULL([GroupId], 0) = ISNULL(@groupId, 0)
 			)
 	BEGIN
+        IF EXISTS (
+            SELECT [Id]
+            FROM [dbo].[Auth]
+            WHERE [Guid] = '{authGuid}'
+            )
+            BEGIN
+                /*
+                  DV 4-Feb-22
+                  Duplicate Guid Check, all of the other values don't match
+                  we have a rare instance of a duplicate GUID value.
+                  We will just reassign the other one.
+                  It is very likely this record is orphaned but we don't have
+                  enough context here to make that determination.
+                */
+                UPDATE [dbo].[Auth]
+                SET [Guid] = NEWID()
+                WHERE [Guid] = '{authGuid}';
+            END
+
 		INSERT INTO [dbo].[Auth] (
 			[EntityTypeId]
 			,[EntityId]
@@ -4399,13 +4516,13 @@ BEGIN
 		VALUES (
 			@entityTypeId
 			,@entityId
-			,{order}
-			,'{action}'
-			,'{allowChar}'
-			,{specialRole}
+			,@order
+			,@action
+			,@allowChar
+			,@specialRole
 			,@groupId
 			,'{authGuid}'
-			)
+			);
 	END
 END
 ";
@@ -4459,45 +4576,71 @@ END
         /// <param name="IsSystem">if set to <c>true</c> [is system].</param>
         /// <param name="iconCssClass">The icon CSS class.</param>
         /// <param name="AllowWatching">if set to <c>true</c> [allow watching].</param>
+        [Obsolete( "Use AddOrUpdateNoteTypeByMatchingNameAndEntityType() instead." )]
+        [RockObsolete( "1.13" )]
         public void UpdateNoteType( string name, string entityTypeName, bool userSelectable, string guid, bool IsSystem = true, string iconCssClass = null, bool AllowWatching = false )
         {
-            EnsureEntityTypeExists( entityTypeName );
+            AddOrUpdateNoteTypeByMatchingNameAndEntityType( name, entityTypeName, userSelectable, guid, IsSystem, iconCssClass, AllowWatching );
+        }
 
-            if ( iconCssClass == null )
-            {
-                iconCssClass = "NULL";
-            }
-            else
-            {
-                iconCssClass = $"'{iconCssClass}'";
-            }
+        /// <summary>
+        /// Adds the type of the or update note type by matching name and entity.
+        /// </summary>
+        /// <param name="name">The name.</param>
+        /// <param name="entityTypeName">Name of the entity type.</param>
+        /// <param name="userSelectable">if set to <c>true</c> [user selectable].</param>
+        /// <param name="guid">The unique identifier.</param>
+        /// <param name="IsSystem">if set to <c>true</c> [is system].</param>
+        /// <param name="iconCssClass">The icon CSS class.</param>
+        /// <param name="AllowWatching">if set to <c>true</c> [allow watching].</param>
+        public void AddOrUpdateNoteTypeByMatchingNameAndEntityType( string name, string entityTypeName, bool userSelectable, string guid, bool IsSystem, string iconCssClass, bool AllowWatching )
+        {
+            EnsureEntityTypeExists( entityTypeName );
+            iconCssClass = iconCssClass.IsNullOrWhiteSpace() ? "NULL" : $"'{iconCssClass}'";
 
             Migration.Sql( $@"
-
                 DECLARE @EntityTypeId int = (SELECT top 1 [Id] FROM [EntityType] WHERE [Name] = '{entityTypeName}')
-
                 DECLARE @Id int = (SELECT [Id] FROM [NoteType] WHERE [Name] = '{name}' AND [EntityTypeId] = @EntityTypeId)
 
                 IF @Id IS NULL
                 BEGIN
-                    INSERT INTO [NoteType] (
-                        [Name],[EntityTypeId],[UserSelectable],[Guid],[IsSystem], [IconCssClass], [AllowsWatching])
-                    VALUES(
-                        '{name}',@EntityTypeId,{userSelectable.Bit()},'{guid}',{IsSystem.Bit()}, {iconCssClass}, {AllowWatching.Bit()})
+                    INSERT INTO [NoteType] ([Name], [EntityTypeId], [UserSelectable], [Guid], [IsSystem], [IconCssClass], [AllowsWatching])
+                    VALUES('{name}', @EntityTypeId, {userSelectable.Bit()}, '{guid}', {IsSystem.Bit()}, {iconCssClass}, {AllowWatching.Bit()})
                 END
-                ELSE
-                BEGIN
-                    UPDATE [NoteType] SET
-                        [Name] = '{name}',
-                        [EntityTypeId] = @EntityTypeId,
-                        [UserSelectable] = {userSelectable.Bit()},
-                        [Guid] = '{guid}',
-                        [IsSystem] = {IsSystem.Bit()},
-                        [IconCssClass] = {iconCssClass},
-                        [AllowsWatching] = {AllowWatching.Bit()}
+                ELSE BEGIN
+                    UPDATE [NoteType]
+                    SET
+                          [UserSelectable] = {userSelectable.Bit()}
+                        , [Guid] = '{guid}'
+                        , [IsSystem] = {IsSystem.Bit()}
+                        , [IconCssClass] = {iconCssClass}
+                        , [AllowsWatching] = {AllowWatching.Bit()}
                     WHERE Id = @Id;
                 END" );
+        }
 
+        /// <summary>
+        /// Updates the note type by unique identifier.
+        /// </summary>
+        /// <param name="name">The name.</param>
+        /// <param name="entityTypeGuid">The entity type unique identifier.</param>
+        /// <param name="userSelectable">if set to <c>true</c> [user selectable].</param>
+        /// <param name="guid">The unique identifier.</param>
+        /// <param name="IsSystem">if set to <c>true</c> [is system].</param>
+        /// <param name="iconCssClass">The icon CSS class.</param>
+        /// <param name="AllowWatching">if set to <c>true</c> [allow watching].</param>
+        public void UpdateNoteTypeByGuid( string name, string entityTypeGuid, bool userSelectable, string guid, bool IsSystem, string iconCssClass, bool AllowWatching )
+        {
+            Migration.Sql( $@"
+                UPDATE [NoteType]
+                SET
+                      [Name] = '{name}'
+                    , [EntityTypeId] = (SELECT [Id] FROM [EntityType] WHERE [Guid] = '{entityTypeGuid}')
+                    , [UserSelectable] = {userSelectable.Bit()}
+                    , [IsSystem] = {IsSystem.Bit()}
+                    , [IconCssClass] = {( iconCssClass.IsNullOrWhiteSpace() ? "NULL" : $"'{iconCssClass}'" )}
+                    , [AllowsWatching] = {AllowWatching.Bit()}
+                WHERE [Guid] = '{guid}'" );
         }
 
         /// <summary>
@@ -4669,6 +4812,58 @@ END
         #endregion
 
         #region Security/Auth
+
+        /// <summary>
+        /// Inserts the security settings (Auth records) for the destination entity that exist on the source entity.
+        /// Does not insert duplicates or delete any settings from source or destination. Run N safe.
+        /// Auth records inserted will have a new generated GUID.
+        /// </summary>
+        /// <param name="entityTypeGuid">The entity type unique identifier.</param>
+        /// <param name="sourceEntityGuid">The source entity unique identifier.</param>
+        /// <param name="destEntityGuid">The dest entity unique identifier.</param>
+        public void CopySecurityForEntity( string entityTypeGuid, string sourceEntityGuid, string destEntityGuid )
+        {
+            string sql = $@"
+                DECLARE @EntityTypeId INT = (SELECT [Id] FROM [EntityType] WHERE [Guid] = '{entityTypeGuid}')
+                DECLARE @SourceBlockId INT = (SELECT [Id] FROM [Block] WHERE [Guid] = '{sourceEntityGuid}')
+                DECLARE @DestBlockId INT = (SELECT [Id] FROM [Block] WHERE [Guid] = '{destEntityGuid}')
+
+                INSERT INTO [Auth] ([EntityTypeId], [EntityId], [Order], [Action], [AllowOrDeny], [SpecialRole], [GroupId], [Guid], [PersonAliasId])
+                SELECT 
+	                  a1.[EntityTypeId]
+	                , @DestBlockId
+	                , a1.[Order]
+	                , a1.[Action]
+	                , a1.[AllowOrDeny]
+	                , a1.[SpecialRole]
+	                , a1.[GroupId]
+	                , NEWID()
+                    , a1.[PersonAliasId]
+                FROM [Auth] a1
+                WHERE a1.[EntityTypeId] = @EntityTypeId
+	                AND a1.[EntityId] = @SourceBlockId
+	                AND NOT EXISTS (
+		                SELECT
+			                  a2.[EntityTypeId]
+			                , a2.[EntityId]
+			                , a2.[Order]
+			                , a2.[Action]
+			                , a2.[AllowOrDeny]
+			                , a2.[SpecialRole]
+			                , a2.[GroupId]
+                            , a2.[PersonAliasId]
+		                FROM [Auth] a2
+		                WHERE a2.[EntityTypeId] = a1.[EntityTypeId]
+			                AND a2.[EntityId] = @DestBlockId
+			                AND a2.[Order] = a1.[Order]
+			                AND a2.[Action] = a1.[Action]
+			                AND a2.[AllowOrDeny] = a1.[AllowOrDeny]
+			                AND a2.[SpecialRole] = a1.[SpecialRole]
+			                AND a2.[GroupId] = a1.[GroupId]
+                            AND a2.[PersonAliasId] = a1.[PersonAliasId])";
+
+            Migration.Sql( sql );
+        }
 
         /// <summary>
         /// Adds the security role group.
@@ -5020,6 +5215,28 @@ END
         /// <summary>
         /// Adds the security authentication for rest action.
         /// </summary>
+        /// <param name="restActionGuid">The rest action unique identifier.</param>
+        /// <param name="order">The order.</param>
+        /// <param name="action">The action.</param>
+        /// <param name="allow">if set to <c>true</c> [allow].</param>
+        /// <param name="groupGuid">The group unique identifier.</param>
+        /// <param name="specialRole">The special role.</param>
+        /// <param name="authGuid">The authentication unique identifier.</param>
+        public void AddSecurityAuthForRestAction( string restActionGuid, int order, string action, bool allow, string groupGuid, Rock.Model.SpecialRole specialRole, string authGuid )
+        {
+            AddSecurityAuthForEntityBase( "Rock.Model.RestAction", "RestAction", restActionGuid, order, action, allow, groupGuid, specialRole, authGuid );
+        }
+
+        /// <summary>
+        /// Adds the security authentication for rest action.
+        /// </summary>
+        /// <remarks>
+        /// This method should not be used for new code, and is deprecated.
+        /// This method will break if we change the C# signature of the method
+        /// which would then cause the default security on a new install to not set correctly.
+        /// Instead you should use <see cref="AddSecurityAuthForRestAction(string, int, string, bool, string, SpecialRole, string)"/>,
+        /// which takes a string Guid that represents the Rest Action (the <see cref="Rock.SystemGuid.RestActionGuidAttribute"/>).
+        /// </remarks>
         /// <param name="restActionMethod">The rest action method.</param>
         /// <param name="restActionPath">The rest action path.</param>
         /// <param name="order">The order.</param>
@@ -5028,8 +5245,15 @@ END
         /// <param name="groupGuid">The group unique identifier.</param>
         /// <param name="specialRole">The special role.</param>
         /// <param name="authGuid">The authentication unique identifier.</param>
+        [Obsolete( "1.15.2" )]
         public void AddSecurityAuthForRestAction( string restActionMethod, string restActionPath, int order, string action, bool allow, string groupGuid, Rock.Model.SpecialRole specialRole, string authGuid )
         {
+            /*
+             * BC - 08/23
+             * This method can never be removed.  
+             * Old versions of plugins could be referencing this API. 
+             */
+
             AddSecurityAuthForEntityBase( "Rock.Model.RestAction", "RestAction", $"{restActionMethod}{restActionPath}", order, action, allow, groupGuid, specialRole, authGuid, "ApiId" );
         }
 
@@ -5553,6 +5777,32 @@ END
         }
 
         /// <summary>
+        /// Adds a GroupTypeAssociation if it doesn't already exist.
+        /// </summary>
+        /// <param name="groupTypeGuid">The group type unique identifier.</param>
+        /// <param name="childGroupTypeGuid">The child group type unique identifier.</param>
+        public void AddGroupTypeAssociation( string groupTypeGuid, string childGroupTypeGuid )
+        {
+            Migration.Sql( $@"
+                DECLARE @GroupTypeId int = ( SELECT TOP 1 [Id] FROM [GroupType] WHERE [Guid] = '{groupTypeGuid}' )
+                DECLARE @ChildGroupTypeId int = ( SELECT TOP 1 [Id] FROM [GroupType] WHERE [Guid] = '{childGroupTypeGuid}' )
+
+                IF NOT EXISTS (
+                    SELECT [GroupTypeId]
+                    FROM [GroupTypeAssociation]
+                    WHERE [GroupTypeId] = @GroupTypeId
+                    AND [childGroupTypeId] = @ChildGroupTypeId )
+                BEGIN
+                    INSERT INTO [GroupTypeAssociation] (
+                        [GroupTypeId]
+                        , [ChildGroupTypeId] )
+                    VALUES (
+                        @GroupTypeId
+                        , @ChildGroupTypeId )
+                END" );
+        }
+
+        /// <summary>
         /// Deletes the GroupType.
         /// </summary>
         /// <param name="guid">The GUID.</param>
@@ -5562,7 +5812,7 @@ END
 
                 -- Delete the group type and any dangling bits
                 DECLARE @GroupTypeId int = (SELECT [Id] FROM [GroupType] WHERE [Guid] = '{0}')
-                UPDATE [GroupType] SET [InheritedGroupTypeId] = NULL, [DefaultGroupRoleId] = NULL WHERE [InheritedGroupTypeId] = @GroupTypeId
+                UPDATE [GroupType] SET [InheritedGroupTypeId] = NULL, [DefaultGroupRoleId] = NULL WHERE [InheritedGroupTypeId] = @GroupTypeId OR [Id] = @GroupTypeId
                 DELETE [GroupTypeAssociation] WHERE [ChildGroupTypeId] = @GroupTypeId OR [GroupTypeId] = @GroupTypeId
                 DELETE [GroupTypeRole] WHERE [GroupTypeId] = @GroupTypeId
                 DELETE [GroupType] WHERE [Guid] = '{0}'
@@ -6985,16 +7235,17 @@ END
         /// <param name="header">The header.</param>
         /// <param name="footer">The footer.</param>
         /// <param name="actions">The actions.</param>
-        /// <param name="systemEmailGuid">The system email unique identifier.</param>
+        /// <param name="systemCommunicationGuid">The system communication unique identifier.</param>
         /// <param name="includeActionsInNotification">if set to <c>true</c> [include actions in notification].</param>
         /// <param name="actionAttributeGuid">The action attribute unique identifier.</param>
         /// <param name="guid">The unique identifier.</param>
-        public void UpdateWorkflowActionForm( string header, string footer, string actions, string systemEmailGuid,
+        public void UpdateWorkflowActionForm( string header, string footer, string actions, string systemCommunicationGuid,
             bool includeActionsInNotification, string actionAttributeGuid, string guid )
         {
             Migration.Sql( string.Format( @"
 
                 DECLARE @SystemEmailId int = (SELECT [Id] FROM [SystemEmail] WHERE [Guid] = '{3}')
+                DECLARE @SystemCommunicationId int = (SELECT [Id] FROM [SystemCommunication] WHERE [Guid] = '{3}')
 
                 IF EXISTS ( SELECT [Id] FROM [WorkflowActionForm] WHERE [Guid] =  '{6}' )
                 BEGIN
@@ -7003,6 +7254,7 @@ END
                         [Footer] = '{1}',
                         [Actions] = '{2}',
                         [NotificationSystemEmailId] = @SystemEmailId,
+                        [NotificationSystemCommunicationId] = @SystemCommunicationId,
                         [IncludeActionsInNotification] = {4},
                         [ActionAttributeGuid] = {5}
                     WHERE [Guid] = '{6}'
@@ -7010,14 +7262,14 @@ END
                 ELSE
                 BEGIN
                     INSERT INTO [WorkflowActionForm] (
-                        [Header], [Footer], [Actions], [NotificationSystemEmailId], [IncludeActionsInNotification], [ActionAttributeGuid], [Guid] )
-                    VALUES( '{0}', '{1}', '{2}', @SystemEmailId, {4}, {5}, '{6}' )
+                        [Header], [Footer], [Actions], [NotificationSystemEmailId], [NotificationSystemCommunicationId], [IncludeActionsInNotification], [ActionAttributeGuid], [Guid] )
+                    VALUES( '{0}', '{1}', '{2}', @SystemEmailId, @SystemCommunicationId, {4}, {5}, '{6}' )
                 END
 ",
                     header.Replace( "'", "''" ),
                     footer.Replace( "'", "''" ),
                     actions,
-                    ( string.IsNullOrWhiteSpace( systemEmailGuid ) ? Guid.Empty.ToString() : systemEmailGuid ),
+                    ( string.IsNullOrWhiteSpace( systemCommunicationGuid ) ? Guid.Empty.ToString() : systemCommunicationGuid ),
                     ( includeActionsInNotification ? "1" : "0" ),
                     ( string.IsNullOrWhiteSpace( actionAttributeGuid ) ? "NULL" : "'" + actionAttributeGuid + "'" ),
                     guid )
@@ -7412,12 +7664,52 @@ END
         /// <summary>
         /// Adds the rest action.
         /// </summary>
+        /// <param name="restActionGuid">The rest action unique identifier.</param>
+        /// <param name="controllerName">Name of the controller.</param>
+        /// <param name="controllerClass">The controller class.</param>
+        public void AddRestAction( string restActionGuid, string controllerName, string controllerClass )
+        {
+            AddRestController( controllerName, controllerClass );
+
+            var sql = string.Format( @"
+    DECLARE @ControllerId int = ( SELECT TOP 1 [Id] FROM [RestController] WHERE [ClassName] = '{0}' )
+    DECLARE @ActionId int = ( SELECT TOP 1 [Id] FROM [RestAction] WHERE [Guid] = '{1}' )
+    IF @ActionId IS NULL
+    BEGIN
+
+	    INSERT INTO [RestAction] ( [ControllerId], [Guid] )
+	    VALUES ( @ControllerId, '{1}' )
+    END
+
+",
+                controllerClass,
+                restActionGuid
+                );
+
+            Migration.Sql( sql );
+        }
+
+        /// <summary>
+        /// Adds the rest action.
+        /// </summary>
+        /// <remarks>
+        /// This method should not be used for new code, and is deprecated.
+        /// This method will break if we change the C# signature of the Rest Action.
+        /// Instead you should use <see cref="AddRestAction(string, string, string)" />,
+        /// which takes a string Guid that represents the Rest Action (the <see cref="Rock.SystemGuid.RestActionGuidAttribute"/>).
+        /// </remarks>
         /// <param name="controllerName">Name of the controller.</param>
         /// <param name="controllerClass">The controller class.</param>
         /// <param name="actionMethod">The action method.</param>
         /// <param name="actionPath">The action path.</param>
+        [Obsolete( message: "1.15.2" )]
         public void AddRestAction( string controllerName, string controllerClass, string actionMethod, string actionPath )
         {
+            /*
+             * BC - 08/23
+             * This method can never be removed.  
+             * Old versions of plugins could be referencing this API. 
+             */
             AddRestController( controllerName, controllerClass );
 
             Migration.Sql( string.Format( @"
@@ -7446,16 +7738,16 @@ END
         /// <summary>
         /// Normalizes line endings of the given column so your WHERE clause
         /// or REPLACE function works as you expect it to.
-        /// 
+        ///
         /// Call this on the search _condition column of your WHERE clause
         /// or on the string_expression in your REPLACE call when you are using
         /// multi line strings!
-        /// 
+        ///
         /// <para>
         /// NOTE: It does this by first changing CRLF (13 10) to GS (29;group separator),
         /// then changing LF to CRLF, then changing GS back to CRLF.
         /// </para>
-        /// 
+        ///
         /// <para>
         /// Example 1:
         ///     "WHERE " + NormalizeColumnCRLF( "GroupViewLavaTemplate" ) + " LIKE '%...%'"
@@ -7953,7 +8245,7 @@ END
         #region Index Helpers
 
         /// <summary>
-        /// Creates the index if it doesn't exist. The index name is calculated from the keys.
+        /// Creates the index if it doesn't exist. The index name is calculated from the keys. Uses a default fill factor of 90%.
         /// </summary>
         /// <param name="tableName">Name of the table.</param>
         /// <param name="keys">The keys.</param>
@@ -7965,7 +8257,7 @@ END
         }
 
         /// <summary>
-        /// Creates the index if it doesn't exist.
+        /// Creates the index if it doesn't exist. Uses a default fill factor of 90%.
         /// </summary>
         /// <param name="tableName">Name of the table.</param>
         /// <param name="indexName">Name of the index.</param>
@@ -7974,6 +8266,20 @@ END
         public void CreateIndexIfNotExists( string tableName, string indexName, string[] keys, string[] includes )
         {
             var sql = MigrationIndexHelper.GenerateCreateIndexIfNotExistsSql( tableName, indexName, keys, includes );
+            Migration.Sql( sql );
+        }
+
+        /// <summary>
+        /// Creates the index if it doesn't exist.
+        /// </summary>
+        /// <param name="tableName">Name of the table.</param>
+        /// <param name="indexName">Name of the index.</param>
+        /// <param name="keys">The indexed columns.</param>
+        /// <param name="includes">The non-indexed columns to include ( the INCLUDE clause ).</param>
+        /// <param name="isUnique">if set to <c>true</c> [is unique].</param>
+        public void CreateIndexIfNotExists( string tableName, string indexName, string[] keys, string[] includes, bool isUnique )
+        {
+            var sql = MigrationIndexHelper.GenerateCreateIndexIfNotExistsSql( tableName, indexName, keys, includes, isUnique );
             Migration.Sql( sql );
         }
 
@@ -7989,6 +8295,164 @@ END
         }
 
         #endregion Index Helpers
+
+        #region ServiceJob
+
+        /// <summary>
+        /// Adds/Overwrites the ServiceJob attribute value.
+        /// </summary>
+        /// <param name="serviceJobGuid">The service job unique identifier.</param>
+        /// <param name="attributeGuid">The attribute unique identifier.</param>
+        /// <param name="value">The value.</param>
+        public void AddServiceJobAttributeValue( string serviceJobGuid, string attributeGuid, string value )
+        {
+            Migration.Sql( $@"
+                DECLARE @ServiceJobId int
+                SET @ServiceJobId = (SELECT [Id] FROM [ServiceJob] WHERE [Guid] = '{serviceJobGuid}')
+                DECLARE @AttributeId int
+                SET @AttributeId = (SELECT [Id] FROM [Attribute] WHERE [Guid] = '{attributeGuid}')
+                -- Delete existing attribute value first (might have been created by Rock system)
+                DELETE [AttributeValue]
+                WHERE [AttributeId] = @AttributeId
+                AND [EntityId] = @ServiceJobId
+                INSERT INTO [AttributeValue]
+                    ([IsSystem], [AttributeId], [EntityId], [Value], [Guid])
+                VALUES
+                    (1, @AttributeId, @ServiceJobId, N'{value.Replace( "'", "''" )}', NEWID())"
+            );
+        }
+
+        /// <summary>
+        /// Adds/Overwrites the ServiceJob attribute value.
+        /// This would throw an exception if the Attribute Key does not exist on the Service Job Entity. So please ensure the prior migrations add the attribute.
+        /// </summary>
+        /// <param name="serviceJobGuid">The service job unique identifier.</param>
+        /// <param name="key">The attribute unique identifier.</param>
+        /// <param name="value">The value.</param>
+        public void AddOrUpdatePostUpdateJobAttributeValue( string serviceJobGuid, string key, string value )
+        {
+            Migration.Sql( $@" 
+                DECLARE @ServiceJobEntityTypeId INT = (SELECT [Id] FROM [EntityType] WHERE [Name] = 'Rock.Model.ServiceJob' )
+                DECLARE @ServiceJobId int
+                DECLARE @ServiceJobClass varchar(100)
+                SELECT @ServiceJobId = [Id], @ServiceJobClass = [Class]  FROM [ServiceJob] WHERE [Guid] = '{serviceJobGuid}'
+
+                -- Get the Attribute Id For Service Job by the key
+                DECLARE @AttributeId int
+                SET @AttributeId = (
+                    SELECT [Id]
+                    FROM [Attribute]
+                    WHERE [EntityTypeId] = @ServiceJobEntityTypeId
+                        AND [EntityTypeQualifierColumn] = 'Class'
+                        AND [EntityTypeQualifierValue] = @ServiceJobClass
+                        AND [Key] = '{key}' )
+
+                
+                -- Delete existing attribute value first (might have been created by Rock system)
+                DELETE [AttributeValue]
+                WHERE [AttributeId] = @AttributeId AND [EntityId] = @ServiceJobId
+
+                -- Insert the Attribute Value
+                -- Intentionally not checking if the Attribute Id is null as we expect the SQL to throw an exception if so.
+                INSERT INTO [AttributeValue]
+                    ([IsSystem], [AttributeId], [EntityId], [Value], [Guid])
+                VALUES
+                    (1, @AttributeId, @ServiceJobId, N'{value.Replace( "'", "''" )}', NEWID())"
+            );
+        }
+
+        /// <summary>
+        /// Creates a new Post Update Job <see cref="Rock.Jobs.PostUpdateJobs.PostUpdateJob" /> to be run on Rock Start Up.
+        /// By default all Post Update Jobs need to be marked active and are system jobs so that they are not accidentally deleted by the admins.
+        /// </summary>
+        /// <param name="name">The Name of the Job as it should be shown on the job list block in the front end</param>
+        /// <param name="description">The brief description of what the job does</param>
+        /// <param name="jobType"></param>
+        /// <param name="cronExpression">The cron expression the job scheduler may use to run the job. For instance: <b>0 15 2 1/1 * ? *</b></param>
+        /// <param name="guid">The Job Guid</param>
+        public void AddPostUpdateServiceJob( string name, string description, string jobType, string cronExpression, string guid )
+        {
+            Migration.Sql( $@"IF NOT EXISTS( SELECT [Id] FROM [ServiceJob] WHERE [Guid] = '{guid}' )
+    BEGIN
+        INSERT INTO [ServiceJob] (
+            [IsSystem]
+            ,[IsActive]
+            ,[Name]
+            ,[Description]
+            ,[Class]
+            ,[CronExpression]
+            ,[NotificationStatus]
+            ,[Guid] )
+        VALUES ( 
+            1
+            ,1
+            ,'{name}'
+            ,'{description}'
+            ,'{jobType}'
+            ,'{cronExpression}'
+            ,1
+            ,'{guid}'
+            );
+    END" );
+        }
+
+        /// <summary>
+        /// Creates a Service Job to Replace webforms blocks with corresponding obsidian blocks.
+        /// </summary>
+        /// <param name="name">The name of the Job. For instance the list of block types it would be replacing. Restricted to 31 characters due to DB constraints.
+        /// In the front end the name would be prefixed with : "Rock Update Helper - Replace WebForms Blocks with Obsidian Blocks -"
+        /// </param>
+        /// <param name="blockTypeReplacements">A key value pair of the webforms block type GUID to be replaced with the corresponding obsidian block type GUID</param>
+        /// <param name="migrationStrategy">The Migration Strategy to be used to replace the block. It can be either "Chop" or "Swap"</param>
+        /// <param name="jobGuid">The GUID of the job</param>
+        public void ReplaceWebformsWithObsidianBlockMigration( string name, Dictionary<string, string> blockTypeReplacements, string migrationStrategy, string jobGuid )
+        {
+            if ( name.Length > 31 )
+            {
+                throw new ArgumentException( $"Service job name '{name}' exceeds the max limit of 31 characters.", "name" );
+            }
+
+            // note: the cronExpression was chosen at random. It is provided as it is mandatory in the Service Job. Feel free to change it if needed.
+            AddPostUpdateServiceJob(
+                name: $"Rock Update Helper - Replace WebForms Blocks with Obsidian Blocks - { name }",
+                description: "This job will replace the  WebForms blocks with their Obsidian blocks on all sites, pages, and layouts.",
+                jobType: "Rock.Jobs.PostUpdateDataMigrationsReplaceWebFormsBlocksWithObsidianBlocks", cronExpression: "0 0 21 1/1 * ? *", guid: jobGuid);
+
+            // Adding the Attributes for the Job in case they happen to not be present in the database before
+
+            // Attribute: Rock.Jobs.PostUpdateDataMigrationsReplaceWebFormsBlocksWithObsidianBlocks: Block Type Guid Replacement Pairs
+            AddOrUpdateEntityAttribute( "Rock.Model.ServiceJob", Rock.SystemGuid.FieldType.KEY_VALUE_LIST, "Class", "Rock.Jobs.PostUpdateDataMigrationsReplaceWebFormsBlocksWithObsidianBlocks", "Block Type Guid Replacement Pairs", "Block Type Guid Replacement Pairs", "The key-value pairs of replacement BlockType.Guid values, where the key is the existing BlockType.Guid and the value is the new BlockType.Guid. Blocks of BlockType.Guid == key will be replaced by blocks of BlockType.Guid == value in all sites, pages, and layouts.", 1, "", "CDDB8075-E559-499F-B12F-B8DC8CCD73B5", "BlockTypeGuidReplacementPairs" );
+
+            // Attribute: Rock.Jobs.PostUpdateDataMigrationsReplaceWebFormsBlocksWithObsidianBlocks: Migration 
+            AddOrUpdateEntityAttribute( "Rock.Model.ServiceJob", Rock.SystemGuid.FieldType.SINGLE_SELECT, "Class", "Rock.Jobs.PostUpdateDataMigrationsReplaceWebFormsBlocksWithObsidianBlocks", "Migration Strategy", "Migration Strategy", "Determines if the blocks should be chopped instead of swapped. By default,the old blocks are swapped with the new ones.", 2, "Swap", "FA99E828-2388-4CDF-B69B-DBC36332D6A4", "MigrationStrategy" );
+
+            // Adding the values to the Attributes for the job
+            AddOrUpdatePostUpdateJobAttributeValue( jobGuid, "BlockTypeGuidReplacementPairs", SerializeDictionary( blockTypeReplacements ) );
+            AddOrUpdatePostUpdateJobAttributeValue( jobGuid, "MigrationStrategy", migrationStrategy );
+        }
+
+        private string SerializeDictionary( Dictionary<string, string> dictionary )
+        {
+            const string keyValueSeparator = "^";
+
+            if ( dictionary?.Any() != true )
+            {
+                return string.Empty;
+            }
+
+            var sb = new StringBuilder();
+            var first = dictionary.First();
+            sb.Append( $"{first.Key}{keyValueSeparator}{first.Value}" );
+
+            foreach ( var kvp in dictionary.Skip( 1 ) )
+            {
+                sb.Append( $"|{kvp.Key}{keyValueSeparator}{kvp.Value}" );
+            }
+
+            return sb.ToString();
+        }
+
+        #endregion
 
         /// <summary>
         /// Checks if a table column exists.

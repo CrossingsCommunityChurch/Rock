@@ -33,12 +33,13 @@ namespace Rock.Blocks.Types.Mobile.Events
     /// <summary>
     /// Displays a list of events from a calendar.
     /// </summary>
-    /// <seealso cref="Rock.Blocks.RockMobileBlockType" />
+    /// <seealso cref="Rock.Blocks.RockBlockType" />
 
     [DisplayName( "Calendar Event List" )]
     [Category( "Mobile > Events" )]
     [Description( "Displays a list of events from a calendar." )]
     [IconCssClass( "fa fa-list-alt" )]
+    [SupportedSiteTypes( Model.SiteType.Mobile )]
 
     #region Block Attributes
 
@@ -78,9 +79,19 @@ namespace Rock.Blocks.Types.Mobile.Events
         Key = AttributeKeys.EnableCampusFiltering,
         Order = 4 )]
 
+    [BooleanField( "Show Past Events",
+        Description = "When enabled past events will be included on the calendar, otherwise only future events will be shown.",
+        IsRequired = false,
+        DefaultBooleanValue = true,
+        ControlType = Field.Types.BooleanFieldType.BooleanControlType.Checkbox,
+        Key = AttributeKeys.ShowPastEvents,
+        Order = 5 )]
+
     #endregion
 
-    public class CalendarEventList : RockMobileBlockType
+    [Rock.SystemGuid.EntityTypeGuid( Rock.SystemGuid.EntityType.MOBILE_EVENTS_CALENDAREVENTLIST_BLOCK_TYPE )]
+    [Rock.SystemGuid.BlockTypeGuid( "A9149623-6A82-4F25-8F4D-0961557BE78C")]
+    public class CalendarEventList : RockBlockType
     {
         #region Block Attributes
 
@@ -113,6 +124,11 @@ namespace Rock.Blocks.Types.Mobile.Events
             /// The enable campus filtering
             /// </summary>
             public const string EnableCampusFiltering = "EnableCampusFiltering";
+
+            /// <summary>
+            /// When enabled past events will be included on the calendar, otherwise only future events will be shown.
+            /// </summary>
+            public const string ShowPastEvents = "ShowPastEvents";
         }
 
         /// <summary>
@@ -185,25 +201,20 @@ namespace Rock.Blocks.Types.Mobile.Events
         /// </value>
         protected bool EnableCampusFiltering => GetAttributeValue( AttributeKeys.EnableCampusFiltering ).AsBoolean();
 
+        /// <summary>
+        /// Gets a value indicating whether past events will be included on the calendar.
+        /// </summary>
+        /// <value>
+        ///   <c>true</c> if past events will be included on the calendar, otherwise <c>false</c>.
+        /// </value>
+        protected bool ShowPastEvents => GetAttributeValue( AttributeKeys.ShowPastEvents ).AsBoolean();
+
         #endregion
 
         #region IRockMobileBlockType Implementation
 
-        /// <summary>
-        /// Gets the required mobile application binary interface version required to render this block.
-        /// </summary>
-        /// <value>
-        /// The required mobile application binary interface version required to render this block.
-        /// </value>
-        public override int RequiredMobileAbiVersion => 1;
-
-        /// <summary>
-        /// Gets the class name of the mobile block to use during rendering on the device.
-        /// </summary>
-        /// <value>
-        /// The class name of the mobile block to use during rendering on the device
-        /// </value>
-        public override string MobileBlockType => "Rock.Mobile.Blocks.Events.CalendarEventList";
+        /// <inheritdoc/>
+        public override Version RequiredMobileVersion => new Version( 1, 1 );
 
         /// <summary>
         /// Gets the property values that will be sent to the device in the application bundle.
@@ -223,7 +234,8 @@ namespace Rock.Blocks.Types.Mobile.Events
                 } ),
                 EventTemplate,
                 DayHeaderTemplate,
-                DetailPage
+                DetailPage,
+                HidePastEvents = !ShowPastEvents
             };
         }
 
@@ -361,11 +373,7 @@ namespace Rock.Blocks.Types.Mobile.Events
 
                 var lavaTemplate = CreateLavaTemplate();
 
-                var commonMergeFields = new CommonMergeFieldsOptions
-                {
-                    GetLegacyGlobalMergeFields = false
-                };
-
+                var commonMergeFields = new CommonMergeFieldsOptions();
                 var mergeFields = RequestContext.GetCommonMergeFields( null, commonMergeFields );
                 mergeFields.Add( "Items", occurrences.ToList() );
 

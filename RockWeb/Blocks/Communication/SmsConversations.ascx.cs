@@ -19,13 +19,16 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
 using System.Linq;
+using System.Web.UI;
 using System.Web.UI.HtmlControls;
 using System.Web.UI.WebControls;
 
 using Rock;
 using Rock.Attribute;
 using Rock.Data;
+using Rock.Enums.Communication;
 using Rock.Model;
+using Rock.Reporting;
 using Rock.Security;
 using Rock.Web.Cache;
 using Rock.Web.UI;
@@ -36,9 +39,8 @@ namespace RockWeb.Blocks.Communication
     [DisplayName( "SMS Conversations" )]
     [Category( "Communication" )]
     [Description( "Block for having SMS Conversations between an SMS enabled phone and a Rock SMS Phone number that has 'Enable Mobile Conversations' set to false." )]
-    [DefinedValueField( "Allowed SMS Numbers",
+    [SystemPhoneNumberField( "Allowed SMS Numbers",
         Key = AttributeKey.AllowedSMSNumbers,
-        DefinedTypeGuid = Rock.SystemGuid.DefinedType.COMMUNICATION_SMS_FROM,
         Description = "Set the allowed FROM numbers to appear when in SMS mode (if none are selected all numbers will be included). ",
         IsRequired = false,
         AllowMultiple = true,
@@ -98,6 +100,16 @@ namespace RockWeb.Blocks.Communication
         Order = 7,
         Key = AttributeKey.NoteTypes )]
 
+
+    [IntegerField(
+        "Database Timeout",
+        Key = AttributeKey.DatabaseTimeoutSeconds,
+        Description = "The number of seconds to wait before reporting a database timeout.",
+        IsRequired = false,
+        DefaultIntegerValue = 180,
+        Order = 8 )]
+
+    [Rock.SystemGuid.BlockTypeGuid( "3497603B-3BE6-4262-B7E9-EC01FC7140EB" )]
     public partial class SmsConversations : RockBlock
     {
         #region Attribute Keys
@@ -111,6 +123,7 @@ namespace RockWeb.Blocks.Communication
             public const string MaxConversations = "MaxConversations";
             public const string PersonInfoLavaTemplate = "PersonInfoLavaTemplate";
             public const string NoteTypes = "NoteTypes";
+            public const string DatabaseTimeoutSeconds = "DatabaseTimeoutSeconds";
         }
 
         #endregion Attribute Keys
@@ -133,6 +146,7 @@ namespace RockWeb.Blocks.Communication
                 Content = "telephone=no"
             };
 
+            RockPage.AddCSSLink( "~/Styles/Blocks/Communication/SmsConversations.css" );
             RockPage.AddMetaTag( this.Page, preventPhoneMetaTag );
 
             this.BlockUpdated += Block_BlockUpdated;
@@ -140,6 +154,15 @@ namespace RockWeb.Blocks.Communication
             ConfigureNoteEditor();
 
             btnCreateNewMessage.Visible = this.GetAttributeValue( AttributeKey.EnableSmsSend ).AsBoolean();
+
+            //// Set postback timeout and request-timeout to whatever the DatabaseTimeout is plus an extra 5 seconds so that page doesn't timeout before the database does
+            int databaseTimeout = GetAttributeValue( AttributeKey.DatabaseTimeoutSeconds ).AsIntegerOrNull() ?? 180;
+            var sm = ScriptManager.GetCurrent( this.Page );
+            if ( sm.AsyncPostBackTimeout < databaseTimeout + 5 )
+            {
+                sm.AsyncPostBackTimeout = databaseTimeout + 5;
+                Server.ScriptTimeout = databaseTimeout + 5;
+            }
         }
 
         /// <summary>
@@ -149,8 +172,6 @@ namespace RockWeb.Blocks.Communication
         protected override void OnLoad( EventArgs e )
         {
             base.OnLoad( e );
-
-            string postbackArgs = Request.Params["__EVENTARGUMENT"] ?? string.Empty;
 
             nbAddPerson.Visible = false;
 
@@ -186,34 +207,37 @@ namespace RockWeb.Blocks.Communication
         private bool LoadPhoneNumbers()
         {
             // First load up all of the available numbers
-            var smsNumbers = DefinedTypeCache.Get( Rock.SystemGuid.DefinedType.COMMUNICATION_SMS_FROM.AsGuid() ).DefinedValues.Where( a => a.IsAuthorized( Rock.Security.Authorization.VIEW, CurrentPerson ) );
+            var smsNumbers = SystemPhoneNumberCache.All()
+                .Where( spn => spn.IsAuthorized( Rock.Security.Authorization.VIEW, CurrentPerson ) )
+                .OrderBy( spn => spn.Order )
+                .ThenBy( spn => spn.Name )
+                .ThenBy( spn => spn.Id )
+                .ToList();
 
             var selectedNumberGuids = GetAttributeValue( AttributeKey.AllowedSMSNumbers ).SplitDelimitedValues( true ).AsGuidList();
             if ( selectedNumberGuids.Any() )
             {
-                smsNumbers = smsNumbers.Where( v => selectedNumberGuids.Contains( v.Guid ) ).ToList();
+                smsNumbers = smsNumbers.Where( spn => selectedNumberGuids.Contains( spn.Guid ) ).ToList();
             }
 
             // filter personal numbers (any that have a response recipient) if the hide personal option is enabled
             if ( GetAttributeValue( AttributeKey.HidePersonalSmsNumbers ).AsBoolean() )
             {
-                smsNumbers = smsNumbers.Where( v => v.GetAttributeValue( "ResponseRecipient" ).IsNullOrWhiteSpace() ).ToList();
+                smsNumbers = smsNumbers.Where( spn => spn.AssignedToPersonAliasId.HasValue ).ToList();
             }
 
             // Show only numbers 'tied to the current' individual...unless they have 'Admin rights'.
             if ( GetAttributeValue( AttributeKey.ShowOnlyPersonalSmsNumber ).AsBoolean() && !IsUserAuthorized( Authorization.ADMINISTRATE ) )
             {
-                smsNumbers = smsNumbers.Where( v => CurrentPerson.Aliases.Any( a => a.Guid == v.GetAttributeValue( "ResponseRecipient" ).AsGuid() ) ).ToList();
+                smsNumbers = smsNumbers.Where( spn => CurrentPerson.Aliases.Any( a => a.Id == spn.AssignedToPersonAliasId ) ).ToList();
             }
 
             if ( smsNumbers.Any() )
             {
-                var smsDetails = smsNumbers.Select( v => new
+                var smsDetails = smsNumbers.Select( spn => new
                 {
-                    v.Id,
-                    Description = string.IsNullOrWhiteSpace( v.Description )
-                    ? PhoneNumber.FormattedNumber( string.Empty, v.Value.Replace( "+", string.Empty ) )
-                    : v.Description.LeftWithEllipsis( 25 ),
+                    spn.Id,
+                    Description = spn.Name
                 } );
 
                 ddlSmsNumbers.DataSource = smsDetails;
@@ -222,9 +246,11 @@ namespace RockWeb.Blocks.Communication
                 ddlSmsNumbers.DataTextField = "Description";
                 ddlSmsNumbers.DataBind();
 
-                string keyPrefix = string.Format( "sms-conversations-{0}-", this.BlockId );
+                ddlMessageFilter.BindToEnum<CommunicationMessageFilter>();
 
-                string smsNumberUserPref = this.GetUserPreference( keyPrefix + "smsNumber" ) ?? string.Empty;
+                var preferences = GetBlockPersonPreferences();
+
+                string smsNumberUserPref = preferences.GetValue( "smsNumber" );
 
                 if ( smsNumberUserPref.IsNotNullOrWhiteSpace() )
                 {
@@ -239,7 +265,7 @@ namespace RockWeb.Blocks.Communication
                 hlSmsNumber.Text = smsDetails.Select( v => v.Description ).FirstOrDefault();
                 hfSmsNumber.SetValue( smsNumbers.Count() > 1 ? ddlSmsNumbers.SelectedValue.AsInteger() : smsDetails.Select( v => v.Id ).FirstOrDefault() );
 
-                tglShowRead.Checked = this.GetUserPreference( keyPrefix + "showRead" ).AsBooleanOrNull() ?? true;
+                ddlMessageFilter.SelectedValue = preferences.GetValue( "messageFilter" ).IfEmpty( CommunicationMessageFilter.ShowUnreadReplies.ToString() );
             }
             else
             {
@@ -266,68 +292,122 @@ namespace RockWeb.Blocks.Communication
             // This is the person lava field, we want to clear it because reloading this list will deselect the user.
             litSelectedRecipientDescription.Text = string.Empty;
             hfSelectedRecipientPersonAliasId.Value = string.Empty;
-            hfSelectedMessageKey.Value = string.Empty;
+            hfSelectedConversationKey.Value = string.Empty;
             tbNewMessage.Visible = false;
             btnSend.Visible = false;
             btnEditNote.Visible = false;
             lbShowImagePicker.Visible = false;
             noteEditor.Visible = false;
 
-            int? smsPhoneDefinedValueId = hfSmsNumber.ValueAsInt();
-            if ( smsPhoneDefinedValueId == default( int ) )
+            var smsSystemPhoneNumberId = hfSmsNumber.ValueAsInt();
+            if ( smsSystemPhoneNumberId == 0 )
             {
                 return;
             }
 
-            using ( var rockContext = new RockContext() )
+            try
             {
-                var communicationResponseService = new CommunicationResponseService( rockContext );
+                using ( var rockContext = new RockContext() )
+                {
+                    rockContext.Database.CommandTimeout = GetAttributeValue( AttributeKey.DatabaseTimeoutSeconds ).AsIntegerOrNull() ?? 180;
 
-                int months = GetAttributeValue( AttributeKey.ShowConversationsFromMonthsAgo ).AsInteger();
+                    var communicationResponseService = new CommunicationResponseService( rockContext );
 
-                var startDateTime = RockDateTime.Now.AddMonths( -months );
-                bool showRead = tglShowRead.Checked;
+                    int months = GetAttributeValue( AttributeKey.ShowConversationsFromMonthsAgo ).AsInteger();
 
-                var maxConversations = this.GetAttributeValue( AttributeKey.MaxConversations ).AsIntegerOrNull() ?? 1000;
+                    var startDateTime = RockDateTime.Now.AddMonths( -months );
 
-                var responseListItems = communicationResponseService.GetCommunicationResponseRecipients( smsPhoneDefinedValueId.Value, startDateTime, showRead, maxConversations, personId );
+                    var maxConversations = this.GetAttributeValue( AttributeKey.MaxConversations ).AsIntegerOrNull() ?? 1000;
+                    var messageFilterOption = ddlMessageFilter.SelectedValue.ConvertToEnum<CommunicationMessageFilter>();
 
-                // don't display conversations if we're rebinding the recipient list
-                rptConversation.Visible = false;
-                gRecipients.DataSource = responseListItems;
-                gRecipients.DataBind();
+                    var responseListItems = communicationResponseService.GetCommunicationAndResponseRecipients( smsSystemPhoneNumberId, startDateTime, maxConversations, messageFilterOption, personId );
+
+                    // don't display conversations if we're rebinding the recipient list
+                    rptConversation.Visible = false;
+                    gRecipients.DataSource = responseListItems;
+                    gRecipients.DataBind();
+                }
+            }
+            catch ( Exception ex )
+            {
+                this.LogException( ex );
+                var sqlTimeoutException = ReportingHelper.FindSqlTimeoutException( ex );
+                if ( sqlTimeoutException != null )
+                {
+                    nbError.NotificationBoxType = NotificationBoxType.Warning;
+                    nbError.Text = "Unable to load SMS responses in a timely manner. You can try again or adjust the timeout setting of this block.";
+                    nbError.Visible = true;
+                    return;
+                }
+                else
+                {
+                    nbError.NotificationBoxType = NotificationBoxType.Danger;
+                    nbError.Text = "An error occurred when loading SMS responses";
+                    nbError.Details = ex.Message;
+                    nbError.Visible = true;
+                    return;
+                }
             }
         }
 
         /// <summary>
         /// Loads the responses for recipient.
         /// </summary>
-        /// <param name="recipientPersonAliasId">The recipient person alias identifier.</param>
+        /// <param name="recipientPersonId">The recipient person identifier.</param>
         /// <returns></returns>
-        private string LoadResponsesForRecipient( int recipientPersonAliasId )
+        private string LoadResponsesForRecipientPerson( int recipientPersonId )
         {
-            int? smsPhoneDefinedValueId = hfSmsNumber.ValueAsInt();
+            var smsSystemPhoneNumberId = hfSmsNumber.ValueAsInt();
+            var smsSystemPhoneNumber = smsSystemPhoneNumberId != 0
+                ? SystemPhoneNumberCache.Get( smsSystemPhoneNumberId )
+                : null;
 
-            if ( smsPhoneDefinedValueId == default( int ) )
+            if ( smsSystemPhoneNumber == null )
             {
                 return string.Empty;
             }
 
-            var communicationResponseService = new CommunicationResponseService( new RockContext() );
-            List<CommunicationRecipientResponse> responses = communicationResponseService.GetCommunicationConversation( recipientPersonAliasId, smsPhoneDefinedValueId.Value );
-
-            BindConversationRepeater( responses );
-
-            if ( responses.Any() )
+            try
             {
-                var responseListItem = responses.Last();
+                var rockContext = new RockContext();
+                rockContext.Database.CommandTimeout = GetAttributeValue( AttributeKey.DatabaseTimeoutSeconds ).AsIntegerOrNull() ?? 180;
+                var communicationResponseService = new CommunicationResponseService( rockContext );
+                List<CommunicationRecipientResponse> responses = communicationResponseService.GetCommunicationConversationForPerson( recipientPersonId, smsSystemPhoneNumber );
 
-                if ( responseListItem.SMSMessage.IsNullOrWhiteSpace() && responseListItem.BinaryFileGuids != null && responseListItem.BinaryFileGuids.Any() )
+                BindConversationRepeater( responses );
+
+                if ( responses.Any() )
                 {
-                    return "Rock-Image-File";
-                }
+                    var responseListItem = responses.Last();
 
-                return responses.Last().SMSMessage;
+                    if ( responseListItem.SMSMessage.IsNullOrWhiteSpace() && responseListItem.HasAttachments( rockContext ) )
+                    {
+                        return "Rock-Image-File";
+                    }
+
+                    return responses.Last().SMSMessage;
+                }
+            }
+            catch ( Exception ex )
+            {
+                this.LogException( ex );
+                var sqlTimeoutException = ReportingHelper.FindSqlTimeoutException( ex );
+                var errorBox = nbError;
+
+                if ( sqlTimeoutException != null )
+                {
+                    nbError.NotificationBoxType = NotificationBoxType.Warning;
+                    nbError.Text = "Unable to load SMS responses for recipient in a timely manner. You can try again or adjust the timeout setting of this block.";
+                    return string.Empty;
+                }
+                else
+                {
+                    errorBox.NotificationBoxType = NotificationBoxType.Danger;
+                    nbError.Text = "An error occurred when loading SMS responses for recipient";
+                    errorBox.Details = ex.Message;
+                    errorBox.Visible = true;
+                    return string.Empty;
+                }
             }
 
             return string.Empty;
@@ -350,10 +430,9 @@ namespace RockWeb.Blocks.Communication
         /// <param name="e">The <see cref="RowEventArgs"/> instance containing the event data.</param>
         private void PopulatePersonLava( RowEventArgs e )
         {
-            var hfRecipientPersonAliasId = ( HiddenField ) e.Row.FindControl( "hfRecipientPersonAliasId" );
             int? recipientPersonAliasId = hfSelectedRecipientPersonAliasId.Value.AsIntegerOrNull();
 
-            var hfMessageKey = ( HiddenField ) e.Row.FindControl( "hfMessageKey" );
+            var hfPhoneNumber = ( HiddenField ) e.Row.FindControl( "hfPhoneNumber" );
             var lblName = ( Label ) e.Row.FindControl( "lblName" );
             string html = lblName.Text;
             string unknownPerson = " (Unknown Person)";
@@ -362,7 +441,7 @@ namespace RockWeb.Blocks.Communication
             if ( !recipientPersonAliasId.HasValue || recipientPersonAliasId.Value == -1 )
             {
                 // We don't have a person to do the lava merge so just display the formatted phone number
-                html = PhoneNumber.FormattedNumber( string.Empty, hfMessageKey.Value ) + unknownPerson;
+                html = PhoneNumber.FormattedNumber( string.Empty, hfPhoneNumber.Value ) + unknownPerson;
                 litSelectedRecipientDescription.Text = html;
             }
             else
@@ -387,28 +466,30 @@ namespace RockWeb.Blocks.Communication
         /// </summary>
         private void SaveSettings()
         {
-            string keyPrefix = string.Format( "sms-conversations-{0}-", this.BlockId );
+            var preferences = GetBlockPersonPreferences();
 
             if ( ddlSmsNumbers.Visible )
             {
-                this.SetUserPreference( keyPrefix + "smsNumber", ddlSmsNumbers.SelectedValue.ToString() );
+                preferences.SetValue( "smsNumber", ddlSmsNumbers.SelectedValue.ToString() );
                 hfSmsNumber.SetValue( ddlSmsNumbers.SelectedValue.AsInteger() );
             }
             else
             {
-                this.SetUserPreference( keyPrefix + "smsNumber", hfSmsNumber.Value.ToString() );
+                preferences.SetValue( "smsNumber", hfSmsNumber.Value.ToString() );
             }
 
-            this.SetUserPreference( keyPrefix + "showRead", tglShowRead.Checked.ToString() );
+            preferences.SetValue( "messageFilter", ddlMessageFilter.SelectedValue );
+
+            preferences.Save();
         }
 
         /// <summary>
         /// Sends the message.
         /// </summary>
-        /// <param name="toPersonAliasId">To person alias identifier.</param>
+        /// <param name="toPersonId">To person identifier.</param>
         /// <param name="message">The message.</param>
         /// <param name="newMessage">if set to <c>true</c> [new message].</param>
-        private void SendMessage( int toPersonAliasId, string message, bool newMessage )
+        private void SendMessageToPerson( int toPersonId, string message, bool newMessage )
         {
             using ( var rockContext = new RockContext() )
             {
@@ -417,7 +498,7 @@ namespace RockWeb.Blocks.Communication
                 string fromPersonName = CurrentUser.Person.FullName;
 
                 // The sending phone is the selected one
-                DefinedValueCache fromPhone = DefinedValueCache.Get( hfSmsNumber.ValueAsInt() );
+                var fromPhone = SystemPhoneNumberCache.Get( hfSmsNumber.ValueAsInt() );
 
                 string responseCode = Rock.Communication.Medium.Sms.GenerateResponseCode( rockContext );
 
@@ -435,10 +516,12 @@ namespace RockWeb.Blocks.Communication
                     binaryFile = new BinaryFileService( rockContext ).Get( ImageUploaderModal.BinaryFileId.Value );
                 }
 
-                photos = binaryFile.IsNotNull() ? new List<BinaryFile> { binaryFile } : null;
+                photos = binaryFile != null ? new List<BinaryFile> { binaryFile } : null;
+
+                var toPrimaryAliasId = new PersonAliasService( rockContext ).GetPrimaryAliasId( toPersonId );
 
                 // Create and enqueue the communication
-                Rock.Communication.Medium.Sms.CreateCommunicationMobile( CurrentUser.Person, toPersonAliasId, message, fromPhone, responseCode, rockContext, photos );
+                Rock.Communication.Medium.Sms.CreateCommunicationMobile( CurrentUser.Person, toPrimaryAliasId, message, fromPhone, responseCode, photos, rockContext );
                 ImageUploaderConversation.BinaryFileId = null;
             }
         }
@@ -456,8 +539,8 @@ namespace RockWeb.Blocks.Communication
                     continue;
                 }
 
-                var messageKeyHiddenField = ( HiddenFieldWithClass ) row.FindControl( "hfMessageKey" );
-                if ( messageKeyHiddenField.Value == hfSelectedMessageKey.Value )
+                var conversationKeyHiddenField = ( HiddenFieldWithClass ) row.FindControl( "hfConversationKey" );
+                if ( conversationKeyHiddenField.Value == hfSelectedConversationKey.Value )
                 {
                     Literal literal = ( Literal ) row.FindControl( "litMessagePart" );
 
@@ -498,7 +581,7 @@ namespace RockWeb.Blocks.Communication
         /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
         protected void lbLinkConversation_Click( object sender, EventArgs e )
         {
-            mdLinkToPerson.Title = string.Format( "Link Phone Number {0} to Person ", PhoneNumber.FormattedNumber( PhoneNumber.DefaultCountryCode(), hfSelectedMessageKey.Value, false ) );
+            mdLinkToPerson.Title = string.Format( "Link Phone Number {0} to Person ", PhoneNumber.FormattedNumber( PhoneNumber.DefaultCountryCode(), hfSelectedPhoneNumber.Value, false ) );
             ppPerson.SetValue( null );
             newPersonEditor.SetFromPerson( null );
             mdLinkToPerson.Show();
@@ -510,17 +593,6 @@ namespace RockWeb.Blocks.Communication
         /// <param name="sender">The source of the event.</param>
         /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
         protected void ddlSmsNumbers_SelectedIndexChanged( object sender, EventArgs e )
-        {
-            SaveSettings();
-            LoadResponseListing();
-        }
-
-        /// <summary>
-        /// Handles the CheckedChanged event of the tglShowRead control.
-        /// </summary>
-        /// <param name="sender">The source of the event.</param>
-        /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
-        protected void tglShowRead_CheckedChanged( object sender, EventArgs e )
         {
             SaveSettings();
             LoadResponseListing();
@@ -557,6 +629,17 @@ namespace RockWeb.Blocks.Communication
         }
 
         /// <summary>
+        /// Handles the Message filter changed event
+        /// </summary>
+        /// <param name="sender">The source of the event.</param>
+        /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
+        protected void ddlMessageFilter_SelectedIndexChanged( object sender, EventArgs e )
+        {
+            SaveSettings();
+            LoadResponseListing();
+        }
+
+        /// <summary>
         /// Handles the Click event of the btnSend control.
         /// </summary>
         /// <param name="sender">The source of the event.</param>
@@ -571,9 +654,16 @@ namespace RockWeb.Blocks.Communication
             }
 
             int toPersonAliasId = hfSelectedRecipientPersonAliasId.ValueAsInt();
-            SendMessage( toPersonAliasId, message, false );
+
+            int? toPersonId = new PersonAliasService( new RockContext() ).GetPersonId( toPersonAliasId );
+            if ( !toPersonId.HasValue )
+            {
+                return;
+            }
+
+            SendMessageToPerson( toPersonId.Value, message, false );
             tbNewMessage.Text = string.Empty;
-            LoadResponsesForRecipient( toPersonAliasId );
+            LoadResponsesForRecipientPerson( toPersonId.Value );
             UpdateMessagePart( message );
         }
 
@@ -592,16 +682,16 @@ namespace RockWeb.Blocks.Communication
 
             nbNoSms.Visible = false;
 
-            int toPersonAliasId = ppRecipient.PersonAliasId.Value;
-            var personAliasService = new PersonAliasService( new RockContext() );
-            var toPerson = personAliasService.GetPerson( toPersonAliasId );
-            if ( !toPerson.PhoneNumbers.Where( p => p.IsMessagingEnabled ).Any() )
+            int toPersonId = ppRecipient.PersonId.Value;
+            var personService = new PersonService( new RockContext() );
+            var personHasSMSNumbers = personService.GetSelect( toPersonId, s => s.PhoneNumbers.Where( a => a.IsMessagingEnabled ).Any() );
+            if ( !personHasSMSNumbers )
             {
                 nbNoSms.Visible = true;
                 return;
             }
 
-            SendMessage( toPersonAliasId, message, true );
+            SendMessageToPerson( toPersonId, message, true );
 
             mdNewMessage.Hide();
             LoadResponseListing();
@@ -615,13 +705,22 @@ namespace RockWeb.Blocks.Communication
         protected void ppRecipient_SelectPerson( object sender, EventArgs e )
         {
             nbNoSms.Visible = false;
-
-            int toPersonAliasId = ppRecipient.PersonAliasId.Value;
-            var personAliasService = new PersonAliasService( new RockContext() );
-            var toPerson = personAliasService.GetPerson( toPersonAliasId );
-            if ( !toPerson.PhoneNumbers.Where( p => p.IsMessagingEnabled ).Any() )
+            var senderClearButton = ( HtmlButton ) sender;
+            if (senderClearButton != null && senderClearButton.ID == "btnSelectNone" )
             {
-                nbNoSms.Visible = true;
+                // The PersonPicker clear button was clicked so no need to check for SMS numbers
+                return;
+            }
+
+            if ( ppRecipient.PersonAliasId.HasValue )
+            {
+                int toPersonAliasId = ppRecipient.PersonAliasId.Value;
+                var personAliasService = new PersonAliasService( new RockContext() );
+                var toPerson = personAliasService.GetPerson( toPersonAliasId );
+                if ( !toPerson.PhoneNumbers.Where( p => p.IsMessagingEnabled ).Any() )
+                {
+                    nbNoSms.Visible = true;
+                }
             }
         }
 
@@ -638,16 +737,17 @@ namespace RockWeb.Blocks.Communication
             }
 
             var hfRecipientPersonAliasId = ( HiddenField ) e.Row.FindControl( "hfRecipientPersonAliasId" );
-            var hfMessageKey = ( HiddenField ) e.Row.FindControl( "hfMessageKey" );
+            var hfConversationKey = ( HiddenField ) e.Row.FindControl( "hfConversationKey" );
+            var hfPhoneNumber = ( HiddenField ) e.Row.FindControl( "hfPhoneNumber" );
 
             // Since we can get newer messages when a selected let's also update the message part on the response recipients grid.
             var litMessagePart = ( Literal ) e.Row.FindControl( "litMessagePart" );
 
             int? recipientPersonAliasId = hfRecipientPersonAliasId.Value.AsIntegerOrNull();
-            string messageKey = hfMessageKey.Value;
 
             hfSelectedRecipientPersonAliasId.Value = recipientPersonAliasId.ToString();
-            hfSelectedMessageKey.Value = hfMessageKey.Value;
+            hfSelectedConversationKey.Value = hfConversationKey.Value;
+            hfSelectedPhoneNumber.Value = hfPhoneNumber.Value;
 
             var rockContext = new RockContext();
 
@@ -657,8 +757,13 @@ namespace RockWeb.Blocks.Communication
                 recipientPerson = new PersonAliasService( rockContext ).GetPerson( recipientPersonAliasId.Value );
             }
 
+            if ( recipientPerson == null )
+            {
+                return;
+            }
+
             noteEditor.Visible = false;
-            var messagePart = LoadResponsesForRecipient( recipientPersonAliasId.Value );
+            var messagePart = LoadResponsesForRecipientPerson( recipientPerson.Id );
             if ( messagePart == "Rock-Image-File" )
             {
                 litMessagePart.Text = "Image";
@@ -669,11 +774,14 @@ namespace RockWeb.Blocks.Communication
                 litMessagePart.Text = messagePart;
             }
 
-            int? smsPhoneDefinedValueId = hfSmsNumber.Value.AsIntegerOrNull();
+            var smsSystemPhoneNumberId = hfSmsNumber.Value.AsIntegerOrNull();
+            var smsSystemPhoneNumber = smsSystemPhoneNumberId.HasValue
+                ? SystemPhoneNumberCache.Get( smsSystemPhoneNumberId.Value )
+                : null;
 
-            if ( smsPhoneDefinedValueId.HasValue && recipientPersonAliasId.HasValue )
+            if ( smsSystemPhoneNumber != null && recipientPersonAliasId.HasValue )
             {
-                new CommunicationResponseService( rockContext ).UpdateReadPropertyByFromPersonAliasId( recipientPersonAliasId.Value, smsPhoneDefinedValueId.Value );
+                new CommunicationResponseService( rockContext ).UpdateReadPropertyByFromPersonId( recipientPerson.Id, smsSystemPhoneNumber );
             }
 
             tbNewMessage.Visible = true;
@@ -721,17 +829,19 @@ namespace RockWeb.Blocks.Communication
             }
 
             var hfRecipientPersonAliasId = e.Row.FindControl( "hfRecipientPersonAliasId" ) as HiddenField;
-            var hfMessageKey = e.Row.FindControl( "hfMessageKey" ) as HiddenField;
+            var hfConversationKey = e.Row.FindControl( "hfConversationKey" ) as HiddenField;
+            var hfPhoneNumber = e.Row.FindControl( "hfPhoneNumber" ) as HiddenField;
             var lblName = e.Row.FindControl( "lblName" ) as Label;
             var litDateTime = e.Row.FindControl( "litDateTime" ) as Literal;
             var litMessagePart = e.Row.FindControl( "litMessagePart" ) as Literal;
 
             var responseListItem = e.Row.DataItem as CommunicationRecipientResponse;
             hfRecipientPersonAliasId.Value = responseListItem.RecipientPersonAliasId.ToString();
-            hfMessageKey.Value = responseListItem.MessageKey;
+            hfConversationKey.Value = responseListItem.ConversationKey;
+            hfPhoneNumber.Value = responseListItem.ContactKey;
             if ( responseListItem.IsNamelessPerson )
             {
-                lblName.Text = PhoneNumber.FormattedNumber( null, responseListItem.MessageKey );
+                lblName.Text = PhoneNumber.FormattedNumber( null, responseListItem.ContactKey );
             }
             else
             {
@@ -741,7 +851,7 @@ namespace RockWeb.Blocks.Communication
             litDateTime.Text = responseListItem.HumanizedCreatedDateTime;
             litMessagePart.Text = responseListItem.SMSMessage;
 
-            if ( responseListItem.SMSMessage.IsNullOrWhiteSpace() && responseListItem.BinaryFileGuids != null && responseListItem.BinaryFileGuids.Any() )
+            if ( responseListItem.SMSMessage.IsNullOrWhiteSpace() && responseListItem.HasAttachments( new RockContext() ) )
             {
                 litMessagePart.Text = "Image";
                 e.Row.AddCssClass( "latest-message-is-image" );
@@ -764,11 +874,11 @@ namespace RockWeb.Blocks.Communication
 
             if ( communicationRecipientResponse != null )
             {
-                var hfCommunicationRecipientId = ( HiddenFieldWithClass ) e.Item.FindControl( "hfCommunicationRecipientId" );
-                hfCommunicationRecipientId.Value = communicationRecipientResponse.RecipientPersonAliasId.ToString();
+                var hfCommunicationRecipientPersonAliasId = ( HiddenFieldWithClass ) e.Item.FindControl( "hfCommunicationRecipientPersonAliasId" );
+                hfCommunicationRecipientPersonAliasId.Value = communicationRecipientResponse.RecipientPersonAliasId.ToString();
 
-                var hfCommunicationMessageKey = ( HiddenFieldWithClass ) e.Item.FindControl( "hfCommunicationMessageKey" );
-                hfCommunicationMessageKey.Value = communicationRecipientResponse.MessageKey;
+                var hfCommunicationConversationKey = ( HiddenFieldWithClass ) e.Item.FindControl( "hfCommunicationConversationKey" );
+                hfCommunicationConversationKey.Value = communicationRecipientResponse.ConversationKey;
 
                 var lSMSMessage = ( Literal ) e.Item.FindControl( "lSMSMessage" );
                 if ( communicationRecipientResponse.SMSMessage.IsNullOrWhiteSpace() )
@@ -781,12 +891,14 @@ namespace RockWeb.Blocks.Communication
                     lSMSMessage.Text = communicationRecipientResponse.SMSMessage;
                 }
 
-                if ( communicationRecipientResponse.BinaryFileGuids != null )
+                var rockContext = new RockContext();
+
+                if ( communicationRecipientResponse.HasAttachments( rockContext ) )
                 {
                     var lSMSAttachments = ( Literal ) e.Item.FindControl( "lSMSAttachments" );
                     string applicationRoot = GlobalAttributesCache.Value( "PublicApplicationRoot" );
 
-                    foreach ( var binaryFileGuid in communicationRecipientResponse.BinaryFileGuids )
+                    foreach ( var binaryFileGuid in communicationRecipientResponse.GetBinaryFileGuids( rockContext ) )
                     {
                         // Show the image thumbnail by appending the html to lSMSMessage.Text
                         string imageElement = $"<a href='{applicationRoot}GetImage.ashx?guid={binaryFileGuid}' target='_blank' rel='noopener noreferrer'><img src='{applicationRoot}GetImage.ashx?guid={binaryFileGuid}&width=200' class='img-responsive sms-image'></a>";
@@ -797,7 +909,7 @@ namespace RockWeb.Blocks.Communication
                 }
 
                 var lSenderName = ( Literal ) e.Item.FindControl( "lSenderName" );
-                lSenderName.Text = communicationRecipientResponse.FullName;
+                lSenderName.Text = communicationRecipientResponse.OutboundSenderFullName;
 
                 var lblMessageDateTime = ( Label ) e.Item.FindControl( "lblMessageDateTime" );
                 lblMessageDateTime.ToolTip = communicationRecipientResponse.CreatedDateTime.ToString();
@@ -989,7 +1101,7 @@ namespace RockWeb.Blocks.Communication
                 EntityId = selectedPersonId,
                 CreatedByPersonAlias = this.CurrentPersonAlias
             };
-            
+
             noteEditor.SetNote( note );
         }
 

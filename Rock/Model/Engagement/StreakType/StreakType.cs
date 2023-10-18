@@ -21,7 +21,10 @@ using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using System.Data.Entity;
 using System.Runtime.Serialization;
+using Newtonsoft.Json;
 using Rock.Data;
+using Rock.Utility;
+using Rock.ViewModels.Utility;
 using Rock.Web.Cache;
 
 namespace Rock.Model
@@ -32,6 +35,7 @@ namespace Rock.Model
     [RockDomain( "Engagement" )]
     [Table( "StreakType" )]
     [DataContract]
+    [Rock.SystemGuid.EntityTypeGuid( "66203975-2A7A-4000-870E-76457DF3C920")]
     public partial class StreakType : Model<StreakType>, IHasActiveFlag, ICacheable
     {
         #region Entity Properties
@@ -114,7 +118,26 @@ namespace Rock.Model
         /// representative of the StartDate. More significant bits (going left) are more recent dates.
         /// </summary>
         [DataMember]
+        [CodeGenExclude( CodeGenFeature.ViewModelFile )]
         public byte[] OccurrenceMap { get; set; }
+
+        /// <summary>
+        /// Gets or sets the structure settings JSON.
+        /// </summary>
+        /// <value>The structure settings JSON.</value>
+        [DataMember]
+        public string StructureSettingsJSON
+        {
+            get
+            {
+                return StructureSettings?.ToJson();
+            }
+
+            set
+            {
+                StructureSettings = value.FromJsonOrNull<Rock.Model.Engagement.StreakType.StreakTypeSettings>() ?? new Rock.Model.Engagement.StreakType.StreakTypeSettings();
+            }
+        }
 
         #endregion Entity Properties
 
@@ -156,5 +179,11 @@ namespace Rock.Model
         private ICollection<StreakTypeExclusion> _streakTypeExclusions;
 
         #endregion Navigation Properties
+
+        /// <inheritdoc/>
+        public override string ToString()
+        {
+            return Name;
+        }
     }
 }

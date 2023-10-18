@@ -15,9 +15,12 @@
 // </copyright>
 
 using System;
+using Rock.Attribute;
 using Rock.Data;
 using Rock.Update.Enum;
 using Rock.Update.Exceptions;
+using Rock.Utility.Settings;
+using Rock.Web.Cache;
 
 namespace Rock.Update.Helpers
 {
@@ -26,6 +29,40 @@ namespace Rock.Update.Helpers
     /// </summary>
     public static class VersionValidationHelper
     {
+        [RockObsolete( "1.16" )]
+        [Obsolete( "This class has been replaced with SqlServerCompatibilityLevel." )]
+        public static class SqlServerVersion
+        {
+            public const int v2022 = 16;
+            public const int v2019 = 15;
+            public const int v2017 = 14;
+            public const int v2016 = 13;
+            public const int v2014 = 12;
+            public const int v2012 = 11;
+        }
+
+        /// <summary>
+        /// Identifies the Compatibility Level of a database by its version.
+        /// </summary>
+        /// <remarks>
+        ///     <para>
+        ///         <strong>This is an internal API</strong> that supports the Rock
+        ///         infrastructure and not subject to the same compatibility standards
+        ///         as public APIs. It may be changed or removed without notice in any
+        ///         release and should therefore not be directly used in any plug-ins.
+        ///     </para>
+        /// </remarks>
+        [RockInternal( "1.16" )]
+        public static class SqlServerCompatibilityLevel
+        {
+            public const int v2022 = 160;
+            public const int v2019 = 150;
+            public const int v2017 = 140;
+            public const int v2016 = 130;
+            public const int v2014 = 120;
+            public const int v2012 = 110;
+        }
+
         /// <summary>
         /// Checks the .NET Framework version and returns Pass, Fail, or Unknown which can be
         /// used to determine if it's safe to proceed.
@@ -75,6 +112,8 @@ namespace Rock.Update.Helpers
         /// level to proceed.
         /// </summary>
         /// <returns></returns>
+        [Obsolete( "No longer required after successful update to v1.11.0" )]
+        [RockObsolete( "1.11.1" )]
         public static bool CheckSqlServerVersionGreaterThenSqlServer2012()
         {
             var isOk = false;
@@ -120,7 +159,6 @@ namespace Rock.Update.Helpers
                 return;
             }
 
-            var hasSqlServer2012OrGreater = CheckSqlServerVersionGreaterThenSqlServer2012();
             if ( requiresNet472 )
             {
                 var result = CheckFrameworkVersion();
@@ -130,9 +168,18 @@ namespace Rock.Update.Helpers
                 }
             }
 
-            if ( !hasSqlServer2012OrGreater )
+            var isTargetVersionGreaterThan15 = targetVersion.Major > 1 || targetVersion.Minor > 15;
+
+            var hasSqlServer2016OrGreater = CheckSqlServerCompatibilityLevel( SqlServerCompatibilityLevel.v2016 );
+            if ( !hasSqlServer2016OrGreater && isTargetVersionGreaterThan15 )
             {
-                throw new VersionValidationException( $"Version {targetVersion} requires Microsoft Sql Server 2012 or greater." );
+                throw new VersionValidationException( $"Version {targetVersion} requires Microsoft SQL Azure or Microsoft Sql Server 2016 or greater." );
+            }
+
+            var isTargetVersionGreaterThan16 = targetVersion.Major > 1 || targetVersion.Minor > 16;
+            if ( isTargetVersionGreaterThan16 && RockInstanceConfig.LavaEngineName != "Fluid" )
+            {
+                throw new VersionValidationException( $"Version {targetVersion} requires the 'Fluid' Lava Engine Liquid Framework." );
             }
         }
 
@@ -143,6 +190,18 @@ namespace Rock.Update.Helpers
         public static Version GetInstalledVersion()
         {
             return new Version( VersionInfo.VersionInfo.GetRockSemanticVersionNumber() );
+        }
+
+        /// <summary>
+        /// Checks the SQL server compatibility level and returns false if not at the needed
+        /// level to proceed.
+        /// </summary>
+        /// <param name="compatibiltyLevel">The compatibility level required to pass the check.</param>
+        /// <returns></returns>
+        public static bool CheckSqlServerCompatibilityLevel( int compatibiltyLevel )
+        {
+            var isOk = RockInstanceConfig.Database.CompatibilityLevel >= compatibiltyLevel;
+            return isOk;
         }
     }
 }

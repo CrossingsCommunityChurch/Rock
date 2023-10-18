@@ -221,7 +221,7 @@ td.wrap-contents {
     display: inline;
     color: @grid-column-header-text-color;
     &::after {
-      display: inline;
+      display: inline-block;
       padding-left: 5px;
       margin-right: -14px;
       font-family: @fa-font-face;
@@ -419,6 +419,7 @@ td.grid-col-actions {
 }
 
 //
+.table > tbody > tr > td.grid-field,
 .table > thead > tr > th.grid-select-field,
 .table > tbody > tr > td.grid-select-field {
   padding: 0 12px;

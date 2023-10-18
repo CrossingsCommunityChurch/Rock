@@ -23,7 +23,8 @@ using System.Linq.Expressions;
 using Rock.Attribute;
 using Rock.Data;
 using Rock.Model;
-using Rock.ViewModel.NonEntities;
+using Rock.ViewModels;
+using Rock.ViewModels.Utility;
 using Rock.Web.Cache;
 
 namespace Rock
@@ -60,10 +61,7 @@ namespace Rock
         /// <param name="entities">The entities.</param>
         public static void LoadAttributes( this IEnumerable<IHasAttributes> entities )
         {
-            foreach ( var entity in entities )
-            {
-                Attribute.Helper.LoadAttributes( entity );
-            }
+            LoadAttributes( entities, null );
         }
 
         /// <summary>
@@ -73,10 +71,28 @@ namespace Rock
         /// <param name="rockContext">The rock context.</param>
         public static void LoadAttributes( this IEnumerable<IHasAttributes> entities, RockContext rockContext )
         {
-            foreach ( var entity in entities )
-            {
-                Attribute.Helper.LoadAttributes( entity, rockContext );
-            }
+            Attribute.Helper.LoadAttributes( entities, rockContext, null );
+        }
+
+        /// <summary>
+        /// Loads the filtered attributes.
+        /// </summary>
+        /// <param name="entities">The entities.</param>
+        /// <param name="attributeFilter">The attribute filter.</param>
+        internal static void LoadFilteredAttributes( this IEnumerable<IHasAttributes> entities, Func<AttributeCache, bool> attributeFilter )
+        {
+            Attribute.Helper.LoadFilteredAttributes( entities, null, attributeFilter );
+        }
+
+        /// <summary>
+        /// Loads the filtered attributes.
+        /// </summary>
+        /// <param name="entities">The entities.</param>
+        /// <param name="rockContext">The rock context.</param>
+        /// <param name="attributeFilter">The attribute filter.</param>
+        internal static void LoadFilteredAttributes( this IEnumerable<IHasAttributes> entities, RockContext rockContext, Func<AttributeCache, bool> attributeFilter )
+        {
+            Attribute.Helper.LoadFilteredAttributes( entities, rockContext, attributeFilter );
         }
 
         /// <summary>
@@ -175,72 +191,217 @@ namespace Rock
         }
 
         /// <summary>
-        /// Gets the attribute values in a format that can be sent to remote
-        /// clients in a compact and secure manner.
+        /// Populates a view model with attributes and values from the entity for
+        /// purpose of viewing the values.
         /// </summary>
+        /// <remarks>
+        ///     <para>
+        ///         <strong>This is an internal API</strong> that supports the Rock
+        ///         infrastructure and not subject to the same compatibility standards
+        ///         as public APIs. It may be changed or removed without notice in any
+        ///         release and should therefore not be directly used in any plug-ins.
+        ///     </para>
+        /// </remarks>
+        /// <param name="viewModel">The view model to be populated.</param>
         /// <param name="entity">The entity whose attributes are requested.</param>
         /// <param name="currentPerson">The current person.</param>
-        /// <param name="enforceSecurity">if set to <c>true</c> then security will be enforced.</param>
-        /// <returns>A collection of <see cref="ClientAttributeValueViewModel" /> objects.</returns>
-        public static List<ClientAttributeValueViewModel> GetClientAttributeValues( this IHasAttributes entity, Person currentPerson, bool enforceSecurity = true )
+        /// <param name="enforceSecurity">If set to <c>true</c> then security will be enforced.</param>
+        /// <param name="attributeFilter">If not <c>null</c> then this specifies a function to call to filter which attributes to include. This filtering will take place after the security check.</param>
+        [RockInternal( "1.14.1" )]
+        public static void LoadAttributesAndValuesForPublicView( this IViewModelWithAttributes viewModel, IHasAttributes entity, Person currentPerson, bool enforceSecurity = true, Func<AttributeCache, bool> attributeFilter = null )
         {
-            if ( entity == null )
-            {
-                return new List<ClientAttributeValueViewModel>();
-            }
-
-            return entity.AttributeValues
-                .Select( av => new
-                {
-                    av.Value,
-                    Attribute = AttributeCache.Get( av.Value.AttributeId )
-                } )
-                .Where( av => !enforceSecurity || av.Attribute.IsAuthorized( Rock.Security.Authorization.VIEW, currentPerson ) )
-                .Select( kvp => ClientAttributeHelper.ToClientAttributeValue( kvp.Value ) )
-                .ToList();
+            viewModel.Attributes = GetPublicAttributesForView( entity, currentPerson, enforceSecurity, attributeFilter );
+            viewModel.AttributeValues = GetPublicAttributeValuesForView( entity, currentPerson, enforceSecurity, attributeFilter );
         }
 
         /// <summary>
-        /// Gets the attribute values in a format that can be sent to remote
-        /// clients in a compact and secure manner. This includes additional
-        /// details to allow for editing the value.
+        /// Populates a view model with attributes and values from the entity for
+        /// the purpose of editing the values.
         /// </summary>
+        /// <remarks>
+        ///     <para>
+        ///         <strong>This is an internal API</strong> that supports the Rock
+        ///         infrastructure and not subject to the same compatibility standards
+        ///         as public APIs. It may be changed or removed without notice in any
+        ///         release and should therefore not be directly used in any plug-ins.
+        ///     </para>
+        /// </remarks>
+        /// <param name="viewModel">The view model to be populated.</param>
         /// <param name="entity">The entity whose attributes are requested.</param>
         /// <param name="currentPerson">The current person.</param>
-        /// <param name="enforceSecurity">if set to <c>true</c> then security will be enforced.</param>
-        /// <returns>A collection of <see cref="ClientEditableAttributeValueViewModel" /> objects.</returns>
-        public static List<ClientEditableAttributeValueViewModel> GetClientEditableAttributeValues( this IHasAttributes entity, Person currentPerson, bool enforceSecurity = true )
+        /// <param name="enforceSecurity">If set to <c>true</c> then security will be enforced.</param>
+        /// <param name="attributeFilter">If not <c>null</c> then this specifies a function to call to filter which attributes to include. This filtering will take place after the security check.</param>
+        [RockInternal( "1.14.1" )]
+        public static void LoadAttributesAndValuesForPublicEdit( this IViewModelWithAttributes viewModel, IHasAttributes entity, Person currentPerson, bool enforceSecurity = true, Func<AttributeCache, bool> attributeFilter = null )
         {
-            if ( entity == null )
+            viewModel.Attributes = GetPublicAttributesForEdit( entity, currentPerson, enforceSecurity, attributeFilter );
+            viewModel.AttributeValues = GetPublicAttributeValuesForEdit( entity, currentPerson, enforceSecurity, attributeFilter );
+        }
+
+        /// <summary>
+        /// Gets the attributes in a format that can be sent to public devices
+        /// for the purpose of displaying the current value.
+        /// </summary>
+        /// <remarks>
+        ///     <para>
+        ///         <strong>This is an internal API</strong> that supports the Rock
+        ///         infrastructure and not subject to the same compatibility standards
+        ///         as public APIs. It may be changed or removed without notice in any
+        ///         release and should therefore not be directly used in any plug-ins.
+        ///     </para>
+        /// </remarks>
+        /// <param name="entity">The entity whose attributes are requested.</param>
+        /// <param name="currentPerson">The current person.</param>
+        /// <param name="enforceSecurity">If set to <c>true</c> then security will be enforced.</param>
+        /// <param name="attributeFilter">If not <c>null</c> then this specifies a function to call to filter which attributes to include. This filtering will take place after the security check.</param>
+        /// <returns>A dictionary that represents the attribute values.</returns>
+        [RockInternal( "1.14.1" )]
+        public static Dictionary<string, PublicAttributeBag> GetPublicAttributesForView( this IHasAttributes entity, Person currentPerson, bool enforceSecurity = true, Func<AttributeCache, bool> attributeFilter = null )
+        {
+            if ( entity == null || entity.Attributes == null )
             {
-                return new List<ClientEditableAttributeValueViewModel>();
+                return new Dictionary<string, PublicAttributeBag>();
             }
 
-            return entity.AttributeValues
-                .Select( av => new
+            return entity.Attributes
+                .Select( a => new
                 {
-                    av.Value,
-                    Attribute = AttributeCache.Get( av.Value.AttributeId )
+                    Value = entity.GetAttributeValue( a.Key ),
+                    Attribute = a.Value
                 } )
                 .Where( av => !enforceSecurity || av.Attribute.IsAuthorized( Rock.Security.Authorization.VIEW, currentPerson ) )
-                .Select( kvp => ClientAttributeHelper.ToClientEditableAttributeValue( kvp.Value ) )
-                .ToList();
+                .Where( av => attributeFilter == null || attributeFilter( av.Attribute ) )
+                .ToDictionary( av => av.Attribute.Key, kvp => PublicAttributeHelper.GetPublicAttributeForView( kvp.Attribute, kvp.Value ) );
+        }
+
+        /// <summary>
+        /// Gets the attribute values in a format that can be sent to public
+        /// devices for the purpose of displaying the value.
+        /// </summary>
+        /// <remarks>
+        ///     <para>
+        ///         <strong>This is an internal API</strong> that supports the Rock
+        ///         infrastructure and not subject to the same compatibility standards
+        ///         as public APIs. It may be changed or removed without notice in any
+        ///         release and should therefore not be directly used in any plug-ins.
+        ///     </para>
+        /// </remarks>
+        /// <param name="entity">The entity whose attributes are requested.</param>
+        /// <param name="currentPerson">The current person.</param>
+        /// <param name="enforceSecurity">If set to <c>true</c> then security will be enforced.</param>
+        /// <param name="attributeFilter">If not <c>null</c> then this specifies a function to call to filter which attributes to include. This filtering will take place after the security check.</param>
+        /// <returns>A dictionary that represents the attribute values.</returns>
+        [RockInternal( "1.14.1" )]
+        public static Dictionary<string, string> GetPublicAttributeValuesForView( this IHasAttributes entity, Person currentPerson, bool enforceSecurity = true, Func<AttributeCache, bool> attributeFilter = null )
+        {
+            if ( entity == null || entity.Attributes == null )
+            {
+                return new Dictionary<string, string>();
+            }
+
+            return entity.Attributes
+                .Select( a => new
+                {
+                    Value = entity.GetAttributeValue( a.Key ),
+                    Attribute = a.Value
+                } )
+                .Where( av => !enforceSecurity || av.Attribute.IsAuthorized( Rock.Security.Authorization.VIEW, currentPerson ) )
+                .Where( av => attributeFilter == null || attributeFilter( av.Attribute ) )
+                .ToDictionary( av => av.Attribute.Key, kvp => PublicAttributeHelper.GetPublicValueForView( kvp.Attribute, kvp.Value ) );
+        }
+
+        /// <summary>
+        /// Gets the attributes in a format that can be sent to public devices
+        /// for the purpose of editing values.
+        /// </summary>
+        /// <remarks>
+        ///     <para>
+        ///         <strong>This is an internal API</strong> that supports the Rock
+        ///         infrastructure and not subject to the same compatibility standards
+        ///         as public APIs. It may be changed or removed without notice in any
+        ///         release and should therefore not be directly used in any plug-ins.
+        ///     </para>
+        /// </remarks>
+        /// <param name="entity">The entity whose attributes are requested.</param>
+        /// <param name="currentPerson">The current person.</param>
+        /// <param name="enforceSecurity">If set to <c>true</c> then security will be enforced.</param>
+        /// <param name="attributeFilter">If not <c>null</c> then this specifies a function to call to filter which attributes to include. This filtering will take place after the security check.</param>
+        /// <returns>A dictionary that represents the attributes.</returns>
+        [RockInternal( "1.14.1" )]
+        public static Dictionary<string, PublicAttributeBag> GetPublicAttributesForEdit( this IHasAttributes entity, Person currentPerson, bool enforceSecurity = true, Func<AttributeCache, bool> attributeFilter = null )
+        {
+            if ( entity == null || entity.Attributes == null )
+            {
+                return new Dictionary<string, PublicAttributeBag>();
+            }
+
+            return entity.Attributes
+                .Select( a => a.Value )
+                .Where( a => !enforceSecurity || a.IsAuthorized( Rock.Security.Authorization.VIEW, currentPerson ) )
+                .Where( a => attributeFilter == null || attributeFilter( a ) )
+                .ToDictionary( a => a.Key, a => PublicAttributeHelper.GetPublicAttributeForEdit( a ) );
+        }
+
+        /// <summary>
+        /// Gets the attribute values in a format that can be sent to a public
+        /// device for the purpose of editing the value.
+        /// </summary>
+        /// <remarks>
+        ///     <para>
+        ///         <strong>This is an internal API</strong> that supports the Rock
+        ///         infrastructure and not subject to the same compatibility standards
+        ///         as public APIs. It may be changed or removed without notice in any
+        ///         release and should therefore not be directly used in any plug-ins.
+        ///     </para>
+        /// </remarks>
+        /// <param name="entity">The entity whose attributes are requested.</param>
+        /// <param name="currentPerson">The current person.</param>
+        /// <param name="enforceSecurity">If set to <c>true</c> then security will be enforced.</param>
+        /// <param name="attributeFilter">If not <c>null</c> then this specifies a function to call to filter which attributes to include. This filtering will take place after the security check.</param>
+        /// <returns>A dictionary that represents the attribute values.</returns>
+        [RockInternal( "1.14.1" )]
+        public static Dictionary<string, string> GetPublicAttributeValuesForEdit( this IHasAttributes entity, Person currentPerson, bool enforceSecurity = true, Func<AttributeCache, bool> attributeFilter = null )
+        {
+            if ( entity == null || entity.Attributes == null )
+            {
+                return new Dictionary<string, string>();
+            }
+
+            return entity.Attributes
+                .Select( a => new
+                {
+                    Value = entity.GetAttributeValue( a.Key ),
+                    Attribute = a.Value
+                } )
+                .Where( av => !enforceSecurity || av.Attribute.IsAuthorized( Rock.Security.Authorization.VIEW, currentPerson ) )
+                .Where( av => attributeFilter == null || attributeFilter( av.Attribute ) )
+                .ToDictionary( av => av.Attribute.Key, av => PublicAttributeHelper.GetPublicEditValue( av.Attribute, av.Value ) );
         }
 
         /// <summary>
         /// Sets attribute values that have been provided by a remote client.
         /// </summary>
         /// <remarks>
-        /// This should be used to handle values the client sent back after
-        /// calling the <see cref="GetClientEditableAttributeValues(IHasAttributes, Person, bool)"/>
-        /// method. It handles conversion from custom data formats into the
-        /// proper values to be stored in the database.
+        ///     <para>
+        ///         This should be used to handle values the client sent back after
+        ///         calling the <see cref="GetPublicAttributeValuesForEdit(IHasAttributes, Person, bool, Func{AttributeCache, bool})"/>
+        ///         method. It handles conversion from custom data formats into the
+        ///         proper values to be stored in the database.
+        ///     </para>
+        ///     <para>
+        ///         <strong>This is an internal API</strong> that supports the Rock
+        ///         infrastructure and not subject to the same compatibility standards
+        ///         as public APIs. It may be changed or removed without notice in any
+        ///         release and should therefore not be directly used in any plug-ins.
+        ///     </para>
         /// </remarks>
         /// <param name="entity">The entity.</param>
         /// <param name="attributeValues">The attribute values.</param>
         /// <param name="currentPerson">The current person.</param>
-        /// <param name="enforceSecurity">if set to <c>true</c> then security will be enforced.</param>
-        public static void SetClientAttributeValues( this IHasAttributes entity, Dictionary<string, string> attributeValues, Person currentPerson, bool enforceSecurity = true )
+        /// <param name="enforceSecurity">If set to <c>true</c> then security will be enforced.</param>
+        /// <param name="attributeFilter">If not <c>null</c> then this specifies a function to call to filter which attributes to include. This filtering will take place after the security check.</param>
+        [RockInternal( "1.14.1" )]
+        public static void SetPublicAttributeValues( this IHasAttributes entity, Dictionary<string, string> attributeValues, Person currentPerson, bool enforceSecurity = true, Func<AttributeCache, bool> attributeFilter = null )
         {
             if ( entity == null || entity.Attributes == null || entity.AttributeValues == null )
             {
@@ -261,7 +422,12 @@ namespace Rock
                     continue;
                 }
 
-                var value = ClientAttributeHelper.GetValueFromClient( attribute, kvp.Value );
+                if ( attributeFilter != null && !attributeFilter( attribute ) )
+                {
+                    continue;
+                }
+
+                var value = PublicAttributeHelper.GetPrivateValue( attribute, kvp.Value );
 
                 entity.SetAttributeValue( kvp.Key, value );
             }
@@ -271,17 +437,26 @@ namespace Rock
         /// Sets a single attribute values that have been provided by a remote client.
         /// </summary>
         /// <remarks>
-        /// This should be used to handle values the client sent back after
-        /// calling the <see cref="GetClientEditableAttributeValues(IHasAttributes, Person, bool)"/>
-        /// method. It handles conversion from custom data formats into the
-        /// proper values to be stored in the database.
+        ///     <para>
+        ///         This should be used to handle values the client sent back after
+        ///         calling the <see cref="GetPublicAttributeValuesForEdit(IHasAttributes, Person, bool, Func{AttributeCache, bool})"/>
+        ///         method. It handles conversion from custom data formats into the
+        ///         proper values to be stored in the database.
+        ///     </para>
+        ///     <para>
+        ///         <strong>This is an internal API</strong> that supports the Rock
+        ///         infrastructure and not subject to the same compatibility standards
+        ///         as public APIs. It may be changed or removed without notice in any
+        ///         release and should therefore not be directly used in any plug-ins.
+        ///     </para>
         /// </remarks>
         /// <param name="entity">The entity.</param>
         /// <param name="key">The attribute key to set.</param>
         /// <param name="value">The value provided by the remote client.</param>
         /// <param name="currentPerson">The current person.</param>
-        /// <param name="enforceSecurity">if set to <c>true</c> then security will be enforced.</param>
-        public static void SetClientAttributeValue( this IHasAttributes entity, string key, string value, Person currentPerson, bool enforceSecurity = true )
+        /// <param name="enforceSecurity">If set to <c>true</c> then security will be enforced.</param>
+        [RockInternal( "1.13.2" )]
+        public static void SetPublicAttributeValue( this IHasAttributes entity, string key, string value, Person currentPerson, bool enforceSecurity = true )
         {
             if ( entity == null || entity.Attributes == null || entity.AttributeValues == null )
             {
@@ -300,7 +475,7 @@ namespace Rock
                 return;
             }
 
-            var databaseValue = ClientAttributeHelper.GetValueFromClient( attribute, value );
+            var databaseValue = PublicAttributeHelper.GetPrivateValue( attribute, value );
 
             entity.SetAttributeValue( key, databaseValue );
         }
@@ -330,18 +505,6 @@ namespace Rock
             }
 
             return authorizedAttributes;
-        }
-
-        /// <summary>
-        /// Selects just the Id from the Attribute Query and reads the Ids into a list of AttributeCache
-        /// </summary>
-        /// <param name="attributeQuery">The attribute query.</param>
-        /// <returns></returns>
-        [Obsolete( "Use ToAttributeCacheList instead", true )]
-        [RockObsolete( "1.9" )]
-        public static List<AttributeCache> ToCacheAttributeList( this IQueryable<Rock.Model.Attribute> attributeQuery )
-        {
-            return attributeQuery.ToAttributeCacheList();
         }
 
         /// <summary>
@@ -399,6 +562,210 @@ namespace Rock
             }
 
             return attributeValueQuery;
+        }
+
+        /// <summary>
+        /// Gets the attribute value cache objects for the specified key.
+        /// </summary>
+        /// <param name="entity">The entity whose attributes are to be searched.</param>
+        /// <param name="key">The attribute key to search for.</param>
+        /// <returns>The <see cref="AttributeCache"/> and optionally the <see cref="AttributeValueCache"/> if it is valid.</returns>
+        private static (AttributeCache AttributeCache, AttributeValueCache ValueCache) GetAttributeValueCache( IHasAttributes entity, string key )
+        {
+            if ( entity == null )
+            {
+                return (null, null);
+            }
+
+            AttributeValueCache valueCache = null;
+
+            if ( entity.AttributeValues != null && entity.AttributeValues.ContainsKey( key ) )
+            {
+                valueCache = entity.AttributeValues[key];
+            }
+
+            if ( entity.Attributes != null && entity.Attributes.ContainsKey(key))
+            {
+                return (entity.Attributes[key], valueCache);
+            }
+
+            return (null, null);
+        }
+
+        /// <summary>
+        /// Gets the attribute text value.
+        /// </summary>
+        /// <param name="entity">The entity whose attribute value is to being retrieved.</param>
+        /// <param name="key">The key that identifies the attribute.</param>
+        /// <param name="usePersistedOnly">if set to <c>true</c> then the persisted values will be used even if they are not valid.</param>
+        /// <returns>A <see cref="string"/> that represents the attribute text value.</returns>
+        internal static string GetAttributeTextValue( this IHasAttributes entity, string key, bool usePersistedOnly = false )
+        {
+            (var attributeCache, var valueCache) = GetAttributeValueCache( entity, key );
+
+            if ( attributeCache == null )
+            {
+                return null;
+            }
+
+            // Use the persisted value if it is forced or supported.
+            if ( usePersistedOnly || attributeCache.IsPersistedValueSupported )
+            {
+                if ( valueCache != null )
+                {
+                    if ( usePersistedOnly || !valueCache.IsPersistedValueDirty )
+                    {
+                        return valueCache.PersistedTextValue;
+                    }
+                }
+                else
+                {
+                    if ( usePersistedOnly || !attributeCache.IsDefaultPersistedValueDirty )
+                    {
+                        return attributeCache.DefaultPersistedTextValue;
+                    }
+                }
+            }
+
+            // No persisted value available and it isn't forced so calculate.
+            var rawValue = valueCache?.Value ?? attributeCache.DefaultValue;
+            var field = attributeCache.FieldType.Field;
+
+            return field?.GetTextValue( rawValue, attributeCache.ConfigurationValues );
+        }
+
+        /// <summary>
+        /// Gets the attribute HTML value.
+        /// </summary>
+        /// <param name="entity">The entity whose attribute value is to being retrieved.</param>
+        /// <param name="key">The key that identifies the attribute.</param>
+        /// <param name="usePersistedOnly">if set to <c>true</c> then the persisted values will be used even if they are not valid.</param>
+        /// <returns>A <see cref="string"/> that represents the attribute HTML value.</returns>
+        internal static string GetAttributeHtmlValue( this IHasAttributes entity, string key, bool usePersistedOnly = false )
+        {
+            (var attributeCache, var valueCache) = GetAttributeValueCache( entity, key );
+
+            if ( attributeCache == null )
+            {
+                return null;
+            }
+
+            // Use the persisted value if it is forced or supported.
+            if ( usePersistedOnly || attributeCache.IsPersistedValueSupported )
+            {
+                if ( valueCache != null )
+                {
+                    if ( usePersistedOnly || !valueCache.IsPersistedValueDirty )
+                    {
+                        return valueCache.PersistedHtmlValue;
+                    }
+                }
+                else
+                {
+                    if ( usePersistedOnly || !attributeCache.IsDefaultPersistedValueDirty )
+                    {
+                        return attributeCache.DefaultPersistedHtmlValue;
+                    }
+                }
+            }
+
+            // No persisted value available and it isn't forced so calculate.
+            var rawValue = valueCache?.Value ?? attributeCache.DefaultValue;
+            var field = attributeCache.FieldType.Field;
+
+            return field?.GetHtmlValue( rawValue, attributeCache.ConfigurationValues );
+        }
+
+        /// <summary>
+        /// Gets the attribute condensed text value.
+        /// </summary>
+        /// <remarks>
+        /// The condensed text value should be used instead of the text value
+        /// when space is limited where it will be displayed.
+        /// </remarks>
+        /// <param name="entity">The entity whose attribute value is to being retrieved.</param>
+        /// <param name="key">The key that identifies the attribute.</param>
+        /// <param name="usePersistedOnly">if set to <c>true</c> then the persisted values will be used even if they are not valid.</param>
+        /// <returns>A <see cref="string"/> that represents the attribute condensed text value.</returns>
+        internal static string GetAttributeCondensedTextValue( this IHasAttributes entity, string key, bool usePersistedOnly = false )
+        {
+            (var attributeCache, var valueCache) = GetAttributeValueCache( entity, key );
+
+            if ( attributeCache == null )
+            {
+                return null;
+            }
+
+            // Use the persisted value if it is forced or supported.
+            if ( usePersistedOnly || attributeCache.IsPersistedValueSupported )
+            {
+                if ( valueCache != null )
+                {
+                    if ( usePersistedOnly || !valueCache.IsPersistedValueDirty )
+                    {
+                        return valueCache.PersistedCondensedTextValue;
+                    }
+                }
+                else
+                {
+                    if ( usePersistedOnly || !attributeCache.IsDefaultPersistedValueDirty )
+                    {
+                        return attributeCache.DefaultPersistedCondensedTextValue;
+                    }
+                }
+            }
+
+            // No persisted value available and it isn't forced so calculate.
+            var rawValue = valueCache?.Value ?? attributeCache.DefaultValue;
+            var field = attributeCache.FieldType.Field;
+
+            return field?.GetTextValue( rawValue, attributeCache.ConfigurationValues );
+        }
+
+        /// <summary>
+        /// Gets the attribute condensed HTML value.
+        /// </summary>
+        /// <remarks>
+        /// The condensed HTML value should be used instead of the HTML value
+        /// when space is limited where it will be displayed.
+        /// </remarks>
+        /// <param name="entity">The entity whose attribute value is to being retrieved.</param>
+        /// <param name="key">The key that identifies the attribute.</param>
+        /// <param name="usePersistedOnly">if set to <c>true</c> then the persisted values will be used even if they are not valid.</param>
+        /// <returns>A <see cref="string"/> that represents the attribute condensed HTML value.</returns>
+        internal static string GetAttributeCondensedHtmlValue( this IHasAttributes entity, string key, bool usePersistedOnly = false )
+        {
+            (var attributeCache, var valueCache) = GetAttributeValueCache( entity, key );
+
+            if ( attributeCache == null )
+            {
+                return null;
+            }
+
+            // Use the persisted value if it is forced or supported.
+            if ( usePersistedOnly || attributeCache.IsPersistedValueSupported )
+            {
+                if ( valueCache != null )
+                {
+                    if ( usePersistedOnly || !valueCache.IsPersistedValueDirty )
+                    {
+                        return valueCache.PersistedCondensedHtmlValue;
+                    }
+                }
+                else
+                {
+                    if ( usePersistedOnly || !attributeCache.IsDefaultPersistedValueDirty )
+                    {
+                        return attributeCache.DefaultPersistedCondensedHtmlValue;
+                    }
+                }
+            }
+
+            // No persisted value available and it isn't forced so calculate.
+            var rawValue = valueCache?.Value ?? attributeCache.DefaultValue;
+            var field = attributeCache.FieldType.Field;
+
+            return field?.GetTextValue( rawValue, attributeCache.ConfigurationValues );
         }
 
         #endregion IHasAttributes extensions

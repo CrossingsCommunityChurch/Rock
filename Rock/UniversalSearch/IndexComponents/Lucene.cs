@@ -56,6 +56,7 @@ namespace Rock.UniversalSearch.IndexComponents
     [Export( typeof( IndexComponent ) )]
     [ExportMetadata( "ComponentName", "Lucene.Net 4.8" )]
 
+    [Rock.SystemGuid.EntityTypeGuid( "C06ABF4E-6178-45DB-BC26-A057124D98A7")]
     public class Lucene : IndexComponent
     {
         #region Private Fields
@@ -307,10 +308,10 @@ namespace Rock.UniversalSearch.IndexComponents
         }
 
         /// <summary>
-        /// Gets the lucene path.
+        /// Gets the Lucene path.
         /// </summary>
         /// <value>
-        /// The lucene path.
+        /// The Lucene path.
         /// </value>
         public override string IndexLocation
         {
@@ -577,9 +578,9 @@ namespace Rock.UniversalSearch.IndexComponents
                 }
 
                 entityFieldFilter.Add( indexModelTypesQuery, Occur.MUST );
-            }
 
-            queryContainer.Add( entityFieldFilter, Occur.MUST );
+                queryContainer.Add( entityFieldFilter, Occur.MUST );
+            }
 
             switch ( searchType )
             {
@@ -814,7 +815,7 @@ namespace Rock.UniversalSearch.IndexComponents
                                 case IndexFieldType.Date:
                                 case IndexFieldType.Number:
                                     {
-                                        typeMappingProperty.IndexType = IndexType.NotAnalyzed;
+                                        typeMappingProperty.IndexType = IndexType.Indexed;
                                         typeMappingProperty.Analyzer = string.Empty;
                                         break;
                                     }
@@ -910,7 +911,9 @@ namespace Rock.UniversalSearch.IndexComponents
                 doc.AddStringField( "type", mappingType, global::Lucene.Net.Documents.Field.Store.YES );
                 doc.AddStringField( "id", docIndexModelBase.Id.ToString(), global::Lucene.Net.Documents.Field.Store.YES );
                 doc.AddStringField( "index", indexValue, global::Lucene.Net.Documents.Field.Store.YES );
-                doc.AddStoredField( "JSON", document.ToJson() ); // Stores all the properties as JSON to retreive object on lookup
+
+                // Stores all the properties as JSON to retrieve object on lookup.
+                doc.AddStoredField( "JSON", document.ToJson() );
 
                 // Use the analyzer in fieldAnalyzers if that field is in that dictionary, otherwise use StandardAnalyzer.
                 var analyzer = new PerFieldAnalyzerWrapper( defaultAnalyzer: new StandardAnalyzer( _matchVersion, new CharArraySet( _matchVersion, 0, true ) ), fieldAnalyzers: index.FieldAnalyzers );

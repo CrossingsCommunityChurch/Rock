@@ -91,6 +91,7 @@ namespace RockWeb.Blocks.RSVP
 
     #endregion
 
+    [Rock.SystemGuid.BlockTypeGuid( Rock.SystemGuid.BlockType.RSVP_RESPONSE )]
     public partial class RSVPResponse : RockBlock
     {
         private static class AttributeKey
@@ -669,20 +670,27 @@ $(document).ready(function () {
             var attendance = occurrence.Attendees.Where( a => person.Aliases.Contains( a.PersonAlias ) ).FirstOrDefault();
             if ( attendance == null )
             {
-                attendance = new Attendance();
-                attendance.OccurrenceId = occurrence.Id;
-                attendance.PersonAliasId = person.PrimaryAliasId;
-                attendance.StartDateTime = occurrence.Schedule != null && occurrence.Schedule.HasSchedule() ? occurrence.OccurrenceDate.Date.Add( occurrence.Schedule.StartTimeOfDay ) : occurrence.OccurrenceDate;
+                attendance = new Attendance
+                {
+                    OccurrenceId = occurrence.Id,
+                    PersonAliasId = person.PrimaryAliasId,
+                    StartDateTime = occurrence.Schedule != null && occurrence.Schedule.HasSchedule() ? occurrence.OccurrenceDate.Date.Add( occurrence.Schedule.StartTimeOfDay ) : occurrence.OccurrenceDate,
+                    DidAttend = false
+                };
+
                 occurrence.Attendees.Add( attendance );
             }
+
             attendance.RSVP = rsvpStatus;
             attendance.RSVPDateTime = RockDateTime.Now;
+
             if ( rsvpStatus == Rock.Model.RSVP.No )
             {
                 if ( declineReasonId != 0 )
                 {
                     attendance.DeclineReasonValueId = declineReasonId;
                 }
+
                 attendance.Note = declineNote;
             }
 

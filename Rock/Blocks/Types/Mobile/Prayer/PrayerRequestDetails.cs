@@ -20,6 +20,8 @@ using System.ComponentModel;
 using System.Linq;
 using System.Text;
 
+using RestSharp.Extensions;
+
 using Rock.Attribute;
 using Rock.Common.Mobile.Blocks.Content;
 using Rock.Data;
@@ -33,12 +35,13 @@ namespace Rock.Blocks.Types.Mobile.Prayer
     /// <summary>
     /// Displays custom XAML content on the page.
     /// </summary>
-    /// <seealso cref="Rock.Blocks.RockMobileBlockType" />
+    /// <seealso cref="Rock.Blocks.RockBlockType" />
 
     [DisplayName( "Prayer Request Details" )]
     [Category( "Mobile > Prayer" )]
     [Description( "Edits an existing prayer request or creates a new one." )]
     [IconCssClass( "fa fa-praying-hands" )]
+    [SupportedSiteTypes( Model.SiteType.Mobile )]
 
     #region Block Attributes
 
@@ -191,8 +194,12 @@ namespace Rock.Blocks.Types.Mobile.Prayer
 
     #endregion
 
-    public class PrayerRequestDetails : RockMobileBlockType
+    [Rock.SystemGuid.EntityTypeGuid( Rock.SystemGuid.EntityType.MOBILE_PRAYER_PRAYER_REQUEST_DETAILS_BLOCK_TYPE )]
+    [Rock.SystemGuid.BlockTypeGuid( "EBB91B46-292E-4784-9E37-38781C714008")]
+    public class PrayerRequestDetails : RockBlockType
     {
+        #region Page Parameters
+
         /// <summary>
         /// The page parameter keys for the PrayerRequestDetails block.
         /// </summary>
@@ -207,7 +214,27 @@ namespace Rock.Blocks.Types.Mobile.Prayer
             /// The request
             /// </summary>
             public const string Request = "Request";
+
+            /// <summary>
+            /// The unique identifier of the group a new prayer request should
+            /// be assigned to.
+            /// </summary>
+            public const string GroupGuid = "GroupGuid";
+
+            /// <summary>
+            /// The unique identifier of the person that you want to set the
+            /// prayer request to.
+            /// </summary>
+            public const string RequestorPersonGuid = "RequestorPersonGuid";
         }
+
+        /// <summary>
+        /// The unique identifier of the group a new prayer request should be
+        /// assigned to.
+        /// </summary>
+        protected Guid? GroupGuid => RequestContext.GetPageParameter( PageParameterKeys.GroupGuid ).AsGuidOrNull();
+
+        #endregion
 
         #region Block Attributes
 
@@ -476,21 +503,8 @@ namespace Rock.Blocks.Types.Mobile.Prayer
 
         #region IRockMobileBlockType Implementation
 
-        /// <summary>
-        /// Gets the required mobile application binary interface version required to render this block.
-        /// </summary>
-        /// <value>
-        /// The required mobile application binary interface version required to render this block.
-        /// </value>
-        public override int RequiredMobileAbiVersion => 1;
-
-        /// <summary>
-        /// Gets the class name of the mobile block to use during rendering on the device.
-        /// </summary>
-        /// <value>
-        /// The class name of the mobile block to use during rendering on the device
-        /// </value>
-        public override string MobileBlockType => "Rock.Mobile.Blocks.Prayer.PrayerRequestDetails";
+        /// <inheritdoc/>
+        public override Version RequiredMobileVersion => new Version( 1, 1 );
 
         /// <summary>
         /// Gets the property values that will be sent to the device in the application bundle.
@@ -579,7 +593,7 @@ namespace Rock.Blocks.Types.Mobile.Prayer
                     content = content.Replace( "##HEADER##", "" );
                 }
 
-                fieldsContent = BuildCommonFields( request, parameters );
+                fieldsContent = BuildCommonFields( request, parameters, rockContext );
             }
 
             var validatorsContent = parameters.Keys.Select( a => $"<x:Reference>{a}</x:Reference>" );
@@ -600,8 +614,9 @@ namespace Rock.Blocks.Types.Mobile.Prayer
         /// </summary>
         /// <param name="request">The prayer request.</param>
         /// <param name="parameters">The parameters.</param>
+        /// <param name="rockContext">The rock context.</param>
         /// <returns>A string containing the XAML that represents the common Group fields.</returns>
-        private string BuildCommonFields( PrayerRequest request, Dictionary<string, string> parameters )
+        private string BuildCommonFields( PrayerRequest request, Dictionary<string, string> parameters, RockContext rockContext = null )
         {
             var sb = new StringBuilder();
             string field;
@@ -612,19 +627,38 @@ namespace Rock.Blocks.Types.Mobile.Prayer
 
             if ( allowFullEditing )
             {
-                string firstName = request != null ? request.FirstName : RequestContext.CurrentPerson?.FirstName;
-                string lastName = request != null ? request.LastName : RequestContext.CurrentPerson?.LastName;
-                string email = request != null ? request.Email : RequestContext.CurrentPerson?.Email;
+                var requestorPersonGuid = RequestContext.GetPageParameter( PageParameterKeys.RequestorPersonGuid ).AsGuidOrNull();
+                var usePassedInRequestor = requestorPersonGuid.HasValue;
 
-                field = MobileHelper.GetTextEditFieldXaml( "firstName", "First Name", firstName, true );
+                string firstName, lastName, email;
+                if( usePassedInRequestor )
+                {
+                    rockContext = rockContext ?? new RockContext();
+
+                    var person = new PersonService( rockContext )
+                        .Get( requestorPersonGuid.Value );
+
+                    firstName = person.FirstName;
+                    lastName = person.LastName;
+                    email = person.Email;
+                }
+                else
+                {
+                    firstName = request != null ? request.FirstName : RequestContext.CurrentPerson?.FirstName;
+                    lastName = request != null ? request.LastName : RequestContext.CurrentPerson?.LastName;
+                    email = request != null ? request.Email : RequestContext.CurrentPerson?.Email;
+                }
+                
+
+                field = MobileHelper.GetTextEditFieldXaml( "firstName", "First Name", firstName, !usePassedInRequestor, true );
                 sb.AppendLine( MobileHelper.GetSingleFieldXaml( field ) );
                 parameters.Add( "firstName", "Text" );
 
-                field = MobileHelper.GetTextEditFieldXaml( "lastName", "Last Name", lastName, RequireLastName );
+                field = MobileHelper.GetTextEditFieldXaml( "lastName", "Last Name", lastName, !usePassedInRequestor, RequireLastName );
                 sb.AppendLine( MobileHelper.GetSingleFieldXaml( field ) );
                 parameters.Add( "lastName", "Text" );
 
-                field = MobileHelper.GetEmailEditFieldXaml( "email", "Email", email, false );
+                field = MobileHelper.GetEmailEditFieldXaml( "email", "Email", email, !usePassedInRequestor, false );
                 sb.AppendLine( MobileHelper.GetSingleFieldXaml( field ) );
                 parameters.Add( "email", "Text" );
 
@@ -653,13 +687,14 @@ namespace Rock.Blocks.Types.Mobile.Prayer
                 parameters.Add( "category", "SelectedValue" );
             }
 
-            field = MobileHelper.GetTextEditFieldXaml( "request", "Request", request?.Text, true, true, CharacterLimit );
+            field = MobileHelper.GetTextEditFieldXaml( "request", "Request", request?.Text, true, true, true, CharacterLimit );
             sb.AppendLine( MobileHelper.GetSingleFieldXaml( field ) );
             parameters.Add( "request", "Text" );
 
             if ( ShowPublicDisplayFlag )
             {
-                field = MobileHelper.GetCheckBoxFieldXaml( "allowPublication", "Allow Publication", request?.IsPublic ?? DefaultToPublic );
+                var isPublic = DefaultToPublic ? true : request?.IsPublic ?? false;
+                field = MobileHelper.GetCheckBoxFieldXaml( "allowPublication", "Allow Publication", isPublic );
                 sb.AppendLine( MobileHelper.GetSingleFieldXaml( field ) );
                 parameters.Add( "allowPublication", "IsChecked" );
             }
@@ -712,10 +747,19 @@ namespace Rock.Blocks.Types.Mobile.Prayer
                 else
                 {
                     int? categoryId = null;
+                    int? groupId = null;
 
                     if ( DefaultCategory.HasValue )
                     {
                         categoryId = CategoryCache.Get( DefaultCategory.Value ).Id;
+                    }
+
+                    // If a group unique identifier was specified in the page
+                    // parameters then use it to look up the group to assign
+                    // this request to.
+                    if ( GroupGuid.HasValue )
+                    {
+                        groupId = new GroupService( rockContext ).GetId( GroupGuid.Value );
                     }
 
                     prayerRequest = new PrayerRequest
@@ -725,7 +769,8 @@ namespace Rock.Blocks.Types.Mobile.Prayer
                         IsApproved = EnableAutoApprove,
                         AllowComments = false,
                         EnteredDateTime = RockDateTime.Now,
-                        CategoryId = categoryId
+                        CategoryId = categoryId,
+                        GroupId = groupId
                     };
                     prayerRequestService.Add( prayerRequest );
 
@@ -777,13 +822,30 @@ namespace Rock.Blocks.Types.Mobile.Prayer
                 {
                     prayerRequest.IsPublic = ( bool ) parameters["allowPublication"];
                 }
+                else
+                {
+                    prayerRequest.IsPublic = DefaultToPublic;
+                }
 
                 if ( ShowUrgentFlag )
                 {
                     prayerRequest.IsUrgent = ( bool ) parameters["urgent"];
                 }
 
-                if ( RequestContext.CurrentPerson != null )
+                var requestorPersonGuid = RequestContext.GetPageParameter( PageParameterKeys.RequestorPersonGuid ).AsGuidOrNull();
+                if ( requestorPersonGuid.HasValue )
+                {
+                    //
+                    // If there was a passed in person and the names still match (they really should),
+                    // we want to set the requested by to that person.
+                    //
+                    var person = new PersonService( rockContext ).Get( requestorPersonGuid.Value );
+                    if ( prayerRequest.FirstName == person.FirstName && prayerRequest.LastName == person.LastName )
+                    {
+                        prayerRequest.RequestedByPersonAliasId = person.PrimaryAliasId;
+                    }
+                }    
+                else if ( RequestContext.CurrentPerson != null )
                 {
                     //
                     // If there is a logged in person and the names still match, meaning they are not

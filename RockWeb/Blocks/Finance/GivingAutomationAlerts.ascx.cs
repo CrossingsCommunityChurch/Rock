@@ -55,6 +55,7 @@ namespace RockWeb.Blocks.Finance
 
     #endregion  Block Attributes
 
+    [Rock.SystemGuid.BlockTypeGuid( "0A813EC3-EC36-499B-9EBD-C3388DC7F49D" )]
     public partial class GivingAutomationAlerts : RockBlock
     {
         #region Attribute Keys
@@ -66,7 +67,6 @@ namespace RockWeb.Blocks.Finance
         {
             public const string TransactionPage = "TransactionPage";
             public const string ConfigPage = "ConfigPage";
-            public const string PersonLinkPage = "PersonLinkPage";
         }
 
         #endregion Attribute Keys
@@ -278,12 +278,12 @@ namespace RockWeb.Blocks.Finance
         /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
         protected void gfAlertFilter_ApplyFilterClick( object sender, EventArgs e )
         {
-            gfAlertFilter.SaveUserPreference( FilterKey.AlertTypes, FilterKey.AlertTypes.SplitCase(), cblAlertTypes.SelectedValues.AsDelimited( ";" ) );
-            gfAlertFilter.SaveUserPreference( FilterKey.AlertCategory, FilterKey.AlertCategory.SplitCase(), cblAlertCategory.SelectedValues.AsDelimited( ";" ) );
-            gfAlertFilter.SaveUserPreference( FilterKey.DateRange, FilterKey.DateRange.SplitCase(), drpDateRange.DelimitedValues );
-            gfAlertFilter.SaveUserPreference( FilterKey.Person, FilterKey.Person, ppPerson.SelectedValue.ToString() );
-            gfAlertFilter.SaveUserPreference( FilterKey.TransactionAmount, FilterKey.TransactionAmount, nreTransactionAmount.DelimitedValues );
-            gfAlertFilter.SaveUserPreference( FilterKey.Campus, FilterKey.Campus, cpCampus.SelectedValue );
+            gfAlertFilter.SetFilterPreference( FilterKey.AlertTypes, FilterKey.AlertTypes.SplitCase(), cblAlertTypes.SelectedValues.AsDelimited( ";" ) );
+            gfAlertFilter.SetFilterPreference( FilterKey.AlertCategory, FilterKey.AlertCategory.SplitCase(), cblAlertCategory.SelectedValues.AsDelimited( ";" ) );
+            gfAlertFilter.SetFilterPreference( FilterKey.DateRange, FilterKey.DateRange.SplitCase(), drpDateRange.DelimitedValues );
+            gfAlertFilter.SetFilterPreference( FilterKey.Person, FilterKey.Person, ppPerson.SelectedValue.ToString() );
+            gfAlertFilter.SetFilterPreference( FilterKey.TransactionAmount, FilterKey.TransactionAmount, nreTransactionAmount.DelimitedValues );
+            gfAlertFilter.SetFilterPreference( FilterKey.Campus, FilterKey.Campus, cpCampus.SelectedValue );
 
             BindGrid();
         }
@@ -295,7 +295,7 @@ namespace RockWeb.Blocks.Finance
         /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
         protected void gfAlertFilter_ClearFilterClick( object sender, EventArgs e )
         {
-            gfAlertFilter.DeleteUserPreferences();
+            gfAlertFilter.DeleteFilterPreferences();
             BindFilter();
         }
 
@@ -401,27 +401,14 @@ namespace RockWeb.Blocks.Finance
             var lAmtMeasures = e.Row.FindControl( "lAmtMeasures" ) as Literal;
             if ( lAmtMeasures != null )
             {
-                var amountMeasures = alert.AmountIqrMultiplier ?? 0m;
-                var amountMeasuresText = amountMeasures > 100 ?
-                    string.Format( "<span title='{0:N1}'>HIGH</span>", amountMeasures ) :
-                    amountMeasures < -100 ?
-                        string.Format( "<span title='{0:N1}'>LOW</span>", amountMeasures ) :
-                        amountMeasures.ToString( "N1" );
-
-                lAmtMeasures.Text = string.Format( "{0}<span class='small text-muted'> ${1:N0} IQR</span>", amountMeasuresText, alert.AmountCurrentIqr ?? 0m );
+                lAmtMeasures.Text = $"{alert.AmountCurrentMedian.FormatAsCurrency()}<bdi class='small text-muted'> {(alert.AmountCurrentIqr ?? 0m):0.0} IQR</bdi>";
             }
 
             var lFreqMeasures = e.Row.FindControl( "lFreqMeasures" ) as Literal;
             if ( lFreqMeasures != null )
             {
-                var frequencyMeasures = alert.FrequencyZScore ?? 0m;
-                var frequencyMeasuresText = frequencyMeasures > 100 ?
-                    string.Format( "<span title='{0:N1}'>HIGH</span>", frequencyMeasures ) :
-                    frequencyMeasures < -100 ?
-                        string.Format( "<span title='{0:N1}'>LOW</span>", frequencyMeasures ) :
-                        frequencyMeasures.ToString( "N1" );
 
-                lFreqMeasures.Text = string.Format( "{0}<span class='small text-muted'> {1:N1}d σ</span>", frequencyMeasuresText, alert.FrequencyCurrentStandardDeviation ?? 0m );
+                lFreqMeasures.Text = $"{alert.FrequencyCurrentMean:0.0}<span class='small text-muted'> {alert.FrequencyCurrentStandardDeviation:0.0}d σ</span>";
             }
         }
 
@@ -486,7 +473,7 @@ namespace RockWeb.Blocks.Finance
             }
             else
             {
-                drpDateRange.DelimitedValues = gfAlertFilter.GetUserPreference( FilterKey.DateRange );
+                drpDateRange.DelimitedValues = gfAlertFilter.GetFilterPreference( FilterKey.DateRange );
             }
 
             // Bind alert types and categories if there is no query param
@@ -518,7 +505,7 @@ namespace RockWeb.Blocks.Finance
                     cblAlertTypes.DataBind();
                 }
 
-                var alertTypesValue = gfAlertFilter.GetUserPreference( FilterKey.AlertTypes );
+                var alertTypesValue = gfAlertFilter.GetFilterPreference( FilterKey.AlertTypes );
 
                 if ( !string.IsNullOrWhiteSpace( alertTypesValue ) )
                 {
@@ -527,7 +514,7 @@ namespace RockWeb.Blocks.Finance
 
                 // Bind alert categories: gratitude and follow-up
                 cblAlertCategory.BindToEnum<AlertType>();
-                var alertCategoryValue = gfAlertFilter.GetUserPreference( FilterKey.AlertCategory );
+                var alertCategoryValue = gfAlertFilter.GetFilterPreference( FilterKey.AlertCategory );
 
                 if ( !string.IsNullOrWhiteSpace( alertCategoryValue ) )
                 {
@@ -543,16 +530,20 @@ namespace RockWeb.Blocks.Finance
             else
             {
                 ppPerson.Visible = true;
-                var personId = gfAlertFilter.GetUserPreference( FilterKey.Person ).AsIntegerOrNull();
+                var personId = gfAlertFilter.GetFilterPreference( FilterKey.Person ).AsIntegerOrNull();
                 if ( personId.HasValue )
                 {
                     var person = new PersonService( new RockContext() ).Get( personId.Value );
                     ppPerson.SetValue( person );
                 }
+                else
+                {
+                    ppPerson.SetValue( null );
+                }
             }
 
             // Set the transaction amount filter
-            nreTransactionAmount.DelimitedValues = gfAlertFilter.GetUserPreference( FilterKey.TransactionAmount );
+            nreTransactionAmount.DelimitedValues = gfAlertFilter.GetFilterPreference( FilterKey.TransactionAmount );
 
             // Campus picker
             if ( GetCampusFromQuery() != null )
@@ -561,7 +552,7 @@ namespace RockWeb.Blocks.Finance
             }
             else
             {
-                cpCampus.SelectedCampusId = gfAlertFilter.GetUserPreference( FilterKey.Campus ).AsIntegerOrNull();
+                cpCampus.SelectedCampusId = gfAlertFilter.GetFilterPreference( FilterKey.Campus ).AsIntegerOrNull();
             }
         }
 

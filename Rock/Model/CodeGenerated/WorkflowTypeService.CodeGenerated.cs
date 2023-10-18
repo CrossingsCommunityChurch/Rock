@@ -23,10 +23,7 @@
 using System;
 using System.Linq;
 
-using Rock.Attribute;
 using Rock.Data;
-using Rock.ViewModel;
-using Rock.Web.Cache;
 
 namespace Rock.Model
 {
@@ -79,6 +76,18 @@ namespace Rock.Model
                 return false;
             }
 
+            if ( new Service<GroupRequirementType>( Context ).Queryable().Any( a => a.DoesNotMeetWorkflowTypeId == item.Id ) )
+            {
+                errorMessage = string.Format( "This {0} is assigned to a {1}.", WorkflowType.FriendlyTypeName, GroupRequirementType.FriendlyTypeName );
+                return false;
+            }
+
+            if ( new Service<GroupRequirementType>( Context ).Queryable().Any( a => a.WarningWorkflowTypeId == item.Id ) )
+            {
+                errorMessage = string.Format( "This {0} is assigned to a {1}.", WorkflowType.FriendlyTypeName, GroupRequirementType.FriendlyTypeName );
+                return false;
+            }
+
             if ( new Service<GroupType>( Context ).Queryable().Any( a => a.ScheduleCancellationWorkflowTypeId == item.Id ) )
             {
                 errorMessage = string.Format( "This {0} is assigned to a {1}.", WorkflowType.FriendlyTypeName, GroupType.FriendlyTypeName );
@@ -114,63 +123,15 @@ namespace Rock.Model
                 errorMessage = string.Format( "This {0} is assigned to a {1}.", WorkflowType.FriendlyTypeName, StepWorkflowTrigger.FriendlyTypeName );
                 return false;
             }
+
+            if ( new Service<SystemPhoneNumber>( Context ).Queryable().Any( a => a.SmsReceivedWorkflowTypeId == item.Id ) )
+            {
+                errorMessage = string.Format( "This {0} is assigned to a {1}.", WorkflowType.FriendlyTypeName, SystemPhoneNumber.FriendlyTypeName );
+                return false;
+            }
             return true;
         }
     }
-
-    /// <summary>
-    /// WorkflowType View Model Helper
-    /// </summary>
-    [DefaultViewModelHelper( typeof( WorkflowType ) )]
-    public partial class WorkflowTypeViewModelHelper : ViewModelHelper<WorkflowType, Rock.ViewModel.WorkflowTypeViewModel>
-    {
-        /// <summary>
-        /// Converts the model to a view model.
-        /// </summary>
-        /// <param name="model">The entity.</param>
-        /// <param name="currentPerson">The current person.</param>
-        /// <param name="loadAttributes">if set to <c>true</c> [load attributes].</param>
-        /// <returns></returns>
-        public override Rock.ViewModel.WorkflowTypeViewModel CreateViewModel( WorkflowType model, Person currentPerson = null, bool loadAttributes = true )
-        {
-            if ( model == null )
-            {
-                return default;
-            }
-
-            var viewModel = new Rock.ViewModel.WorkflowTypeViewModel
-            {
-                Id = model.Id,
-                Guid = model.Guid,
-                CategoryId = model.CategoryId,
-                CompletedWorkflowRetentionPeriod = model.CompletedWorkflowRetentionPeriod,
-                Description = model.Description,
-                IconCssClass = model.IconCssClass,
-                IsActive = model.IsActive,
-                IsPersisted = model.IsPersisted,
-                IsSystem = model.IsSystem,
-                LoggingLevel = ( int ) model.LoggingLevel,
-                LogRetentionPeriod = model.LogRetentionPeriod,
-                MaxWorkflowAgeDays = model.MaxWorkflowAgeDays,
-                Name = model.Name,
-                NoActionMessage = model.NoActionMessage,
-                Order = model.Order,
-                ProcessingIntervalSeconds = model.ProcessingIntervalSeconds,
-                SummaryViewText = model.SummaryViewText,
-                WorkflowIdPrefix = model.WorkflowIdPrefix,
-                WorkTerm = model.WorkTerm,
-                CreatedDateTime = model.CreatedDateTime,
-                ModifiedDateTime = model.ModifiedDateTime,
-                CreatedByPersonAliasId = model.CreatedByPersonAliasId,
-                ModifiedByPersonAliasId = model.ModifiedByPersonAliasId,
-            };
-
-            AddAttributesToViewModel( model, viewModel, currentPerson, loadAttributes );
-            ApplyAdditionalPropertiesAndSecurityToViewModel( model, viewModel, currentPerson, loadAttributes );
-            return viewModel;
-        }
-    }
-
 
     /// <summary>
     /// Generated Extension Methods
@@ -233,8 +194,14 @@ namespace Rock.Model
             target.Description = source.Description;
             target.ForeignGuid = source.ForeignGuid;
             target.ForeignKey = source.ForeignKey;
+            target.FormBuilderSettingsJson = source.FormBuilderSettingsJson;
+            target.FormBuilderTemplateId = source.FormBuilderTemplateId;
+            target.FormEndDateTime = source.FormEndDateTime;
+            target.FormStartDateTime = source.FormStartDateTime;
             target.IconCssClass = source.IconCssClass;
             target.IsActive = source.IsActive;
+            target.IsFormBuilder = source.IsFormBuilder;
+            target.IsLoginRequired = source.IsLoginRequired;
             target.IsPersisted = source.IsPersisted;
             target.IsSystem = source.IsSystem;
             target.LoggingLevel = source.LoggingLevel;
@@ -245,6 +212,7 @@ namespace Rock.Model
             target.Order = source.Order;
             target.ProcessingIntervalSeconds = source.ProcessingIntervalSeconds;
             target.SummaryViewText = source.SummaryViewText;
+            target.WorkflowExpireDateTime = source.WorkflowExpireDateTime;
             target.WorkflowIdPrefix = source.WorkflowIdPrefix;
             target.WorkTerm = source.WorkTerm;
             target.CreatedDateTime = source.CreatedDateTime;
@@ -255,20 +223,5 @@ namespace Rock.Model
             target.ForeignId = source.ForeignId;
 
         }
-
-        /// <summary>
-        /// Creates a view model from this entity
-        /// </summary>
-        /// <param name="model">The entity.</param>
-        /// <param name="currentPerson" >The currentPerson.</param>
-        /// <param name="loadAttributes" >Load attributes?</param>
-        public static Rock.ViewModel.WorkflowTypeViewModel ToViewModel( this WorkflowType model, Person currentPerson = null, bool loadAttributes = false )
-        {
-            var helper = new WorkflowTypeViewModelHelper();
-            var viewModel = helper.CreateViewModel( model, currentPerson, loadAttributes );
-            return viewModel;
-        }
-
     }
-
 }

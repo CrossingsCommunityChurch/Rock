@@ -38,6 +38,7 @@ namespace RockWeb.Blocks.Communication
     [DisplayName( "System Communication Detail" )]
     [Category( "Communication" )]
     [Description( "Allows the administration of a system communication." )]
+    [Rock.SystemGuid.BlockTypeGuid( Rock.SystemGuid.BlockType.SYSTEM_COMMUNICATION_DETAIL )]
     public partial class SystemCommunicationDetail : RockBlock
     {
         #region Page Parameter Keys
@@ -57,6 +58,8 @@ namespace RockWeb.Blocks.Communication
         protected override void OnInit( EventArgs e )
         {
             base.OnInit( e );
+
+            RockPage.AddCSSLink( "~/Styles/Blocks/Shared/Devices.css", true );
 
             var mediumControl = MediumControl.GetMediumControl( CommunicationType.PushNotification );
 
@@ -194,7 +197,7 @@ namespace RockWeb.Blocks.Communication
             emailTemplate.LavaFields = kvlMergeFields.Value.AsDictionaryOrNull();
             emailTemplate.CssInliningEnabled = cbCssInliningEnabled.Checked;
 
-            emailTemplate.SMSFromDefinedValueId = dvpSMSFrom.SelectedValue.AsIntegerOrNull();
+            emailTemplate.SmsFromSystemPhoneNumberId = spnpSMSFrom.SelectedSystemPhoneNumberId;
             emailTemplate.SMSMessage = tbSMSTextMessage.Text;
 
             var pushCommunication = new CommunicationDetails();
@@ -300,39 +303,30 @@ namespace RockWeb.Blocks.Communication
 
                 // render UI based on Authorized and IsSystem
                 var readOnly = false;
-                var restrictedEdit = false;
 
                 if ( !emailTemplate.IsAuthorized( Authorization.EDIT, CurrentPerson ) )
                 {
-                    restrictedEdit = true;
                     readOnly = true;
                     nbEditModeMessage.Text = EditModeMessage.NotAuthorizedToEdit( CommunicationTemplate.FriendlyTypeName );
                     nbEditModeMessage.Visible = true;
                 }
 
-                if ( emailTemplate.IsSystem )
-                {
-                    restrictedEdit = true;
-                    nbEditModeMessage.Text = EditModeMessage.System( CommunicationTemplate.FriendlyTypeName );
-                    nbEditModeMessage.Visible = true;
-                }
+                tbTitle.ReadOnly = readOnly;
+                cbIsActive.Enabled = !readOnly;
+                cpCategory.Enabled = !readOnly;
+                tbFromName.ReadOnly = readOnly;
+                tbTo.ReadOnly = readOnly;
+                tbFrom.ReadOnly = readOnly;
+                tbCc.ReadOnly = readOnly;
+                tbBcc.ReadOnly = readOnly;
+                tbSubject.ReadOnly = readOnly;
 
-                tbTitle.ReadOnly = restrictedEdit;
-                cbIsActive.Enabled = !restrictedEdit;
-                cpCategory.Enabled = !restrictedEdit;
-                tbFromName.ReadOnly = restrictedEdit;
-                tbTo.ReadOnly = restrictedEdit;
-                tbFrom.ReadOnly = restrictedEdit;
-                tbCc.ReadOnly = restrictedEdit;
-                tbBcc.ReadOnly = restrictedEdit;
-                tbSubject.ReadOnly = restrictedEdit;
+                mfpSMSMessage.Visible = !readOnly;
+                spnpSMSFrom.Enabled = !readOnly;
+                tbSMSTextMessage.ReadOnly = readOnly;
+                ceEmailTemplate.ReadOnly = readOnly;
 
-                mfpSMSMessage.Visible = !restrictedEdit;
-                dvpSMSFrom.Enabled = !restrictedEdit;
-                tbSMSTextMessage.ReadOnly = restrictedEdit;
-                ceEmailTemplate.ReadOnly = restrictedEdit;
-
-                ( phPushNotification.Controls[0] as PushNotification ).Enabled = !restrictedEdit;
+                ( phPushNotification.Controls[0] as PushNotification ).Enabled = !readOnly;
 
                 btnSave.Enabled = !readOnly;
                 showMessagePreview = true;
@@ -372,7 +366,7 @@ namespace RockWeb.Blocks.Communication
 
             if ( emailTemplate != null )
             {
-                dvpSMSFrom.SetValue( emailTemplate.SMSFromDefinedValueId );
+                spnpSMSFrom.SelectedSystemPhoneNumberId = emailTemplate.SmsFromSystemPhoneNumberId;
                 tbSMSTextMessage.Text = emailTemplate.SMSMessage;
             }
         }
@@ -402,8 +396,6 @@ namespace RockWeb.Blocks.Communication
         /// </summary>
         private void LoadDropDowns()
         {
-            dvpSMSFrom.DefinedTypeId = DefinedTypeCache.Get( new Guid( Rock.SystemGuid.DefinedType.COMMUNICATION_SMS_FROM ) ).Id;
-            dvpSMSFrom.DisplayDescriptions = true;
         }
 
         #endregion

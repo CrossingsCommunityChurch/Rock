@@ -463,21 +463,7 @@ namespace Rock.Model
 
             return cteBuilder.ToString();
         }
-
-        /// <summary>
-        /// Returns an enumerable collection of <see cref="Rock.Model.Group">Groups</see> that are descendents of a specified group.
-        /// </summary>
-        /// <param name="parentGroupId">An <see cref="System.Int32" /> representing the Id of the <see cref="Rock.Model.Group" /> to retrieve descendents for.</param>
-        /// <returns>
-        /// An enumerable collection of <see cref="Rock.Model.Group">Groups</see> that are descendents of referenced group.
-        /// </returns>
-        [RockObsolete( "1.9" )]
-        [Obsolete( "Use GetAllDescendentGroups, GetAllDescendentGroupIds, or GetAllDescendentsGroupTypes instead, depending on the least amount of information that you need", true )]
-        public IEnumerable<Group> GetAllDescendents( int parentGroupId )
-        {
-            return GetAllDescendentGroups( parentGroupId, true );
-        }
-
+        
         /// <summary>
         /// Returns a list of <see cref="Rock.Model.Group">Groups</see> that are descendents of a specified group.
         /// </summary>
@@ -726,9 +712,8 @@ namespace Rock.Model
             List<int> groupMemberIdsThatLackGroupRequirementsList = groupMemberList
                 .Where( a =>
                     !qryGroupRequirements
-                        .Where( r =>
-                            !r.GroupRoleId.HasValue ||
-                            r.GroupRoleId.Value == a.GroupRoleId )
+                        .Where( r => !r.GroupRoleId.HasValue || r.GroupRoleId.Value == a.GroupRoleId )
+                        .Where( r => r.AppliesToAgeClassification == AppliesToAgeClassification.All || r.AppliesToAgeClassification.ConvertToInt() == a.Person.AgeClassification.ConvertToInt() )
                         .Select( x => x.Id )
                         .All( r =>
                             a.GroupMemberRequirements
@@ -817,7 +802,7 @@ namespace Rock.Model
         /// <summary>
         /// Internal DTO class for GroupRequirements.
         /// </summary>
-        private class GroupRequirementDTO
+        private class GroupRequirementViewModel
         {
             public int GroupMemberId;
             public DateTime? RequirementWarningDateTime;
@@ -826,18 +811,18 @@ namespace Rock.Model
             public GroupRequirement GroupRequirement;
         }
         /// <summary>
-        /// Gets a list of <see cref="GroupRequirementDTO"/>s for the group.
+        /// Gets a list of <see cref="GroupRequirementViewModel"/>s for the group.
         /// </summary>
         /// <param name="group"></param>
         /// <returns></returns>
-        private List<GroupRequirementDTO> GetGroupMemberRequirementList( Group group )
+        private List<GroupRequirementViewModel> GetGroupMemberRequirementList( Group group )
         {
             var rockContext = this.Context as RockContext;
             var groupMemberRequirementService = new GroupMemberRequirementService( rockContext );
             var groupMemberRequirementQuery = groupMemberRequirementService.Queryable().Where( a => a.GroupMember.GroupId == group.Id );
 
             return groupMemberRequirementQuery
-                .Select( a => new GroupRequirementDTO()
+                .Select( a => new GroupRequirementViewModel()
                 {
                     GroupMemberId = a.GroupMemberId,
                     RequirementWarningDateTime = a.RequirementWarningDateTime,
@@ -862,15 +847,34 @@ namespace Rock.Model
         /// Internal method for GroupMemberIdsWithRequirementWarnings.
         /// </summary>
         /// <param name="group">The group.</param>
-        /// <param name="groupMemberRequirementList">The list of <see cref="GroupRequirementDTO"/>s.</param>
+        /// <param name="groupMemberRequirementList">The list of <see cref="GroupRequirementViewModel"/>s.</param>
         /// <returns></returns>
-        private List<int> GroupMemberIdsWithRequirementWarnings( Group group, List<GroupRequirementDTO> groupMemberRequirementList )
+        private List<int> GroupMemberIdsWithRequirementWarnings( Group group, List<GroupRequirementViewModel> groupMemberRequirementList )
         {
             return groupMemberRequirementList
                 .Where( a => a.RequirementWarningDateTime != null
                         || a.RequirementFailDateTime != null )
                 .Select( a => a.GroupMemberId )
                 .Distinct().ToList();
+        }
+
+        /// <summary>
+        /// Returns an IEnumerable list of Group Members from primary group that are people in secondary group.
+        /// </summary>
+        /// <remarks>For example, "this" group can be a family, and secondaryGroup can be the fundraising group the family member is in, so we can gather the other members of the same family that are in the fundraising group.</remarks>
+        /// <param name="primaryGroup"></param>
+        /// <param name="secondaryGroup"></param>
+        /// <returns></returns>
+        public IEnumerable<GroupMember> GroupMembersInAnotherGroup( Group primaryGroup, Group secondaryGroup )
+        {
+            // Do not allow the same group in both parameters.
+            if ( primaryGroup.Guid == secondaryGroup.Guid )
+            {
+                return null;
+            }
+
+            var primaryMembers = primaryGroup.Members.Select( m => m.PersonId );
+            return secondaryGroup.Members.Where( m => primaryMembers.Contains( m.PersonId ) );
         }
 
         #endregion Group Requirement Queries
@@ -911,7 +915,7 @@ namespace Rock.Model
             List<string> familyMemberNames = new List<string>();
             string primaryLastName = string.Empty;
 
-            var groupMemberService = new GroupMemberService( calculateFamilySalutationArgs.RockContext );
+            var groupMemberService = new GroupMemberService( calculateFamilySalutationArgs.RockContext ?? new RockContext() );
             var groupId = group.Id;
 
             var familyMembersQry = groupMemberService.Queryable( false ).Where( a => a.GroupId == groupId );
@@ -950,6 +954,7 @@ namespace Rock.Model
                 FirstName = s.Person.FirstName,
                 Gender = s.Person.Gender,
                 s.Person.BirthDate,
+                s.Person.DeceasedDate,
                 GroupRoleId = s.GroupRoleId
             } ).ToList();
 
@@ -966,6 +971,7 @@ namespace Rock.Model
                     FirstName = s.Person.FirstName,
                     Gender = s.Person.Gender,
                     s.Person.BirthDate,
+                    s.Person.DeceasedDate,
                     GroupRoleId = s.GroupRoleId
                 } ).ToList();
 
@@ -979,6 +985,7 @@ namespace Rock.Model
                         FirstName = s.Person.FirstName,
                         Gender = s.Person.Gender,
                         s.Person.BirthDate,
+                        s.Person.DeceasedDate,
                         GroupRoleId = s.GroupRoleId
                     } ).ToList();
                 }
@@ -1025,7 +1032,7 @@ namespace Rock.Model
             // Children:
             if ( includeChildren || !adults.Any() )
             {
-                var children = familyMembersList.Where( f => f.GroupRoleId == _childRole.Id ).OrderByDescending( f => Person.GetAge( f.BirthDate ) );
+                var children = familyMembersList.Where( f => f.GroupRoleId == _childRole.Id ).OrderByDescending( f => Person.GetAge( f.BirthDate, f.DeceasedDate ) );
 
                 if ( children.Count() > 0 )
                 {
@@ -1608,19 +1615,6 @@ namespace Rock.Model
         /// Returns true if duplicate group members are allowed in groups
         /// Normally this is false, but there is a web.config option to allow it
         /// </summary>
-        /// <param name="group">The group.</param>
-        /// <returns></returns>
-        [Obsolete( "Please use the static method with no parameters. The group parameter is inconsequential.", true )]
-        [RockObsolete( "1.9" )]
-        public bool AllowsDuplicateMembers( Group group )
-        {
-            return AllowsDuplicateMembers();
-        }
-
-        /// <summary>
-        /// Returns true if duplicate group members are allowed in groups
-        /// Normally this is false, but there is a web.config option to allow it
-        /// </summary>
         /// <returns></returns>
         public static bool AllowsDuplicateMembers()
         {
@@ -1642,6 +1636,61 @@ namespace Rock.Model
             groupMember = groupMemberService.AsNoFilter().Where( a => a.IsArchived == false && a.GroupId == group.Id && a.PersonId == personId && a.GroupRoleId == groupRoleId ).FirstOrDefault();
             return groupMember != null;
         }
+
+        #region Actions
+
+        /// <summary>
+        /// Deletes a Security Role Group.
+        /// </summary>
+        /// <param name="groupId">The group identifier.</param>
+        public static void DeleteSecurityRoleGroup( int groupId )
+        {
+            var rockContext = new RockContext();
+            rockContext.WrapTransaction( () =>
+            {
+                // Get the target group.
+                var groupService = new GroupService( rockContext );
+                var group = groupService.Get( groupId );
+                if ( group == null )
+                {
+                    return;
+                }
+
+                // Verify that the group represents a Security Role.
+                var isSecurityRoleGroup = group.IsSecurityRole || group.GroupType.Guid.Equals( Rock.SystemGuid.GroupType.GROUPTYPE_SECURITY_ROLE.AsGuid() );
+                if ( !isSecurityRoleGroup )
+                {
+                    throw new Exception( $"Action DeleteSecurityRoleGroup failed. The specified group is not a Security Role. [GroupId={groupId}]" );
+                }
+
+                // Remove authorizations.
+                // Using the BulkDelete method bypasses the Auth.SaveHook() to avoid creating new AuthAuditLog entries for the deleted Group.
+                var authService = new AuthService( rockContext );
+                var authsToDelete = authService.Queryable().Where( a => a.GroupId == groupId );
+                if ( authsToDelete.Any() )
+                {
+                    rockContext.BulkDelete( authsToDelete );
+                }
+
+                // Remove authorization audit records.
+                var authAuditLogService = new AuthAuditLogService( rockContext );
+                var authAuditLogsToDelete = authAuditLogService.Queryable().Where( a => a.GroupId == groupId );
+                if ( authAuditLogsToDelete.Any() )
+                {
+                    rockContext.BulkDelete( authAuditLogsToDelete );
+                }
+
+                // Clear the authorizations cache.
+                Rock.Security.Authorization.Clear();
+
+                // Remove the group.
+                groupService.Delete( group );
+
+                rockContext.SaveChanges();
+            } );
+        }
+
+        #endregion
     }
 
     #region Extension Methods

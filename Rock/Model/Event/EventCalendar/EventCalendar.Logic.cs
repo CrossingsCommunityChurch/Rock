@@ -15,7 +15,6 @@
 // </copyright>
 //
 
-using System.Collections.Generic;
 using System.Data.Entity;
 using System.Linq;
 using Rock.Data;
@@ -26,24 +25,6 @@ namespace Rock.Model
 {
     public partial class EventCalendar
     {
-        #region Methods
-
-        /// <summary>
-        /// Gets the supported actions.
-        /// </summary>
-        /// <value>
-        /// The supported actions.
-        /// </value>
-        public override Dictionary<string, string> SupportedActions
-        {
-            get
-            {
-                var supportedActions = base.SupportedActions;
-                supportedActions.AddOrReplace( Rock.Security.Authorization.APPROVE, "The roles and/or users that have access to approve calendar items." );
-                return supportedActions;
-            }
-        }
-
         #region Index Methods
 
         /// <summary>
@@ -55,7 +36,7 @@ namespace Rock.Model
             // Ensure provided calendar is indexable
             var calendar = EventCalendarCache.Get( calendarId );
 
-            if ( calendar.IsNull() || !calendar.IsIndexEnabled )
+            if ( calendar == null || !calendar.IsIndexEnabled )
             {
                 return;
             }
@@ -81,7 +62,6 @@ namespace Rock.Model
             }
         }
 
-
         /// <summary>
         /// Bulks the index documents by calendar.
         /// </summary>
@@ -91,7 +71,7 @@ namespace Rock.Model
             // Ensure provided calendar is indexable
             var calendar = EventCalendarCache.Get( calendarId );
 
-            if ( calendar.IsNull() || !calendar.IsIndexEnabled )
+            if ( calendar == null || !calendar.IsIndexEnabled )
             {
                 return;
             }
@@ -135,8 +115,6 @@ namespace Rock.Model
         {
             EventCalendarCache.UpdateCachedEntity( this.Id, entityState );
         }
-
-        #endregion
 
         #endregion
     }

@@ -38,15 +38,31 @@ namespace Rock.Workflow.Action
 
     #region Block Attributes
 
+    [WorkflowTextOrAttribute( "From Name",
+        "From Name Attribute",
+        Description = "The name or an attribute that contains the person or name that email should be sent from. <span class='tip tip-lava'></span>",
+        IsRequired = false,
+        Order = 0,
+        Key = AttributeKey.FromName,
+        FieldTypeClassNames = new string[] { "Rock.Field.Types.TextFieldType", "Rock.Field.Types.PersonFieldType" } )]
+
     [WorkflowTextOrAttribute( "From Email Address",
         "From Attribute",
         "The email address or an attribute that contains the person or email address that email should be sent from (will default to organization email). <span class='tip tip-lava'></span>",
         false,
         "",
         "",
-        0,
+        1,
         AttributeKey.From,
         new string[] { "Rock.Field.Types.TextFieldType", "Rock.Field.Types.EmailFieldType", "Rock.Field.Types.PersonFieldType" } )]
+
+    [WorkflowTextOrAttribute( "Reply To Address",
+        "Reply To Attribute",
+        Description = "The email address or an attribute that contains the person or email address that email replies should be sent to (will default to 'From' email). <span class='tip tip-lava'></span>",
+        IsRequired = false,
+        Order = 2,
+        Key = AttributeKey.ReplyTo,
+        FieldTypeClassNames = new string[] { "Rock.Field.Types.TextFieldType", "Rock.Field.Types.EmailFieldType", "Rock.Field.Types.PersonFieldType" } )]
 
     [WorkflowTextOrAttribute( "Send To Email Addresses",
         "To Attribute",
@@ -54,7 +70,7 @@ namespace Rock.Workflow.Action
         true,
         "",
         "",
-        1,
+        3,
         AttributeKey.To,
         new string[] { "Rock.Field.Types.TextFieldType", "Rock.Field.Types.EmailFieldType", "Rock.Field.Types.PersonFieldType", "Rock.Field.Types.GroupFieldType", "Rock.Field.Types.SecurityRoleFieldType" } )]
 
@@ -62,14 +78,14 @@ namespace Rock.Workflow.Action
         Key = AttributeKey.GroupRole,
         Description = "An optional Group Role attribute to limit recipients to if the 'Send to Email Addresses' is a group or security role.",
         IsRequired = false,
-        Order = 2,
-        FieldTypeClassNames =  new string[] { "Rock.Field.Types.GroupRoleFieldType" } )]
+        Order = 4,
+        FieldTypeClassNames = new string[] { "Rock.Field.Types.GroupRoleFieldType" } )]
 
     [TextField( "Subject",
         Key = AttributeKey.Subject,
         Description = "The subject that should be used when sending email. <span class='tip tip-lava'></span>",
         IsRequired = false,
-        Order = 3 )]
+        Order = 5 )]
 
     [CodeEditorField( "Body",
         Key = AttributeKey.Body,
@@ -78,7 +94,7 @@ namespace Rock.Workflow.Action
         EditorTheme = Web.UI.Controls.CodeEditorTheme.Rock,
         EditorHeight = 200,
         IsRequired = false,
-        Order = 4 )]
+        Order = 6 )]
 
     [WorkflowTextOrAttribute( "CC Email Addresses",
         "CC Attribute",
@@ -86,7 +102,7 @@ namespace Rock.Workflow.Action
         false,
         "",
         "",
-        5,
+        7,
         AttributeKey.Cc,
         new string[] { "Rock.Field.Types.TextFieldType", "Rock.Field.Types.EmailFieldType", "Rock.Field.Types.PersonFieldType", "Rock.Field.Types.GroupFieldType", "Rock.Field.Types.SecurityRoleFieldType" } )]
 
@@ -96,7 +112,7 @@ namespace Rock.Workflow.Action
         false,
         "",
         "",
-        6,
+        8,
         AttributeKey.Bcc,
         new string[] { "Rock.Field.Types.TextFieldType", "Rock.Field.Types.EmailFieldType", "Rock.Field.Types.PersonFieldType", "Rock.Field.Types.GroupFieldType", "Rock.Field.Types.SecurityRoleFieldType" } )]
 
@@ -104,31 +120,32 @@ namespace Rock.Workflow.Action
         Key = AttributeKey.AttachmentOne,
         Description = "Workflow attribute that contains the email attachment. Note file size that can be sent is limited by both the sending and receiving email services typically 10 - 25 MB.",
         IsRequired = false,
-        Order = 7,
-        FieldTypeClassNames = new string[] { "Rock.Field.Types.FileFieldType", "Rock.Field.Types.ImageFieldType" } )]
+        Order = 9,
+        FieldTypeClassNames = new string[] { "Rock.Field.Types.FileFieldType", "Rock.Field.Types.ImageFieldType", "Rock.Field.Types.BinaryFileFieldType" } )]
 
     [WorkflowAttribute( "Attachment Two",
         Key = AttributeKey.AttachmentTwo,
         Description = "Workflow attribute that contains the email attachment. Note file size that can be sent is limited by both the sending and receiving email services typically 10 - 25 MB.",
         IsRequired = false,
-        Order = 8,
-        FieldTypeClassNames = new string[] { "Rock.Field.Types.FileFieldType", "Rock.Field.Types.ImageFieldType" } )]
+        Order = 10,
+        FieldTypeClassNames = new string[] { "Rock.Field.Types.FileFieldType", "Rock.Field.Types.ImageFieldType", "Rock.Field.Types.BinaryFileFieldType" } )]
 
     [WorkflowAttribute( "Attachment Three",
         Key = AttributeKey.AttachmentThree,
         Description = "Workflow attribute that contains the email attachment. Note file size that can be sent is limited by both the sending and receiving email services typically 10 - 25 MB.",
         IsRequired = false,
-        Order = 9,
-        FieldTypeClassNames = new string[] { "Rock.Field.Types.FileFieldType", "Rock.Field.Types.ImageFieldType" } )]
+        Order = 11,
+        FieldTypeClassNames = new string[] { "Rock.Field.Types.FileFieldType", "Rock.Field.Types.ImageFieldType", "Rock.Field.Types.BinaryFileFieldType" } )]
 
     [BooleanField( "Save Communication History",
         Key = AttributeKey.SaveCommunicationHistory,
         Description = "Should a record of this communication be saved to the recipient's profile?",
         DefaultBooleanValue = false,
-        Order = 10 )]
+        Order = 12 )]
 
     #endregion
 
+    [Rock.SystemGuid.EntityTypeGuid( Rock.SystemGuid.EntityType.SEND_EMAIL )]
     public class SendEmail : ActionComponent
     {
         #region Attribute Keys
@@ -137,6 +154,7 @@ namespace Rock.Workflow.Action
         {
             public const string From = "From";
             public const string To = "To";
+            public const string ReplyTo = "ReplyTo";
             public const string GroupRole = "GroupRole";
             public const string Subject = "Subject";
             public const string Body = "Body";
@@ -146,6 +164,7 @@ namespace Rock.Workflow.Action
             public const string AttachmentTwo = "AttachmentTwo";
             public const string AttachmentThree = "AttachmentThree";
             public const string SaveCommunicationHistory = "SaveCommunicationHistory";
+            public const string FromName = "FromName";
         }
 
         #endregion
@@ -166,6 +185,7 @@ namespace Rock.Workflow.Action
 
             string to = GetAttributeValue( action, AttributeKey.To );
             string fromValue = GetAttributeValue( action, AttributeKey.From );
+            string replyTo = GetAttributeValue( action, AttributeKey.ReplyTo );
             string subject = GetAttributeValue( action, AttributeKey.Subject );
             string body = GetAttributeValue( action, AttributeKey.Body );
             string cc = GetActionAttributeValue( action, AttributeKey.Cc );
@@ -173,9 +193,10 @@ namespace Rock.Workflow.Action
             var attachmentOneGuid = GetAttributeValue( action, AttributeKey.AttachmentOne, true ).AsGuid();
             var attachmentTwoGuid = GetAttributeValue( action, AttributeKey.AttachmentTwo, true ).AsGuid();
             var attachmentThreeGuid = GetAttributeValue( action, AttributeKey.AttachmentThree, true ).AsGuid();
+            string fromNameValue = GetAttributeValue( action, AttributeKey.FromName );
 
             var attachmentList = new List<BinaryFile>();
-            if (!attachmentOneGuid.IsEmpty())
+            if ( !attachmentOneGuid.IsEmpty() )
             {
                 attachmentList.Add( new BinaryFileService( rockContext ).Get( attachmentOneGuid ) );
             }
@@ -194,8 +215,8 @@ namespace Rock.Workflow.Action
 
             bool createCommunicationRecord = GetAttributeValue( action, AttributeKey.SaveCommunicationHistory ).AsBoolean();
 
-            string fromEmailAddress = string.Empty;
             string fromName = string.Empty;
+            string fromEmailAddress = string.Empty;
             Guid? fromGuid = fromValue.AsGuidOrNull();
             if ( fromGuid.HasValue )
             {
@@ -233,24 +254,100 @@ namespace Rock.Workflow.Action
                 fromEmailAddress = fromValue.ResolveMergeFields( mergeFields );
             }
 
-            // to
+            Guid? fromNameGuid = fromNameValue.AsGuidOrNull();
+            if ( fromNameGuid.HasValue )
+            {
+                var attribute = AttributeCache.Get( fromNameGuid.Value, rockContext );
+                if ( attribute != null )
+                {
+                    string fromNameAttributeValue = action.GetWorkflowAttributeValue( fromNameGuid.Value );
+                    if ( !string.IsNullOrWhiteSpace( fromNameAttributeValue ) )
+                    {
+                        if ( attribute.FieldType.Class == "Rock.Field.Types.PersonFieldType" )
+                        {
+                            Guid personAliasGuid = fromNameAttributeValue.AsGuid();
+                            if ( !personAliasGuid.IsEmpty() )
+                            {
+                                var person = new PersonAliasService( rockContext ).Queryable()
+                                    .Where( a => a.Guid.Equals( personAliasGuid ) )
+                                    .Select( a => a.Person )
+                                    .FirstOrDefault();
+                                if ( person != null && !string.IsNullOrWhiteSpace( person.FullName ) )
+                                {
+                                    fromName = person.FullName;
+                                }
+                            }
+                        }
+                        else
+                        {
+                            fromName = fromNameAttributeValue;
+                        }
+                    }
+                }
+            }
+            else
+            {
+                var resolvedFromName = fromNameValue.ResolveMergeFields( mergeFields );
+                fromName = resolvedFromName.IsNullOrWhiteSpace() ? fromName : resolvedFromName;
+            }
+
+            string replyToEmailAddress = string.Empty;
+            Guid? replyToGuid = replyTo.AsGuidOrNull();
+
+            // If there is a "Reply To" value for the attribute, use that to get the "Reply To" email.
+            if ( replyToGuid.HasValue )
+            {
+                var attribute = AttributeCache.Get( replyToGuid.Value, rockContext );
+                if ( attribute != null )
+                {
+                    string replyToAttributeValue = action.GetWorkflowAttributeValue( replyToGuid.Value );
+                    if ( !string.IsNullOrWhiteSpace( replyToAttributeValue ) )
+                    {
+                        if ( attribute.FieldType.Class == "Rock.Field.Types.PersonFieldType" )
+                        {
+                            Guid personAliasGuid = replyToAttributeValue.AsGuid();
+                            if ( !personAliasGuid.IsEmpty() )
+                            {
+                                var personEmail = new PersonAliasService( rockContext ).Queryable()
+                                    .Where( a => a.Guid.Equals( personAliasGuid ) )
+                                    .Select( a => a.Person.Email )
+                                    .FirstOrDefault();
+                                if ( personEmail.IsNotNullOrWhiteSpace() )
+                                {
+                                    replyToEmailAddress = personEmail;
+                                }
+                            }
+                        }
+                        else
+                        {
+                            replyToEmailAddress = replyToAttributeValue;
+                        }
+                    }
+                }
+            }
+            else
+            {
+                replyToEmailAddress = replyTo.ResolveMergeFields( mergeFields );
+            }
+
+            // To Email recipients list.
             if ( GetEmailsFromAttributeValue( RecipientType.SendTo, to, action, mergeFields, rockContext, out string toDelimitedEmails, out List<RockEmailMessageRecipient> toRecipients ) )
             {
-                // cc
+                // CC emails recipients list.
                 GetEmailsFromAttributeValue( RecipientType.CC, cc, action, mergeFields, rockContext, out string ccDelimitedEmails, out List<RockEmailMessageRecipient> ccRecipients );
                 List<string> ccEmails = BuildEmailList( ccDelimitedEmails, mergeFields, ccRecipients );
 
-                // bcc
+                // BCC emails recipients list.
                 GetEmailsFromAttributeValue( RecipientType.BCC, bcc, action, mergeFields, rockContext, out string bccDelimitedEmails, out List<RockEmailMessageRecipient> bccRecipients );
                 List<string> bccEmails = BuildEmailList( bccDelimitedEmails, mergeFields, bccRecipients );
 
                 if ( !string.IsNullOrWhiteSpace( toDelimitedEmails ) )
                 {
-                    Send( toDelimitedEmails, fromEmailAddress, fromName, subject, body, ccEmails, bccEmails, mergeFields, createCommunicationRecord, attachments, out errorMessages );
+                    Send( toDelimitedEmails, fromEmailAddress, fromName, replyToEmailAddress, subject, body, ccEmails, bccEmails, mergeFields, createCommunicationRecord, attachments, out errorMessages );
                 }
                 else if ( toRecipients != null )
                 {
-                    Send( toRecipients, fromEmailAddress, fromName, subject, body, ccEmails, bccEmails, createCommunicationRecord, attachments, out errorMessages );
+                    Send( toRecipients, fromEmailAddress, fromName, replyToEmailAddress, subject, body, ccEmails, bccEmails, createCommunicationRecord, attachments, out errorMessages );
                 }
             }
 
@@ -460,7 +557,7 @@ namespace Rock.Workflow.Action
         /// <returns></returns>
         private List<string> BuildEmailList( string delimitedEmails, Dictionary<string, object> mergeFields, List<RockEmailMessageRecipient> recipients )
         {
-            if ( !String.IsNullOrWhiteSpace( delimitedEmails ) )
+            if ( !string.IsNullOrWhiteSpace( delimitedEmails ) )
             {
                 return delimitedEmails.ResolveMergeFields( mergeFields ).SplitDelimitedValues().Select( e => e ).ToList();
             }
@@ -479,6 +576,7 @@ namespace Rock.Workflow.Action
         /// <param name="recipientEmails">The recipient emails.</param>
         /// <param name="fromEmail">From email.</param>
         /// <param name="fromName">From name.</param>
+        /// <param name="replyToEmail">Reply To email.</param>
         /// <param name="subject">The subject.</param>
         /// <param name="body">The body.</param>
         /// <param name="ccEmails">The CC emails.</param>
@@ -487,10 +585,10 @@ namespace Rock.Workflow.Action
         /// <param name="createCommunicationRecord">if set to <c>true</c> [create communication record].</param>
         /// <param name="attachments">The attachments.</param>
         /// <param name="errorMessages">The error messages.</param>
-        private void Send( string recipientEmails, string fromEmail, string fromName, string subject, string body, List<string> ccEmails, List<string> bccEmails, Dictionary<string, object> mergeFields, bool createCommunicationRecord, BinaryFile[] attachments, out List<string> errorMessages )
+        private void Send( string recipientEmails, string fromEmail, string fromName, string replyToEmail, string subject, string body, List<string> ccEmails, List<string> bccEmails, Dictionary<string, object> mergeFields, bool createCommunicationRecord, BinaryFile[] attachments, out List<string> errorMessages )
         {
             var recipients = recipientEmails.ResolveMergeFields( mergeFields ).SplitDelimitedValues().Select( e => RockEmailMessageRecipient.CreateAnonymous( e, mergeFields ) ).ToList();
-            Send( recipients, fromEmail, fromName, subject, body, ccEmails, bccEmails, createCommunicationRecord, attachments, out errorMessages );
+            Send( recipients, fromEmail, fromName, replyToEmail, subject, body, ccEmails, bccEmails, createCommunicationRecord, attachments, out errorMessages );
         }
 
         /// <summary>
@@ -499,6 +597,7 @@ namespace Rock.Workflow.Action
         /// <param name="recipients">The recipients.</param>
         /// <param name="fromEmail">From email.</param>
         /// <param name="fromName">From name.</param>
+        /// <param name="replyToEmail">Reply To email.</param>
         /// <param name="subject">The subject.</param>
         /// <param name="body">The body.</param>
         /// <param name="ccEmails">The CC emails.</param>
@@ -506,19 +605,20 @@ namespace Rock.Workflow.Action
         /// <param name="createCommunicationRecord">if set to <c>true</c> [create communication record].</param>
         /// <param name="attachments">The attachments.</param>
         /// <param name="errorMessages">The error messages.</param>
-        private void Send( List<RockEmailMessageRecipient> recipients, string fromEmail, string fromName, string subject, string body, List<string> ccEmails, List<string> bccEmails, bool createCommunicationRecord, BinaryFile[] attachments, out List<string> errorMessages )
+        private void Send( List<RockEmailMessageRecipient> recipients, string fromEmail, string fromName, string replyToEmail, string subject, string body, List<string> ccEmails, List<string> bccEmails, bool createCommunicationRecord, BinaryFile[] attachments, out List<string> errorMessages )
         {
             var emailMessage = new RockEmailMessage();
             emailMessage.SetRecipients( recipients );
             emailMessage.FromEmail = fromEmail;
             emailMessage.FromName = fromName.IsNullOrWhiteSpace() ? fromEmail : fromName;
+            emailMessage.ReplyToEmail = replyToEmail;
             emailMessage.Subject = subject;
             emailMessage.Message = body;
 
             emailMessage.CCEmails = ccEmails ?? new List<string>();
             emailMessage.BCCEmails = bccEmails ?? new List<string>();
 
-            foreach (BinaryFile b in attachments)
+            foreach ( BinaryFile b in attachments )
             {
                 if ( b != null )
                 {
@@ -529,7 +629,7 @@ namespace Rock.Workflow.Action
             emailMessage.CreateCommunicationRecord = createCommunicationRecord;
             emailMessage.AppRoot = Rock.Web.Cache.GlobalAttributesCache.Get().GetValue( "InternalApplicationRoot" ) ?? string.Empty;
 
-            emailMessage.Send(out errorMessages);
+            emailMessage.Send( out errorMessages );
         }
     }
 }

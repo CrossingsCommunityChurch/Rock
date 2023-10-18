@@ -55,6 +55,7 @@ namespace RockWeb.Blocks.Streaks
 
     #endregion
 
+    [Rock.SystemGuid.BlockTypeGuid( "46A5143E-8DE7-4E3D-96B3-674E8FD12949" )]
     public partial class StreakList : RockBlock, ISecondaryBlock, ICustomGridColumns
     {
         #region Keys
@@ -237,7 +238,7 @@ namespace RockWeb.Blocks.Streaks
 
                     lBiStateGraph.Text = string.Format( @"
                         <div class=""chart-container"">
-                            <ul class=""trend-chart trend-chart-sm"">{0}</ul>
+                            <ul class=""trend-chart trend-chart-sm text-info"">{0}</ul>
                         </div>", stringBuilder );
                 }
             }
@@ -255,9 +256,9 @@ namespace RockWeb.Blocks.Streaks
         /// <param name="e">The <see cref="EventArgs" /> instance containing the event data.</param>
         protected void rFilter_ApplyFilterClick( object sender, EventArgs e )
         {
-            rFilter.SaveUserPreference( FilterKey.FirstName, "First Name", tbFirstName.Text );
-            rFilter.SaveUserPreference( FilterKey.LastName, "Last Name", tbLastName.Text );
-            rFilter.SaveUserPreference( FilterKey.EnrollmentDate, "Enrollment Date", drpEnrollmentDate.DelimitedValues );
+            rFilter.SetFilterPreference( FilterKey.FirstName, "First Name", tbFirstName.Text );
+            rFilter.SetFilterPreference( FilterKey.LastName, "Last Name", tbLastName.Text );
+            rFilter.SetFilterPreference( FilterKey.EnrollmentDate, "Enrollment Date", drpEnrollmentDate.DelimitedValues );
 
             BindEnrollmentGrid();
         }
@@ -290,7 +291,7 @@ namespace RockWeb.Blocks.Streaks
         /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
         protected void rFilter_ClearFilterClick( object sender, EventArgs e )
         {
-            rFilter.DeleteUserPreferences();
+            rFilter.DeleteFilterPreferences();
             BindFilter();
         }
 
@@ -451,7 +452,7 @@ namespace RockWeb.Blocks.Streaks
 
                 if ( streakType != null )
                 {
-                    rFilter.UserPreferenceKeyPrefix = string.Format( "{0}-", streakType.Id );
+                    rFilter.PreferenceKeyPrefix = string.Format( "{0}-", streakType.Id );
                 }
 
                 BindFilter();
@@ -502,9 +503,9 @@ namespace RockWeb.Blocks.Streaks
         /// </summary>
         private void BindFilter()
         {
-            tbFirstName.Text = rFilter.GetUserPreference( FilterKey.FirstName );
-            tbLastName.Text = rFilter.GetUserPreference( FilterKey.LastName );
-            drpEnrollmentDate.DelimitedValues = rFilter.GetUserPreference( FilterKey.EnrollmentDate );
+            tbFirstName.Text = rFilter.GetFilterPreference( FilterKey.FirstName );
+            tbLastName.Text = rFilter.GetFilterPreference( FilterKey.LastName );
+            drpEnrollmentDate.DelimitedValues = rFilter.GetFilterPreference( FilterKey.EnrollmentDate );
         }
 
         /// <summary>
@@ -576,7 +577,7 @@ namespace RockWeb.Blocks.Streaks
             }
             else
             {
-                query = query.OrderBy( a => a.PersonAlias.Person.LastName ).ThenBy( a => a.PersonAlias.Person.FirstName );
+                query = query.OrderBy( a => a.PersonAlias.Person.LastName ).ThenBy( a => a.PersonAlias.Person.NickName );
             }
 
             var viewModelQuery = query.Select( se => new EnrollmentViewModel
@@ -626,7 +627,7 @@ namespace RockWeb.Blocks.Streaks
         /// <summary>
         /// Represents an enrollment for a row in the grid
         /// </summary>
-        public class EnrollmentViewModel
+        public class EnrollmentViewModel : RockDynamic
         {
             public int Id { get; set; }
             public int PersonId { get; set; }

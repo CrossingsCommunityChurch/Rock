@@ -1,4 +1,4 @@
-﻿// <copyright>
+// <copyright>
 // Copyright by the Spark Development Network
 //
 // Licensed under the Rock Community License (the "License");
@@ -35,6 +35,7 @@ namespace Rock.Reporting.DataSelect.Group
     [Description( "Select a comma-delimited list of members of the group" )]
     [Export( typeof( DataSelectComponent ) )]
     [ExportMetadata( "ComponentName", "Select Group Member List" )]
+    [Rock.SystemGuid.EntityTypeGuid( "42D54FD1-74AA-4D47-BE84-BF92334ECD33")]
     public class MemberListSelect : DataSelectComponent, IRecipientDataSelect
     {
         #region Properties
@@ -306,7 +307,7 @@ namespace Rock.Reporting.DataSelect.Group
             groupTypePicker.ID = parentControl.ID + "_groupTypePicker";
             groupTypePicker.Label = "Group Type";
             groupTypePicker.CssClass = "js-grouptype-picker";
-            groupTypePicker.GroupTypes = new GroupTypeService( new RockContext() ).Queryable().OrderBy( a => a.Order ).ThenBy( a => a.Name ).ToList();
+            groupTypePicker.GroupTypes = new GroupTypeService( new RockContext() ).Queryable().ToList();
             groupTypePicker.SelectedIndexChanged += groupTypePicker_SelectedIndexChanged;
             groupTypePicker.AutoPostBack = true;
             parentControl.Controls.Add( groupTypePicker );

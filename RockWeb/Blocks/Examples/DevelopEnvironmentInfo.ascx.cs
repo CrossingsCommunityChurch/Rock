@@ -37,6 +37,7 @@ namespace RockWeb.Blocks.Examples
     [DisplayName( "Developer Environment Info" )]
     [Category( "Examples" )]
     [Description( "Shows Information about the Development environment" )]
+    [Rock.SystemGuid.BlockTypeGuid( "03BFBFCA-36C4-480D-A10B-3CF349F4A6EA" )]
     public partial class DevelopEnvironmentInfo : RockBlock
     {
         /// <summary>
@@ -60,6 +61,9 @@ namespace RockWeb.Blocks.Examples
 
             if ( !Page.IsPostBack )
             {
+                var preferences = GetBlockPersonPreferences();
+                cbLimitToSessionId.Checked = preferences.GetValue( "LimitToSessionId" ).AsBoolean();
+
                 var rockContext = new RockContext();
                 lDatabaseName.Text = string.Format(
                     @"
@@ -112,6 +116,12 @@ Path: {2}",
         protected void btnStartLogSQL_Click( object sender, EventArgs e )
         {
             DebugHelper.LimitToSessionId( cbLimitToSessionId.Checked );
+
+            var preferences = GetBlockPersonPreferences();
+
+            preferences.SetValue( "LimitToSessionId", cbLimitToSessionId.Checked.ToTrueFalse() );
+            preferences.Save();
+
             DebugHelper.SQLLoggingStart();
             ShowDebugSqlStatus();
         }

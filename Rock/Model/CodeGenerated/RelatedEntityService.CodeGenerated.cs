@@ -23,10 +23,7 @@
 using System;
 using System.Linq;
 
-using Rock.Attribute;
 using Rock.Data;
-using Rock.ViewModel;
-using Rock.Web.Cache;
 
 namespace Rock.Model
 {
@@ -57,51 +54,6 @@ namespace Rock.Model
             return true;
         }
     }
-
-    /// <summary>
-    /// RelatedEntity View Model Helper
-    /// </summary>
-    [DefaultViewModelHelper( typeof( RelatedEntity ) )]
-    public partial class RelatedEntityViewModelHelper : ViewModelHelper<RelatedEntity, Rock.ViewModel.RelatedEntityViewModel>
-    {
-        /// <summary>
-        /// Converts the model to a view model.
-        /// </summary>
-        /// <param name="model">The entity.</param>
-        /// <param name="currentPerson">The current person.</param>
-        /// <param name="loadAttributes">if set to <c>true</c> [load attributes].</param>
-        /// <returns></returns>
-        public override Rock.ViewModel.RelatedEntityViewModel CreateViewModel( RelatedEntity model, Person currentPerson = null, bool loadAttributes = true )
-        {
-            if ( model == null )
-            {
-                return default;
-            }
-
-            var viewModel = new Rock.ViewModel.RelatedEntityViewModel
-            {
-                Id = model.Id,
-                Guid = model.Guid,
-                IsSystem = model.IsSystem,
-                Order = model.Order,
-                PurposeKey = model.PurposeKey,
-                QualifierValue = model.QualifierValue,
-                SourceEntityId = model.SourceEntityId,
-                SourceEntityTypeId = model.SourceEntityTypeId,
-                TargetEntityId = model.TargetEntityId,
-                TargetEntityTypeId = model.TargetEntityTypeId,
-                CreatedDateTime = model.CreatedDateTime,
-                ModifiedDateTime = model.ModifiedDateTime,
-                CreatedByPersonAliasId = model.CreatedByPersonAliasId,
-                ModifiedByPersonAliasId = model.ModifiedByPersonAliasId,
-            };
-
-            AddAttributesToViewModel( model, viewModel, currentPerson, loadAttributes );
-            ApplyAdditionalPropertiesAndSecurityToViewModel( model, viewModel, currentPerson, loadAttributes );
-            return viewModel;
-        }
-    }
-
 
     /// <summary>
     /// Generated Extension Methods
@@ -159,12 +111,15 @@ namespace Rock.Model
         public static void CopyPropertiesFrom( this RelatedEntity target, RelatedEntity source )
         {
             target.Id = source.Id;
+            target.AdditionalSettingsJson = source.AdditionalSettingsJson;
             target.ForeignGuid = source.ForeignGuid;
             target.ForeignKey = source.ForeignKey;
             target.IsSystem = source.IsSystem;
+            target.Note = source.Note;
             target.Order = source.Order;
             target.PurposeKey = source.PurposeKey;
             target.QualifierValue = source.QualifierValue;
+            target.Quantity = source.Quantity;
             target.SourceEntityId = source.SourceEntityId;
             target.SourceEntityTypeId = source.SourceEntityTypeId;
             target.TargetEntityId = source.TargetEntityId;
@@ -177,20 +132,5 @@ namespace Rock.Model
             target.ForeignId = source.ForeignId;
 
         }
-
-        /// <summary>
-        /// Creates a view model from this entity
-        /// </summary>
-        /// <param name="model">The entity.</param>
-        /// <param name="currentPerson" >The currentPerson.</param>
-        /// <param name="loadAttributes" >Load attributes?</param>
-        public static Rock.ViewModel.RelatedEntityViewModel ToViewModel( this RelatedEntity model, Person currentPerson = null, bool loadAttributes = false )
-        {
-            var helper = new RelatedEntityViewModelHelper();
-            var viewModel = helper.CreateViewModel( model, currentPerson, loadAttributes );
-            return viewModel;
-        }
-
     }
-
 }

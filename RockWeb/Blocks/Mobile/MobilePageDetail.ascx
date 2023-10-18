@@ -20,6 +20,8 @@
                 <h3 class="panel-title"><i class="fa fa-mobile"></i> <asp:Literal ID="lPageName" runat="server" /></h3>
 
                 <div class="panel-labels">
+                    <Rock:HighlightLabel ID="hlInternalWebPage" runat="server" Text="Internal Web Page" LabelType="Warning" />
+                    <Rock:HighlightLabel ID="hlExternalWebPage" runat="server" Text="External Web Page" LabelType="Warning" />
                     <button id="btnCopyToClipboard" runat="server"
                         data-toggle="tooltip" data-placement="top" data-trigger="hover" data-delay="250" title="Copy Page Guid to Clipboard"
                         class="btn btn-info btn-xs btn-copy-to-clipboard"
@@ -30,8 +32,11 @@
             </div>
 
             <div class="panel-body">
+
+                <asp:Literal ID="lDescription" runat="server" />
+               
                 <div class="row">
-                    <asp:Literal ID="ltDetails" runat="server" />
+                    <asp:Literal ID="lDetails" runat="server" />
                 </div>
 
                 <div class="actions">
@@ -69,7 +74,8 @@
                     </div>
 
                     <div class="col-md-6">
-                        <Rock:RockCheckBox ID="cbDisplayInNavigation" runat="server" Label="Display In Navigation" ValidationGroup="EditPage" />
+                        <Rock:DataDropDownList ID="ddlMenuDisplayWhen" runat="server" Label="Display In Navigation When" SourceTypeName="Rock.Model.Page, Rock" PropertyName="DisplayInNavWhen"
+                            Help="When should a page display in navigation (Flyout menu, Tab bar)? 'Always' will display no matter what, 'When Allowed' will display only when the current individual has access to view the page and 'Never' will always hide page in navigation." />
                     </div>
                 </div>
 
@@ -79,40 +85,76 @@
                 <Rock:PanelWidget ID="pwEditAdvancedSettings" runat="server" Title="Advanced Settings">
                     <div class="row">
                         <div class="col-md-6">
-                            <Rock:DataTextBox ID="tbCssClass" runat="server"
-                                              SourceTypeName="Rock.Model.Page, Rock" PropertyName="BodyCssClass"
-                                              Label="Body CSS Class"
-                                              Help="The CSS class to add to the page." />
+                            <Rock:RockDropDownList ID="ddlPageType" runat="server"
+                                Label="Page Type"
+                                Required="true"
+                                ValidationGroup="EditPage"
+                                Help="The type of page to be displayed. A native page is controlled by the blocks on the page. A web page will send the user to a web browser to view the page url."
+                                OnSelectedIndexChanged="ddlPageType_SelectedIndexChanged"
+                                AutoPostBack="true" />
                         </div>
 
                         <div class="col-md-6">
-                            <asp:PlaceHolder ID="phContextPanel" runat="server">
-                                <fieldset>
-                                    <h4>Context Parameters</h4>
-                                    <p>
-                                        There are one or more blocks on this page that can load content based on a 'context' parameter.
-                                        Please enter the route parameter name or query string parameter name that will contain the id for
-                                        each of the objects below.
-                                    </p>
-                                    <asp:PlaceHolder ID="phContext" runat="server"></asp:PlaceHolder>
-                                </fieldset>
-                            </asp:PlaceHolder>
+                            <Rock:UrlLinkBox ID="tbWebPageUrl" runat="server"
+                                Label="Page URL"
+                                Required="true"
+                                ValidationGroup="EditPage"
+                                Help="The URL that the user will be sent to when opening this page." />
                         </div>
                     </div>
 
                     <div class="row">
                         <div class="col-md-6">
-                            <Rock:RockCheckBox ID="cbHideNavigationBar" runat="server" Label="Hide Navigation Bar" Help="Hides the Navigation Bar and makes the Status Bar background color transparent. Page content will reach to the top edge of the screen." />
-                        </div>
-
-                        <div class="col-md-6">
-                            <Rock:RockCheckBox ID="cbShowFullScreen" runat="server" Label="Show Full Screen" Help="When enabled the page will replace the entire shell to prevent the user from navigating via the flyout or tab bar." />
+                            <Rock:RockTextBox ID="tbRoute" runat="server"
+                                Label="Route"
+                                Help="The page route is used to match mobile pages with the web equivalent." />
                         </div>
                     </div>
 
-                    <Rock:CodeEditor ID="ceEventHandler" runat="server" Label="Event Handler" Help="The lava to execute on the client whenever a page event is triggered." EditorMode="Lava" />
+                    <asp:Panel ID="pnlNativePageAdvancedSettings" runat="server">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <Rock:DataTextBox ID="tbCssClass" runat="server"
+                                                  SourceTypeName="Rock.Model.Page, Rock" PropertyName="BodyCssClass"
+                                                  Label="Body CSS Class"
+                                                  Help="The CSS class to add to the page." />
+                            </div>
 
-                    <Rock:CodeEditor ID="ceCssStyles" runat="server" Label="Page Scoped CSS" EditorMode="Css" Help="CSS styles that will only be applied to elements on this page." />
+                            <div class="col-md-6">
+                                <asp:PlaceHolder ID="phContextPanel" runat="server">
+                                    <fieldset>
+                                        <h4>Context Parameters</h4>
+                                        <p>
+                                            There are one or more blocks on this page that can load content based on a 'context' parameter.
+                                            Please enter the route parameter name or query string parameter name that will contain the id for
+                                            each of the objects below.
+                                        </p>
+                                        <asp:PlaceHolder ID="phContext" runat="server"></asp:PlaceHolder>
+                                    </fieldset>
+                                </asp:PlaceHolder>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6">
+                                <Rock:RockCheckBox ID="cbHideNavigationBar" runat="server" Label="Hide Navigation Bar" Help="Hides the Navigation Bar and makes the Status Bar background color transparent. Page content will reach to the top edge of the screen." />
+                            </div>
+
+                            <div class="col-md-6">
+                                <Rock:RockCheckBox ID="cbShowFullScreen" runat="server" Label="Show Full Screen" Help="When enabled the page will replace the entire shell to prevent the user from navigating via the flyout or tab bar." />
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6">
+                                <Rock:RockCheckBox ID="cbAutoRefresh" runat="server" Label="Auto Refresh" Help="When enabled the page will automatically reload whenever it becomes visible." />
+                            </div>
+                        </div>
+
+                        <Rock:CodeEditor ID="ceEventHandler" runat="server" Label="Event Handler" Help="The lava to execute on the client whenever a page event is triggered." EditorMode="Lava" />
+
+                        <Rock:CodeEditor ID="ceCssStyles" runat="server" Label="Page Scoped CSS" EditorMode="Css" Help="CSS styles that will only be applied to elements on this page." />
+                    </asp:Panel>
                 </Rock:PanelWidget>
 
                 <div class="actions">
@@ -250,6 +292,16 @@
             if (reorderOldIndex !== newIndex || reorderOldZone !== zone) {
                 var postback = "javascript:__doPostBack('<%= lbDragCommand.ClientID %>', 'reorder-block|" + zone + "|" + blockId + "|" + newIndex + "')";
                 window.location = postback;
+            }
+        });
+
+        // Auto-fill in the internal name if it's blank after they have typed in
+        // the public name.
+        var $tbName = $("#<%= tbName.ClientID %>");
+        var $tbInternalName = $("#<%= tbInternalName.ClientID %>");
+        $tbName.on("blur", function () {
+            if ($tbName.val() !== "" && $tbInternalName.val() === "") {
+                $tbInternalName.val($tbName.val());
             }
         });
     });

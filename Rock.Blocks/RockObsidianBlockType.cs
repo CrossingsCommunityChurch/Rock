@@ -15,7 +15,10 @@
 // </copyright>
 //
 
-using System.Linq;
+using System;
+using System.Collections.Generic;
+
+using Rock.Web.Cache;
 
 namespace Rock.Blocks
 {
@@ -23,157 +26,25 @@ namespace Rock.Blocks
     /// Client Block Type
     /// </summary>
     /// <seealso cref="Rock.Blocks.RockBlockType" />
-    /// <seealso cref="IRockClientBlockType" />
+    /// <seealso cref="IRockObsidianBlockType" />
+    [Obsolete( "Use RockBlockType instead." )]
+    [RockObsolete( "1.16" )]
     public abstract class RockObsidianBlockType : RockBlockType, IRockObsidianBlockType
     {
-        #region Properties
-
-        /// <summary>
-        /// The browser not supported markup that will be displayed on the
-        /// browser if it is not supported.
-        /// </summary>
-        /// <remarks>
-        /// This might eventually become a virtual property to allow subclasses
-        /// to customize the error message.
-        /// </remarks>
-        private const string BrowserNotSupportedMarkup = @"<div class=""alert alert-warning"">
-    It looks like you are using a browser that is not supported, you will need to update before using this feature.
-</div>";
-
-        /// <summary>
-        /// Gets the client block identifier.
-        /// </summary>
-        /// <value>
-        /// The client block identifier.
-        /// </value>
-        public virtual string BlockFileUrl
-        {
-            get
-            {
-                var type = GetType();
-                var lastNamespace = type.Namespace.Split( '.' ).Last();
-                var fileName = $"{type.Name.Substring( 0, 1 ).ToLower()}{type.Name.Substring( 1 )}";
-
-                return $"/Obsidian/Blocks/{lastNamespace}/{fileName}";
-            }
-        }
-
-        #endregion Properties
-
         #region Methods
 
         /// <summary>
-        /// Returns a page parameter.
+        /// Gets any non-empty EntityTypeQualifiedColumn values for the entity
+        /// specified by the generic type. If this entity type has no attributes
+        /// with qualified columns then an empty list will be returned.
         /// </summary>
-        /// <param name="name">The name.</param>
-        /// <returns></returns>
-        public string PageParameter( string name )
+        /// <typeparam name="TEntity">The type of the entity whose attributes will be inspected.</typeparam>
+        /// <returns>A list of distinct EntityTypeQualifiedColumn values for <typeparamref name="TEntity"/>.</returns>
+        [RockObsolete( "1.16" )]
+        [Obsolete( "Use the GetAttributeQualifiedColumns method on AttributeCache instead.")]
+        protected List<string> GetAttributeQualifiedColumns<TEntity>()
         {
-            return RequestContext?.GetPageParameter( name );
-        }
-
-        /// <summary>
-        /// Gets the property values that will be sent to the block.
-        /// </summary>
-        /// <param name="clientType"></param>
-        /// <returns>
-        /// A collection of string/object pairs.
-        /// </returns>
-        public override object GetBlockInitialization( RockClientType clientType )
-        {
-            if ( clientType == RockClientType.Web )
-            {
-                return GetObsidianBlockInitialization();
-            }
-
-            return null;
-        }
-
-        /// <summary>
-        /// Gets the property values that will be sent to the browser and available to the client side code as it initializes.
-        /// </summary>
-        /// <returns>
-        /// A collection of string/object pairs.
-        /// </returns>
-        public virtual object GetObsidianBlockInitialization()
-        {
-            return null;
-        }
-
-        /// <summary>
-        /// Renders the control.
-        /// </summary>
-        /// <returns></returns>
-        public string GetControlMarkup()
-        {
-            var rootElementId = $"obsidian-{BlockCache.Guid}";
-
-            if ( !IsBrowserSupported() )
-            {
-                return BrowserNotSupportedMarkup;
-            }
-
-            return
-$@"<div id=""{rootElementId}""></div>
-<script type=""text/javascript"">
-Obsidian.onReady(() => {{
-    System.import('/Obsidian/Index.js').then(indexModule => {{
-        indexModule.initializeBlock({{
-            blockFileUrl: '{BlockFileUrl}',
-            rootElement: document.getElementById('{rootElementId}'),
-            blockGuid: '{BlockCache.Guid}',
-            configurationValues: {GetBlockInitialization( RockClientType.Web ).ToCamelCaseJson( false, true )}
-        }});
-    }});
-}});
-</script>";
-        }
-
-        /// <summary>
-        /// Determines whether the client browser is supported by this block.
-        /// </summary>
-        /// <returns>
-        ///   <c>true</c> if the browser is supported; otherwise, <c>false</c>.
-        /// </returns>
-        /// <remarks>
-        /// In the future this might become a virtual method to allow for
-        /// stricter checks by subclasses.
-        /// </remarks>
-        private bool IsBrowserSupported()
-        {
-            var browser = RequestContext.ClientInformation.Browser;
-
-            var family = browser.UA.Family;
-            var major = browser.UA.Major.AsIntegerOrNull();
-
-            // Logic taken from https://caniuse.com/?search=es6
-            // Vue 3 uses ES6 functionality heavily.
-
-            if ( major.HasValue )
-            {
-                if ( ( family == "Chrome" || family == "Chromium" ) && major.Value < 51 )
-                {
-                    return false;
-                }
-                else if ( family == "Edge" && major.Value < 15 )
-                {
-                    return false;
-                }
-                else if ( family == "Firefox" && major.Value < 54 )
-                {
-                    return false;
-                }
-                else if ( family == "IE" )
-                {
-                    return false;
-                }
-                else if ( ( family == "Safari" || family == "Mobile Safari" ) && major.Value < 10 )
-                {
-                    return false;
-                }
-            }
-
-            return true;
+            return AttributeCache.GetAttributeQualifiedColumns<TEntity>();
         }
 
         #endregion Methods

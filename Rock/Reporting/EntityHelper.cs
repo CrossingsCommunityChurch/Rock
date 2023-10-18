@@ -314,12 +314,13 @@ namespace Rock.Reporting
                 }
                 else if ( entityType == typeof( ConnectionRequest ) )
                 {
-                    // in the case of Connection Requests, show attributes that are entity global, but also ones that are qualified by ConnectionOpportunityId
+                    // in the case of Connection Requests, show attributes that are entity global, but also ones that are qualified by ConnectionOpportunityId or ConnectionTypeId
                     cacheAttributeList = cacheAttributeList
                             .Where( a =>
                                 a.EntityTypeQualifierColumn == null ||
                                 a.EntityTypeQualifierColumn == string.Empty ||
-                                a.EntityTypeQualifierColumn == "ConnectionOpportunityId"
+                                a.EntityTypeQualifierColumn == "ConnectionOpportunityId" ||
+                                a.EntityTypeQualifierColumn == "ConnectionTypeId"
                                 );
                 }
                 else if ( entityType == typeof( Registration ) )
@@ -355,7 +356,7 @@ namespace Rock.Reporting
                 }
                 else if ( entityType == typeof( Note ) )
                 {
-                    // in the case of Connection Requests, show attributes that are entity global, but also ones that are qualified by ConnectionOpportunityId
+                    // in the case of notes, show attributes that are entity global, but also ones that are qualified by ConnectionOpportunityId
                     cacheAttributeList = cacheAttributeList
                             .Where( a =>
                                 a.EntityTypeQualifierColumn == null ||
@@ -368,7 +369,7 @@ namespace Rock.Reporting
                     cacheAttributeList = cacheAttributeList.Where( a => string.IsNullOrEmpty( a.EntityTypeQualifierColumn ) && string.IsNullOrEmpty( a.EntityTypeQualifierValue ) ).ToList();
                 }
 
-                EntityHelper.AddEntityFieldsForAttributeList( entityFields, cacheAttributeList.ToList() );
+                EntityHelper.AddEntityFieldsForAttributeList( entityFields, cacheAttributeList.ToList(), limitToFilterableFields );
 
             }
 
@@ -430,7 +431,7 @@ namespace Rock.Reporting
         /// <param name="entityFields">The entity fields.</param>
         /// <param name="attribute">The attribute.</param>
         /// <param name="limitToFilterableAttributes">if set to <c>true</c> [limit to filterable attributes].</param>
-        [Obsolete( "Use AddEntityFieldsForAttributeList instead" )]
+        [Obsolete( "Use AddEntityFieldsForAttributeList instead", true )]
         [RockObsolete( "1.10" )]
         public static void AddEntityFieldForAttribute( List<EntityField> entityFields, AttributeCache attribute, bool limitToFilterableAttributes = true )
         {

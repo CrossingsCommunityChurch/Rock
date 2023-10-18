@@ -42,6 +42,7 @@ namespace RockWeb.Blocks.Communication
 
     [LinkedPage( "Detail Page",
         Key = AttributeKey.DetailPage )]
+    [Rock.SystemGuid.BlockTypeGuid( Rock.SystemGuid.BlockType.SYSTEM_COMMUNICATION_LIST )]
     public partial class SystemCommunicationList : RockBlock, ICustomGridColumns
     {
         #region Attribute Keys
@@ -171,10 +172,10 @@ namespace RockWeb.Blocks.Communication
         protected void rFilter_ApplyFilterClick( object sender, EventArgs e )
         {
             int? categoryId = cpCategory.SelectedValueAsInt();
-            rFilter.SaveUserPreference( FilterSettingName.Category, categoryId.HasValue ? categoryId.Value.ToString() : "" );
+            rFilter.SetFilterPreference( FilterSettingName.Category, categoryId.HasValue ? categoryId.Value.ToString() : "" );
 
-            rFilter.SaveUserPreference( FilterSettingName.Supports, ddlSupports.SelectedValue );
-            rFilter.SaveUserPreference( FilterSettingName.Active, ddlActiveFilter.SelectedValue );
+            rFilter.SetFilterPreference( FilterSettingName.Supports, ddlSupports.SelectedValue );
+            rFilter.SetFilterPreference( FilterSettingName.Active, ddlActiveFilter.SelectedValue );
 
             BindGrid();
         }
@@ -262,10 +263,11 @@ namespace RockWeb.Blocks.Communication
         protected void gEmailTemplates_RowDataBound( object sender, GridViewRowEventArgs e )
         {
             var lSupports = e.Row.FindControl( "lSupports" ) as Literal;
+            var lEmailPreview = e.Row.FindControl( "lEmailPreview" ) as Literal;
 
             var systemCommunication = e.Row.DataItem as SystemCommunication;
 
-            if ( lSupports == null || systemCommunication == null )
+            if ( systemCommunication == null )
             {
                 return;
             }
@@ -282,7 +284,19 @@ namespace RockWeb.Blocks.Communication
             }
 
             lSupports.Text = html.ToString();
-        }
+
+            var page = PageCache.Get( Rock.SystemGuid.Page.SYSTEM_COMMUNICATION_PREVIEW.AsGuid() );
+
+            if ( page != null )
+            {
+                var route = new PageRouteService( new RockContext() ).GetByPageId( page.Id ).First();
+                if ( route != null )
+                {
+                    var url = ResolveRockUrl( $"~/{route.Route}/?SystemCommunicationId={systemCommunication.Id}" );
+                    lEmailPreview.Text = $"<a href='{url}' title='Preview' class='btn btn-default btn-sm'><i class='fa fa-search'></i></a>";
+                }
+                }
+            }
 
         #endregion
 
@@ -310,12 +324,12 @@ namespace RockWeb.Blocks.Communication
         /// </summary>
         private void BindFilter()
         {
-            int? categoryId = rFilter.GetUserPreference( FilterSettingName.Category ).AsIntegerOrNull();
+            int? categoryId = rFilter.GetFilterPreference( FilterSettingName.Category ).AsIntegerOrNull();
             cpCategory.SetValue( categoryId );
 
-            ddlActiveFilter.SetValue( rFilter.GetUserPreference( FilterSettingName.Active ) );
+            ddlActiveFilter.SetValue( rFilter.GetFilterPreference( FilterSettingName.Active ) );
 
-            ddlSupports.SetValue( rFilter.GetUserPreference( FilterSettingName.Supports ) );
+            ddlSupports.SetValue( rFilter.GetFilterPreference( FilterSettingName.Supports ) );
         }
 
         /// <summary>
@@ -329,14 +343,14 @@ namespace RockWeb.Blocks.Communication
             var systemCommunicationsQuery = SystemCommunicationService.Queryable( "Category" );
 
             // Filter By: Category
-            int? categoryId = rFilter.GetUserPreference( FilterSettingName.Category ).AsIntegerOrNull();
+            int? categoryId = rFilter.GetFilterPreference( FilterSettingName.Category ).AsIntegerOrNull();
             if ( categoryId.HasValue )
             {
                 systemCommunicationsQuery = systemCommunicationsQuery.Where( a => a.CategoryId.HasValue && a.CategoryId.Value == categoryId.Value );
             }
 
             // Filter By: Is Active
-            var activeFilter = rFilter.GetUserPreference( FilterSettingName.Active );
+            var activeFilter = rFilter.GetFilterPreference( FilterSettingName.Active );
             switch ( activeFilter )
             {
                 case "Active":
@@ -348,7 +362,7 @@ namespace RockWeb.Blocks.Communication
             }
 
             // Filter By: Supports (Email|SMS)
-            var supports = rFilter.GetUserPreference( FilterSettingName.Supports );
+            var supports = rFilter.GetFilterPreference( FilterSettingName.Supports );
             switch ( supports )
             {
                 case NotificationTypeSupportedFilterValueSpecifier.SMS:

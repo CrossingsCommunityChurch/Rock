@@ -81,6 +81,8 @@ namespace Rock.SystemGuid
         /// <br />
         /// The DefinedValue.Description will just be any description, such as 'Rock Solid Church SMS Number'.
         /// </summary>
+        [Obsolete( "Use the new SystemPhoneNumber model." )]
+        [RockObsolete( "1.15" )]
         public const string COMMUNICATION_SMS_FROM = "611BDE1F-7405-4D16-8626-CCFEDB0E62BE";
 
         /// <summary>
@@ -97,6 +99,11 @@ namespace Rock.SystemGuid
         /// Guid for check-in search type
         /// </summary>
         public const string CHECKIN_SEARCH_TYPE = "1EBCDB30-A89A-4C14-8580-8289EC2C7742";
+
+        /// <summary>
+        /// Guid for data automation ignored person attributes
+        /// </summary>
+        public const string DATA_AUTOMATION_IGNORED_PERSON_ATTRIBUTES = "886CDB4E-ED8B-48DD-A4CC-D615E032E622";
 
         /// <summary>
         /// Guid for Device Type
@@ -129,19 +136,24 @@ namespace Rock.SystemGuid
         public const string EXTERNAL_APPLICATION = "1FAC459C-5F62-4E7C-8933-61FF9FE2DFEF";
 
         /// <summary>
-        /// Guid for Financial Currency Type
+        /// Guid for the types of External Links
         /// </summary>
-        public const string FINANCIAL_ACCOUNT_TYPE = "752DA126-471F-4221-8503-5297593C99FF";
-		
+        public const string EXTERNAL_LINK_TYPE = "D42C1A05-6504-4BDE-BBB7-0EC99A7FB632";
+
         /// <summary>
         /// Guid for Financial Currency Type
         /// </summary>
-        public const string FINANCIAL_CURRENCY_TYPE =  "1D1304DE-E83A-44AF-B11D-0C66DD600B81"; 
+        public const string FINANCIAL_ACCOUNT_TYPE = "752DA126-471F-4221-8503-5297593C99FF";
+
+        /// <summary>
+        /// Guid for Financial Currency Type
+        /// </summary>
+        public const string FINANCIAL_CURRENCY_TYPE = "1D1304DE-E83A-44AF-B11D-0C66DD600B81";
 
         /// <summary>
         /// Guid for Financial Credit Card Type
         /// </summary>
-        public const string FINANCIAL_CREDIT_CARD_TYPE =  "2BD4FFB0-6C7F-4890-8D08-00F0BB7B43E9";
+        public const string FINANCIAL_CREDIT_CARD_TYPE = "2BD4FFB0-6C7F-4890-8D08-00F0BB7B43E9";
 
         /// <summary>
         /// Guid for Financial Frequency 
@@ -156,7 +168,7 @@ namespace Rock.SystemGuid
         /// <summary>
         /// Guid for Financial Source Type
         /// </summary>
-        public const string FINANCIAL_SOURCE_TYPE =  "4F02B41E-AB7D-4345-8A97-3904DDD89B01";
+        public const string FINANCIAL_SOURCE_TYPE = "4F02B41E-AB7D-4345-8A97-3904DDD89B01";
 
         /// <summary>
         /// Guid for Financial Transaction Type
@@ -181,7 +193,7 @@ namespace Rock.SystemGuid
         /// <summary>
         /// Guid for the types of Group Locations (such as Home, Main Office, etc)
         /// </summary>
-        public const string GROUP_LOCATION_TYPE =  "2E68D37C-FB7B-4AA5-9E09-3785D52156CB";
+        public const string GROUP_LOCATION_TYPE = "2E68D37C-FB7B-4AA5-9E09-3785D52156CB";
 
         /// <summary>
         /// Guid for GroupType Purpose
@@ -209,6 +221,16 @@ namespace Rock.SystemGuid
         public const string LAVA_SHORTCODES = "3B1AF656-7AEF-52A8-4E2C-5EFF75A1A23A";
 
         /// <summary>
+        /// Guid for the types of Library Content
+        /// </summary>
+        public const string LIBRARY_CONTENT_TYPE = "C23B34D6-91D7-4FC5-AA80-E68A62288A05";
+
+        /// <summary>
+        /// Guid for the types of Library Licenses
+        /// </summary>
+        public const string LIBRARY_LICENSE_TYPE = "83FB89B4-205A-41D6-A798-A81F12E6CDB0";
+
+        /// <summary>
         /// Guid for Default link list
         /// </summary>
         public const string LINKLIST_DEFAULT_LIST = "7E7969BD-945C-4472-8A80-889EF5833776";
@@ -231,7 +253,7 @@ namespace Rock.SystemGuid
         /// <summary>
         /// Guid for Content Channel Audience Type (formally called Marketing Campaign)
         /// </summary>
-        public const string MARKETING_CAMPAIGN_AUDIENCE_TYPE =  "799301A3-2026-4977-994E-45DC68502559";
+        public const string MARKETING_CAMPAIGN_AUDIENCE_TYPE = "799301A3-2026-4977-994E-45DC68502559";
 
         /// <summary>
         /// Metric Source Type
@@ -251,22 +273,22 @@ namespace Rock.SystemGuid
         /// <summary>
         /// Guid for the types of Person Records (such as person, business, etc.)
         /// </summary>
-        public const string PERSON_RECORD_TYPE =  "26be73a6-a9c5-4e94-ae00-3afdcf8c9275";
+        public const string PERSON_RECORD_TYPE = "26be73a6-a9c5-4e94-ae00-3afdcf8c9275";
 
         /// <summary>
         /// Guid for the types of Person Record Statuses (such as active, inactive, pending, etc.)
         /// </summary>
-        public const string PERSON_RECORD_STATUS =  "8522badd-2871-45a5-81dd-c76da07e2e7e";
+        public const string PERSON_RECORD_STATUS = "8522badd-2871-45a5-81dd-c76da07e2e7e";
 
         /// <summary>
         /// Guid for the types of Person Record Status Reasons (such as deceased, moved, etc.)
         /// </summary>
-        public const string PERSON_RECORD_STATUS_REASON =  "e17d5988-0372-4792-82cf-9e37c79f7319";
+        public const string PERSON_RECORD_STATUS_REASON = "e17d5988-0372-4792-82cf-9e37c79f7319";
 
         /// <summary>
         /// Guid for the person's connection status (such as member, attendee, participant, etc.)
         /// </summary>
-        public const string PERSON_CONNECTION_STATUS =  "2e6540ea-63f0-40fe-be50-f2a84735e600";
+        public const string PERSON_CONNECTION_STATUS = "2e6540ea-63f0-40fe-be50-f2a84735e600";
 
         /// <summary>
         /// Guid for the reasons a person record needs to be reviewed
@@ -276,22 +298,22 @@ namespace Rock.SystemGuid
         /// <summary>
         /// Guid for the types of Person Titles (such as Mr., Mrs., Dr., etc.)
         /// </summary>
-        public const string PERSON_TITLE =  "4784cd23-518b-43ee-9b97-225bf6e07846";
+        public const string PERSON_TITLE = "4784cd23-518b-43ee-9b97-225bf6e07846";
 
         /// <summary>
         /// Guid for the types of Person Suffixes (such as Jr., Sr., etc.)
         /// </summary>
-        public const string PERSON_SUFFIX =  "16f85b3c-b3e8-434c-9094-f3d41f87a740";
+        public const string PERSON_SUFFIX = "16f85b3c-b3e8-434c-9094-f3d41f87a740";
 
         /// <summary>
         /// Guid for the types of Person Marital Statuses (such as Married, Single, Divorced, Widowed, etc.)
         /// </summary>
-        public const string PERSON_MARITAL_STATUS =  "b4b92c3f-a935-40e1-a00b-ba484ead613b";
+        public const string PERSON_MARITAL_STATUS = "b4b92c3f-a935-40e1-a00b-ba484ead613b";
 
         /// <summary>
         /// Guid for the types of Person phone numbers (such as Primary, Secondary, etc.)
         /// </summary>
-        public const string PERSON_PHONE_TYPE =  "8345DD45-73C6-4F5E-BEBD-B77FC83F18FD";
+        public const string PERSON_PHONE_TYPE = "8345DD45-73C6-4F5E-BEBD-B77FC83F18FD";
 
         /// <summary>
         /// Guid for the types of possible check-in system ability levels (such as Infant, Crawler, etc.)
@@ -322,7 +344,7 @@ namespace Rock.SystemGuid
         /// Protect My Ministry MVR jurisdiction codes
         /// </summary>
         public const string PROTECT_MY_MINISTRY_MVR_JURISDICTION_CODES = "2F8821E8-05B9-4CD5-9FA4-303662AAC85D";
-        
+
         /// <summary>
         /// Template Block
         /// </summary>
@@ -332,6 +354,11 @@ namespace Rock.SystemGuid
         /// Template
         /// </summary>
         public const string TEMPLATE = "A6E267E2-66A4-44D7-A5C9-9399666CBF95";
+
+        /// <summary>
+        /// Campus Topic Type
+        /// </summary>
+        public const string TOPIC_TYPE = "41141100-8fc6-44bb-aa36-9778eeda7f62";
 
         /// <summary>
         /// Guid for the types of map styles
@@ -364,14 +391,19 @@ namespace Rock.SystemGuid
         public const string SCHOOL_GRADES = "24E5A79F-1E62-467A-AD5D-0D10A2328B4D";
 
         /// <summary>
+        /// The section types defined type, which has values that determine the CSS class to apply to the section div.
+        /// </summary>
+        public const string SECTION_TYPE = "A72D940B-2A69-44B8-931C-7FE99824D84C";
+
+        /// <summary>
         /// Used to manage the topic options for small groups.
         /// </summary>
         public const string SMALL_GROUP_TOPIC = "D4111631-6B42-1CBD-4019-427D6BC6F475";
 
         /// <summary>
-		/// The Spiritual Gifts
-		/// </summary>
-		public const string SPIRITUAL_GIFTS = "9D9628F0-7FC5-411E-B9DF-740AA17689A0";
+        /// The Spiritual Gifts
+        /// </summary>
+        public const string SPIRITUAL_GIFTS = "9D9628F0-7FC5-411E-B9DF-740AA17689A0";
 
         /// <summary>
         /// Guid for Structured Content Editor Tools
@@ -434,10 +466,35 @@ namespace Rock.SystemGuid
         public const string LANGUAGES = "6060ba8b-4085-4a29-bf19-a4862b95556a";
 
         /// <summary>
+        /// The apple device models
+        /// </summary>
+        public const string APPLE_DEVICE_MODELS = "DAE31F78-7AB9-4ACE-9EE1-C1E6A734562C";
+
+        /// <summary>
+        /// A person's race
+        /// </summary>
+        public const string PERSON_RACE = "A6E2518F-8DBB-4C60-BA17-05768EC68EA5";
+
+        /// <summary>
+        /// A person's ethnicity
+        /// </summary>
+        public const string PERSON_ETHNICITY = "79C8AA9A-507C-454B-AFC8-7A9464298A6E";
+
+        /// <summary>
+        /// Guid for the types of Projects (such as In-Person, Project Due, etc.)
+        /// </summary>
+        public const string PROJECT_TYPE = "B7842AF3-6F04-495E-9A6C-F403D06C02F3";
+
+        /// <summary>
+        /// Lists checklist items to be completed by the administrator after installs and updates.
+        /// </summary>
+        public const string ADMINISTRATOR_CHECKLIST = "4BF34677-37E9-4E71-BD03-252B66C9373D";
+
+        /// <summary>
         /// The statement generator lava template (Legacy)
         /// </summary>
-        [Obsolete( "Use FinancialStatementTemplate instead" )]
-        [RockObsolete( "1.12.4" )]
+        [Obsolete("Use FinancialStatementTemplate instead")]
+        [RockObsolete("1.12.4")]
         public const string STATEMENT_GENERATOR_LAVA_TEMPLATE_LEGACY = "74A23516-A20A-40C9-93B5-1AB5FDFF6750";
     }
 }

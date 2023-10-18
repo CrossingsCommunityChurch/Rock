@@ -34,6 +34,14 @@ namespace Rock.Data
     /// Operations that write to the database are not allowed.
     /// </para>
     /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         <strong>This is an internal class</strong> that supports the Rock
+    ///         infrastructure and not subject to the same compatibility standards
+    ///         as public classes. It may be changed or removed without notice in any
+    ///         release and should therefore not be directly used in any plug-ins.
+    ///     </para>
+    /// </remarks>
     public class RockContextReadOnly : RockContext
     {
         /// <summary>
@@ -60,7 +68,7 @@ namespace Rock.Data
         internal protected RockContextReadOnly( RockContext rockContext )
             : base( ( rockContext as IObjectContextAdapter ).ObjectContext, true )
         {
-            // The ObjectContext contructor needs to know whether we own the ObjectContext
+            // The ObjectContext constructor needs to know whether we own the ObjectContext
             // or if it should take care of disposing itself.
             // In this case, we want to use the instance of the ObjectContext
             // that a normal RockContext would use.

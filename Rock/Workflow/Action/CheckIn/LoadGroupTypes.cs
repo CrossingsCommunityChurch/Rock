@@ -32,6 +32,7 @@ namespace Rock.Workflow.Action.CheckIn
     [Description( "Loads the group types allowed for each person in a family" )]
     [Export(typeof(ActionComponent))]
     [ExportMetadata( "ComponentName", "Load Group Types" )]
+    [Rock.SystemGuid.EntityTypeGuid( "50D5D915-074A-41FB-9EA7-0DBE52141398")]
     public class LoadGroupTypes : CheckInActionComponent
     {
         /// <summary>
@@ -58,9 +59,17 @@ namespace Rock.Workflow.Action.CheckIn
                             {
                                 if ( !person.GroupTypes.Any( g => g.GroupType.Id == kioskGroupType.GroupType.Id ) )
                                 {
-                                    var checkinGroupType = new CheckInGroupType();
-                                    checkinGroupType.GroupType = kioskGroupType.GroupType;
-                                    person.GroupTypes.Add( checkinGroupType );
+                                    var currentDateTime = RockDateTime.Now.Date;
+                                    var hasExclusions = kioskGroupType.GroupType.GroupScheduleExclusions.Where( e => currentDateTime >= e.Start && currentDateTime <= e.End ).Any();
+                                    if ( !hasExclusions )
+                                    {
+                                        var checkinGroupType = new CheckInGroupType
+                                        {
+                                            GroupType = kioskGroupType.GroupType
+                                        };
+
+                                        person.GroupTypes.Add( checkinGroupType );
+                                    }
                                 }
                             }
                         }

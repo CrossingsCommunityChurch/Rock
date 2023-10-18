@@ -1,4 +1,4 @@
-﻿// <copyright>
+// <copyright>
 // Copyright by the Spark Development Network
 //
 // Licensed under the Rock Community License (the "License");
@@ -36,6 +36,7 @@ namespace Rock.Reporting.DataFilter.ConnectionRequest
     [Description( "Filtering on the type of group that the selected placement group is." )]
     [Export( typeof( DataFilterComponent ) )]
     [ExportMetadata( "ComponentName", "Placement Group Type Filter" )]
+    [Rock.SystemGuid.EntityTypeGuid( "86E66450-2873-4BB4-A42D-D340837F5911")]
     public class PlacementGroupTypeFilter : DataFilterComponent
     {
         #region Properties
@@ -132,7 +133,7 @@ function() {
             GroupTypePicker groupTypePicker = new GroupTypePicker();
             groupTypePicker.ID = filterControl.ID + "_groupTypePicker";
             groupTypePicker.Label = "Placement Group Type";
-            groupTypePicker.GroupTypes = new GroupTypeService( new RockContext() ).Queryable().OrderBy( a => a.Order ).ThenBy( a => a.Name ).ToList();
+            groupTypePicker.GroupTypes = new GroupTypeService( new RockContext() ).Queryable().ToList();
             filterControl.Controls.Add( groupTypePicker );
 
             return new Control[] { groupTypePicker };

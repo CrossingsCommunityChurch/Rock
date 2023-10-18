@@ -156,6 +156,7 @@ namespace RockWeb.Blocks.CheckIn
         Category = "Manager Settings",
         Order = 21 )]
 
+    [Rock.SystemGuid.BlockTypeGuid( "E1BBB48E-9E9A-4B69-B25C-820ABD9DCDEE" )]
     public partial class Welcome : CheckInBlock
     {
         private readonly string _defaultScanButtonText = "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 426 340.8\"><path d=\"M74 0H11A11 11 0 000 11v62a11 11 0 0010 11 11 11 0 0011-10V21h52a11 11 0 0011-10A11 11 0 0074 0zm-1 320H21v-52a11 11 0 00-10-11 11 11 0 00-11 11v63a11 11 0 0011 10h63a11 11 0 0010-11 11 11 0 00-11-10zM416 0h-63a11 11 0 00-11 10 11 11 0 0011 11h52v52a11 11 0 0010 11 11 11 0 0011-10V11a11 11 0 00-10-11zm-11 268v52h-52a11 11 0 00-11 10 11 11 0 0011 11h63a11 11 0 0010-10v-63a11 11 0 00-11-11 11 11 0 00-10 11zM64 76v189a11 11 0 0010 10 11 11 0 0011-10V76a11 11 0 00-11-11 11 11 0 00-10 11zm53-12h21a11 11 0 0111 11v191a11 11 0 01-11 11h-21a11 11 0 01-11-11V75a11 11 0 0111-11zm54 12v189a11 11 0 0010 10 11 11 0 0011-10V76a11 11 0 00-11-11 11 11 0 00-10 11zm53-12h21a11 11 0 0111 11v191a11 11 0 01-11 11h-21a11 11 0 01-11-11V75a11 11 0 0111-11zm53 11v191a11 11 0 0010 11 11 11 0 0011-11V75a11 11 0 00-11-11 11 11 0 00-10 11zm53-11h21a11 11 0 0111 11v191a11 11 0 01-11 11h-21a11 11 0 01-11-11V75a11 11 0 0111-11z\"/></svg>";
@@ -215,7 +216,7 @@ namespace RockWeb.Blocks.CheckIn
 
             RockPage.AddScriptLink( "~/scripts/jquery.plugin.min.js" );
             RockPage.AddScriptLink( "~/scripts/jquery.countdown.min.js" );
-            
+
             var bodyTag = this.Page.Master.FindControl( "body" ) as HtmlGenericControl;
             if ( bodyTag != null )
             {
@@ -442,7 +443,7 @@ namespace RockWeb.Blocks.CheckIn
         {
             string checkinButtonText = GetAttributeValue( AttributeKey.CheckinButtonText ).IfEmpty( "Start" );
 
-            var mergeFields = Rock.Lava.LavaHelper.GetCommonMergeFields( this.RockPage, null, new Rock.Lava.CommonMergeFieldsOptions { GetLegacyGlobalMergeFields = false } );
+            var mergeFields = Rock.Lava.LavaHelper.GetCommonMergeFields( this.RockPage, null, new Rock.Lava.CommonMergeFieldsOptions() );
             mergeFields.Add( AttributeKey.CheckinButtonText, checkinButtonText );
             mergeFields.Add( "Kiosk", CurrentCheckInState.Kiosk );
             mergeFields.Add( "RegistrationModeEnabled", CurrentCheckInState.Kiosk.RegistrationModeEnabled );
@@ -456,13 +457,31 @@ namespace RockWeb.Blocks.CheckIn
             //
             // Include the camera button if it is enabled and the device supports it.
             //
-            var blockCameraMode = GetAttributeValue( AttributeKey.CameraBarcodeConfiguration ).ConvertToEnum<CameraBarcodeConfiguration>( CameraBarcodeConfiguration.Available );
-            var deviceHasCamera = CurrentCheckInState.Kiosk.Device.HasCamera;
-            var cameraMode = CurrentCheckInState.Kiosk.Device.CameraBarcodeConfigurationType ?? blockCameraMode;
-            cameraMode = deviceHasCamera ? cameraMode : CameraBarcodeConfiguration.Off;
+            var blockIPadCameraMode = GetAttributeValue( AttributeKey.CameraBarcodeConfiguration ).ConvertToEnum<CameraBarcodeConfiguration>( CameraBarcodeConfiguration.Available );
+            var device = CurrentCheckInState.Kiosk.Device;
+            var deviceHasCamera = device.HasCamera;
+            var iPadCameraMode = device.CameraBarcodeConfigurationType ?? blockIPadCameraMode;
 
-            hfIPadCameraMode.Value = cameraMode.ToString();
-            if ( pnlActive.Visible && cameraMode != CameraBarcodeConfiguration.Off )
+            // Determine if this device is specifically set to something besides IPad (null means we don't know for sure)
+            bool isNotIPad;
+            if ( device?.KioskType == null )
+            {
+                isNotIPad = false;
+            }
+            else
+            {
+                isNotIPad = ( device.KioskType.Value != KioskType.IPad );
+            }
+
+            bool html5CameraIsEnabled = device.HasCamera && device.KioskType.HasValue && device?.KioskType != KioskType.IPad && this.CurrentThemeSupportsHTML5Camera();
+            if ( html5CameraIsEnabled || isNotIPad || !deviceHasCamera )
+            {
+                // Note that if the HTML5Camera is enabled (even if we are really an IPad), disable the IPadCamera and use the HTML5 camera instead
+                iPadCameraMode = CameraBarcodeConfiguration.Off;
+            }
+
+            hfIPadCameraMode.Value = iPadCameraMode.ToString();
+            if ( pnlActive.Visible && ( html5CameraIsEnabled || iPadCameraMode != CameraBarcodeConfiguration.Off ) )
             {
                 var scanButtonText = GetAttributeValue( AttributeKey.ScanButtonText );
                 if ( scanButtonText.IsNullOrWhiteSpace() )
@@ -859,8 +878,81 @@ namespace RockWeb.Blocks.CheckIn
                 .Select( p => p.PersonId )
                 .Distinct();
 
+            var peopleCheckInIds = RetrievePeopleCanCheckIn( personIds.ToList(), rockContext );
+
+            personIds = personIds.AsQueryable().Concat( peopleCheckInIds );
+
             return personIds;
         }
+
+        private IQueryable<int> RetrievePeopleCanCheckIn(List<int> familyMemberIds, RockContext rockContext)
+        {
+            IQueryable<int> personIds = null;
+
+            var roles = GetRoles( rockContext );
+            var groupMemberService = new GroupMemberService( rockContext );
+
+            var knownRelationshipGroupType = GroupTypeCache.Get( Rock.SystemGuid.GroupType.GROUPTYPE_KNOWN_RELATIONSHIPS.AsGuid() );
+            if ( knownRelationshipGroupType != null )
+            {
+                var ownerRole = knownRelationshipGroupType.Roles.FirstOrDefault( r => r.Guid == Rock.SystemGuid.GroupRole.GROUPROLE_KNOWN_RELATIONSHIPS_OWNER.AsGuid() );
+                if ( ownerRole != null )
+                {
+                    // Get the Known Relationship group id's for each person in the family
+                    var relationshipGroupIds = groupMemberService
+                        .Queryable().AsNoTracking()
+                        .Where( g =>
+                            g.GroupRoleId == ownerRole.Id &&
+                            familyMemberIds.Contains( g.PersonId ) )
+                        .Select( g => g.GroupId );
+
+                    personIds = groupMemberService
+                        .Queryable().AsNoTracking()
+                        .Where( g =>
+                            relationshipGroupIds.Contains( g.GroupId ) &&
+                            roles.Contains( g.GroupRoleId ) )
+                        .Select( g => g.PersonId );
+                }
+            }
+            
+            return personIds;
+        }
+
+        /// <summary>
+        /// Gets the roles.
+        /// </summary>
+        /// <param name="rockContext">The rock context.</param>
+        /// <returns></returns>
+        private static List<int> GetRoles( RockContext rockContext )
+        {
+            string cacheKey = "Rock.FindRelationships.Roles";
+
+            List<int> roles = RockCache.Get( cacheKey ) as List<int>;
+
+            if ( roles == null )
+            {
+                roles = new List<int>();
+
+                foreach ( var role in new GroupTypeRoleService( rockContext )
+                    .Queryable().AsNoTracking()
+                    .Where( r => r.GroupType.Guid.Equals( new Guid( Rock.SystemGuid.GroupType.GROUPTYPE_KNOWN_RELATIONSHIPS ) ) ) )
+                {
+                    role.LoadAttributes( rockContext );
+                    if ( role.Attributes.ContainsKey( "CanCheckin" ) )
+                    {
+                        bool canCheckIn = false;
+                        if ( bool.TryParse( role.GetAttributeValue( "CanCheckin" ), out canCheckIn ) && canCheckIn )
+                        {
+                            roles.Add( role.Id );
+                        }
+                    }
+                }
+
+                RockCache.AddOrUpdate( cacheKey, null, roles, RockDateTime.Now.AddSeconds( 300 ) );
+            }
+
+            return roles;
+        } 
 
         #endregion
 

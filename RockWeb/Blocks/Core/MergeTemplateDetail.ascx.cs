@@ -41,6 +41,7 @@ namespace RockWeb.Blocks.Core
     [DisplayName( "Merge Template Detail" )]
     [Category( "Core" )]
     [Description( "Block for administrating a Merge Template" )]
+    [IconCssClass( "fa fa-question" )]
 
     [EnumField( "Merge Templates Ownership",
         Description = "Set this to restrict if the merge template must be a Personal or Global merge template. Note: If the user has EDIT authorization to this block, both Global and Personal templates can be edited regardless of this setting.",
@@ -49,7 +50,8 @@ namespace RockWeb.Blocks.Core
         DefaultValue = "Global",
         Key = AttributeKey.MergeTemplatesOwnership )]
 
-    public partial class MergeTemplateDetail : RockBlock, IDetailBlock
+    [Rock.SystemGuid.BlockTypeGuid( "820DE5F9-8391-4A2A-AA87-24156882BD5F" )]
+    public partial class MergeTemplateDetail : RockBlock
     {
         public static class AttributeKey
         {

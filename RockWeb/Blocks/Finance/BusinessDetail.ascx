@@ -1,12 +1,5 @@
 ﻿<%@ Control Language="C#" AutoEventWireup="true" CodeFile="BusinessDetail.ascx.cs" Inherits="RockWeb.Blocks.Finance.BusinessDetail" %>
 
-<style type="text/css">
-    .taglist {
-        margin-top: 15px;
-    }
-
-</style>
-
 <asp:UpdatePanel ID="upnlBusinesses" runat="server">
     <ContentTemplate>
         <asp:Panel ID="pnlDetails" runat="server">
@@ -17,6 +10,13 @@
                         <asp:Literal ID="lTitle" runat="server" /></h1>
                     <div class="panel-labels">
                         <Rock:HighlightLabel ID="hlStatus" runat="server" />
+
+                        <asp:Panel ID="pnlActionWrapper" runat="server" CssClass="js-button-dropdownlist panel-options pull-right dropdown-right btn-group">
+                            <button type="button" class="btn btn-default dropdown-toggle js-buttondropdown-btn-select" data-toggle="dropdown">Actions <i class="fa fa-caret-down"></i></button>
+                            <ul class="dropdown-menu">
+                                <asp:Literal ID="lActions" runat="server" />
+                            </ul>
+                        </asp:Panel>
                     </div>
                 </div>
                 <Rock:PanelDrawer ID="pdAuditDetails" runat="server"></Rock:PanelDrawer>
@@ -50,7 +50,7 @@
                                     </div>
                                     <div class="panel-body">
                                         <Rock:AddressControl ID="acAddress" runat="server" UseStateAbbreviation="true" UseCountryAbbreviation="false" />
-                                        <Rock:RockCheckBox ID="cbSaveFormerAddressAsPreviousAddress" runat="server" Text="Save former address as Previous address" />
+                                        <Rock:RockCheckBox ID="cbSaveFormerAddressAsPreviousAddress" runat="server" Text="Save Former Address As Previous Address" />
                                     </div>
                                 </div>
 
@@ -61,18 +61,14 @@
                                     </div>
                                     <div class="panel-body">
                                         <div class="row">
-                                            <div class="col-sm-6">
+                                            <div class="col-xs-12 col-sm-6">
                                                 <Rock:PhoneNumberBox ID="pnbPhone" runat="server" Label="Phone Number" CountryCode='<%# Eval("CountryCode") %>' Number='<%# Eval("NumberFormatted")  %>' />
                                             </div>
-                                            <div class="col-sm-6">
-                                                <div class="row">
-                                                    <div class="col-xs-6">
-                                                        <Rock:RockCheckBox ID="cbSms" runat="server" Text="SMS" Label="&nbsp;" Checked='<%# (bool)Eval("IsMessagingEnabled") %>' />
-                                                    </div>
-                                                    <div class="col-xs-6">
-                                                        <Rock:RockCheckBox ID="cbUnlisted" runat="server" Text="Unlisted" Label="&nbsp;" Checked='<%# (bool)Eval("IsUnlisted") %>' />
-                                                    </div>
-                                                </div>
+                                            <div class="col-xs-3">
+                                                <Rock:RockCheckBox ID="cbSms" runat="server" Text="SMS" Label="&nbsp;" Checked='<%# (bool)Eval("IsMessagingEnabled") %>' />
+                                            </div>
+                                            <div class="col-xs-3">
+                                                <Rock:RockCheckBox ID="cbUnlisted" runat="server" Text="Unlisted" Label="&nbsp;" Checked='<%# (bool)Eval("IsUnlisted") %>' />
                                             </div>
                                         </div>
                                         <Rock:EmailBox ID="tbEmail" runat="server" Label="Email Address" />
@@ -123,9 +119,9 @@
 
                     <%-- View Only panel --%>
                     <div id="pnlViewDetails" runat="server">
-                        <h1 class="title name"><asp:Literal ID="lViewPanelBusinessName" runat="server" /></h1>
+                        <h1 class="title name mt-0"><asp:Literal ID="lViewPanelBusinessName" runat="server" /></h1>
                         <Rock:BadgeListControl ID="blStatus" runat="server" />
-                        <Rock:TagList ID="taglPersonTags" runat="server" CssClass="clearfix taglist" />
+                        <Rock:TagList ID="taglPersonTags" runat="server" CssClass="tag-list mt-3 mb-2 clearfix" />
 
                         <fieldset id="fieldsetViewSummary" runat="server">
                             <div class="row">

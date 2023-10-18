@@ -17,23 +17,27 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+#if WEBFORMS
 using System.Web.UI;
 using System.Web.UI.WebControls;
-
+#endif
+using Rock.Attribute;
 using Rock.Constants;
 using Rock.Data;
 using Rock.Model;
 using Rock.Web.Cache;
 using Rock.Web.UI.Controls;
+using Rock.ViewModels.Utility;
 
 namespace Rock.Field.Types
 {
     /// <summary>
     /// Stored as Category.Guid
     /// </summary>
-    public class CategoryFieldType : FieldType, IEntityFieldType
+    [RockPlatformSupport( Utility.RockPlatform.WebForms, Utility.RockPlatform.Obsidian)]
+    [Rock.SystemGuid.FieldTypeGuid( Rock.SystemGuid.FieldType.CATEGORY )]
+    public class CategoryFieldType : FieldType, IEntityFieldType, IEntityReferenceFieldType
     {
-
         #region Configuration
 
         /// <summary>
@@ -50,6 +54,215 @@ namespace Rock.Field.Types
         /// Qualifier Value Key
         /// </summary>
         protected const string QUALIFIER_VALUE_KEY = "qualifierValue";
+
+        #endregion
+
+        #region Formatting
+
+        /// <inheritdoc/>
+        public override string GetTextValue( string privateValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            if ( this is CategoriesFieldType )
+            {
+                return privateValue;
+            }
+            else
+            {
+                if ( !string.IsNullOrWhiteSpace( privateValue ) )
+                {
+                    var category = CategoryCache.Get( privateValue.AsGuid() );
+                    if ( category != null )
+                    {
+                        return category.Name;
+                    }
+                }
+            }
+
+            return string.Empty;
+        }
+
+        /// <summary>
+        /// Returns the value using the most appropriate datatype
+        /// </summary>
+        /// <param name="value">The value.</param>
+        /// <param name="configurationValues">The configuration values.</param>
+        /// <returns></returns>
+        public override object ValueAsFieldType( string value, Dictionary<string, ConfigurationValue> configurationValues )
+        {
+            return value.AsGuidOrNull();
+        }
+
+        #endregion
+
+        #region Edit Control
+
+        /// <inheritdoc/>
+        public override string GetPublicValue( string privateValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            if ( Guid.TryParse( privateValue, out Guid categoryGuid ) )
+            {
+                var category = CategoryCache.Get( categoryGuid );
+
+                if ( category != null )
+                {
+                    return category.Name;
+                }
+            }
+
+            return string.Empty;
+        }
+
+        /// <inheritdoc/>
+        public override string GetPrivateEditValue( string publicValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            if ( string.IsNullOrWhiteSpace( publicValue ) )
+            {
+                return string.Empty;
+            }
+
+            var categoryValue = publicValue.FromJsonOrNull<ListItemBag>();
+
+            if ( categoryValue != null )
+            {
+                return categoryValue.Value;
+            }
+
+            return string.Empty;
+        }
+
+        /// <inheritdoc/>
+        public override string GetPublicEditValue( string privateValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            if ( Guid.TryParse( privateValue, out Guid categoryGuid ) )
+            {
+                var category = CategoryCache.Get( categoryGuid );
+
+                if ( category != null )
+                {
+                    return new ListItemBag()
+                    {
+                        Text = category.Name,
+                        Value = category.Guid.ToString()
+                    }.ToCamelCaseJson( false, true );
+                }
+            }
+
+            return string.Empty;
+        }
+
+        /// <inheritdoc/>
+        public override Dictionary<string, string> GetPrivateConfigurationValues( Dictionary<string, string> publicConfigurationValues )
+        {
+            var privateConfigurationValues = base.GetPrivateConfigurationValues( publicConfigurationValues );
+
+            if ( publicConfigurationValues.ContainsKey( ENTITY_TYPE_NAME_KEY ) )
+            {
+                var entityTypeNameValue = privateConfigurationValues[ENTITY_TYPE_NAME_KEY].FromJsonOrNull<ListItemBag>();
+                if ( entityTypeNameValue != null )
+                {
+                    var entityType = EntityTypeCache.Get( entityTypeNameValue.Value.AsGuid() );
+
+                    if ( entityType != null )
+                    {
+                        privateConfigurationValues[ENTITY_TYPE_NAME_KEY] = entityType.Name;
+                    }
+                }
+            }
+
+            return privateConfigurationValues;
+        }
+
+        /// <inheritdoc/>
+        public override Dictionary<string, string> GetPublicConfigurationValues( Dictionary<string, string> privateConfigurationValues, ConfigurationValueUsage usage, string value )
+        {
+            var publicConfigurationValues = base.GetPublicConfigurationValues( privateConfigurationValues, usage, value );
+
+            if ( publicConfigurationValues.ContainsKey( ENTITY_TYPE_NAME_KEY ) )
+            {
+                var entityTypeName = publicConfigurationValues[ENTITY_TYPE_NAME_KEY];
+                var entityType = EntityTypeCache.Get( entityTypeName );
+                if ( entityType != null )
+                {
+                    publicConfigurationValues[ENTITY_TYPE_NAME_KEY] = new ListItemBag()
+                    {
+                        Text = entityType.FriendlyName,
+                        Value = entityType.Guid.ToString()
+                    }.ToCamelCaseJson( false, true );
+                }
+            }
+
+            return publicConfigurationValues;
+        }
+
+        #endregion
+
+        #region Entity Methods
+
+        /// <summary>
+        /// Gets the entity.
+        /// </summary>
+        /// <param name="value">The value.</param>
+        /// <returns></returns>
+        public IEntity GetEntity( string value )
+        {
+            return GetEntity( value, null );
+        }
+
+        /// <summary>
+        /// Gets the entity.
+        /// </summary>
+        /// <param name="value">The value.</param>
+        /// <param name="rockContext">The rock context.</param>
+        /// <returns></returns>
+        public IEntity GetEntity( string value, RockContext rockContext )
+        {
+            Guid? guid = value.AsGuidOrNull();
+            if ( guid.HasValue )
+            {
+                rockContext = rockContext ?? new RockContext();
+                return new CategoryService( rockContext ).Get( guid.Value );
+            }
+
+            return null;
+        }
+
+        #endregion
+
+        #region IEntityReferenceFieldType
+
+        /// <inheritdoc/>
+        List<ReferencedEntity> IEntityReferenceFieldType.GetReferencedEntities( string privateValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            if ( this is CategoriesFieldType )
+            {
+                return null;
+            }
+
+            if ( !string.IsNullOrWhiteSpace( privateValue ) )
+            {
+                var category = CategoryCache.Get( privateValue.AsGuid() );
+                if ( category != null )
+                {
+                    return new List<ReferencedEntity>() { new ReferencedEntity( EntityTypeCache.GetId<Category>().Value, category.Id ) };
+                }
+            }
+
+            return null;
+        }
+
+        /// <inheritdoc/>
+        List<ReferencedProperty> IEntityReferenceFieldType.GetReferencedProperties( Dictionary<string, string> privateConfigurationValues )
+        {
+            return new List<ReferencedProperty>
+            {
+                new ReferencedProperty( EntityTypeCache.GetId<Category>().Value, nameof( Category.Name ) )
+            };
+        }
+
+        #endregion
+
+        #region WebForms
+#if WEBFORMS
 
         /// <summary>
         /// Returns a list of the configuration keys
@@ -113,16 +326,16 @@ namespace Rock.Field.Types
             configurationValues.Add( QUALIFIER_COLUMN_KEY, new ConfigurationValue( "Qualifier Column", "Entity column qualifier", "" ) );
             configurationValues.Add( QUALIFIER_VALUE_KEY, new ConfigurationValue( "Qualifier Value", "Entity column value", "" ) );
 
-            if ( controls != null && controls.Count == 3 )
+            if ( controls != null && controls.Count >= 3 )
             {
                 if ( controls[0] != null && controls[0] is DropDownList )
-                    configurationValues[ENTITY_TYPE_NAME_KEY].Value = ( (DropDownList)controls[0] ).SelectedValue;
+                    configurationValues[ENTITY_TYPE_NAME_KEY].Value = ( ( DropDownList ) controls[0] ).SelectedValue;
 
                 if ( controls[1] != null && controls[1] is TextBox )
-                    configurationValues[QUALIFIER_COLUMN_KEY].Value = ( (TextBox)controls[1] ).Text;
+                    configurationValues[QUALIFIER_COLUMN_KEY].Value = ( ( TextBox ) controls[1] ).Text;
 
                 if ( controls[2] != null && controls[2] is TextBox )
-                    configurationValues[QUALIFIER_VALUE_KEY].Value = ( (TextBox)controls[2] ).Text;
+                    configurationValues[QUALIFIER_VALUE_KEY].Value = ( ( TextBox ) controls[2] ).Text;
             }
 
             return configurationValues;
@@ -135,22 +348,18 @@ namespace Rock.Field.Types
         /// <param name="configurationValues"></param>
         public override void SetConfigurationValues( List<Control> controls, Dictionary<string, ConfigurationValue> configurationValues )
         {
-            if ( controls != null && controls.Count == 3 && configurationValues != null )
+            if ( controls != null && controls.Count >= 3 && configurationValues != null )
             {
                 if ( controls[0] != null && controls[0] is DropDownList && configurationValues.ContainsKey( ENTITY_TYPE_NAME_KEY ) )
-                    ( (DropDownList)controls[0] ).SelectedValue = configurationValues[ENTITY_TYPE_NAME_KEY].Value;
+                    ( ( DropDownList ) controls[0] ).SelectedValue = configurationValues[ENTITY_TYPE_NAME_KEY].Value;
 
                 if ( controls[1] != null && controls[1] is TextBox && configurationValues.ContainsKey( QUALIFIER_COLUMN_KEY ) )
-                    ( (TextBox)controls[1] ).Text = configurationValues[QUALIFIER_COLUMN_KEY].Value;
+                    ( ( TextBox ) controls[1] ).Text = configurationValues[QUALIFIER_COLUMN_KEY].Value;
 
                 if ( controls[2] != null && controls[2] is TextBox && configurationValues.ContainsKey( QUALIFIER_VALUE_KEY ) )
-                    ( (TextBox)controls[2] ).Text = configurationValues[QUALIFIER_VALUE_KEY].Value;
+                    ( ( TextBox ) controls[2] ).Text = configurationValues[QUALIFIER_VALUE_KEY].Value;
             }
         }
-
-        #endregion
-
-        #region Formatting
 
         /// <summary>
         /// Returns the field's current value(s)
@@ -162,41 +371,10 @@ namespace Rock.Field.Types
         /// <returns></returns>
         public override string FormatValue( Control parentControl, string value, Dictionary<string, ConfigurationValue> configurationValues, bool condensed )
         {
-            string formattedValue = string.Empty;
-
-            if ( this is CategoriesFieldType )
-            {
-                formattedValue = value;
-            }
-            else
-            {
-                if ( !string.IsNullOrWhiteSpace( value ) )
-                {
-                    var category = CategoryCache.Get( value.AsGuid() );
-                    if ( category != null )
-                    {
-                        formattedValue = category.Name;
-                    }
-                }
-            }
-
-            return base.FormatValue( parentControl, formattedValue, null, condensed );
+            return !condensed
+                ? GetTextValue( value, configurationValues.ToDictionary( cv => cv.Key, cv => cv.Value.Value ) )
+                : GetCondensedTextValue( value, configurationValues.ToDictionary( cv => cv.Key, cv => cv.Value.Value ) );
         }
-
-        /// <summary>
-        /// Returns the value using the most appropriate datatype
-        /// </summary>
-        /// <param name="value">The value.</param>
-        /// <param name="configurationValues">The configuration values.</param>
-        /// <returns></returns>
-        public override object ValueAsFieldType( string value, Dictionary<string, ConfigurationValue> configurationValues )
-        {
-            return value.AsGuidOrNull();
-        }
-
-        #endregion
-
-        #region Edit Control
 
         /// <summary>
         /// Creates the control(s) necessary for prompting user for a new value
@@ -284,10 +462,6 @@ namespace Rock.Field.Types
             }
         }
 
-        #endregion
-
-        #region Entity Methods
-
         /// <summary>
         /// Gets the edit value as the IEntity.Id
         /// </summary>
@@ -298,7 +472,7 @@ namespace Rock.Field.Types
         {
             Guid guid = GetEditValue( control, configurationValues ).AsGuid();
             var category = new CategoryService( new RockContext() ).Get( guid );
-            return category != null ? category.Id : (int?)null;
+            return category != null ? category.Id : ( int? ) null;
         }
 
         /// <summary>
@@ -314,35 +488,7 @@ namespace Rock.Field.Types
             SetEditValue( control, configurationValues, guidValue );
         }
 
-        /// <summary>
-        /// Gets the entity.
-        /// </summary>
-        /// <param name="value">The value.</param>
-        /// <returns></returns>
-        public IEntity GetEntity( string value )
-        {
-            return GetEntity( value, null );
-        }
-
-        /// <summary>
-        /// Gets the entity.
-        /// </summary>
-        /// <param name="value">The value.</param>
-        /// <param name="rockContext">The rock context.</param>
-        /// <returns></returns>
-        public IEntity GetEntity( string value, RockContext rockContext )
-        {
-            Guid? guid = value.AsGuidOrNull();
-            if ( guid.HasValue )
-            {
-                rockContext = rockContext ?? new RockContext();
-                return new CategoryService( rockContext ).Get( guid.Value );
-            }
-
-            return null;
-        }
-
+#endif
         #endregion
-
     }
 }

@@ -1,4 +1,4 @@
-﻿// <copyright>
+// <copyright>
 // Copyright by the Spark Development Network
 //
 // Licensed under the Rock Community License (the "License");
@@ -46,6 +46,7 @@ namespace Rock.Model
     [RockDomain( "Engagement" )]
     [Table( "StepProgramCompletion" )]
     [DataContract]
+    [Rock.SystemGuid.EntityTypeGuid( "B7A9C37D-2B04-4FD3-91BD-DFCA50B3CC8C")]
     public partial class StepProgramCompletion : Model<StepProgramCompletion>
     {
         #region Entity Properties
@@ -85,6 +86,37 @@ namespace Rock.Model
         /// </summary>
         [DataMember]
         public DateTime? EndDateTime { get; set; }
+
+        /// <summary>
+        /// Gets the start date key.
+        /// </summary>
+        /// <value>
+        /// The start date key.
+        /// </value>
+        [DataMember]
+        [FieldType( Rock.SystemGuid.FieldType.DATE )]
+        public int StartDateKey
+        {
+            get => StartDateTime.ToString( "yyyyMMdd" ).AsInteger();
+            private set { }
+        }
+
+        /// <summary>
+        /// Gets the end date key.
+        /// </summary>
+        /// <value>
+        /// The end date key.
+        /// </value>
+        [DataMember]
+        [FieldType( Rock.SystemGuid.FieldType.DATE )]
+        public int? EndDateKey
+        {
+            get => ( EndDateTime == null || EndDateTime.Value == default ) ?
+                        ( int? ) null :
+                        EndDateTime.Value.ToString( "yyyyMMdd" ).AsInteger();
+
+            private set { }
+        }
 
         #endregion Entity Properties
 

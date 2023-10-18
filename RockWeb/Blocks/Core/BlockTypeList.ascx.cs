@@ -38,6 +38,7 @@ namespace RockWeb.Blocks.Core
     [LinkedPage( "Detail Page",
         Key = AttributeKey.DetailPage )]
 
+    [Rock.SystemGuid.BlockTypeGuid( "78A31D91-61F6-42C3-BB7D-676EDC72F35F" )]
     public partial class BlockTypeList : RockBlock, ICustomGridColumns
     {
         public static class AttributeKey
@@ -79,10 +80,10 @@ namespace RockWeb.Blocks.Core
         {
             if ( !Page.IsPostBack )
             {
-                tbNameFilter.Text = gfSettings.GetUserPreference( "Name" );
-                tbPathFilter.Text = gfSettings.GetUserPreference( "Path" );
-                ddlCategoryFilter.SetValue( gfSettings.GetUserPreference( "Category" ) );
-                cbExcludeSystem.Checked = !string.IsNullOrWhiteSpace( gfSettings.GetUserPreference( "Exclude System" ) );
+                tbNameFilter.Text = gfSettings.GetFilterPreference( "Name" );
+                tbPathFilter.Text = gfSettings.GetFilterPreference( "Path" );
+                ddlCategoryFilter.SetValue( gfSettings.GetFilterPreference( "Category" ) );
+                cbExcludeSystem.Checked = !string.IsNullOrWhiteSpace( gfSettings.GetFilterPreference( "Exclude System" ) );
 
                 BlockTypeService.RegisterBlockTypes( Request.MapPath( "~" ), Page );
 
@@ -103,10 +104,10 @@ namespace RockWeb.Blocks.Core
         /// <param name="e"></param>
         protected void gfSettings_ApplyFilterClick( object sender, EventArgs e )
         {
-            gfSettings.SaveUserPreference( "Name", tbNameFilter.Text );
-            gfSettings.SaveUserPreference( "Path", tbPathFilter.Text );
-            gfSettings.SaveUserPreference( "Category", ddlCategoryFilter.SelectedValue );
-            gfSettings.SaveUserPreference( "Exclude System", cbExcludeSystem.Checked ? "Yes" : string.Empty );
+            gfSettings.SetFilterPreference( "Name", tbNameFilter.Text );
+            gfSettings.SetFilterPreference( "Path", tbPathFilter.Text );
+            gfSettings.SetFilterPreference( "Category", ddlCategoryFilter.SelectedValue );
+            gfSettings.SetFilterPreference( "Exclude System", cbExcludeSystem.Checked ? "Yes" : string.Empty );
             BindGrid();
         }
 
@@ -240,26 +241,26 @@ namespace RockWeb.Blocks.Core
             var blockTypes = blockTypeService.Queryable().AsNoTracking();
 
             // Exclude system blocks if checked.
-            if ( !string.IsNullOrWhiteSpace( gfSettings.GetUserPreference( "Exclude System" ) ) )
+            if ( !string.IsNullOrWhiteSpace( gfSettings.GetFilterPreference( "Exclude System" ) ) )
             {
                 blockTypes = blockTypes.Where( b => b.IsSystem == false );
             }
 
             // Filter by Name
-            string nameFilter = gfSettings.GetUserPreference( "Name" );
+            string nameFilter = gfSettings.GetFilterPreference( "Name" );
             if ( !string.IsNullOrEmpty( nameFilter.Trim() ) )
             {
                 blockTypes = blockTypes.Where( b => b.Name.Contains( nameFilter.Trim() ) );
             }
 
             // Filter by Path
-            string path = gfSettings.GetUserPreference( "Path" );
+            string path = gfSettings.GetFilterPreference( "Path" );
             if ( !string.IsNullOrEmpty( path.Trim() ) )
             {
                 blockTypes = blockTypes.Where( b => b.Path.Contains( path.Trim() ) );
             }
 
-            string category = gfSettings.GetUserPreference( "Category" );
+            string category = gfSettings.GetFilterPreference( "Category" );
             if ( !string.IsNullOrWhiteSpace( category ) )
             {
                 blockTypes = blockTypes.Where( b => b.Category == category );

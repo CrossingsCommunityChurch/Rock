@@ -32,9 +32,6 @@ using Rock.Web.UI.Controls;
 
 namespace RockWeb.Blocks.Groups
 {
-    /// <summary>
-    /// Template block for developers to use to start a new block.
-    /// </summary>
     [DisplayName( "Group Detail Lava" )]
     [Category( "Groups" )]
     [Description( "Presents the details of a group using Lava" )]
@@ -185,6 +182,7 @@ namespace RockWeb.Blocks.Groups
 
     #endregion Block Attributes
 
+    [Rock.SystemGuid.BlockTypeGuid( "218B057F-B214-4317-8E84-7A95CF88067E" )]
     public partial class GroupDetailLava : Rock.Web.UI.RockBlock
     {
         #region Attribute Keys
@@ -360,8 +358,7 @@ namespace RockWeb.Blocks.Groups
                 Group group = new GroupService( new RockContext() ).Get( _groupId );
                 group.LoadAttributes();
 
-                phAttributes.Controls.Clear();
-                Rock.Attribute.Helper.AddEditControls( group, phAttributes, false, BlockValidationGroup );
+                avcAttributes.AddEditControls( group, Rock.Security.Authorization.EDIT, CurrentPerson );
             }
 
             if ( IsEditingGroupMember == true )
@@ -382,8 +379,8 @@ namespace RockWeb.Blocks.Groups
 
                 // set attributes
                 groupMember.LoadAttributes();
-                phGroupMemberAttributes.Controls.Clear();
-                Rock.Attribute.Helper.AddEditControls( groupMember, phGroupMemberAttributes, true, string.Empty, true );
+
+                avcGroupMemberAttributes.AddEditControls( groupMember, Rock.Security.Authorization.EDIT, CurrentPerson );
             }
         }
 
@@ -403,20 +400,13 @@ namespace RockWeb.Blocks.Groups
                 BindCommunicationPreference();
             }
 
-            // add a navigate event to capture when someone presses the back button
-            var sm = ScriptManager.GetCurrent( Page );
-            sm.EnableSecureHistoryState = false;
-            sm.Navigate += sm_Navigate;
+            // Add a navigate event to capture when someone presses the back button.
+            this.RockPage.PageNavigate += RockPage_PageNavigate;
         }
 
-        /// <summary>
-        /// Handles the Navigate event of the sm control.
-        /// </summary>
-        /// <param name="sender">The source of the event.</param>
-        /// <param name="e">The <see cref="HistoryEventArgs"/> instance containing the event data.</param>
-        public void sm_Navigate( object sender, HistoryEventArgs e )
+        private void RockPage_PageNavigate( object sender, HistoryEventArgs e )
         {
-            // show the view mode
+            // When this page is revisited from the browser history, show the view mode.
             pnlGroupEdit.Visible = false;
             pnlGroupView.Visible = true;
             pnlEditGroupMember.Visible = false;
@@ -482,7 +472,7 @@ namespace RockWeb.Blocks.Groups
 
                 // set attributes
                 group.LoadAttributes( rockContext );
-                Rock.Attribute.Helper.GetEditValues( phAttributes, group );
+                avcAttributes.GetEditValues( group );
 
                 // configure locations
                 if ( GetAttributeValue( AttributeKey.EnableLocationEdit ).AsBoolean() )
@@ -656,8 +646,7 @@ namespace RockWeb.Blocks.Groups
             groupMember.CommunicationPreference = rblCommunicationPreference.SelectedValueAsEnum<CommunicationType>();
 
             groupMember.LoadAttributes();
-
-            Rock.Attribute.Helper.GetEditValues( phAttributes, groupMember );
+            avcGroupMemberAttributes.GetEditValues( groupMember );
 
             if ( !Page.IsValid )
             {
@@ -1049,8 +1038,7 @@ namespace RockWeb.Blocks.Groups
                     }
 
                     group.LoadAttributes();
-                    phAttributes.Controls.Clear();
-                    Rock.Attribute.Helper.AddEditControls( group, phAttributes, true, BlockValidationGroup );
+                    avcAttributes.AddEditControls( group, Rock.Security.Authorization.EDIT, CurrentPerson );
 
                     // enable editing location
                     pnlGroupEditLocations.Visible = GetAttributeValue( AttributeKey.EnableLocationEdit ).AsBoolean();
@@ -1333,8 +1321,7 @@ namespace RockWeb.Blocks.Groups
 
             // set attributes
             groupMember.LoadAttributes();
-            phGroupMemberAttributes.Controls.Clear();
-            Rock.Attribute.Helper.AddEditControls( groupMember, phGroupMemberAttributes, true, string.Empty, true );
+            avcGroupMemberAttributes.AddEditControls( groupMember, Rock.Security.Authorization.EDIT, CurrentPerson );
 
             this.IsEditingGroupMember = true;
         }

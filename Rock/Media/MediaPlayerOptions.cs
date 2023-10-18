@@ -160,10 +160,13 @@ namespace Rock.Media
         /// Gets or sets a value indicating whether to resume playback from
         /// the first gap in playback history.
         /// </summary>
+        /// <remarks>
+        /// This should never be null when encoded.
+        /// </remarks>
         /// <value>
         ///   <c>true</c> if playback should be resumed; otherwise, <c>false</c>.
         /// </value>
-        public bool ResumePlaying { get; set; }
+        public bool? ResumePlaying { get; set; }
 
         /// <summary>
         /// Gets or sets the number of seconds to seek forward or backward
@@ -173,6 +176,14 @@ namespace Rock.Media
         /// The number of seconds to fast forward or rewind.
         /// </value>
         public double SeekTime { get; set; }
+
+        /// <summary>
+        /// Gets or sets the unique identifier for the current interaction session.
+        /// </summary>
+        /// <value>
+        /// The unique identifier for the current interaciton session.
+        /// </value>
+        public Guid? SessionGuid { get; set; }
 
         /// <summary>
         /// Gets or sets the title to display for the video.

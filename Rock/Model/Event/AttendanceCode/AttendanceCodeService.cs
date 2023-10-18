@@ -61,7 +61,7 @@ namespace Rock.Model
             "4NL", "4SS", "5CK", "5HT", "5LT", "5NM", "5TD", "5XX", "666", "BCH", "CLT", "CNT", "D4M", "D5H", "DCK", "DMN", "DSH", "F4G", "FCK", "FGT", "G4Y", "GZZ", "H8R",
             "JNK", "JZZ", "KKK", "KLT", "KNT", "L5D", "LCK", "LSD", "MFF", "MLF", "ND5", "NDS", "NDZ", "NGR", "P55", "PCP", "PHC", "PHK", "PHQ", "PM5", "PMS", "PN5", "PNS",
             "PRC", "PRK", "PRN", "PRQ", "PSS", "RCK", "SCK", "S3X", "SHT", "SLT", "SNM", "STD", "SXX", "THC", "V4G", "WCK", "XTC", "XXX", "911", "1XL", "2XL", "3XL", "4XL",
-            "5XL", "6XL", "7XL", "8XL", "9XL", "XXL", "F4T", "FRT", "DHR", "MFR"
+            "5XL", "6XL", "7XL", "8XL", "9XL", "XXL", "F4T", "FRT", "DHR", "MFR", "FKR"
         };
 
         /// <summary>
@@ -182,7 +182,7 @@ namespace Rock.Model
 
                         code = alphaNumericCode + alphaCode + numericCode;
 
-                        // Check if code is already in use or contains bad unallowed strings.
+                        // Check if code is already in use or contains bad/non-allowed strings.
                         if ( NoGood.Any( s => code.Contains( s ) ) || _todaysUsedCodes.Contains( code ) )
                         {
                             lastCode = code;
@@ -245,7 +245,22 @@ namespace Rock.Model
                 numericCode = GenerateRandomNumericCode( numericLength );
 
                 // Leaving the noGood check here because it is possible that this method used outside of GetNew().
-                while ( NoGood.Any( s => numericCode.Contains( s ) ) || _todaysUsedCodes.Any( c => c.EndsWith( numericCode ) ) )
+                /*
+                     4/4/2022 - NA
+
+                     Formerly, the numeric portion of the code was ALSO being checked to verify it was not
+                     *contained* within any of the _todaysUsedCodes. Not only was that was not intuitive, it
+                     lead to situations where use of only 1 or 2 numeric codes would immediately run out of 
+                     codes since the comparison would ignore the other parts of the full code (i.e., any
+                     alphanumeric or alpha prefixed characters which otherwise would make the new code unique).
+
+                     Therefore this is being changed to only verify that the numeric code is not in the NoGood
+                     list.
+
+                     Reason: Nothing less than a "4" could be practically used -- even if using a alphanumeric or alpha
+                             prefix.
+                */
+                while ( NoGood.Any( s => numericCode.Contains( s ) ) )
                 {
                     attempts++;
 

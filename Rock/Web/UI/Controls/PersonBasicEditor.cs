@@ -52,7 +52,7 @@ namespace Rock.Web.UI.Controls
 
         private HiddenField _hfPersonId;
         private DefinedValuePicker _dvpPersonTitle;
-        private RockTextBox _tbPersonFirstName;
+        private FirstNameTextBox _tbPersonFirstName;
         private RockTextBox _tbPersonLastName;
         private DefinedValuePicker _dvpPersonSuffix;
         private DefinedValuePicker _dvpPersonConnectionStatus;
@@ -63,6 +63,9 @@ namespace Rock.Web.UI.Controls
         private DefinedValuePicker _dvpPersonMaritalStatus;
         private EmailBox _ebPersonEmail;
         private PhoneNumberBox _pnbMobilePhoneNumber;
+        private RockCheckBox _chkSmsOptIn;
+        private RacePicker _rpRace;
+        private EthnicityPicker _epEthnicity;
 
         #endregion Controls
 
@@ -258,6 +261,26 @@ namespace Rock.Web.UI.Controls
         }
 
         /// <summary>
+        /// Gets or sets a value indicating whether the SMS Opt-In checkbox is shown on the form.
+        /// </summary>
+        /// <value>
+        ///   <c>true</c> if [show SMS opt in]; otherwise, <c>false</c>.
+        /// </value>
+        public bool ShowSmsOptIn
+        {
+            get
+            {
+                EnsureChildControls ();
+                return _chkSmsOptIn.Visible;
+            }
+
+            set
+            {
+                _chkSmsOptIn.Visible = value;
+            }
+        }
+
+        /// <summary>
         /// Gets or sets a value indicating whether [show person role].
         /// </summary>
         /// <value>
@@ -360,6 +383,88 @@ namespace Rock.Web.UI.Controls
             {
                 EnsureChildControls();
                 _rblPersonGender.Visible = value;
+            }
+        }
+
+        /// <summary>
+        /// Gets or sets a value indicating whether [show race].
+        /// </summary>
+        /// <value>
+        ///   <c>true</c> if [show race]; otherwise, <c>false</c>.
+        /// </value>
+        public bool ShowRace
+        {
+            get
+            {
+                EnsureChildControls();
+                return _rpRace.Visible;
+            }
+
+            set
+            {
+                EnsureChildControls();
+                _rpRace.Visible = value;
+            }
+        }
+
+        /// <summary>
+        /// Gets or sets a value indicating whether [show ethnicity].
+        /// </summary>
+        /// <value>
+        ///   <c>true</c> if [show Ethnicity]; otherwise, <c>false</c>.
+        /// </value>
+        public bool ShowEthnicity
+        {
+            get
+            {
+                EnsureChildControls();
+                return _epEthnicity.Visible;
+            }
+
+            set
+            {
+                EnsureChildControls();
+                _epEthnicity.Visible = value;
+            }
+        }
+
+        /// <summary>
+        /// Gets or sets a value indicating whether [require race].
+        /// </summary>
+        /// <value>
+        ///   <c>true</c> if [require race]; otherwise, <c>false</c>.
+        /// </value>
+        public bool RequireRace
+        {
+            get
+            {
+                EnsureChildControls();
+                return _rpRace.Required;
+            }
+            set
+            {
+                EnsureChildControls();
+                _rpRace.Required = value;
+            }
+        }
+
+        /// <summary>
+        /// Gets or sets a value indicating whether [require ethnicity].
+        /// </summary>
+        /// <value>
+        ///   <c>true</c> if [require ethnicity]; otherwise, <c>false</c>.
+        /// </value>
+        public bool RequireEthnicity
+        {
+            get
+            {
+                EnsureChildControls();
+                return _epEthnicity.Required;
+            }
+            set
+            {
+                EnsureChildControls();
+                _epEthnicity.Required = value;
             }
         }
 
@@ -591,6 +696,48 @@ namespace Rock.Web.UI.Controls
         }
 
         /// <summary>
+        /// Gets or sets the person's race.
+        /// </summary>
+        /// <value>
+        /// The person's race.
+        /// </value>
+        public int? PersonRaceValueId
+        {
+            get
+            {
+                EnsureChildControls();
+                return _rpRace.SelectedValueAsId();
+            }
+
+            set
+            {
+                EnsureChildControls();
+                _rpRace.SetValue( value );
+            }
+        }
+
+        /// <summary>
+        /// Gets or sets the person's ethnicity.
+        /// </summary>
+        /// <value>
+        /// The person's ethnicity.
+        /// </value>
+        public int? PersonEthnicityValueId
+        {
+            get
+            {
+                EnsureChildControls();
+                return _epEthnicity.SelectedValueAsId();
+            }
+
+            set
+            {
+                EnsureChildControls();
+                _epEthnicity.SetValue( value );
+            }
+        }
+
+        /// <summary>
         /// Gets or sets the person birth date.
         /// </summary>
         /// <value>
@@ -684,6 +831,27 @@ namespace Rock.Web.UI.Controls
         }
 
         /// <summary>
+        /// Gets or sets a value indicating if the MobilePhoneNumber has SMS Enabled.
+        /// </summary>
+        /// <value>
+        ///   <c>true</c> if this instance is messaging enabled; otherwise, <c>false</c>.
+        /// </value>
+        public bool IsMessagingEnabled
+        {
+            get
+            {
+                EnsureChildControls();
+                return _chkSmsOptIn.Checked;
+            }
+
+            set
+            {
+                EnsureChildControls();
+                _chkSmsOptIn.Checked = value;
+            }
+        }
+
+        /// <summary>
         /// Gets or sets the validation group.
         /// </summary>
         /// <value>
@@ -731,6 +899,8 @@ namespace Rock.Web.UI.Controls
             _dvpPersonMaritalStatus.Label = AddLabelPrefix( "Marital Status" );
             _ebPersonEmail.Label = AddLabelPrefix( "Email" );
             _pnbMobilePhoneNumber.Label = AddLabelPrefix( "Mobile Phone" );
+            _rpRace.Label = AddLabelPrefix( Rock.Web.SystemSettings.GetValue( Rock.SystemKey.SystemSetting.PERSON_RACE_LABEL ) );
+            _epEthnicity.Label = AddLabelPrefix( Rock.Web.SystemSettings.GetValue( Rock.SystemKey.SystemSetting.PERSON_ETHNICITY_LABEL ) );
         }
 
         /// <summary>
@@ -797,16 +967,18 @@ namespace Rock.Web.UI.Controls
                 DefinedTypeId = DefinedTypeCache.GetId( Rock.SystemGuid.DefinedType.PERSON_TITLE.AsGuid() ),
                 Label = "Title",
                 CssClass = "input-width-md",
-                ValidationGroup = ValidationGroup
+                ValidationGroup = ValidationGroup,
+                FormGroupCssClass = "field-title"
             };
 
-            _tbPersonFirstName = new RockTextBox
+            _tbPersonFirstName = new FirstNameTextBox
             {
                 ID = "tbPersonFirstName",
                 Label = "First Name",
                 Required = true,
                 AutoCompleteType = AutoCompleteType.None,
-                ValidationGroup = ValidationGroup
+                ValidationGroup = ValidationGroup,
+                FormGroupCssClass = "field-firstname"
             };
 
             _tbPersonLastName = new RockTextBox
@@ -815,7 +987,8 @@ namespace Rock.Web.UI.Controls
                 Label = "Last Name",
                 Required = true,
                 AutoCompleteType = AutoCompleteType.None,
-                ValidationGroup = ValidationGroup
+                ValidationGroup = ValidationGroup,
+                FormGroupCssClass = "field-lastname"
             };
 
             _dvpPersonSuffix = new DefinedValuePicker
@@ -824,7 +997,8 @@ namespace Rock.Web.UI.Controls
                 DefinedTypeId = DefinedTypeCache.GetId( Rock.SystemGuid.DefinedType.PERSON_SUFFIX.AsGuid() ),
                 Label = "Suffix",
                 CssClass = "input-width-md",
-                ValidationGroup = ValidationGroup
+                ValidationGroup = ValidationGroup,
+                FormGroupCssClass = "field-suffix"
             };
 
             // Have Email and PhoneNumber hidden by default
@@ -833,13 +1007,23 @@ namespace Rock.Web.UI.Controls
                 ID = "ebPersonEmail",
                 Label = "Email",
                 ValidationGroup = ValidationGroup,
-                Visible = false
+                Visible = false,
+                FormGroupCssClass = "field-email"
             };
 
             _pnbMobilePhoneNumber = new PhoneNumberBox
             {
                 Label = "Mobile Phone",
                 ID = "pnbMobilePhoneNumber",
+                Visible = false,
+                FormGroupCssClass = "field-mobilephone"
+            };
+
+            _chkSmsOptIn = new RockCheckBox
+            {
+                ID = "chkSmsOptIn",
+                Label = "",
+                Text = Rock.Web.SystemSettings.GetValue( Rock.SystemKey.SystemSetting.SMS_OPT_IN_MESSAGE_LABEL ),
                 Visible = false
             };
 
@@ -849,7 +1033,8 @@ namespace Rock.Web.UI.Controls
                 DefinedTypeId = DefinedTypeCache.GetId( Rock.SystemGuid.DefinedType.PERSON_CONNECTION_STATUS.AsGuid() ),
                 Label = "Connection Status",
                 Required = true,
-                ValidationGroup = ValidationGroup
+                ValidationGroup = ValidationGroup,
+                FormGroupCssClass = "field-connectionstatus"
             };
 
             _rblPersonRole = new RockRadioButtonList
@@ -860,7 +1045,8 @@ namespace Rock.Web.UI.Controls
                 DataTextField = "Name",
                 DataValueField = "Id",
                 Required = true,
-                ValidationGroup = ValidationGroup
+                ValidationGroup = ValidationGroup,
+                FormGroupCssClass = "field-role"
             };
 
             _rblPersonGender = new RockRadioButtonList
@@ -870,14 +1056,16 @@ namespace Rock.Web.UI.Controls
                 RepeatDirection = RepeatDirection.Horizontal,
                 Required = this.RequireGender,
                 ValidationGroup = this.RequireGender == true ? ValidationGroup : string.Empty,
-                ShowNoneOption = false
+                ShowNoneOption = false,
+                FormGroupCssClass = "field-gender"
             };
 
             _bdpPersonBirthDate = new BirthdayPicker
             {
                 ID = "bdpPersonBirthDate",
                 Label = "Birthdate",
-                ValidationGroup = ValidationGroup
+                ValidationGroup = ValidationGroup,
+                FormGroupCssClass = "field-birthdate"
             };
 
             _ddlGradePicker = new GradePicker
@@ -886,7 +1074,8 @@ namespace Rock.Web.UI.Controls
                 Label = "Grade",
                 UseAbbreviation = true,
                 UseGradeOffsetAsValue = true,
-                ValidationGroup = ValidationGroup
+                ValidationGroup = ValidationGroup,
+                FormGroupCssClass = "field-grade"
             };
 
             _dvpPersonMaritalStatus = new DefinedValuePicker
@@ -894,7 +1083,22 @@ namespace Rock.Web.UI.Controls
                 ID = "dvpPersonMaritalStatus",
                 Label = "Marital Status",
                 DefinedTypeId = DefinedTypeCache.GetId( Rock.SystemGuid.DefinedType.PERSON_MARITAL_STATUS.AsGuid() ),
-                ValidationGroup = ValidationGroup
+                ValidationGroup = ValidationGroup,
+                FormGroupCssClass = "field-maritalstatus"
+            };
+
+            _rpRace = new RacePicker
+            {
+                ID = "rpRace",
+                ValidationGroup = ValidationGroup,
+                FormGroupCssClass = "field-race"
+            };
+
+            _epEthnicity = new EthnicityPicker
+            {
+                ID = "epEthnicity",
+                ValidationGroup = ValidationGroup,
+                FormGroupCssClass = "field-ethnicity"
             };
 
             var groupType = GroupTypeCache.GetFamilyGroupType();
@@ -921,11 +1125,14 @@ namespace Rock.Web.UI.Controls
             _dvpPersonSuffix.Parent?.Controls.Remove( _dvpPersonSuffix );
             _ebPersonEmail.Parent?.Controls.Remove( _ebPersonEmail );
             _pnbMobilePhoneNumber.Parent?.Controls.Remove( _pnbMobilePhoneNumber );
+            _chkSmsOptIn.Parent?.Controls.Remove(_chkSmsOptIn );
             _bdpPersonBirthDate.Parent?.Controls.Remove( _bdpPersonBirthDate );
             _rblPersonGender.Parent?.Controls.Remove( _rblPersonGender );
             _rblPersonRole.Parent?.Controls.Remove( _rblPersonRole );
             _ddlGradePicker.Parent?.Controls.Remove( _ddlGradePicker );
             _dvpPersonMaritalStatus.Parent?.Controls.Remove( _dvpPersonMaritalStatus );
+            _rpRace.Parent?.Controls.Remove( _rpRace );
+            _epEthnicity.Parent?.Controls.Remove( _epEthnicity );
 
             if ( showInColumns )
             {
@@ -935,6 +1142,7 @@ namespace Rock.Web.UI.Controls
                 _pnlCol1.Controls.Add( _dvpPersonSuffix );
                 _pnlCol1.Controls.Add( _ebPersonEmail );
                 _pnlCol1.Controls.Add( _pnbMobilePhoneNumber );
+                _pnlCol1.Controls.Add( _chkSmsOptIn );
 
                 _pnlCol2.Controls.Add( _dvpPersonConnectionStatus );
                 _pnlCol2.Controls.Add( _rblPersonRole );
@@ -943,6 +1151,8 @@ namespace Rock.Web.UI.Controls
                 _pnlCol3.Controls.Add( _bdpPersonBirthDate );
                 _pnlCol3.Controls.Add( _ddlGradePicker );
                 _pnlCol3.Controls.Add( _dvpPersonMaritalStatus );
+                _pnlCol3.Controls.Add( _rpRace );
+                _pnlCol3.Controls.Add( _epEthnicity );
             }
             else
             {
@@ -952,12 +1162,15 @@ namespace Rock.Web.UI.Controls
                 _phControls.Controls.Add( _dvpPersonSuffix );
                 _phControls.Controls.Add( _ebPersonEmail );
                 _phControls.Controls.Add( _pnbMobilePhoneNumber );
+                _phControls.Controls.Add( _chkSmsOptIn );
                 _phControls.Controls.Add( _bdpPersonBirthDate );
                 _phControls.Controls.Add( _rblPersonGender );
                 _phControls.Controls.Add( _dvpPersonConnectionStatus );
                 _phControls.Controls.Add( _rblPersonRole );
                 _phControls.Controls.Add( _ddlGradePicker );
                 _phControls.Controls.Add( _dvpPersonMaritalStatus );
+                _phControls.Controls.Add( _rpRace );
+                _phControls.Controls.Add( _epEthnicity );
             }
         }
 
@@ -1066,13 +1279,28 @@ namespace Rock.Web.UI.Controls
                 person.Email = this.Email;
             }
 
+            if ( ShowRace )
+            {
+                person.RaceValueId = this.PersonRaceValueId;
+            }
+
+            if ( ShowEthnicity )
+            {
+                person.EthnicityValueId = this.PersonEthnicityValueId;
+            }
+
             if ( ShowMobilePhone )
             {
                 var existingMobilePhone = person.GetPhoneNumber( Rock.SystemGuid.DefinedValue.PERSON_PHONE_TYPE_MOBILE.AsGuid() );
 
                 var numberTypeMobile = DefinedValueCache.Get( Rock.SystemGuid.DefinedValue.PERSON_PHONE_TYPE_MOBILE.AsGuid() );
-                var messagingEnabled = existingMobilePhone?.IsMessagingEnabled ?? true;
                 var isUnlisted = existingMobilePhone?.IsUnlisted ?? false;
+                var messagingEnabled = existingMobilePhone?.IsMessagingEnabled ?? true;
+                if ( ShowSmsOptIn )
+                {
+                    messagingEnabled = IsMessagingEnabled;
+                }
+
                 person.UpdatePhoneNumber( numberTypeMobile.Id, MobilePhoneCountryCode, MobilePhoneNumber, messagingEnabled, isUnlisted, rockContext );
             }
         }
@@ -1106,6 +1334,8 @@ namespace Rock.Web.UI.Controls
             this.PersonMaritalStatusValueId = person.MaritalStatusValueId;
             this.PersonBirthDate = person.BirthDate;
             this.PersonGradeOffset = person.GradeOffset;
+            this.PersonRaceValueId = person.RaceValueId;
+            this.PersonEthnicityValueId = person.EthnicityValueId;
 
             if ( person.AgeClassification == AgeClassification.Child )
             {
@@ -1122,9 +1352,16 @@ namespace Rock.Web.UI.Controls
             this.Email = person.Email;
 
             var existingMobilePhone = person.GetPhoneNumber( Rock.SystemGuid.DefinedValue.PERSON_PHONE_TYPE_MOBILE.AsGuid() );
+            if ( existingMobilePhone != null )
+            {
+                this.MobilePhoneNumber = existingMobilePhone.NumberFormatted;
+                this.MobilePhoneCountryCode = existingMobilePhone.CountryCode;
 
-            this.MobilePhoneNumber = existingMobilePhone?.NumberFormatted;
-            this.MobilePhoneCountryCode = existingMobilePhone?.CountryCode;
+                if( ShowSmsOptIn )
+                {
+                    this.IsMessagingEnabled = existingMobilePhone.IsMessagingEnabled;
+                }
+            }
         }
 
         /// <summary>

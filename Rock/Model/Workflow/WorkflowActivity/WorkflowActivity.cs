@@ -1,4 +1,4 @@
-﻿// <copyright>
+// <copyright>
 // Copyright by the Spark Development Network
 //
 // Licensed under the Rock Community License (the "License");
@@ -17,6 +17,8 @@
 using Rock.Data;
 using Rock.Lava;
 using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.ComponentModel.DataAnnotations.Schema;
 using System.Data.Entity.ModelConfiguration;
 using System.Runtime.Serialization;
@@ -29,6 +31,7 @@ namespace Rock.Model
     [RockDomain( "Workflow" )]
     [Table( "WorkflowActivity" )]
     [DataContract]
+    [Rock.SystemGuid.EntityTypeGuid( Rock.SystemGuid.EntityType.WORKFLOW_ACTIVITY )]
     public partial class WorkflowActivity : Model<WorkflowActivity>
     {
         #region Entity Properties
@@ -154,6 +157,20 @@ namespace Rock.Model
         /// </value>
         [LavaVisible]
         public virtual WorkflowActivity ActivatedByActivity { get; set; }
+
+        /// <summary>
+        /// Gets or sets a collection containing the <see cref="Rock.Model.WorkflowAction">WorkflowActions</see> that are run by this WorkflowActivity.
+        /// </summary>
+        /// <value>
+        /// A collection containing the <see cref="Rock.Model.WorkflowAction">WorkflowActions</see> that are being run by this WorkflowActivity.
+        /// </value>
+        [DataMember]
+        public virtual ICollection<WorkflowAction> Actions
+        {
+            get { return _actions ?? ( _actions = new Collection<WorkflowAction>() ); }
+            set { _actions = value; }
+        }
+        private ICollection<WorkflowAction> _actions;
 
         #endregion Navigation Properties
     }

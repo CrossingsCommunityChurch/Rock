@@ -55,14 +55,16 @@
 
                                     <div class="row">
                                         <div class="col-md-6">
-                                            <Rock:RockCheckBox ID="cbAllowCheckout" runat="server" Label="Allow Checkout" Text="Yes"
-                                        Help="Should individuals be allowed to manually check out?" />
+                                            <Rock:RockCheckBox ID="cbAllowCheckoutAtKiosk" runat="server" Label="Enable Check-out at Kiosk" Text="Yes"
+                                        Help="Allows individuals to check-out using the kiosks." />
                                         </div>
                                         <div class="col-md-6">
-                                            <Rock:RockCheckBox ID="cbEnablePresence" runat="server" Label="Enable Presence" Text="Yes"
-                                        Help="When enabled, the attendance record will not be marked as being 'present' until the individual is set to 'Present' by the assistant using the Check-in Manager application." />
+                                             <Rock:RockCheckBox ID="cbAllowCheckoutInManager" runat="server" Label="Enable Check-out in Manager" Text="Yes"
+                                        Help="Allows check-out to be enabled in the Check-in Manager." />
                                         </div>
                                     </div>
+                                    <Rock:RockCheckBox ID="cbEnablePresence" runat="server" Label="Enable Presence" Text="Yes"
+                                        Help="When enabled, the attendance record will not be marked as being 'present' until the individual is set to 'Present' by the assistant using the Check-in Manager application." />
                                     <Rock:RockCheckBox ID="cbEnableManager" runat="server" Label="Enable Manager Option" Text="Yes"
                                         Help="Should an option be displayed on the check-in welcome screen that allows an individual to view the management screen (after entering a passcode)?" />
                                     <Rock:RockCheckBox ID="cbEnableOverride" runat="server" Label="Enable Override" Text="Yes"
@@ -194,6 +196,13 @@
                                     <Rock:RockListBox ID="lbRegistrationOptionalAttributesForChildren" runat="server" Label="Optional Attributes for Children" />
                                     <Rock:RockListBox ID="lbRegistrationRequiredAttributesForFamilies" runat="server" Label="Required Attributes for Families" />
                                     <Rock:RockListBox ID="lbRegistrationOptionalAttributesForFamilies" runat="server" Label="Optional Attributes for Families" />
+                                    <Rock:RockDropDownList ID="ddlRegistrationDisplayBirthdateOnAdults" runat="server" Label="Display Birthdate on Adults" Help="How should Birthdate be displayed for adults?" />
+                                    <Rock:RockDropDownList ID="ddlRegistrationDisplayBirthdateOnChildren" runat="server" Label="Display Birthdate on Children" Help="How should Birthdate be displayed for children?" />
+                                    <Rock:RockDropDownList ID="ddlRegistrationDisplayGradeOnChildren" runat="server" Label="Display Grade on Children" Help="How should Grade be displayed for children?" />
+                                    <Rock:RockDropDownList ID="ddlRegistrationDisplayRaceOnAdults" runat="server" Label="Display Race on Adults" Help="How should race be displayed for adults?" />
+                                    <Rock:RockDropDownList ID="ddlRegistrationDisplayEthnicityOnAdults" runat="server" Label="Display Ethnicity on Adults" Help="How should ethnicity be displayed for adults?" />
+                                    <Rock:RockDropDownList ID="ddlRegistrationDisplayRaceOnChildren" runat="server" Label="Display Race on Children" Help="How should race be displayed for children?" />
+                                    <Rock:RockDropDownList ID="ddlRegistrationDisplayEthnicityOnChildren" runat="server" Label="Display Ethnicity on Children" Help="How should ethnicity be displayed for children?" />
                                 </div>
                             </div>
                         </Rock:PanelWidget>
@@ -214,9 +223,13 @@
                                         Help="If an area and/or group has a grade requirement, check this option to prevent people without a grade from checking in to that area/group." />
 
                                     <Rock:RockRadioButtonList ID="rblAbilityLevelDetermination" runat="server" Label="Ability Level Determination"
-                                        Help="Determines how check-in should gather the individual's current ability level. &quot;Ask&quot; means that the individual will be asked as a part of each check-in.  &quot;Don't Ask&quot; will trust that there is another process in place to gather ability level information and the individual will not be asked for their level during check-in.">
+                                        Help="Determines how check-in should gather the individual's current ability level.
+                                            &quot;Ask&quot; means that the individual will be asked as a part of each check-in.
+                                            &quot;Don't Ask&quot; will trust that there is another process in place to gather ability level information and the individual will not be asked for their level during check-in.
+                                            &quot;Don't Ask if...&quot; will not ask if the person does not have an ability level. This will allow a person's ability level to be updated during the check-in process.">
                                         <asp:ListItem Text="Ask" Value="0" />
                                         <asp:ListItem Text="Don't Ask" Value="1" />
+                                        <asp:ListItem Text="Don't Ask If There Is No Ability Level" Value="2" />
                                     </Rock:RockRadioButtonList>
 
                                     <Rock:RockCheckBox ID="cbDisplayLocCount" runat="server" Label="Display Location Count" Text="Yes"

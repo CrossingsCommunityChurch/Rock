@@ -17,30 +17,182 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Web.UI;
+#if WEBFORMS
 using System.Web.UI.WebControls;
+using System.Web.UI;
+#endif
 
 using Rock;
+using Rock.Attribute;
 using Rock.Constants;
 using Rock.Data;
 using Rock.Model;
 using Rock.Web.Cache;
 using Rock.Web.UI.Controls;
+using Rock.ViewModels.Utility;
 
 namespace Rock.Field.Types
 {
     /// <summary>
     /// Data View Field Type.  Stored as DataViews's Guid
     /// </summary>
-    public class DataViewFieldType : FieldType, IEntityFieldType
+    [RockPlatformSupport( Utility.RockPlatform.WebForms, Utility.RockPlatform.Obsidian )]
+    [Rock.SystemGuid.FieldTypeGuid( Rock.SystemGuid.FieldType.DATA_VIEW )]
+    public class DataViewFieldType : FieldType, IEntityFieldType, IEntityReferenceFieldType
     {
-
         #region Configuration
 
         /// <summary>
         /// Entity Type Name Key
         /// </summary>
         protected const string ENTITY_TYPE_NAME_KEY = "entityTypeName";
+
+        #endregion
+
+        #region Edit Control
+
+        /// <inheritdoc/>
+        public override string GetPublicValue( string privateValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            return GetTextValue( privateValue, privateConfigurationValues );
+        }
+
+        /// <inheritdoc/>
+        public override string GetPrivateEditValue( string publicValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            var scheduleValue = publicValue.FromJsonOrNull<ListItemBag>();
+
+            if ( scheduleValue != null )
+            {
+                return scheduleValue.Value;
+            }
+
+            return string.Empty;
+        }
+
+        /// <inheritdoc/>
+        public override string GetPublicEditValue( string privateValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            if ( Guid.TryParse( privateValue, out Guid guid ) )
+            {
+                var schedule = NamedScheduleCache.Get( guid );
+                if ( schedule != null )
+                {
+                    return new ListItemBag()
+                    {
+                        Value = schedule.Guid.ToString(),
+                        Text = schedule.Name,
+                    }.ToCamelCaseJson( false, true );
+                }
+            }
+
+            return string.Empty;
+        }
+
+        #endregion
+
+        #region Formatting
+
+        /// <inheritdoc />
+        public override string GetTextValue( string privateValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            Guid? guid = privateValue.AsGuidOrNull();
+            if ( guid.HasValue )
+            {
+                using ( var rockContext = new RockContext() )
+                {
+                    var service = new DataViewService( rockContext );
+                    var dataview = service.GetNoTracking( guid.Value );
+
+                    if ( dataview != null )
+                    {
+                        return dataview.Name;
+                    }
+                }
+            }
+
+            return string.Empty;
+        }
+
+        #endregion
+
+        #region Edit Control 
+
+        #endregion
+
+        #region Entity Methods
+
+        /// <summary>
+        /// Gets the entity.
+        /// </summary>
+        /// <param name="value">The value.</param>
+        /// <returns></returns>
+        public IEntity GetEntity( string value )
+        {
+            return GetEntity( value, null );
+        }
+
+        /// <summary>
+        /// Gets the entity.
+        /// </summary>
+        /// <param name="value">The value.</param>
+        /// <param name="rockContext">The rock context.</param>
+        /// <returns></returns>
+        public IEntity GetEntity( string value, RockContext rockContext )
+        {
+            Guid? guid = value.AsGuidOrNull();
+            if ( guid.HasValue )
+            {
+                rockContext = rockContext ?? new RockContext();
+                return new DataViewService( rockContext ).Get( guid.Value );
+            }
+
+            return null;
+        }
+
+        #endregion
+
+        #region IEntityReferenceFieldType
+
+        /// <inheritdoc/>
+        List<ReferencedEntity> IEntityReferenceFieldType.GetReferencedEntities( string privateValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            Guid? guid = privateValue.AsGuidOrNull();
+
+            if ( !guid.HasValue )
+            {
+                return null;
+            }
+
+            using ( var rockContext = new RockContext() )
+            {
+                var dataViewId = new DataViewService( rockContext ).GetId( guid.Value );
+
+                if ( !dataViewId.HasValue )
+                {
+                    return null;
+                }
+
+                return new List<ReferencedEntity>()
+                {
+                    new ReferencedEntity( EntityTypeCache.GetId<DataView>().Value, dataViewId.Value )
+                };
+            }
+        }
+
+        /// <inheritdoc/>
+        List<ReferencedProperty> IEntityReferenceFieldType.GetReferencedProperties( Dictionary<string, string> privateConfigurationValues )
+        {
+            return new List<ReferencedProperty>
+            {
+                new ReferencedProperty( EntityTypeCache.GetId<DataView>().Value, nameof( DataView.Name ) )
+            };
+        }
+
+        #endregion
+
+        #region WebForms
+#if WEBFORMS
 
         /// <summary>
         /// Returns a list of the configuration keys
@@ -89,7 +241,7 @@ namespace Rock.Field.Types
             {
                 if ( controls[0] != null && controls[0] is EntityTypePicker )
                 {
-                    int? entityTypeId = ( (EntityTypePicker)controls[0] ).SelectedValueAsInt();
+                    int? entityTypeId = ( ( EntityTypePicker ) controls[0] ).SelectedValueAsInt();
                     if ( entityTypeId.HasValue )
                     {
                         var entityType = EntityTypeCache.Get( entityTypeId.Value );
@@ -113,14 +265,10 @@ namespace Rock.Field.Types
                 if ( controls[0] != null && controls[0] is EntityTypePicker && configurationValues.ContainsKey( ENTITY_TYPE_NAME_KEY ) )
                 {
                     var entityType = EntityTypeCache.Get( configurationValues[ENTITY_TYPE_NAME_KEY].Value );
-                    ( (EntityTypePicker)controls[0] ).SetValue( entityType != null ? entityType.Id : (int?)null );
+                    ( ( EntityTypePicker ) controls[0] ).SetValue( entityType != null ? entityType.Id : ( int? ) null );
                 }
             }
         }
-
-        #endregion
-
-        #region Formatting
 
         /// <summary>
         /// Returns the field's current value(s)
@@ -132,29 +280,10 @@ namespace Rock.Field.Types
         /// <returns></returns>
         public override string FormatValue( Control parentControl, string value, Dictionary<string, ConfigurationValue> configurationValues, bool condensed )
         {
-            string formattedValue = string.Empty;
-
-            Guid? guid = value.AsGuidOrNull();
-            if ( guid.HasValue )
-            {
-                using ( var rockContext = new RockContext() )
-                {
-                    var service = new DataViewService( rockContext );
-                    var dataview = service.GetNoTracking( guid.Value );
-
-                    if ( dataview != null )
-                    {
-                        formattedValue = dataview.Name;
-                    }
-                }
-            }
-
-            return base.FormatValue( parentControl, formattedValue, null, condensed );
+            return !condensed
+                ? GetTextValue( value, configurationValues.ToDictionary( cv => cv.Key, cv => cv.Value.Value ) )
+                : GetCondensedTextValue( value, configurationValues.ToDictionary( cv => cv.Key, cv => cv.Value.Value ) );
         }
-
-        #endregion
-
-        #region Edit Control 
 
         /// <summary>
         /// Creates the control(s) necessary for prompting user for a new value
@@ -242,10 +371,6 @@ namespace Rock.Field.Types
             }
         }
 
-        #endregion
-
-        #region Entity Methods
-
         /// <summary>
         /// Gets the edit value as the IEntity.Id
         /// </summary>
@@ -256,7 +381,7 @@ namespace Rock.Field.Types
         {
             Guid guid = GetEditValue( control, configurationValues ).AsGuid();
             var item = new DataViewService( new RockContext() ).Get( guid );
-            return item != null ? item.Id : (int?)null;
+            return item != null ? item.Id : ( int? ) null;
         }
 
         /// <summary>
@@ -272,35 +397,7 @@ namespace Rock.Field.Types
             SetEditValue( control, configurationValues, guidValue );
         }
 
-        /// <summary>
-        /// Gets the entity.
-        /// </summary>
-        /// <param name="value">The value.</param>
-        /// <returns></returns>
-        public IEntity GetEntity( string value )
-        {
-            return GetEntity( value, null );
-        }
-
-        /// <summary>
-        /// Gets the entity.
-        /// </summary>
-        /// <param name="value">The value.</param>
-        /// <param name="rockContext">The rock context.</param>
-        /// <returns></returns>
-        public IEntity GetEntity( string value, RockContext rockContext )
-        {
-            Guid? guid = value.AsGuidOrNull();
-            if ( guid.HasValue )
-            {
-                rockContext = rockContext ?? new RockContext();
-                return new DataViewService( rockContext ).Get( guid.Value );
-            }
-
-            return null;
-        }
-
+#endif
         #endregion
-
     }
 }

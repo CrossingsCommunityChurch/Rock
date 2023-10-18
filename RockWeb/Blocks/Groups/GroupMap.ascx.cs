@@ -37,9 +37,6 @@ using Rock.Web;
 
 namespace RockWeb.Blocks.Groups
 {
-    /// <summary>
-    /// Template block for developers to use to start a new block.
-    /// </summary>
     [DisplayName( "Group Map" )]
     [Category( "Groups" )]
     [Description( "Displays a group (and any child groups) on a map." )]
@@ -54,6 +51,7 @@ namespace RockWeb.Blocks.Groups
     [BooleanField("Show Child Groups as Default", "Defaults to showing all child groups if no user preference is set", false, order: 7, key: SHOW_CHILD_GROUPS_AS_DEFAULT_KEY )]
     [CodeEditorField( "Info Window Contents", "Lava template for the info window. To suppress the window provide a blank template.", CodeEditorMode.Lava, CodeEditorTheme.Rock, 600, false, DEFAULT_LAVA_TEMPLATE, "", 8 )]
 
+    [Rock.SystemGuid.BlockTypeGuid( "967F0D2B-DB76-486A-B034-D22B9D9240D3" )]
     public partial class GroupMap : Rock.Web.UI.RockBlock
     {
 
@@ -531,14 +529,15 @@ namespace RockWeb.Blocks.Groups
                         && a.ShowInGroupList
                         && a.LocationSelectionMode != GroupLocationPickerMode.None).OrderBy( a => a.Name ).ToList();
 
-                var selectedGroupTypeIds = this.GetBlockUserPreference( "GroupTypeIds" );
+                var preferences = GetBlockPersonPreferences();
+                var selectedGroupTypeIds = preferences.GetValue( "GroupTypeIds" );
                 if ( !string.IsNullOrWhiteSpace( selectedGroupTypeIds ) )
                 {
                     var selectedGroupTypeIdList = selectedGroupTypeIds.Split( ',' ).AsIntegerList();
                     gtpGroupType.SelectedGroupTypeIds = selectedGroupTypeIdList;
                 }
 
-                var showChildGroups = this.GetBlockUserPreference( "ShowChildGroups" ).AsBooleanOrNull() ?? GetAttributeValue( SHOW_CHILD_GROUPS_AS_DEFAULT_KEY ).AsBoolean();
+                var showChildGroups = preferences.GetValue( "ShowChildGroups" ).AsBooleanOrNull() ?? GetAttributeValue( SHOW_CHILD_GROUPS_AS_DEFAULT_KEY ).AsBoolean();
                 cbShowAllGroups.Checked = showChildGroups;
 
                 var statuses = DefinedTypeCache.Get( Rock.SystemGuid.DefinedType.PERSON_CONNECTION_STATUS.AsGuid() ).DefinedValues
@@ -670,8 +669,11 @@ namespace RockWeb.Blocks.Groups
         /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
         protected void btnApplyOptions_Click( object sender, EventArgs e )
         {
-            this.SetBlockUserPreference( "GroupTypeIds", gtpGroupType.SelectedGroupTypeIds.AsDelimited( "," ) );
-            this.SetBlockUserPreference( "ShowChildGroups", cbShowAllGroups.Checked.ToTrueFalse() );
+            var preferences = GetBlockPersonPreferences();
+
+            preferences.SetValue( "GroupTypeIds", gtpGroupType.SelectedGroupTypeIds.AsDelimited( "," ) );
+            preferences.SetValue( "ShowChildGroups", cbShowAllGroups.Checked.ToTrueFalse() );
+            preferences.Save();
 
             Map();
         }

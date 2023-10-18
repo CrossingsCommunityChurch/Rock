@@ -13,7 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 // </copyright>
-//
+
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -27,8 +27,10 @@ using Rock.Attribute;
 using Rock.Cms.StructuredContent;
 using Rock.Constants;
 using Rock.Data;
+using Rock.Enums.Cms;
 using Rock.Model;
 using Rock.Security;
+using Rock.Tasks;
 using Rock.Web;
 using Rock.Web.Cache;
 using Rock.Web.UI;
@@ -63,7 +65,8 @@ namespace RockWeb.Blocks.Cms
         Key = AttributeKey.ContentChannel )]
 
     #endregion Block Attributes
-    public partial class ContentChannelItemDetail : RockBlock, IDetailBlock
+    [Rock.SystemGuid.BlockTypeGuid( "5B99687B-5FE9-4EE2-8679-5040CAEB9E2E" )]
+    public partial class ContentChannelItemDetail : RockBlock
     {
         #region Attribute Keys
 
@@ -205,6 +208,7 @@ namespace RockWeb.Blocks.Cms
                     }}
                     return false;
                 }}";
+
         #endregion
 
         #region Control Methods
@@ -237,7 +241,7 @@ namespace RockWeb.Blocks.Cms
             gParentItems.GridRebind += gParentItems_GridRebind;
             gParentItems.EntityTypeId = EntityTypeCache.Get<ContentChannelItem>().Id;
 
-            string clearScript = string.Format( "clearDirtyBit(event);", hfIsDirty.ClientID ); 
+            string clearScript = string.Format( "clearDirtyBit(event);", hfIsDirty.ClientID );
             lbSave.OnClientClick = clearScript;
             lbCancel.OnClientClick = clearScript;
 
@@ -275,6 +279,8 @@ namespace RockWeb.Blocks.Cms
 
                 phAttributes.Controls.Clear();
                 Rock.Attribute.Helper.AddEditControls( item, phAttributes, false, BlockValidationGroup, 2 );
+
+                BindSlugs( item );
 
                 ShowDialog();
             }
@@ -327,7 +333,7 @@ namespace RockWeb.Blocks.Cms
             ContentChannelItem contentItem = GetContentItem( rockContext );
 
             if ( contentItem != null &&
-                ( IsUserAuthorized( Authorization.EDIT ) || contentItem.IsAuthorized( Authorization.EDIT, CurrentPerson ) ) )
+                contentItem.IsAuthorized( Authorization.EDIT, CurrentPerson ) )
             {
                 StructuredContentHelper structuredContentHelper = null;
                 StructuredContentChanges structuredContentChanges = null;
@@ -345,6 +351,7 @@ namespace RockWeb.Blocks.Cms
                     contentItem.StructuredContent = structuredContentHelper.Content;
                     contentItem.Content = structuredContentHelper.Render();
                 }
+
                 contentItem.Priority = nbPriority.Text.AsInteger();
                 contentItem.ItemGlobalKey = contentItem.Id != 0 ? lblItemGlobalKey.Text : CreateItemGlobalKey();
 
@@ -400,6 +407,12 @@ namespace RockWeb.Blocks.Cms
                     }
                 }
 
+                if (contentItem.ContentChannel.IsContentLibraryEnabled)
+                {
+                    contentItem.ExperienceLevel = rblExperienceLevel.SelectedValueAsEnumOrNull<ContentLibraryItemExperienceLevel>();
+                    contentItem.ContentLibraryContentTopicId = ddlTopic.SelectedValueAsInt();
+                }
+
                 contentItem.LoadAttributes( rockContext );
                 Rock.Attribute.Helper.GetEditValues( phAttributes, contentItem );
 
@@ -414,7 +427,7 @@ namespace RockWeb.Blocks.Cms
                     if ( !string.IsNullOrEmpty( hfSlug.Value ) )
                     {
                         var contentChannelItemSlugService = new ContentChannelItemSlugService( rockContext );
-                        contentChannelItemSlugService.SaveSlug( contentItem.Id, hfSlug.Value, null );
+                        contentChannelItemSlugService.SaveSlug( contentItem.Id, contentItem.ContentChannelId, hfSlug.Value, null );
                     }
 
                     var slugInput = Request.Form["slugInput"];
@@ -438,6 +451,16 @@ namespace RockWeb.Blocks.Cms
                         taglTags.SaveTagValues( CurrentPersonAlias );
                     }
 
+                    if ( contentItem.ContentChannel.EnablePersonalization )
+                    {
+                        var entityTypeId = EntityTypeCache.Get<Rock.Model.ContentChannelItem>().Id;
+                        var personalizationSegmentService = new PersonalizationSegmentService( rockContext );
+                        personalizationSegmentService.UpdatePersonalizedEntityForSegments( entityTypeId, contentItem.Id, lbSegments.SelectedValuesAsInt );
+
+                        var requestFilterService = new RequestFilterService( rockContext );
+                        requestFilterService.UpdatePersonalizedEntityForRequestFilters( entityTypeId, contentItem.Id, lbRequestFilters.SelectedValuesAsInt );
+                    }
+
                     int? eventItemOccurrenceId = PageParameter( PageParameterKey.EventItemOccurrenceId ).AsIntegerOrNull();
                     if ( eventItemOccurrenceId.HasValue )
                     {
@@ -459,6 +482,13 @@ namespace RockWeb.Blocks.Cms
                         }
                     }
                 } );
+
+                // Update the content collection index.
+                new ProcessContentCollectionDocument.Message
+                {
+                    EntityTypeId = contentItem.TypeId,
+                    EntityId = contentItem.Id
+                }.Send();
 
                 ReturnToParentPage();
             }
@@ -804,6 +834,7 @@ namespace RockWeb.Blocks.Cms
                 return contentChannelItemSlugService.GetUniqueContentSlug( tbTitle.Text, null );
             }
         }
+
         /// <summary>
         /// Gets the slug prefix.
         /// </summary>
@@ -820,7 +851,7 @@ namespace RockWeb.Blocks.Cms
 
             if ( itemUrl.EndsWith( "{{Slug}}" ) )
             {
-                return itemUrl.Replace( "{{Slug}}", "" );
+                return itemUrl.Replace( "{{Slug}}", string.Empty );
             }
 
             return string.Empty;
@@ -910,11 +941,11 @@ namespace RockWeb.Blocks.Cms
 
         public void ShowDetail( int contentItemId, int? contentChannelId )
         {
-            bool canEdit = IsUserAuthorized( Authorization.EDIT );
             hfId.Value = contentItemId.ToString();
             hfChannelId.Value = contentChannelId.HasValue ? contentChannelId.Value.ToString() : string.Empty;
 
             ContentChannelItem contentItem = GetContentItem();
+            ContentChannelCache contentChannel = null;
 
             if ( contentItem == null )
             {
@@ -923,6 +954,7 @@ namespace RockWeb.Blocks.Cms
                 return;
             }
 
+            hfContentLibraryItemGuid.Value = contentItem.ContentLibrarySourceIdentifier.ToStringSafe();
             hfContentChannelItemUrl.Value = GetSlugPrefix( contentItem.ContentChannel );
 
             if ( contentItem.ContentChannel.IsTaggingEnabled )
@@ -945,7 +977,7 @@ namespace RockWeb.Blocks.Cms
             if ( contentItem != null &&
                 contentItem.ContentChannelType != null &&
                 contentItem.ContentChannel != null &&
-                ( canEdit || contentItem.IsAuthorized( Authorization.EDIT, CurrentPerson ) ) )
+                contentItem.IsAuthorized( Authorization.EDIT, CurrentPerson ) )
             {
                 hfIsDirty.Value = "false";
 
@@ -1013,8 +1045,7 @@ namespace RockWeb.Blocks.Cms
 
                 tbTitle.Text = contentItem.Title;
 
-                rSlugs.DataSource = contentItem.ContentChannelItemSlugs;
-                rSlugs.DataBind();
+                BindSlugs( contentItem );
 
                 htmlContent.Visible = false;
                 sceContent.Visible = false;
@@ -1096,6 +1127,23 @@ namespace RockWeb.Blocks.Cms
                 bool canHaveChildren = contentItem.Id > 0 && contentItem.ContentChannel.ChildContentChannels.Any();
                 bool canHaveParents = contentItem.Id > 0 && contentItem.ContentChannel.ParentContentChannels.Any();
 
+                var enablePersonalization = contentItem.Id > 0 && contentItem.ContentChannel.EnablePersonalization;
+                if ( contentItem.Id == 0 && contentChannelId.HasValue )
+                {
+                    contentChannel = ContentChannelCache.Get( contentChannelId.Value );
+                    if ( contentChannel != null )
+                    {
+                        enablePersonalization = contentChannel.EnablePersonalization;
+                    }
+                }
+
+                pnlPersonalization.Visible = enablePersonalization;
+                if ( enablePersonalization )
+                {
+                    BindSegmentListBox( contentItem );
+                    BindRequestFilterListBox( contentItem );
+                }
+
                 pnlChildrenParents.Visible = canHaveChildren || canHaveParents;
                 phPills.Visible = canHaveChildren && canHaveParents;
                 if ( canHaveChildren && !canHaveParents )
@@ -1118,11 +1166,150 @@ namespace RockWeb.Blocks.Cms
                 {
                     BindParentItemsGrid( contentItem );
                 }
+
+                // Content Library
+                if ( contentItem.ContentChannel.IsContentLibraryEnabled )
+                {
+                    var license = contentItem.ContentLibraryLicenseTypeValueId.HasValue ? DefinedValueCache.Get( contentItem.ContentLibraryLicenseTypeValueId.Value ) : null;
+
+                    if ( contentItem.IsUploadedToContentLibrary )
+                    {
+                        pwContentLibraryUploaded.Visible = true;
+                        pwContentLibraryUploaded.LabelControls = new Control[]
+                        {
+                            new HighlightLabel
+                            {
+                                ClientIDMode = ClientIDMode.AutoID,
+                                LabelType = LabelType.Info,
+                                Text = $"{license.Value} License"
+                            }
+                        };
+
+                        var uploadedByPersonName = contentItem.ContentLibraryUploadedByPersonName;
+
+                        lContentLibraryUploadedOn.Text = uploadedByPersonName.IsNotNullOrWhiteSpace() ? $" by { uploadedByPersonName }" : string.Empty;
+                        lContentLibraryUploadedBy.Text = contentItem.ContentLibraryUploadedDateTime.HasValue ? $" on { contentItem.ContentLibraryUploadedDateTime.Value.ToShortDateString() }" : string.Empty;
+                        ;
+                    }
+                    else if ( contentItem.IsDownloadedFromContentLibrary )
+                    {
+                        pwContentLibraryDownloaded.Visible = true;
+                        pwContentLibraryDownloaded.LabelControls = new Control[]
+                        {
+                            new HighlightLabel
+                            {
+                                ClientIDMode = ClientIDMode.AutoID,
+                                LabelType = LabelType.Info,
+                                Text = $"{license.Value} License"
+                            }
+                        };
+                         
+                        var downloadedOn = contentItem.CreatedDateTime.HasValue ? $" on {contentItem.CreatedDateTime.ToShortDateString()}" : string.Empty;
+                        var downloadedBy = contentItem.CreatedByPersonAlias != null ? $" by {contentItem.CreatedByPersonName}" : string.Empty;
+
+                        lContentLibraryDownloadedOn.Text = downloadedOn;
+                        lContentLibraryDownloadedBy.Text = downloadedBy;
+                        aContentLibraryDownloadedLicense.HRef = $"https://rockrms.com/library/licenses?utm_source=rock-item-uploaded";
+                        aContentLibraryDownloadedLicense.InnerText = $"{license?.Value} License";
+                    }
+
+                    rblExperienceLevel.Visible = true;
+                    rblExperienceLevel.BindToEnum<ContentLibraryItemExperienceLevel>();
+                    rblExperienceLevel.SelectedValue = contentItem.ExperienceLevel.HasValue ? contentItem.ExperienceLevel.ConvertToInt().ToString() : null;
+
+                    ddlTopic.Visible = true;
+                    using ( var rockContext = new RockContext() )
+                    {
+                        // Topics
+                        var contentTopics = new ContentTopicService( rockContext )
+                            .Queryable()
+                            .Select( c => new
+                            {
+                                DomainName = c.ContentTopicDomain.Name,
+                                DomainOrder = c.ContentTopicDomain.Order,
+                                TopicName = c.Name,
+                                TopicDescription = c.Description,
+                                TopicId = c.Id,
+                                TopicOrder = c.Order
+                            } )
+                            .OrderBy( c => c.DomainOrder )
+                            .ThenBy( c => c.DomainName ) // Use ContentTopicDomain.Name as a secondary sort in case multiple domains share the same ContentTopicDomain.Order value.
+                            .ThenBy( c => c.TopicOrder )
+                            .ThenBy( c => c.TopicName ) // Use ContentTopic.Name as a secondary sort in case multiple domain topics share the same ContentTopic.Order value.
+                            .ToList();
+
+                        // Add blank item.
+                        ddlTopic.Items.Add( new ListItem() );
+
+                        foreach ( var contentTopic in contentTopics )
+                        {
+                            var li = new ListItem( contentTopic.TopicName, contentTopic.TopicId.ToString() );
+
+                            if ( contentTopic.DomainName.IsNotNullOrWhiteSpace() )
+                            {
+                                li.Attributes.Add( "optiongroup", contentTopic.DomainName );
+                            }
+
+                            if ( contentTopic.TopicDescription.IsNotNullOrWhiteSpace() )
+                            {
+                                li.Attributes.Add( "title", contentTopic.TopicDescription );
+                            }
+
+                            ddlTopic.Items.Add( li );
+                        }
+
+                        ddlTopic.SelectedValue = contentItem.ContentLibraryContentTopicId.ToString();
+                    }
+                }
             }
             else
             {
                 nbEditModeMessage.Text = EditModeMessage.NotAuthorizedToEdit( ContentChannelItem.FriendlyTypeName );
                 pnlEditDetails.Visible = false;
+            }
+        }
+
+        private void BindSlugs( ContentChannelItem contentItem )
+        {
+            rSlugs.DataSource = contentItem.ContentChannelItemSlugs;
+            rSlugs.DataBind();
+        }
+
+        private void BindRequestFilterListBox( ContentChannelItem contentItem )
+        {
+            var requestFilterService = new RequestFilterService( new RockContext() );
+            var requestFilters = requestFilterService
+                .Queryable()
+                .OrderBy( a => a.Name )
+                .ToList();
+            lbRequestFilters.DataSource = requestFilters;
+            lbRequestFilters.DataBind();
+            if ( contentItem.Id > 0 )
+            {
+                var selectedRequestFilterIds = requestFilterService
+                    .GetPersonalizedEntityRequestFilterQuery( EntityTypeCache.Get<Rock.Model.ContentChannelItem>().Id, contentItem.Id )
+                    .Select( a => a.PersonalizationEntityId )
+                    .ToList();
+                lbRequestFilters.SetValues( selectedRequestFilterIds );
+            }
+        }
+
+        private void BindSegmentListBox( ContentChannelItem contentItem )
+        {
+            var personalizationSegmentService = new PersonalizationSegmentService( new RockContext() );
+            var segments = new PersonalizationSegmentService( new RockContext() )
+                .Queryable()
+                .OrderBy( a => a.Name )
+                .ToList();
+            lbSegments.DataSource = segments;
+            lbSegments.DataBind();
+            if ( contentItem.Id > 0 )
+            {
+                var selectedSegmentIds = personalizationSegmentService
+                    .GetPersonalizedEntitySegmentQuery( EntityTypeCache.Get<Rock.Model.ContentChannelItem>().Id, contentItem.Id )
+                    .Select( a => a.PersonalizationEntityId )
+                    .ToList();
+                lbSegments.SetValues( selectedSegmentIds );
             }
         }
 
@@ -1134,7 +1321,7 @@ namespace RockWeb.Blocks.Cms
                 {
                     pnlStatus.Visible = true;
 
-                    PendingCss = contentItem.Status == ContentChannelItemStatus.PendingApproval ? "btn-default active" : "btn-default";
+                    PendingCss = contentItem.Status == ContentChannelItemStatus.PendingApproval ? "btn-warning active" : "btn-default";
                     ApprovedCss = contentItem.Status == ContentChannelItemStatus.Approved ? "btn-success active" : "btn-default";
                     DeniedCss = contentItem.Status == ContentChannelItemStatus.Denied ? "btn-danger active" : "btn-default";
                 }
@@ -1415,7 +1602,7 @@ namespace RockWeb.Blocks.Cms
         }
 
         /// <summary>
-        /// When navigating to child items of childitems of childitems, the "Hierarchy" will be a list of how to navigate backwards thru the parents
+        /// When navigating to child items of childitems of childitems, the "Hierarchy" will be a list of how to navigate backwards through the parents.
         /// </summary>
         /// <returns></returns>
         private List<string> GetNavHierarchy()
@@ -1430,5 +1617,28 @@ namespace RockWeb.Blocks.Cms
         }
 
         #endregion
+
+        protected void bRedownloadAndRefresh_Click( object sender, EventArgs e )
+        {
+            mdRedownload.Show();
+        }
+
+        protected void mdRedownload_SaveClick( object sender, EventArgs e )
+        {
+            using ( var rockContext = new RockContext() )
+            {
+                var contentChannelItemService = new ContentChannelItemService( rockContext );
+                var contentChannelGuid = ContentChannelCache.Get( hfChannelId.Value.AsInteger() ).Guid;
+                contentChannelItemService.AddFromContentLibrary( new Rock.Model.CMS.ContentChannelItem.Options.ContentLibraryItemDownloadOptions
+                {
+                    ContentLibraryItemGuidToDownload = hfContentLibraryItemGuid.Value.AsGuid(),
+                    DownloadIntoContentChannelGuid = contentChannelGuid,
+                    CurrentPersonPerformingDownload = CurrentPerson
+                } );
+            }
+            mdRedownload.Hide();
+
+            NavigateToCurrentPageReference();
+        }
     }
 }

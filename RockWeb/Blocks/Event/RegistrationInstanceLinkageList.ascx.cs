@@ -72,6 +72,7 @@ namespace RockWeb.Blocks.Event
 
     #endregion
 
+    [Rock.SystemGuid.BlockTypeGuid( "E877FDE1-DEE6-48F8-8150-4E28D5ABB694" )]
     public partial class RegistrationInstanceLinkageList : RegistrationInstanceBlock, ISecondaryBlock
     {
         #region Keys
@@ -176,7 +177,7 @@ namespace RockWeb.Blocks.Event
         /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
         protected void fLinkages_ApplyFilterClick( object sender, EventArgs e )
         {
-            fLinkages.SaveUserPreference( UserPreferenceKeyBase.GridFilter_Campus, cblCampus.SelectedValues.AsDelimited( ";" ) );
+            fLinkages.SetFilterPreference( UserPreferenceKeyBase.GridFilter_Campus, cblCampus.SelectedValues.AsDelimited( ";" ) );
 
             BindLinkagesGrid();
         }
@@ -188,7 +189,7 @@ namespace RockWeb.Blocks.Event
         /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
         protected void fLinkages_ClearFilterClick( object sender, EventArgs e )
         {
-            fLinkages.DeleteUserPreferences();
+            fLinkages.DeleteFilterPreferences();
             BindLinkagesFilter();
         }
 
@@ -274,11 +275,11 @@ namespace RockWeb.Blocks.Event
 
                                     if ( string.IsNullOrWhiteSpace( calendarEventUrl ) )
                                     {
-                                        calendarItems.Add( string.Format( "{0} ({1})", calendarItem.EventItem.Name, calendarItem.EventCalendar.Name ) );
+                                        calendarItems.Add( string.Format( "{0} ({1})", calendarItem.EventItem.Name, eventItemOccurrenceGroupMap.EventItemOccurrence.Campus?.Name ?? "All Campuses" ) );
                                     }
                                     else
                                     {
-                                        calendarItems.Add( string.Format( "<a href='{0}'>{1}</a> ({2})", calendarEventUrl, calendarItem.EventItem.Name, calendarItem.EventCalendar.Name ) );
+                                        calendarItems.Add( string.Format( "<a href='{0}'>{1}</a> ({2})", calendarEventUrl, calendarItem.EventItem.Name, eventItemOccurrenceGroupMap.EventItemOccurrence.Campus?.Name ?? "All Campuses" ) );
                                     }
                                 }
                             }
@@ -391,7 +392,7 @@ namespace RockWeb.Blocks.Event
         /// </summary>
         private void SetUserPreferencePrefix( int registrationTemplateId )
         {
-            fLinkages.UserPreferenceKeyPrefix = string.Format( "{0}-", registrationTemplateId );
+            fLinkages.PreferenceKeyPrefix = string.Format( "{0}-", registrationTemplateId );
         }
 
         /// <summary>
@@ -402,7 +403,7 @@ namespace RockWeb.Blocks.Event
             cblCampus.DataSource = CampusCache.All();
             cblCampus.DataBind();
 
-            string campusValue = fLinkages.GetUserPreference( UserPreferenceKeyBase.GridFilter_Campus );
+            string campusValue = fLinkages.GetFilterPreference( UserPreferenceKeyBase.GridFilter_Campus );
 
             if ( !string.IsNullOrWhiteSpace( campusValue ) )
             {
@@ -442,12 +443,7 @@ namespace RockWeb.Blocks.Event
                 if ( campusIds.Any() )
                 {
                     qry = qry
-                        .Where( l =>
-                            l.EventItemOccurrence != null &&
-                            (
-                                !l.EventItemOccurrence.CampusId.HasValue ||
-                                campusIds.Contains( l.EventItemOccurrence.CampusId.Value )
-                            ) );
+                        .Where( l => l.CampusId.HasValue && campusIds.Contains( l.CampusId.Value ) );
                 }
 
                 IOrderedQueryable<EventItemOccurrenceGroupMap> orderedQry = null;

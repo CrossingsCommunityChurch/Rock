@@ -31,7 +31,8 @@ namespace RockWeb.Blocks.GroupScheduling
     [DisplayName( "Group Member Schedule Template Detail" )]
     [Category( "Group Scheduling" )]
     [Description( "Displays the details of a group member schedule template." )]
-    public partial class GroupMemberScheduleTemplateDetail : RockBlock, IDetailBlock
+    [Rock.SystemGuid.BlockTypeGuid( "B5EB66A1-7391-49D5-B613-5ED804A31E7B" )]
+    public partial class GroupMemberScheduleTemplateDetail : RockBlock
     {
         #region Base Control Methods
 

@@ -18,10 +18,15 @@ using System;
 using System.Collections.Generic;
 using System.Data.Entity;
 using System.Linq;
+#if WEBFORMS
 using System.Web.UI;
 using System.Web.UI.WebControls;
+#endif
+using Rock.Attribute;
 using Rock.Data;
 using Rock.Model;
+using Rock.ViewModels.Utility;
+using Rock.Web.Cache;
 using Rock.Web.UI.Controls;
 
 namespace Rock.Field.Types
@@ -30,12 +35,180 @@ namespace Rock.Field.Types
     /// Field Type used to display Assessment type check boxes.
     /// Stored as Assessment type's Guid.
     /// </summary>
-    public class AssessmentTypesFieldType : SelectFromListFieldType
+    [RockPlatformSupport( Utility.RockPlatform.WebForms, Utility.RockPlatform.Obsidian  )]
+    [Rock.SystemGuid.FieldTypeGuid( Rock.SystemGuid.FieldType.ASSESSMENT_TYPE )]
+    public class AssessmentTypesFieldType : SelectFromListFieldType, IEntityReferenceFieldType
     {
         #region Configuration
 
         private const string INCLUDE_INACTIVE_KEY = "includeInactive";
-        private const string REPEAT_COLUMNS = "repeatColumns";
+
+        #endregion
+
+        #region Formatting
+
+        /// <inheritdoc/>
+        public override string GetTextValue( string value, Dictionary<string, string> privateConfigurationValues )
+        {
+            string formattedValue = string.Empty;
+
+            if ( !string.IsNullOrWhiteSpace( value ) )
+            {
+                var guids = new List<Guid>();
+
+                foreach ( string guidValue in value.Split( new char[] { ',' }, StringSplitOptions.RemoveEmptyEntries ) )
+                {
+                    Guid? guid = guidValue.AsGuidOrNull();
+                    if ( guid.HasValue )
+                    {
+                        guids.Add( guid.Value );
+                    }
+                }
+
+                if ( guids.Any() )
+                {
+                    var assessmentTypes = guids.Select( a => AssessmentTypeCache.Get( a ) ).ToList();
+                    if ( assessmentTypes.Any() )
+                    {
+                        formattedValue = string.Join( ", ", ( from assessmentType in assessmentTypes select assessmentType?.Title ) );
+                    }
+                }
+            }
+
+            return formattedValue;
+        }
+
+        #endregion
+
+
+        #region Edit Control
+
+        /// <inheritdoc/>
+        public override string GetPublicValue( string privateValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            return GetTextValue( privateValue, privateConfigurationValues );
+        }
+
+        /// <inheritdoc/>
+        public override string GetPrivateEditValue( string publicValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            var assessmentTypeValues = publicValue.FromJsonOrNull<List<ListItemBag>>();
+
+            if ( assessmentTypeValues != null && assessmentTypeValues.Any() )
+            {
+                return string.Join( ",", assessmentTypeValues.Select( s => s.Value ) );
+            }
+
+            return string.Empty;
+        }
+
+        /// <inheritdoc/>
+        public override string GetPublicEditValue( string privateValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            if ( !string.IsNullOrWhiteSpace( privateValue ) )
+            {
+                var assessmentTypeValues = new List<ListItemBag>();
+
+                foreach ( string guidValue in privateValue.Split( new char[] { ',' }, StringSplitOptions.RemoveEmptyEntries ) )
+                {
+                    Guid? guid = guidValue.AsGuidOrNull();
+                    if ( guid.HasValue )
+                    {
+                        var assessmentType = AssessmentTypeCache.Get( guid.Value );
+                        if ( assessmentType != null )
+                        {
+                            var scheduleValue = new ListItemBag()
+                            {
+                                Text = assessmentType.Title,
+                                Value = assessmentType.Guid.ToString(),
+                            };
+
+                            assessmentTypeValues.Add( scheduleValue );
+                        }
+                    }
+                }
+
+                if ( assessmentTypeValues.Any() )
+                {
+                    return assessmentTypeValues.ToCamelCaseJson( false, true );
+                }
+            }
+
+            return string.Empty;
+        }
+
+
+        #endregion
+
+        #region Methods
+
+        /// <summary>
+        /// Gets the list source of Assessment types from the database
+        /// </summary>
+        /// <value>
+        /// The list source.
+        /// </value>
+        internal override Dictionary<string, string> GetListSource( Dictionary<string, ConfigurationValue> configurationValues )
+        {
+            bool includeInactive = ( configurationValues != null && configurationValues.ContainsKey( INCLUDE_INACTIVE_KEY ) && configurationValues[INCLUDE_INACTIVE_KEY].Value.AsBoolean() );
+
+            return new AssessmentTypeService( new RockContext() )
+                .Queryable().AsNoTracking()
+                .OrderBy( t => t.Title )
+                .Where( t => t.IsActive || includeInactive )
+                .Select( t => new
+                {
+                    t.Guid,
+                    t.Title,
+                } )
+                .ToDictionary( t => t.Guid.ToString(), t => t.Title );
+        }
+
+        #endregion
+
+        #region IEntityReferenceFieldType
+
+        /// <inheritdoc/>
+        List<ReferencedEntity> IEntityReferenceFieldType.GetReferencedEntities( string privateValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            if ( privateValue.IsNullOrWhiteSpace() )
+            {
+                return null;
+            }
+
+            using ( var rockContext = new RockContext() )
+            {
+                var valueGuidList = privateValue.Split( new char[] { ',' }, StringSplitOptions.RemoveEmptyEntries ).AsGuidList();
+
+                var ids = new AssessmentTypeService( rockContext )
+                    .Queryable()
+                    .Where( at => valueGuidList.Contains( at.Guid ) )
+                    .Select( at => at.Id )
+                    .ToList();
+
+                var assessmentTypeEntityTypeId = EntityTypeCache.GetId<AssessmentType>().Value;
+
+                return ids
+                    .Select( id => new ReferencedEntity( assessmentTypeEntityTypeId, id ) )
+                    .ToList();
+            }
+        }
+
+        /// <inheritdoc/>
+        List<ReferencedProperty> IEntityReferenceFieldType.GetReferencedProperties( Dictionary<string, string> privateConfigurationValues )
+        {
+            // This field type references the Title property of a AssessmentType and
+            // should have its persisted values updated when changed.
+            return new List<ReferencedProperty>
+            {
+                new ReferencedProperty( EntityTypeCache.GetId<AssessmentType>().Value, nameof( AssessmentType.Title ) )
+            };
+        }
+
+        #endregion
+
+        #region WebForms
+#if WEBFORMS
 
         /// <summary>
         /// Returns a list of the configuration keys
@@ -75,25 +248,14 @@ namespace Rock.Field.Types
         /// <returns></returns>
         public override Dictionary<string, ConfigurationValue> ConfigurationValues( List<Control> controls )
         {
-            Dictionary<string, ConfigurationValue> configurationValues = new Dictionary<string, ConfigurationValue>();
+            Dictionary<string, ConfigurationValue> configurationValues = base.ConfigurationValues( controls );
 
-            string description = "When set, inactive assessments will be included in the list.";
-            configurationValues.Add( INCLUDE_INACTIVE_KEY, new ConfigurationValue( "Assessment Type", description, string.Empty ) );
-
-            description = "Select how many columns the list should use before going to the next row. If blank 4 is used.";
-            configurationValues.Add( REPEAT_COLUMNS, new ConfigurationValue( "Repeat Columns", description, string.Empty ) );
+            configurationValues.Add( INCLUDE_INACTIVE_KEY, new ConfigurationValue( "Assessment Type", "When set, inactive assessments will be included in the list.", string.Empty ) );
 
             if ( controls != null )
             {
-                if ( controls.Count > 0 && controls[0] != null && controls[0] is NumberBox )
-                {
-                    configurationValues[REPEAT_COLUMNS].Value = ( ( NumberBox ) controls[0] ).Text;
-                }
-
-                if ( controls.Count > 1 && controls[1] != null && controls[1] is CheckBox )
-                {
-                    configurationValues[INCLUDE_INACTIVE_KEY].Value = ( ( CheckBox ) controls[1] ).Checked.ToString();
-                }
+                CheckBox cbIncludeInactive = controls.Count > 2 ? controls[2] as CheckBox : null;
+                configurationValues[INCLUDE_INACTIVE_KEY].Value = cbIncludeInactive != null ? cbIncludeInactive.Checked.ToString() : null;
             }
 
             return configurationValues;
@@ -106,55 +268,20 @@ namespace Rock.Field.Types
         /// <param name="configurationValues"></param>
         public override void SetConfigurationValues( List<Control> controls, Dictionary<string, ConfigurationValue> configurationValues )
         {
+            base.SetConfigurationValues( controls, configurationValues );
+
             if ( controls != null && configurationValues != null )
             {
-                if ( controls.Count > 0 && controls[0] != null && controls[0] is CheckBox && configurationValues.ContainsKey( INCLUDE_INACTIVE_KEY ) )
-                {
-                    ( ( CheckBox ) controls[0] ).Checked = configurationValues[INCLUDE_INACTIVE_KEY].Value.AsBoolean();
-                }
+                CheckBox cbIncludeInactive = controls.Count > 2 ? controls[2] as CheckBox : null;
 
-                if ( controls.Count > 1 && controls[1] != null && controls[1] is NumberBox && configurationValues.ContainsKey( REPEAT_COLUMNS ) )
+                if ( cbIncludeInactive != null )
                 {
-                    ( ( NumberBox ) controls[1] ).Text = configurationValues[REPEAT_COLUMNS].Value;
+                    cbIncludeInactive.Checked = configurationValues.GetValueOrNull( INCLUDE_INACTIVE_KEY ).AsBooleanOrNull() ?? false;
                 }
             }
         }
 
+#endif
         #endregion
-
-        /// <summary>
-        /// Creates the control(s) necessary for prompting user for a new value
-        /// </summary>
-        /// <param name="configurationValues">The configuration values.</param>
-        /// <param name="id"></param>
-        /// <returns>
-        /// The control
-        /// </returns>
-        public override System.Web.UI.Control EditControl( Dictionary<string, ConfigurationValue> configurationValues, string id )
-        {
-            return base.EditControl( configurationValues, id );
-        }
-
-        /// <summary>
-        /// Gets the list source of Assessment types from the database
-        /// </summary>
-        /// <value>
-        /// The list source.
-        /// </value>
-        internal override Dictionary<string, string> GetListSource( Dictionary<string, ConfigurationValue> configurationValues )
-        {
-            bool includeInactive = ( configurationValues != null && configurationValues.ContainsKey( INCLUDE_INACTIVE_KEY ) && configurationValues[INCLUDE_INACTIVE_KEY].Value.AsBoolean() );
-
-            return new AssessmentTypeService( new RockContext() )
-                .Queryable().AsNoTracking()
-                .OrderBy( t => t.Title )
-                .Where( t => t.IsActive || includeInactive )
-                .Select( t => new
-                {
-                    t.Guid,
-                    t.Title,
-                } )
-                .ToDictionary( t => t.Guid.ToString(), t => t.Title );
-        }
     }
 }

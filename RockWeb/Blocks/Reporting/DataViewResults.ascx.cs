@@ -13,11 +13,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 // </copyright>
-using System;
-using System.ComponentModel;
-using System.Data.Entity;
-using System.Web.UI;
-
 using Rock;
 using Rock.Attribute;
 using Rock.Data;
@@ -27,6 +22,10 @@ using Rock.Security;
 using Rock.Web.Cache;
 using Rock.Web.UI;
 using Rock.Web.UI.Controls;
+using System;
+using System.ComponentModel;
+using System.Data.Entity;
+using System.Web.UI;
 
 namespace RockWeb.Blocks.Reporting
 {
@@ -51,6 +50,7 @@ namespace RockWeb.Blocks.Reporting
         DefaultBooleanValue = true,
         Order = 1
         )]
+    [Rock.SystemGuid.BlockTypeGuid( "61CDA12E-A19F-4299-AF3E-4F7E2B8F5866" )]
     public partial class DataViewResults : RockBlock, ICustomGridColumns, ISecondaryBlock
     {
         #region Attribute Keys
@@ -152,8 +152,12 @@ namespace RockWeb.Blocks.Reporting
         /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
         protected void btnToggleResults_Click( object sender, EventArgs e )
         {
-            var showResults = GetBlockUserPreference( UserPreferenceKey.ShowResults ).AsBoolean( true );
-            SetBlockUserPreference( UserPreferenceKey.ShowResults, ( !showResults ).ToString() );
+            var preferences = GetBlockPersonPreferences();
+            var showResults = preferences.GetValue( UserPreferenceKey.ShowResults ).AsBoolean( true );
+
+            preferences.SetValue( UserPreferenceKey.ShowResults, ( !showResults ).ToString() );
+            preferences.Save();
+
             BindGrid();
         }
 
@@ -185,7 +189,14 @@ namespace RockWeb.Blocks.Reporting
                 return;
             }
 
-            var dataView = new DataViewService( new RockContext() ).Get( dataViewId.Value );
+            // In order to determine the desired context, we need to do a lookup of the dataview itself.
+            DataView dataViewForContext = new DataViewService( new RockContext() ).Get( dataViewId.Value );
+            if ( dataViewForContext == null )
+            {
+                return;
+            }
+
+            var dataView = new DataViewService( dataViewForContext.GetDbContext() as RockContext ).Get( dataViewId.Value );
             if ( dataView == null )
             {
                 return;
@@ -214,7 +225,8 @@ namespace RockWeb.Blocks.Reporting
             gDataViewResults.DataSource = null;
 
             // Only respect the ShowResults option if fetchRowCount is null
-            var showResults = GetBlockUserPreference( UserPreferenceKey.ShowResults ).AsBooleanOrNull() ?? true;
+            var preferences = GetBlockPersonPreferences();
+            var showResults = preferences.GetValue( UserPreferenceKey.ShowResults ).AsBooleanOrNull() ?? true;
 
             if ( showResults )
             {
@@ -267,11 +279,9 @@ namespace RockWeb.Blocks.Reporting
             try
             {
                 gDataViewResults.CreatePreviewColumns( dataViewEntityTypeType );
-                var dbContext = dataView.GetDbContext();
                 var dataViewGetQueryArgs = new DataViewGetQueryArgs
                 {
                     SortProperty = gDataViewResults.SortProperty,
-                    DbContext = dbContext,
                     DatabaseTimeoutSeconds = GetAttributeValue( AttributeKey.DatabaseTimeoutSeconds ).AsIntegerOrNull() ?? 180,
                     DataViewFilterOverrides = new DataViewFilterOverrides
                     {

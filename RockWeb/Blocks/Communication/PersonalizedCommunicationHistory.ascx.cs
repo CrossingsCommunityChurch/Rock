@@ -63,6 +63,7 @@ namespace RockWeb.Blocks.Communication
 
     #endregion Block Attributes
 
+    [Rock.SystemGuid.BlockTypeGuid( "3F294916-A02D-48D5-8FE4-E8D7B98F61F7" )]
     public partial class PersonalizedCommunicationHistory : RockBlock
     {
         #region Attribute Keys
@@ -99,6 +100,7 @@ namespace RockWeb.Blocks.Communication
         private DataViewService _gridDataViewService;
         private BinaryFileService _gridBinaryFileService;
         private Dictionary<int, CommunicationType> _mediumEntityIdToCommunicationTypeMap;
+        private List<int> _currentPersonAliasIdList;
 
         private const string _communicationItemLavaTemplate = @"
 <div class='communication-item pt-3 d-flex flex-row cursor-default'>
@@ -209,7 +211,7 @@ namespace RockWeb.Blocks.Communication
                                         <dd>
                                             {% for segment in Communication.Detail.CommunicationSegments %}
                                                 {% if ListSegmentDetailUrlTemplate != empty %}
-                                                    <a href=""{{ ListSegmentDetailUrlTemplate | Replace:'@SegmentId',segment.Id }}"">{{ segment.Name }}</a><br>
+                                                    <a href=""{{ ListSegmentDetailUrlTemplate | Replace:'@segmentId',segment.Id }}"">{{ segment.Name }}</a><br>
                                                 {% else %}
                                                     {{ segment.Name }}<br>
                                                 {% endif %}
@@ -315,7 +317,7 @@ namespace RockWeb.Blocks.Communication
                                                 {% if Communication.CommunicationType != 'PushNotification' %}
                                                 <td class='wrap-contents'>{{ item.Details }}</td>
                                                 {% endif %}
-                                                <td class='w-1 text-nowrap'>{{ item.DateTime | Date }}</td>
+                                                <td class='w-1 text-nowrap'>{{ item.DateTime | Date:'' }}</td>
                                             </tr>
                                         {% endfor %}
                                     </tbody>
@@ -433,14 +435,14 @@ namespace RockWeb.Blocks.Communication
         {
             int personId = ppCreatedBy.PersonId ?? 0;
 
-            rFilter.SaveUserPreference( FilterSettingName.Subject, tbSubject.Text );
-            rFilter.SaveUserPreference( FilterSettingName.Medium, ddlMedium.SelectedValue );
-            rFilter.SaveUserPreference( FilterSettingName.SendDateRange, drpDates.DelimitedValues );
-            rFilter.SaveUserPreference( FilterSettingName.CreatedBy, personId.ToString() );
-            rFilter.SaveUserPreference( FilterSettingName.SystemCommunicationType, ddlSystemCommunicationType.SelectedValue );
-            rFilter.SaveUserPreference( FilterSettingName.CommunicationTemplate, ddlTemplate.SelectedValue );
-            rFilter.SaveUserPreference( FilterSettingName.Status, ddlStatus.SelectedValue );
-            rFilter.SaveUserPreference( FilterSettingName.BulkStatus, ddlBulk.SelectedValue );
+            rFilter.SetFilterPreference( FilterSettingName.Subject, tbSubject.Text );
+            rFilter.SetFilterPreference( FilterSettingName.Medium, ddlMedium.SelectedValue );
+            rFilter.SetFilterPreference( FilterSettingName.SendDateRange, drpDates.DelimitedValues );
+            rFilter.SetFilterPreference( FilterSettingName.CreatedBy, personId.ToString() );
+            rFilter.SetFilterPreference( FilterSettingName.SystemCommunicationType, ddlSystemCommunicationType.SelectedValue );
+            rFilter.SetFilterPreference( FilterSettingName.CommunicationTemplate, ddlTemplate.SelectedValue );
+            rFilter.SetFilterPreference( FilterSettingName.Status, ddlStatus.SelectedValue );
+            rFilter.SetFilterPreference( FilterSettingName.BulkStatus, ddlBulk.SelectedValue );
 
             BindGrid();
         }
@@ -452,7 +454,7 @@ namespace RockWeb.Blocks.Communication
         /// <param name="e">The <see cref="EventArgs" /> instance containing the event data.</param>
         protected void rFilter_ClearFilterClick( object sender, EventArgs e )
         {
-            rFilter.DeleteUserPreferences();
+            rFilter.DeleteFilterPreferences();
 
             SetFilter();
             BindGrid();
@@ -622,7 +624,7 @@ namespace RockWeb.Blocks.Communication
             InitializeDataBindingServices();
 
             // Subject
-            tbSubject.Text = rFilter.GetUserPreference( FilterSettingName.Subject );
+            tbSubject.Text = rFilter.GetFilterPreference( FilterSettingName.Subject );
 
             // Communication Medium
             ddlMedium.Items.Clear();
@@ -647,7 +649,7 @@ namespace RockWeb.Blocks.Communication
                 ddlMedium.Items.Add( new ListItem( "Push Notification", CommunicationType.PushNotification.ConvertToInt().ToString() ) );
             }
 
-            ddlMedium.SetValue( rFilter.GetUserPreference( FilterSettingName.Medium ) );
+            ddlMedium.SetValue( rFilter.GetFilterPreference( FilterSettingName.Medium ) );
 
             // Status.
             // "Opened" status is displayed as "Interacted".
@@ -660,10 +662,10 @@ namespace RockWeb.Blocks.Communication
             ddlStatus.Items.Add( new ListItem( CommunicationRecipientStatus.Pending.ToString(), CommunicationRecipientStatus.Pending.ConvertToInt().ToString() ) );
             ddlStatus.Items.Add( new ListItem( CommunicationRecipientStatus.Sending.ToString(), CommunicationRecipientStatus.Sending.ConvertToInt().ToString() ) );
 
-            ddlStatus.SelectedValue = rFilter.GetUserPreference( FilterSettingName.Status );
+            ddlStatus.SelectedValue = rFilter.GetFilterPreference( FilterSettingName.Status );
 
             // Created By
-            ppCreatedBy.PersonId = rFilter.GetUserPreference( FilterSettingName.CreatedBy ).AsIntegerOrNull();
+            ppCreatedBy.PersonId = rFilter.GetFilterPreference( FilterSettingName.CreatedBy ).AsIntegerOrNull();
 
             if ( !ppCreatedBy.PersonId.HasValue )
             {
@@ -671,12 +673,12 @@ namespace RockWeb.Blocks.Communication
             }
 
             // Send Date
-            drpDates.DelimitedValues = rFilter.GetUserPreference( FilterSettingName.SendDateRange );
+            drpDates.DelimitedValues = rFilter.GetFilterPreference( FilterSettingName.SendDateRange );
 
             // System Communication Template
             LoadSystemCommunicationTemplatesSelectionList( rockContext );
 
-            ddlSystemCommunicationType.SetValue( rFilter.GetUserPreference( FilterSettingName.SystemCommunicationType ) );
+            ddlSystemCommunicationType.SetValue( rFilter.GetFilterPreference( FilterSettingName.SystemCommunicationType ) );
 
             // Is Bulk?
             ddlBulk.Items.Clear();
@@ -684,12 +686,12 @@ namespace RockWeb.Blocks.Communication
             ddlBulk.Items.Add( new ListItem( "Bulk Messages Only", "Bulk" ) );
             ddlBulk.Items.Add( new ListItem( "Non-bulk Messages Only", "NotBulk" ) );
 
-            ddlBulk.SetValue( rFilter.GetUserPreference( FilterSettingName.BulkStatus ) );
+            ddlBulk.SetValue( rFilter.GetFilterPreference( FilterSettingName.BulkStatus ) );
 
             // Communication Template
             LoadCommunicationTemplatesSelectionList( rockContext );
 
-            ddlTemplate.SetValue( rFilter.GetUserPreference( FilterSettingName.CommunicationTemplate ) );
+            ddlTemplate.SetValue( rFilter.GetFilterPreference( FilterSettingName.CommunicationTemplate ) );
         }
 
         /// <summary>
@@ -770,12 +772,14 @@ namespace RockWeb.Blocks.Communication
 
         private void InitializeDataBindingServices()
         {
-            // Initialize the services used during the Grid data binding process.
+            // Initialize the services and data used during the Grid data binding process.
             var rockContext = new RockContext();
 
             _gridPersonService = _gridPersonService ?? new PersonService( rockContext );
             _gridDataViewService = _gridDataViewService ?? new DataViewService( rockContext );
             _gridBinaryFileService = _gridBinaryFileService ?? new BinaryFileService( rockContext );
+
+            _currentPersonAliasIdList = this.CurrentPerson?.Aliases.Select( p => p.Id ).ToList() ?? new List<int>();
         }
 
         private IQueryable<CommunicationRecipientListQueryItem> GetCommunicationListItemsQuery( RockContext rockContext, IQueryable<Rock.Model.Communication> qryCommunications, int personId )
@@ -861,8 +865,8 @@ namespace RockWeb.Blocks.Communication
                             CommunicationTemplateName = ciGroup.Communication.CommunicationTemplateId == null ? null : ciGroup.Communication.CommunicationTemplate.Name,
                             SenderName = ciGroup.Communication.FromName,
                             InternalSenderEmail = ciGroup.Communication.FromEmail,
-                            InternalSenderSmsName = ciGroup.Communication.SMSFromDefinedValue.Description,
-                            InternalSenderSmsNumber = ciGroup.Communication.SMSFromDefinedValue.Value,
+                            InternalSenderSmsName = ciGroup.Communication.SmsFromSystemPhoneNumber.Name,
+                            InternalSenderSmsNumber = ciGroup.Communication.SmsFromSystemPhoneNumber.Number,
                             InternalPushImageFileId = ciGroup.Communication.PushImageBinaryFileId,
                             InternalPushData = ciGroup.Communication.PushData,
                             InternalAttachments = ciGroup.Communication.Attachments.Select( x => new CommunicationAttachmentInfo { BinaryFileId = x.BinaryFileId, CommunicationType = x.CommunicationType } ).ToList(),
@@ -1149,8 +1153,14 @@ namespace RockWeb.Blocks.Communication
         private void GetAdditionalCommunicationEntryData( CommunicationListItem info )
         {
             // Set the View permission for the communication detail.
+            // The current person should have view permission for the communication if:
+            // 1. They are the creator or sender; or
+            // 2. They have Edit permission for this block.
+            var senderPrimaryAliasId = info.Sender?.PrimaryAliasId ?? 0;
+
             info.ViewDetailIsAllowed = UserCanEdit
-                || ( CurrentPersonAliasId != null && info.CreatedByPersonAliasId != null && info.CreatedByPersonAliasId.Value == CurrentPersonAliasId.Value );
+                || _currentPersonAliasIdList.Contains( info.CreatedByPersonAliasId.GetValueOrDefault() )
+                || _currentPersonAliasIdList.Contains( info.Sender?.PrimaryAliasId ?? 0 );
 
             // Get Communication List Segments.
             if ( !string.IsNullOrWhiteSpace( info?.Detail?.InternalCommunicationSegmentData ) )

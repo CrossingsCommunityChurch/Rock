@@ -52,6 +52,7 @@ namespace RockWeb.Blocks.Finance
     [BooleanField( "Show Batch Filter", "", true, key: "ShowBatchFilter", order: 3 )]
     [IntegerField( "Max Number of Results", "", false, 1000, order: 4 )]
     [DefinedValueField( Rock.SystemGuid.DefinedType.FINANCIAL_TRANSACTION_TYPE, "TransactionTypeGuid", category: "CustomSetting" )]
+    [Rock.SystemGuid.BlockTypeGuid( "A58BCB1E-01D9-4F60-B925-D831A9537051" )]
     public partial class TransactionEntityMatching : RockBlockCustomSettings, ICustomGridColumns
     {
         private List<FinancialTransactionDetail> _financialTransactionDetailList;
@@ -166,10 +167,12 @@ namespace RockWeb.Blocks.Finance
 
             if ( !Page.IsPostBack )
             {
+                var preferences = GetBlockPersonPreferences();
+
                 LoadDropDowns();
-                hfBatchId.Value = this.GetBlockUserPreference( "BatchId" );
+                hfBatchId.Value = preferences.GetValue( "BatchId" );
                 ddlBatch.SetValue( hfBatchId.Value );
-                hfDataViewId.Value = this.GetBlockUserPreference( "DataViewId" );
+                hfDataViewId.Value = preferences.GetValue( "DataViewId" );
                 dvpDataView.SetValue( hfDataViewId.Value.AsIntegerOrNull() );
                 BindHtmlGrid( hfBatchId.Value.AsIntegerOrNull(), hfDataViewId.Value.AsIntegerOrNull() );
                 LoadEntityDropDowns();
@@ -418,8 +421,12 @@ namespace RockWeb.Blocks.Finance
         {
             hfBatchId.Value = ddlBatch.SelectedValue;
             hfDataViewId.Value = dvpDataView.SelectedValue;
-            this.SetBlockUserPreference( "DataViewId", hfDataViewId.Value );
-            this.SetBlockUserPreference( "BatchId", hfBatchId.Value );
+
+            var preferences = GetBlockPersonPreferences();
+            preferences.SetValue( "DataViewId", hfDataViewId.Value );
+            preferences.SetValue( "BatchId", hfBatchId.Value );
+            preferences.Save();
+
             BindHtmlGrid( hfBatchId.Value.AsIntegerOrNull(), hfDataViewId.Value.AsIntegerOrNull() );
             LoadEntityDropDowns();
         }
@@ -815,6 +822,9 @@ namespace RockWeb.Blocks.Finance
                     }
                 }
             }
+
+            BindHtmlGrid( hfBatchId.Value.AsIntegerOrNull(), hfDataViewId.Value.AsIntegerOrNull() );
+            LoadEntityDropDowns();
 
             nbSaveSuccess.Visible = true;
         }

@@ -23,6 +23,7 @@ using System.Text.RegularExpressions;
 using CSScriptLibrary;
 
 using DotLiquid;
+
 using Rock.Lava.Blocks;
 
 namespace Rock.Lava.RockLiquid.Blocks
@@ -33,7 +34,16 @@ namespace Rock.Lava.RockLiquid.Blocks
     public class Execute : RockLavaBlockBase
     {
         private RuntimeType _runtimeType = RuntimeType.SCRIPT;
-        private List<string> _imports = new List<string>();
+        private string[] _initialImports = new string[0];
+
+        // add default convenience import
+        private readonly string[] _convenienceImports = new string[4]
+        {
+            "Rock.Data",
+            "Rock.Model",
+            "Rock",
+            "System"
+        };
 
         string _markup = string.Empty;
 
@@ -53,11 +63,12 @@ namespace Rock.Lava.RockLiquid.Blocks
         /// <param name="tokens">The tokens.</param>
         public override void Initialize( string tagName, string markup, List<string> tokens )
         {
-            var parms = ParseMarkup( markup );
+            var settings = LavaElementAttributes.NewFromMarkup( markup );
+            var parms = settings.Attributes;
 
             if ( parms.Any( p => p.Key == "type" ) )
             {
-                if (parms["type"].ToLower() == "class" )
+                if ( parms["type"].ToLower() == "class" )
                 {
                     _runtimeType = RuntimeType.CLASS;
                 }
@@ -69,7 +80,11 @@ namespace Rock.Lava.RockLiquid.Blocks
 
             if ( parms.Any( p => p.Key == "import" ) )
             {
-                _imports = parms["import"].Split( ',' ).ToList();
+                _initialImports = parms["import"].Split( ',' ).ToArray();
+            }
+            else
+            {
+                _initialImports = new string[0];
             }
 
             base.Initialize( tagName, markup, tokens );
@@ -99,17 +114,13 @@ namespace Rock.Lava.RockLiquid.Blocks
 
                 if ( _runtimeType == RuntimeType.SCRIPT )
                 {
-                    // add default convenience import
-                    _imports.Insert( 0, "Rock.Data" );
-                    _imports.Insert( 0, "Rock.Model" );
-                    _imports.Insert( 0, "Rock" );
-                    _imports.Insert( 0, "System" );
+                    var importList = _convenienceImports.Union( _initialImports );
 
                     // treat this as a script
                     string imports = string.Empty;
 
                     // create needed imports
-                    foreach ( string import in _imports )
+                    foreach ( string import in importList )
                     {
                         string importStatement = string.Format( "using {0};", CleanInput( import ).Trim() );
 
@@ -156,31 +167,6 @@ namespace Rock.Lava.RockLiquid.Blocks
         private string CleanInput( string input )
         {
             return input.Replace( "\"", "" ).Replace( @"\", "" );
-        }
-
-        /// <summary>
-        /// Parses the markup.
-        /// </summary>
-        /// <param name="markup">The markup.</param>
-        /// <returns></returns>
-        private Dictionary<string, string> ParseMarkup( string markup )
-        {
-            var parms = new Dictionary<string, string>();
-
-            var markupItems = Regex.Matches( markup, @"(\S*?:'[^']+')" )
-                .Cast<Match>()
-                .Select( m => m.Value )
-                .ToList();
-
-            foreach ( var item in markupItems )
-            {
-                var itemParts = item.ToString().Split( new char[] { ':' }, 2 );
-                if ( itemParts.Length > 1 )
-                {
-                    parms.AddOrReplace( itemParts[0].Trim().ToLower(), itemParts[1].Trim().Substring( 1, itemParts[1].Length - 2 ) );
-                }
-            }
-            return parms;
         }
     }
 

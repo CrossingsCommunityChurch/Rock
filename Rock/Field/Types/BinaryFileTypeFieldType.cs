@@ -18,10 +18,14 @@ using System;
 using System.Collections.Generic;
 using System.Data.Entity;
 using System.Linq;
+#if WEBFORMS
 using System.Web.UI;
-
+#endif
+using Rock.Attribute;
 using Rock.Data;
 using Rock.Model;
+using Rock.ViewModels.Utility;
+using Rock.Web.Cache;
 using Rock.Web.UI.Controls;
 
 namespace Rock.Field.Types
@@ -30,10 +34,147 @@ namespace Rock.Field.Types
     /// Field Type used to display a dropdown list of binary file types
     /// </summary>
     [Serializable]
-    public class BinaryFileTypeFieldType : FieldType, IEntityFieldType
+    [RockPlatformSupport( Utility.RockPlatform.WebForms, Utility.RockPlatform.Obsidian )]
+    [Rock.SystemGuid.FieldTypeGuid( Rock.SystemGuid.FieldType.BINARY_FILE_TYPE )]
+    public class BinaryFileTypeFieldType : FieldType, IEntityFieldType, IEntityReferenceFieldType
     {
-
         #region Formatting
+
+        /// <inheritdoc/>
+        public override string GetTextValue( string privateValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            Guid? binaryFileTypeGuid = privateValue.AsGuidOrNull();
+            if ( binaryFileTypeGuid.HasValue )
+            {
+                using ( var rockContext = new RockContext() )
+                {
+                    var binaryFiletype = new BinaryFileTypeService( rockContext ).GetNoTracking( binaryFileTypeGuid.Value );
+                    if ( binaryFiletype != null )
+                    {
+                        return binaryFiletype.Name;
+                    }
+                }
+            }
+
+            return string.Empty;
+        }
+
+        #endregion
+
+        #region Edit Control
+
+        /// <inheritdoc/>
+        public override string GetPublicValue( string privateValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            return GetTextValue( privateValue, privateConfigurationValues );
+        }
+
+        /// <inheritdoc />
+        public override string GetPublicEditValue( string privateValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            if ( !string.IsNullOrWhiteSpace( privateValue ) && Guid.TryParse( privateValue, out Guid guid ) )
+            {
+                var binaryFileType = BinaryFileTypeCache.Get( guid );
+
+                if ( binaryFileType != null )
+                {
+                    return new ListItemBag()
+                    {
+                        Text = binaryFileType.Name,
+                        Value = binaryFileType.Guid.ToString()
+                    }.ToCamelCaseJson( false, true );
+                }
+            }
+            return base.GetPublicEditValue( privateValue, privateConfigurationValues );
+        }
+
+        /// <inheritdoc />
+        public override string GetPrivateEditValue( string publicValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            var jsonValue = publicValue.FromJsonOrNull<ListItemBag>();
+
+            if ( jsonValue != null )
+            {
+                return jsonValue.Value;
+            }
+
+            return publicValue;
+        }
+
+        #endregion
+
+        #region IEntityFieldType
+
+        /// <summary>
+        /// Gets the entity.
+        /// </summary>
+        /// <param name="value">The value.</param>
+        /// <returns></returns>
+        public IEntity GetEntity( string value )
+        {
+            return GetEntity( value, null );
+        }
+
+        /// <summary>
+        /// Gets the entity.
+        /// </summary>
+        /// <param name="value">The value.</param>
+        /// <param name="rockContext">The rock context.</param>
+        /// <returns></returns>
+        public IEntity GetEntity( string value, RockContext rockContext )
+        {
+            var guid = value.AsGuidOrNull();
+            if ( guid.HasValue )
+            {
+                rockContext = rockContext ?? new RockContext();
+                return new BinaryFileTypeService( rockContext ).Get( guid.Value );
+            }
+
+            return null;
+        }
+        #endregion
+
+        #region IEntityReferenceFieldType
+
+        /// <inheritdoc/>
+        List<ReferencedEntity> IEntityReferenceFieldType.GetReferencedEntities( string privateValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            Guid? guid = privateValue.AsGuidOrNull();
+
+            if ( !guid.HasValue )
+            {
+                return null;
+            }
+
+            using ( var rockContext = new RockContext() )
+            {
+                var fileTypeId = new BinaryFileTypeService( rockContext ).GetId( guid.Value );
+
+                if ( !fileTypeId.HasValue )
+                {
+                    return null;
+                }
+
+                return new List<ReferencedEntity>
+                {
+                    new ReferencedEntity( EntityTypeCache.GetId<BinaryFileType>().Value, fileTypeId.Value )
+                };
+            }
+        }
+
+        /// <inheritdoc/>
+        List<ReferencedProperty> IEntityReferenceFieldType.GetReferencedProperties( Dictionary<string, string> privateConfigurationValues )
+        {
+            return new List<ReferencedProperty>
+            {
+                new ReferencedProperty( EntityTypeCache.GetId<BinaryFileType>().Value, nameof( BinaryFileType.Name ) )
+            };
+        }
+
+        #endregion
+
+        #region WebForms
+#if WEBFORMS
 
         /// <summary>
         /// Returns the field's current value(s)
@@ -45,28 +186,10 @@ namespace Rock.Field.Types
         /// <returns></returns>
         public override string FormatValue( Control parentControl, string value, Dictionary<string, ConfigurationValue> configurationValues, bool condensed )
         {
-            string formattedValue = string.Empty;
-
-            Guid? binaryFileTypeGuid = value.AsGuidOrNull();
-            if ( binaryFileTypeGuid.HasValue )
-            {
-                using ( var rockContext = new RockContext() )
-                {
-                    var binaryFiletype = new BinaryFileTypeService( rockContext ).GetNoTracking( binaryFileTypeGuid.Value );
-                    if ( binaryFiletype != null )
-                    {
-                        formattedValue = binaryFiletype.Name;
-                    }
-                }
-            }
-
-            return base.FormatValue( parentControl, formattedValue, null, condensed );
-
+            return !condensed
+                ? GetTextValue( value, configurationValues.ToDictionary( cv => cv.Key, cv => cv.Value.Value ) )
+                : GetCondensedTextValue( value, configurationValues.ToDictionary( cv => cv.Key, cv => cv.Value.Value ) );
         }
-
-        #endregion
-
-        #region Edit Control
 
         /// <summary>
         /// Creates the control(s) necessary for prompting user for a new value
@@ -133,9 +256,6 @@ namespace Rock.Field.Types
             }
         }
 
-        #endregion
-
-        #region IEntityFieldType
         /// <summary>
         /// Gets the edit value as the IEntity.Id
         /// </summary>
@@ -162,33 +282,7 @@ namespace Rock.Field.Types
             SetEditValue( control, configurationValues, guidValue );
         }
 
-        /// <summary>
-        /// Gets the entity.
-        /// </summary>
-        /// <param name="value">The value.</param>
-        /// <returns></returns>
-        public IEntity GetEntity( string value )
-        {
-            return GetEntity( value, null );
-        }
-
-        /// <summary>
-        /// Gets the entity.
-        /// </summary>
-        /// <param name="value">The value.</param>
-        /// <param name="rockContext">The rock context.</param>
-        /// <returns></returns>
-        public IEntity GetEntity( string value, RockContext rockContext )
-        {
-            var guid = value.AsGuidOrNull();
-            if ( guid.HasValue )
-            {
-                rockContext = rockContext ?? new RockContext();
-                return new BinaryFileTypeService( rockContext ).Get( guid.Value );
-            }
-
-            return null;
-        }
+#endif
         #endregion
     }
 }

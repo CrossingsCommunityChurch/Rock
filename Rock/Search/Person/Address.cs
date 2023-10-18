@@ -1,4 +1,4 @@
-﻿// <copyright>
+// <copyright>
 // Copyright by the Spark Development Network
 //
 // Licensed under the Rock Community License (the "License");
@@ -32,6 +32,7 @@ namespace Rock.Search.Person
     [Description( "Person Address Search" )]
     [Export(typeof(SearchComponent))]
     [ExportMetadata("ComponentName", "Person Address")]
+    [Rock.SystemGuid.EntityTypeGuid( "C2A24344-014E-4A45-BC38-08DDBD9521C3")]
     public class Address : SearchComponent
     {
         /// <summary>
@@ -48,6 +49,21 @@ namespace Rock.Search.Person
                 defaults.Add( "SearchLabel", "Address" );
                 return defaults;
             }
+        }
+
+        /// <inheritdoc/>
+        public override IOrderedQueryable<object> SearchQuery( string searchTerm )
+        {
+            var rockContext = new RockContext();
+            var personService = new PersonService( rockContext );
+            var groupMemberService = new GroupMemberService( rockContext );
+
+            var personIdQry = groupMemberService.GetPersonIdsByHomeAddress( searchTerm );
+
+            return personService.Queryable()
+                .Where( p => personIdQry.Contains( p.Id ) )
+                .OrderBy( p => p.NickName )
+                .ThenBy( p => p.LastName );
         }
 
         /// <summary>

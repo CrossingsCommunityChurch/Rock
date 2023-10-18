@@ -958,12 +958,14 @@ namespace Rock.Web.UI.Controls
             var pageSize = 0;
             var preferredPageSize = 0;
             var preferenceKey = string.Empty;
+            PersonPreferenceCollection preferences = null;
 
             var rockBlock = this.RockBlock();
             if ( rockBlock != null )
             {
-                preferenceKey = string.Format( "{0}_{1}", PAGE_SIZE_KEY, rockBlock.BlockCache?.Id );
-                preferredPageSize = rockBlock.GetUserPreference( preferenceKey ).AsInteger();
+                preferences = rockBlock.GetBlockPersonPreferences();
+
+                preferredPageSize = preferences.GetValue( PAGE_SIZE_KEY ).AsInteger();
                 pageSize = preferredPageSize;
             }
 
@@ -995,9 +997,11 @@ namespace Rock.Web.UI.Controls
             // If the preferred page size was modified, store the result.
             if ( preferredPageSize > 0
                  && pageSize != preferredPageSize
-                 && rockBlock != null )
+                 && rockBlock != null
+                 && preferences != null )
             {
-                rockBlock.SetUserPreference( preferenceKey, pageSize.ToString() );
+                preferences.SetValue( PAGE_SIZE_KEY, pageSize.ToString() );
+                preferences.Save();
             }
 
             base.PageSize = pageSize;
@@ -1552,6 +1556,45 @@ $('#{this.ClientID} .{GRID_SELECT_CELL_CSS_CLASS}').on( 'click', function (event
         }
 
         /// <summary>
+        /// Sets the grid data source from a paginated data source object.
+        /// This type of data source can provide efficient querying of the total number of items and a single page of data for display.
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="dataSource">A grid data source.</param>
+        [RockInternal("1.16.0")]
+        public void SetDataSource<T>( IPaginatedDataSource<T> dataSource )
+        {
+            if ( this.AllowPaging )
+            {
+                this.AllowCustomPaging = true;
+
+                var currentPageData = dataSource.GetItems( this.PageIndex, this.PageSize );
+                this.DataSource = currentPageData;
+
+                if ( currentPageData.Count < this.PageSize )
+                {
+                    // The current page has fewer records than the page size, so this is the last page.
+                    // We can calculate the total number of records without requerying the data source.
+                    this.VirtualItemCount = ( this.PageIndex * this.PageSize ) + currentPageData.Count;
+                }
+                else
+                {
+                    this.VirtualItemCount = dataSource.GetTotalItemCount();
+                }
+
+                PreDataBound = false;
+                CurrentPageRows = currentPageData.Count();
+            }
+            else
+            {
+                // Get all of the items.
+                this.DataSource = dataSource.GetItems();
+            }
+
+            this.DatasourceSQL = string.Empty;
+        }
+
+        /// <summary>
         /// Raises the <see cref="E:System.Web.UI.WebControls.BaseDataBoundControl.DataBound"/> event.
         /// </summary>
         /// <param name="e">An <see cref="T:System.EventArgs"/> object that contains the event data.</param>
@@ -1811,8 +1854,10 @@ $('#{this.ClientID} .{GRID_SELECT_CELL_CSS_CLASS}').on( 'click', function (event
             var rockBlock = this.RockBlock();
             if ( rockBlock != null )
             {
-                string preferenceKey = string.Format( "{0}_{1}", PAGE_SIZE_KEY, rockBlock.BlockCache.Id );
-                rockBlock.SetUserPreference( preferenceKey, e.Number.ToString() );
+                var preferences = rockBlock.GetBlockPersonPreferences();
+
+                preferences.SetValue( PAGE_SIZE_KEY, e.Number.ToString() );
+                preferences.Save();
             }
 
             this.PageSize = e.Number;
@@ -2224,7 +2269,6 @@ $('#{this.ClientID} .{GRID_SELECT_CELL_CSS_CLASS}').on( 'click', function (event
                 var selectedKeys = SelectedKeys.ToList();
                 for ( int i = 0; i < dataItems.Count; i++ )
                 {
-                    rowCounter++;
                     var dataItem = dataItems[i];
                     var gridViewRow = gridViewRows[i];
 
@@ -2238,6 +2282,7 @@ $('#{this.ClientID} .{GRID_SELECT_CELL_CSS_CLASS}').on( 'click', function (event
                         }
                     }
 
+                    rowCounter++;
                     var args = new RockGridViewRowEventArgs( gridViewRow, true );
                     gridViewRow.DataItem = dataItem;
                     this.OnRowDataBound( args );
@@ -2445,6 +2490,7 @@ $('#{this.ClientID} .{GRID_SELECT_CELL_CSS_CLASS}').on( 'click', function (event
 
                 // Grid column headings
                 var boundPropNames = new List<string>();
+                var addedHeaderNames = new List<string>();
 
                 // Array provides slight performance improvement here over a list
                 var orderedVisibleFields = visibleFields.OrderBy( f => f.Key ).Select( f => f.Value ).ToArray();
@@ -2457,7 +2503,13 @@ $('#{this.ClientID} .{GRID_SELECT_CELL_CSS_CLASS}').on( 'click', function (event
                     }
                     else
                     {
-                        worksheet.Cells[rowCounter, columnCounter].Value = dataField.HeaderText;
+                        var headerText = dataField.HeaderText;
+                        if ( addedHeaderNames.Contains( dataField.HeaderText, StringComparer.InvariantCultureIgnoreCase ) )
+                        {
+                            headerText = string.Format( "{0} {1}", dataField.HeaderText, i );
+                        }
+                        worksheet.Cells[rowCounter, columnCounter].Value = headerText;
+                        addedHeaderNames.Add( headerText );
                     }
 
                     var boundField = dataField as BoundField;
@@ -2491,7 +2543,20 @@ $('#{this.ClientID} .{GRID_SELECT_CELL_CSS_CLASS}').on( 'click', function (event
                         lavaDataFields.AddOrIgnore( mergeFieldName, new LavaFieldTemplate.DataFieldInfo { PropertyInfo = prop, GridField = null } );
                     }
 
-                    worksheet.Cells[rowCounter, columnCounter].Value = prop.Name.SplitCase();
+                    var headerText = prop.Name.SplitCase();
+                    if ( addedHeaderNames.Contains( headerText, StringComparer.InvariantCultureIgnoreCase ) )
+                    {
+                        var lastInt = 0;
+                        do
+                        {
+                            lastInt += 1;
+                            headerText = string.Format( "{0} {1}", prop.Name.SplitCase(), lastInt );
+                        }
+                        while ( addedHeaderNames.Contains( headerText, StringComparer.InvariantCultureIgnoreCase ) );
+                    }
+
+                    addedHeaderNames.Add( headerText );
+                    worksheet.Cells[rowCounter, columnCounter].Value = headerText;
                     worksheet.Column( columnCounter ).Style.Numberformat.Format = ExcelHelper.DefaultColumnFormat( prop.PropertyType );
 
                     columnCounter++;
@@ -3115,7 +3180,9 @@ $('#{this.ClientID} .{GRID_SELECT_CELL_CSS_CLASS}').on( 'click', function (event
                     foreach ( DataRowView rowView in data.DefaultView )
                     {
                         DataRow row = rowView.Row;
-                        object dataKey = row[dataKeyColumn];
+
+                        object dataKey = GetDataKey( row, dataKeyColumn );
+
                         if ( !keysSelected.Any() || keysSelected.Contains( dataKey ) )
                         {
                             // Distinct list of person ids
@@ -3171,6 +3238,14 @@ $('#{this.ClientID} .{GRID_SELECT_CELL_CSS_CLASS}').on( 'click', function (event
                                 // Allow calling block to add additional merge fields
                                 if ( isForCommunication )
                                 {
+                                    // If the person id field has been configured to come from a different column or even
+                                    // multiple columns rather than the primary id column then the dataKey will most likely be null
+                                    // in that case set the dataKey to the value configured as the person Id for this row.
+                                    if ( dataKey == null && CommunicationRecipientPersonIdFields.Count > 0 )
+                                    {
+                                        dataKey = personId;
+                                    }
+
                                     var eventArg = new GetRecipientMergeFieldsEventArgs( dataKey, personId, row );
                                     OnGetRecipientMergeFields( eventArg );
                                     {
@@ -3373,6 +3448,11 @@ $('#{this.ClientID} .{GRID_SELECT_CELL_CSS_CLASS}').on( 'click', function (event
 
 
             return personData;
+        }
+
+        private object GetDataKey( DataRow row, string dataKeyColumn )
+        {
+            return row.Table.Columns.Contains( dataKeyColumn ) ? row[dataKeyColumn] : null;
         }
 
         private int? GetPersonEntitySet( EventArgs e )
@@ -3762,12 +3842,36 @@ $('#{this.ClientID} .{GRID_SELECT_CELL_CSS_CLASS}').on( 'click', function (event
             // If this is a dynamic class, don't include any of the properties that are inherited from the base class.
             additionalMergeProperties = FilterDynamicObjectPropertiesCollection( dataSourceObjectType, additionalMergeProperties );
 
-            var gridDataFields = this.Columns.OfType<BoundField>().ToList();
+            // Create a lookup for the DataControlField corresponding to each of the merge fields.
+            // The control is used to render the field output.
+            var mergeKeyToControlFieldMap = new Dictionary<string, DataControlField>();
+            foreach ( DataControlField gridColumn in this.Columns )
+            {
+                var mergeFieldKey = string.Empty;
+                if ( gridColumn is LavaField lf )
+                {
+                    // The Lava field is not bound to the data source, so use the header as the field key.
+                    mergeFieldKey = lf.HeaderText.RemoveSpecialCharacters();
+                }
+                else if ( gridColumn is BoundField boundField )
+                {
+                    // Set the key that can be used to retrieve the value from the data source.
+                    mergeFieldKey = boundField.DataField;
+                }
 
-            Dictionary<int, Dictionary<string, object>> itemMergeFieldsList = new Dictionary<int, Dictionary<string, object>>( this.DataSourceAsList.Count );
+                if ( string.IsNullOrWhiteSpace( mergeFieldKey )
+                     || mergeKeyToControlFieldMap.ContainsKey( mergeFieldKey ) )
+                {
+                    continue;
+                }
+                mergeKeyToControlFieldMap.Add( mergeFieldKey, gridColumn );
+            }
+
+            var itemMergeFieldsList = new Dictionary<int, Dictionary<string, object>>( this.DataSourceAsList.Count );
             bool? useHeaderNamesIfAvailable = null;
             if ( additionalMergeProperties != null && additionalMergeProperties.Any() && idProp != null )
             {
+                var additionalMergePropertiesMap = additionalMergeProperties.ToDictionary( k => k.Name, v => v );
                 foreach ( var item in this.DataSourceAsList )
                 {
                     // since Reporting fieldnames are dynamic and can have special internal names, use the header text instead of the datafield name
@@ -3777,26 +3881,49 @@ $('#{this.ClientID} .{GRID_SELECT_CELL_CSS_CLASS}').on( 'click', function (event
                     if ( idVal.HasValue && selectedKeys.Contains( idVal.Value ) && !itemMergeFieldsList.ContainsKey( idVal.Value ) )
                     {
                         var mergeFields = new Dictionary<string, object>();
-                        foreach ( var mergeProperty in additionalMergeProperties )
+                        foreach ( var mergeFieldEntry in mergeKeyToControlFieldMap )
                         {
-                            var objValue = mergeProperty.GetValue( item );
+                            // Get the merge field.
+                            object objValue;
+                            string mergeFieldKey = null;
+                            string headerText = null;
 
-                            BoundField boundField = null;
-                            if ( useHeaderNamesIfAvailable.Value )
+                            var mergeField = mergeFieldEntry.Value;
+                            if ( mergeField is LavaField lbf )
                             {
-                                boundField = gridDataFields.FirstOrDefault( a => a.DataField == mergeProperty.Name );
+                                // A LavaField value is calculated by resolving the Lava template using the values from the current row of the datasource.
+                                objValue = lbf.LavaTemplate.ResolveMergeFields( LavaDataDictionary.FromAnonymousObject( item ) );
+
+                                headerText = lbf.HeaderText;
+                                if ( string.IsNullOrWhiteSpace( headerText ) )
+                                {
+                                    headerText = "Lava";
+                                }
                             }
-
-                            string mergeFieldKey;
-                            if ( useHeaderNamesIfAvailable.Value && boundField != null && !string.IsNullOrWhiteSpace( boundField.HeaderText ) )
+                            else if ( mergeField is BoundField bf )
                             {
-                                mergeFieldKey = boundField.HeaderText.RemoveSpecialCharacters().Replace( " ", "_" );
+                                // Get the field value from the data source.
+                                mergeFieldKey = mergeFieldEntry.Key;
+
+                                var mergeProperty = additionalMergePropertiesMap[mergeFieldKey];
+                                objValue = mergeProperty.GetValue( item );
+
+                                headerText = bf.HeaderText;
                             }
                             else
                             {
-                                mergeFieldKey = mergeProperty.Name;
+                                objValue = null;
                             }
 
+                            if ( useHeaderNamesIfAvailable.Value && !string.IsNullOrWhiteSpace( headerText ) )
+                            {
+                                mergeFieldKey = headerText.RemoveSpecialCharacters();
+                            }
+
+                            if ( mergeFieldKey == null )
+                            {
+                                continue;
+                            }
                             mergeFields.AddOrIgnore( mergeFieldKey, objValue );
                         }
 
@@ -4483,6 +4610,76 @@ $('#{this.ClientID} .{GRID_SELECT_CELL_CSS_CLASS}').on( 'click', function (event
         {
             return string.Format( "{0} [{1}]", this.Property, this.Direction );
         }
+    }
+
+    /// <summary>
+    /// Provides base functionality for a data source that can be queried to provide a page of data items.
+    /// </summary>
+    /// <typeparam name="T">The <see cref="System.Type"/> of the items returned by the data source.</typeparam>
+    [RockInternal("1.16.0")]
+    public abstract class PaginatedDataSourceBase<T> : IPaginatedDataSource<T>
+    {
+        /// <inheritdoc />
+        public virtual int DefaultPageSize { get; set; } = 50;
+
+        /// <inheritdoc />
+        public virtual int MaximumPageSize => 5000;
+
+        /// <inheritdoc />
+        public abstract int GetTotalItemCount();
+
+        /// <inheritdoc />
+        public List<T> GetItems()
+        {
+            return GetItems( 0, this.MaximumPageSize );
+        }
+
+        /// <inheritdoc />
+        public List<T> GetItems( int pageIndex )
+        {
+            return GetItems( pageIndex, this.DefaultPageSize );
+        }
+
+        /// <inheritdoc />
+        public abstract List<T> GetItems( int pageIndex, int pageSize );
+    }
+
+    /// <summary>
+    /// Represents a data source that can be queried to provide a page of data items.
+    /// </summary>
+    /// <typeparam name="T">The <see cref="System.Type"/> of the items returned by the data source.</typeparam>
+    [RockInternal("1.16.0")]
+    public interface IPaginatedDataSource<T>
+    {
+        /// <summary>
+        /// The default number of items that will be retrieved per request.
+        /// </summary>
+        int DefaultPageSize { get; }
+
+        /// <summary>
+        /// Get the items for the specified page.
+        /// </summary>
+        /// <param name="pageIndex"></param>
+        /// <param name="pageSize"></param>
+        /// <returns></returns>
+        List<T> GetItems( int pageIndex, int pageSize );
+
+        /// <summary>
+        /// Get all of the items.
+        /// </summary>
+        /// <returns></returns>
+        List<T> GetItems();
+
+        /// <summary>
+        /// The maximum number of items that can be returned per request.
+        /// </summary>
+        int MaximumPageSize { get; }
+
+        /// <summary>
+        /// Gets the total number of items available from the data source.
+        /// </summary>
+        /// <returns></returns>
+        int GetTotalItemCount();
     }
 
     #endregion

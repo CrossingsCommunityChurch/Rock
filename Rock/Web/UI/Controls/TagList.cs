@@ -171,7 +171,7 @@ namespace Rock.Web.UI.Controls
         ///   <c>true</c> if [Show Inactive Tags]; otherwise, <c>false</c>.
         /// </value>
         [RockObsolete( "1.10" )]
-        [Obsolete( "Use ShowInactiveTags instead." )]
+        [Obsolete( "Use ShowInactiveTags instead.", true )]
         public bool ShowInActiveTags
         {
             get { return ShowInactiveTags; }
@@ -292,7 +292,7 @@ Rock.controls.tagList.initialize({{
 
                     var isPersonal = currentPersonId.HasValue && item.OwnerPersonAlias?.PersonId == currentPersonId.Value;
                     var tagCssClass = isPersonal ? "personal" : string.Empty;
-                    var serializedTag = SerializeTag( item.Name, tagCssClass, item.IconCssClass, item.BackgroundColor );
+                    var serializedTag = SerializeTag( item.Name, tagCssClass, item.IconCssClass, item.BackgroundColorHex );
                     serializedTags.Add( serializedTag );
                 }
             }

@@ -36,6 +36,7 @@ namespace RockWeb.Blocks.Communication
     [DisplayName( "SMS Pipeline Detail" )]
     [Category( "Communication" )]
     [Description( "Configures the pipeline that processes an incoming SMS message." )]
+    [Rock.SystemGuid.BlockTypeGuid( "44C32EB7-4DA3-4577-AC41-E3517442E269" )]
     public partial class SmsPipelineDetail : RockBlock
     {
         #region Page Parameter Keys
@@ -59,6 +60,9 @@ namespace RockWeb.Blocks.Communication
         protected override void OnInit( EventArgs e )
         {
             base.OnInit( e );
+
+            RockPage.AddCSSLink( "~/Styles/Blocks/Shared/DragPallet.css", true );
+            RockPage.AddCSSLink( "~/Styles/Blocks/Communication/SmsPipelineDetail.css", true );
 
             RockPage.AddScriptLink( "~/Scripts/dragula.min.js" );
             btnDelete.Attributes["onclick"] = string.Format( "javascript: return Rock.dialogs.confirmDelete(event, '{0}');", SmsPipeline.FriendlyTypeName );
@@ -347,7 +351,6 @@ namespace RockWeb.Blocks.Communication
 
                 rockContext.SaveChanges();
                 BindActions();
-                SmsActionCache.Clear();
             }
         }
 
@@ -418,8 +421,6 @@ namespace RockWeb.Blocks.Communication
 
                 action.SaveAttributeValues();
             } );
-
-            SmsActionCache.Clear();
 
             pnlEditAction.Visible = false;
             hfEditActionId.Value = string.Empty;

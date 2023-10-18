@@ -33,7 +33,8 @@ namespace RockWeb.Blocks.Security
     [DisplayName( "REST Key Detail" )]
     [Category( "Security" )]
     [Description( "Displays the details of the given REST API Key." )]
-    public partial class RestKeyDetail : Rock.Web.UI.RockBlock, IDetailBlock
+    [Rock.SystemGuid.BlockTypeGuid( "A2C41730-BF79-4F8C-8368-2C4D5F76129D" )]
+    public partial class RestKeyDetail : Rock.Web.UI.RockBlock
     {
         #region Control Methods
 

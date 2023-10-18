@@ -33,6 +33,7 @@ namespace Rock.Model
     [RockDomain( "Workflow" )]
     [Table( "WorkflowActionForm" )]
     [DataContract]
+    [Rock.SystemGuid.EntityTypeGuid( "FDAB9AEB-B2AA-4FB5-A35D-83254A9B014C")]
     public partial class WorkflowActionForm : Model<WorkflowActionForm>, ICacheable
     {
         #region Entity Properties
@@ -53,7 +54,7 @@ namespace Rock.Model
         /// The notification system email identifier.
         /// </value>
         [DataMember]
-        [Obsolete( "Use NotificationSystemCommunicationId instead." )]
+        [Obsolete( "Use NotificationSystemCommunicationId instead.", true )]
         [RockObsolete( "1.10" )]
         public int? NotificationSystemEmailId { get; set; }
 
@@ -205,6 +206,15 @@ namespace Rock.Model
         public WorkflowActionFormPersonEntryOption PersonEntryMobilePhoneEntryOption { get; set; } = WorkflowActionFormPersonEntryOption.Hidden;
 
         /// <summary>
+        /// Gets or sets the person entry SMS opt in entry option.
+        /// </summary>
+        /// <value>
+        /// The person entry SMS opt in entry option.
+        /// </value>
+        [DataMember]
+        public WorkflowActionFormShowHideOption PersonEntrySmsOptInEntryOption { get; set; } = WorkflowActionFormShowHideOption.Hide;
+
+        /// <summary>
         /// Gets or sets the person entry birthdate entry option.
         /// </summary>
         /// <value>
@@ -230,6 +240,24 @@ namespace Rock.Model
         /// </value>
         [DataMember]
         public WorkflowActionFormPersonEntryOption PersonEntryMaritalStatusEntryOption { get; set; } = WorkflowActionFormPersonEntryOption.Hidden;
+
+        /// <summary>
+        /// Gets or sets the person entry race entry option.
+        /// </summary>
+        /// <value>
+        /// The person entry marital entry option.
+        /// </value>
+        [DataMember]
+        public WorkflowActionFormPersonEntryOption PersonEntryRaceEntryOption { get; set; } = WorkflowActionFormPersonEntryOption.Hidden;
+
+        /// <summary>
+        /// Gets or sets the person entry ethnicity entry option.
+        /// </summary>
+        /// <value>
+        /// The person entry marital entry option.
+        /// </value>
+        [DataMember]
+        public WorkflowActionFormPersonEntryOption PersonEntryEthnicityEntryOption { get; set; } = WorkflowActionFormPersonEntryOption.Hidden;
 
         /// <summary>
         /// Gets or sets the person entry spouse label.
@@ -320,11 +348,64 @@ namespace Rock.Model
         [DataMember]
         public Guid? PersonEntryFamilyAttributeGuid { get; set; }
 
+        /// <summary>
+        /// Gets or sets the DefinedValueId of the <see cref="Rock.Model.DefinedValue"/> that represents the SectionType for the Person Entry Section.
+        /// </summary>
+        /// <value>
+        /// A <see cref="System.Int32"/> representing DefinedValueId of the SectionType's <see cref="Rock.Model.DefinedValue"/> for the Person Entry Section.
+        /// </value>
+        [DataMember]
+        [DefinedValue( SystemGuid.DefinedType.SECTION_TYPE )]
+        public int? PersonEntrySectionTypeValueId { get; set; }
+
+        /// <summary>
+        /// Gets or sets the Title to display at the top the Person Entry Section
+        /// </summary>
+        /// <value>
+        /// The person entry title.
+        /// </value>
+        [DataMember]
+        [MaxLength( 500 )]
+        public string PersonEntryTitle { get; set; }
+
+        /// <summary>
+        /// Gets or sets the Description to display under the <see cref="PersonEntryTitle"/>
+        /// </summary>
+        /// <value>
+        /// The person entry description.
+        /// </value>
+        [DataMember]
+        public string PersonEntryDescription { get; set; }
+
+        /// <summary>
+        /// Gets or sets whether a heading separator should be display under the <see cref="PersonEntryTitle"/> and <see cref="PersonEntryDescription" />
+        /// </summary>
+        /// <value>
+        ///   <c>true</c> if [person entry show heading separator]; otherwise, <c>false</c>.
+        /// </value>
+        [DataMember]
+        public bool PersonEntryShowHeadingSeparator { get; set; }
+
         #endregion Person entry related Entity Properties
 
         #endregion Entity Properties
 
         #region Navigation Properties
+
+        /// <summary>
+        /// Gets or sets the form attributes.
+        /// </summary>
+        /// <value>
+        /// The form attributes.
+        /// </value>
+        [DataMember]
+        public virtual ICollection<WorkflowActionFormSection> FormSections
+        {
+            get { return _formSections ?? ( _formSections = new Collection<WorkflowActionFormSection>() ); }
+            set { _formSections = value; }
+        }
+
+        private ICollection<WorkflowActionFormSection> _formSections;
 
         /// <summary>
         /// Gets or sets the form attributes.
@@ -348,7 +429,7 @@ namespace Rock.Model
         /// The notification system email.
         /// </value>
         [LavaVisible]
-        [Obsolete( "Use NotificationSystemCommunication instead." )]
+        [Obsolete( "Use NotificationSystemCommunication instead.", true )]
         [RockObsolete( "1.10" )]
         public virtual SystemEmail NotificationSystemEmail { get; set; }
 
@@ -406,6 +487,13 @@ namespace Rock.Model
         [DataMember]
         public virtual DefinedValue PersonEntryCampusTypeValue{ get; set; }
 
+        /// <summary>
+        /// Gets or sets the person entry section type value.
+        /// </summary>
+        /// <value>The person entry section type value.</value>
+        [DataMember]
+        public virtual DefinedValue PersonEntrySectionTypeValue { get; set; }
+
         #endregion Navigation Properties
     }
 
@@ -423,16 +511,14 @@ namespace Rock.Model
         {
             this.HasOptional( f => f.NotificationSystemCommunication ).WithMany().HasForeignKey( f => f.NotificationSystemCommunicationId ).WillCascadeOnDelete( false );
 
-#pragma warning disable CS0618 // Type or member is obsolete
-            this.HasOptional( f => f.NotificationSystemEmail ).WithMany().HasForeignKey( f => f.NotificationSystemEmailId ).WillCascadeOnDelete( false );
-#pragma warning restore CS0618 // Type or member is obsolete
-
             this.HasOptional( f => f.PersonEntryConnectionStatusValue ).WithMany().HasForeignKey( f => f.PersonEntryConnectionStatusValueId ).WillCascadeOnDelete( false );
             this.HasOptional( f => f.PersonEntryRecordStatusValue ).WithMany().HasForeignKey( f => f.PersonEntryRecordStatusValueId ).WillCascadeOnDelete( false );
             this.HasOptional( f => f.PersonEntryGroupLocationTypeValue ).WithMany().HasForeignKey( f => f.PersonEntryGroupLocationTypeValueId ).WillCascadeOnDelete( false );
 
             this.HasOptional( f => f.PersonEntryCampusStatusValue).WithMany().HasForeignKey( f => f.PersonEntryCampusStatusValueId ).WillCascadeOnDelete( false );
             this.HasOptional( f => f.PersonEntryCampusTypeValue ).WithMany().HasForeignKey( f => f.PersonEntryCampusTypeValueId ).WillCascadeOnDelete( false );
+
+            this.HasOptional( f => f.PersonEntrySectionTypeValue ).WithMany().HasForeignKey( f => f.PersonEntrySectionTypeValueId ).WillCascadeOnDelete( false );
         }
     }
 

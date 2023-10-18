@@ -34,11 +34,11 @@ namespace RockWeb.Blocks.Finance
     /// Text to Give Settings
     /// </summary>
     /// <seealso cref="RockBlock" />
-    /// <seealso cref="IDetailBlock" />
 
-    [DisplayName( "Text To Give Settings" )]
+    [RockObsolete( "1.14.1" )]
+    [DisplayName( "Text To Give Settings (Obsolete)" )]
     [Category( "Finance" )]
-    [Description( "Displays a person's Text To Give settings for editing." )]
+    [Description( "Obsolete. Use the Giving Configuration block." )]
 
     [LinkedPage(
         "Parent Page",
@@ -54,7 +54,8 @@ namespace RockWeb.Blocks.Finance
         IsRequired = false,
         Order = 1 )]
 
-    public partial class TextToGiveSettings : RockBlock, IDetailBlock
+    [Rock.SystemGuid.BlockTypeGuid( "9069F894-FDA5-4546-93EB-CEC448B142AA" )]
+    public partial class TextToGiveSettings : RockBlock
     {
         #region Keys
 
@@ -242,7 +243,7 @@ namespace RockWeb.Blocks.Finance
         }
 
         /// <summary>
-        /// This method satisfies the IDetailBlock requirement
+        /// Called by a related block to show the detail for a specific entity.
         /// </summary>
         /// <param name="unused"></param>
         public void ShowDetail( int unused )

@@ -62,6 +62,7 @@ namespace RockWeb.Blocks.Event
 
     #endregion
 
+    [Rock.SystemGuid.BlockTypeGuid( "671244E1-747E-436D-B866-13469723B424" )]
     public partial class RegistrationInstanceWaitList : RegistrationInstanceBlock
     {
         #region Attribute Keys
@@ -108,6 +109,7 @@ namespace RockWeb.Blocks.Event
         private Dictionary<int, Location> _homeAddresses = new Dictionary<int, Location>();
         private Dictionary<int, PhoneNumber> _mobilePhoneNumbers = new Dictionary<int, PhoneNumber>();
         private Dictionary<int, PhoneNumber> _homePhoneNumbers = new Dictionary<int, PhoneNumber>();
+        private Dictionary<int, PhoneNumber> _workPhoneNumbers = new Dictionary<int, PhoneNumber>();
         private List<int> _waitListOrder = null;
 
         #endregion
@@ -179,7 +181,7 @@ namespace RockWeb.Blocks.Event
 
             // add button to the wait list action grid
             Button btnProcessWaitlist = new Button();
-            btnProcessWaitlist.CssClass = "pull-left margin-l-none btn btn-sm btn-default";
+            btnProcessWaitlist.CssClass = "btn btn-sm btn-default btn-grid-custom-action pull-left";
             btnProcessWaitlist.Text = "Move From Wait List";
             btnProcessWaitlist.Click += btnProcessWaitlist_Click;
             gWaitList.Actions.AddCustomActionControl( btnProcessWaitlist );
@@ -302,9 +304,9 @@ namespace RockWeb.Blocks.Event
         /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
         protected void fWaitList_ApplyFilterClick( object sender, EventArgs e )
         {
-            fWaitList.SaveUserPreference( UserPreferenceKeyBase.GridFilter_DateRange, "Date Range", drpWaitListDateRange.DelimitedValues );
-            fWaitList.SaveUserPreference( UserPreferenceKeyBase.GridFilter_FirstName, "First Name", tbWaitListFirstName.Text );
-            fWaitList.SaveUserPreference( UserPreferenceKeyBase.GridFilter_LastName, "Last Name", tbWaitListLastName.Text );
+            fWaitList.SetFilterPreference( UserPreferenceKeyBase.GridFilter_DateRange, "Date Range", drpWaitListDateRange.DelimitedValues );
+            fWaitList.SetFilterPreference( UserPreferenceKeyBase.GridFilter_FirstName, "First Name", tbWaitListFirstName.Text );
+            fWaitList.SetFilterPreference( UserPreferenceKeyBase.GridFilter_LastName, "Last Name", tbWaitListLastName.Text );
 
             if ( RegistrantFields != null )
             {
@@ -318,7 +320,7 @@ namespace RockWeb.Blocks.Event
                                 var ddlCampus = phWaitListFormFieldFilters.FindControl( FILTER_CAMPUS_ID ) as RockDropDownList;
                                 if ( ddlCampus != null )
                                 {
-                                    fWaitList.SaveUserPreference( UserPreferenceKeyBase.GridFilter_HomeCampus, "Home Campus", ddlCampus.SelectedValue );
+                                    fWaitList.SetFilterPreference( UserPreferenceKeyBase.GridFilter_HomeCampus, "Home Campus", ddlCampus.SelectedValue );
                                 }
 
                                 break;
@@ -327,7 +329,7 @@ namespace RockWeb.Blocks.Event
                                 var tbEmailFilter = phWaitListFormFieldFilters.FindControl( FILTER_EMAIL_ID ) as RockTextBox;
                                 if ( tbEmailFilter != null )
                                 {
-                                    fWaitList.SaveUserPreference( UserPreferenceKeyBase.GridFilter_Email, "Email", tbEmailFilter.Text );
+                                    fWaitList.SetFilterPreference( UserPreferenceKeyBase.GridFilter_Email, "Email", tbEmailFilter.Text );
                                 }
 
                                 break;
@@ -336,7 +338,7 @@ namespace RockWeb.Blocks.Event
                                 var drpBirthdateFilter = phWaitListFormFieldFilters.FindControl( FILTER_BIRTHDATE_ID ) as DateRangePicker;
                                 if ( drpBirthdateFilter != null )
                                 {
-                                    fWaitList.SaveUserPreference( UserPreferenceKeyBase.GridFilter_BirthdateRange, "Birthdate Range", drpBirthdateFilter.DelimitedValues );
+                                    fWaitList.SetFilterPreference( UserPreferenceKeyBase.GridFilter_BirthdateRange, "Birthdate Range", drpBirthdateFilter.DelimitedValues );
                                 }
 
                                 break;
@@ -344,7 +346,7 @@ namespace RockWeb.Blocks.Event
                                 var tbMiddleNameFilter = phWaitListFormFieldFilters.FindControl( FILTER_MIDDLE_NAME_ID ) as RockTextBox;
                                 if ( tbMiddleNameFilter != null )
                                 {
-                                    fWaitList.SaveUserPreference( UserPreferenceKeyBase.GridFilter_MiddleName, "MiddleName", tbMiddleNameFilter.Text );
+                                    fWaitList.SetFilterPreference( UserPreferenceKeyBase.GridFilter_MiddleName, "MiddleName", tbMiddleNameFilter.Text );
                                 }
 
                                 break;
@@ -352,7 +354,7 @@ namespace RockWeb.Blocks.Event
                                 var drpAnniversaryDateFilter = phWaitListFormFieldFilters.FindControl( FILTER_ANNIVERSARY_DATE_ID ) as DateRangePicker;
                                 if ( drpAnniversaryDateFilter != null )
                                 {
-                                    fWaitList.SaveUserPreference( UserPreferenceKeyBase.GridFilter_AnniversaryDateRange, "AnniversaryDate Range", drpAnniversaryDateFilter.DelimitedValues );
+                                    fWaitList.SetFilterPreference( UserPreferenceKeyBase.GridFilter_AnniversaryDateRange, "AnniversaryDate Range", drpAnniversaryDateFilter.DelimitedValues );
                                 }
 
                                 break;
@@ -361,7 +363,7 @@ namespace RockWeb.Blocks.Event
                                 if ( gpGradeFilter != null )
                                 {
                                     int? gradeOffset = gpGradeFilter.SelectedValueAsInt( false );
-                                    fWaitList.SaveUserPreference( UserPreferenceKeyBase.GridFilter_Grade, "Grade", gradeOffset.HasValue ? gradeOffset.Value.ToString() : string.Empty );
+                                    fWaitList.SetFilterPreference( UserPreferenceKeyBase.GridFilter_Grade, "Grade", gradeOffset.HasValue ? gradeOffset.Value.ToString() : string.Empty );
                                 }
 
                                 break;
@@ -370,7 +372,7 @@ namespace RockWeb.Blocks.Event
                                 var ddlGenderFilter = phWaitListFormFieldFilters.FindControl( FILTER_GENDER_ID ) as RockDropDownList;
                                 if ( ddlGenderFilter != null )
                                 {
-                                    fWaitList.SaveUserPreference( UserPreferenceKeyBase.GridFilter_Gender, "Gender", ddlGenderFilter.SelectedValue );
+                                    fWaitList.SetFilterPreference( UserPreferenceKeyBase.GridFilter_Gender, "Gender", ddlGenderFilter.SelectedValue );
                                 }
 
                                 break;
@@ -379,7 +381,7 @@ namespace RockWeb.Blocks.Event
                                 var dvpMaritalStatusFilter = phWaitListFormFieldFilters.FindControl( FILTER_MARITAL_STATUS_ID ) as DefinedValuePicker;
                                 if ( dvpMaritalStatusFilter != null )
                                 {
-                                    fWaitList.SaveUserPreference( UserPreferenceKeyBase.GridFilter_MaritalStatus, "Marital Status", dvpMaritalStatusFilter.SelectedValue );
+                                    fWaitList.SetFilterPreference( UserPreferenceKeyBase.GridFilter_MaritalStatus, "Marital Status", dvpMaritalStatusFilter.SelectedValue );
                                 }
 
                                 break;
@@ -388,7 +390,7 @@ namespace RockWeb.Blocks.Event
                                 var dvpConnectionStatusFilter = phWaitListFormFieldFilters.FindControl( FILTER_CONNECTION_STATUS_ID ) as DefinedValuePicker;
                                 if ( dvpConnectionStatusFilter != null )
                                 {
-                                    fWaitList.SaveUserPreference( UserPreferenceKeyBase.GridFilter_ConnectionStatus, dvpConnectionStatusFilter.SelectedValue );
+                                    fWaitList.SetFilterPreference( UserPreferenceKeyBase.GridFilter_ConnectionStatus, dvpConnectionStatusFilter.SelectedValue );
                                 }
 
                                 break;
@@ -397,7 +399,7 @@ namespace RockWeb.Blocks.Event
                                 var tbMobilePhoneFilter = phWaitListFormFieldFilters.FindControl( FILTER_MOBILE_PHONE_ID ) as RockTextBox;
                                 if ( tbMobilePhoneFilter != null )
                                 {
-                                    fWaitList.SaveUserPreference( UserPreferenceKeyBase.GridFilter_CellPhone, "Cell Phone", tbMobilePhoneFilter.Text );
+                                    fWaitList.SetFilterPreference( UserPreferenceKeyBase.GridFilter_CellPhone, "Cell Phone", tbMobilePhoneFilter.Text );
                                 }
 
                                 break;
@@ -406,7 +408,7 @@ namespace RockWeb.Blocks.Event
                                 var tbHomePhoneFilter = phWaitListFormFieldFilters.FindControl( FILTER_HOME_PHONE_ID ) as RockTextBox;
                                 if ( tbHomePhoneFilter != null )
                                 {
-                                    fWaitList.SaveUserPreference( UserPreferenceKeyBase.GridFilter_HomePhone, "Home Phone", tbHomePhoneFilter.Text );
+                                    fWaitList.SetFilterPreference( UserPreferenceKeyBase.GridFilter_HomePhone, "Home Phone", tbHomePhoneFilter.Text );
                                 }
 
                                 break;
@@ -422,7 +424,7 @@ namespace RockWeb.Blocks.Event
                             try
                             {
                                 var values = attribute.FieldType.Field.GetFilterValues( filterControl, field.Attribute.QualifierValues, Rock.Reporting.FilterMode.SimpleFilter );
-                                fWaitList.SaveUserPreference( attribute.Key, attribute.Name, attribute.FieldType.Field.GetFilterValues( filterControl, attribute.QualifierValues, Rock.Reporting.FilterMode.SimpleFilter ).ToJson() );
+                                fWaitList.SetFilterPreference( attribute.Key, attribute.Name, attribute.FieldType.Field.GetFilterValues( filterControl, attribute.QualifierValues, Rock.Reporting.FilterMode.SimpleFilter ).ToJson() );
                             }
                             catch
                             {
@@ -443,7 +445,7 @@ namespace RockWeb.Blocks.Event
         /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
         protected void fWaitList_ClearFilterClick( object sender, EventArgs e )
         {
-            fWaitList.DeleteUserPreferences();
+            fWaitList.DeleteFilterPreferences();
 
             foreach ( var control in phWaitListFormFieldFilters.ControlsOfTypeRecursive<Control>().Where( a => a.ID != null && a.ID.StartsWith( "filter" ) && a.ID.Contains( "_" ) ) )
             {
@@ -739,7 +741,7 @@ namespace RockWeb.Blocks.Event
                 }
 
                 // Set the campus
-                var lCampus = e.Row.FindControl( "lWaitlistCampus" ) as Literal;
+                var lCampus = e.Row.FindControl( CAMPUS_GRID_COLUMN_ID ) as Literal;
                 if ( lCampus != null && PersonCampusIds != null )
                 {
                     if ( registrant.PersonAlias != null )
@@ -765,14 +767,14 @@ namespace RockWeb.Blocks.Event
                     }
                 }
 
-                var lAddress = e.Row.FindControl( "lWaitlistAddress" ) as Literal;
+                var lAddress = e.Row.FindControl( ADDRESS_GRID_COLUMN_ID ) as Literal;
                 if ( lAddress != null && _homeAddresses.Count() > 0 && _homeAddresses.ContainsKey( registrant.PersonId.Value ) )
                 {
                     var location = _homeAddresses[registrant.PersonId.Value];
                     lAddress.Text = location != null && location.FormattedAddress.IsNotNullOrWhiteSpace() ? location.FormattedAddress : string.Empty;
                 }
 
-                var mobileField = e.Row.FindControl( "lWaitlistMobile" ) as Literal;
+                var mobileField = e.Row.FindControl( MOBILE_PHONE_GRID_COLUMN_ID ) as Literal;
                 if ( mobileField != null )
                 {
                     var mobilePhoneNumber = _mobilePhoneNumbers[registrant.PersonId.Value];
@@ -786,7 +788,7 @@ namespace RockWeb.Blocks.Event
                     }
                 }
 
-                var homePhoneField = e.Row.FindControl( "lWaitlistHomePhone" ) as Literal;
+                var homePhoneField = e.Row.FindControl( HOME_PHONE_GRID_COLUMN_ID ) as Literal;
                 if ( homePhoneField != null )
                 {
                     var homePhoneNumber = _homePhoneNumbers[registrant.PersonId.Value];
@@ -797,6 +799,20 @@ namespace RockWeb.Blocks.Event
                     else
                     {
                         homePhoneField.Text = homePhoneNumber.IsUnlisted ? "Unlisted" : homePhoneNumber.NumberFormatted;
+                    }
+                }
+
+                var workPhoneField = e.Row.FindControl( WORK_PHONE_GRID_COLUMN_ID ) as Literal;
+                if ( workPhoneField != null )
+                {
+                    var workPhoneNumber = _workPhoneNumbers[registrant.PersonId.Value];
+                    if ( workPhoneNumber == null || workPhoneNumber.NumberFormatted.IsNullOrWhiteSpace() )
+                    {
+                        workPhoneField.Text = string.Empty;
+                    }
+                    else
+                    {
+                        workPhoneField.Text = workPhoneNumber.IsUnlisted ? "Unlisted" : workPhoneNumber.NumberFormatted;
                     }
                 }
             }
@@ -837,7 +853,7 @@ namespace RockWeb.Blocks.Event
         /// </summary>
         private void SetUserPreferencePrefix( int? registrationTemplateId )
         {
-            fWaitList.UserPreferenceKeyPrefix = string.Format( "{0}-WL-", registrationTemplateId.GetValueOrDefault() );
+            fWaitList.PreferenceKeyPrefix = string.Format( "{0}-WL-", registrationTemplateId.GetValueOrDefault() );
         }
 
         /// <summary>
@@ -846,9 +862,9 @@ namespace RockWeb.Blocks.Event
         /// <param name="instance">The instance.</param>
         private void BindWaitListFilter( RegistrationInstance instance )
         {
-            drpWaitListDateRange.DelimitedValues = fWaitList.GetUserPreference( UserPreferenceKeyBase.GridFilter_DateRange );
-            tbWaitListFirstName.Text = fWaitList.GetUserPreference( UserPreferenceKeyBase.GridFilter_FirstName );
-            tbWaitListLastName.Text = fWaitList.GetUserPreference( UserPreferenceKeyBase.GridFilter_LastName );
+            drpWaitListDateRange.DelimitedValues = fWaitList.GetFilterPreference( UserPreferenceKeyBase.GridFilter_DateRange );
+            tbWaitListFirstName.Text = fWaitList.GetFilterPreference( UserPreferenceKeyBase.GridFilter_FirstName );
+            tbWaitListLastName.Text = fWaitList.GetFilterPreference( UserPreferenceKeyBase.GridFilter_LastName );
         }
 
         /// <summary>
@@ -923,6 +939,7 @@ namespace RockWeb.Blocks.Event
 
                     _mobilePhoneNumbers = GetPersonMobilePhoneLookup( rockContext, this.RegistrantFields, personIds );
                     _homePhoneNumbers = GetPersonHomePhoneLookup( rockContext, this.RegistrantFields, personIds );
+                    _workPhoneNumbers = GetPersonWorkPhoneLookup( rockContext, this.RegistrantFields, personIds );
 
                     bool preloadCampusValues = false;
                     var registrantAttributes = new List<AttributeCache>();
@@ -1381,6 +1398,6 @@ namespace RockWeb.Blocks.Event
             pnlDetails.Visible = visible;
         }
 
-        #endregion       
+        #endregion
     }
 }

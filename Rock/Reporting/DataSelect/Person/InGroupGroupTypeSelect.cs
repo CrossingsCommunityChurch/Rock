@@ -1,4 +1,4 @@
-﻿// <copyright>
+// <copyright>
 // Copyright by the Spark Development Network
 //
 // Licensed under the Rock Community License (the "License");
@@ -35,6 +35,7 @@ namespace Rock.Reporting.DataSelect.Person
     [Description( "Show if person is in a group of a specific group type" )]
     [Export( typeof( DataSelectComponent ) )]
     [ExportMetadata( "ComponentName", "Select if Person in specific group type" )]
+    [Rock.SystemGuid.EntityTypeGuid( "0F27DC55-91B0-448A-B270-D5D93EA5B4F1")]
     public class InGroupGroupTypeSelect : DataSelectComponent
     {
         #region Properties
@@ -176,7 +177,7 @@ namespace Rock.Reporting.DataSelect.Person
             var groupTypePicker = new GroupTypePicker();
             groupTypePicker.ID = parentControl.ID + "_groupTypePicker";
             groupTypePicker.Label = "Group Type";
-            groupTypePicker.GroupTypes = new GroupTypeService( new RockContext() ).Queryable().OrderBy( a => a.Order ).ThenBy( a => a.Name ).ToList();
+            groupTypePicker.GroupTypes = new GroupTypeService( new RockContext() ).Queryable().ToList();
             groupTypePicker.SelectedIndexChanged += groupTypePicker_SelectedIndexChanged;
             groupTypePicker.AutoPostBack = true;
             parentControl.Controls.Add( groupTypePicker );

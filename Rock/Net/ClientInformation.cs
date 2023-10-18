@@ -15,8 +15,8 @@
 // </copyright>
 //
 using System;
+using System.Collections.Concurrent;
 using System.Linq;
-using System.Net.Http;
 using System.Web;
 
 using UAParser;
@@ -31,15 +31,14 @@ namespace Rock.Net
         #region Private Fields
 
         /// <summary>
+        /// Cached copies of the client info for a given user agent string.
+        /// </summary>
+        private static readonly ConcurrentDictionary<string, ClientInfo> _cachedBrowserInfo = new ConcurrentDictionary<string, ClientInfo>();
+
+        /// <summary>
         /// The shared UA parser that will be used.
         /// </summary>
         private static readonly Parser _uaParser = Parser.GetDefault();
-
-        /// <summary>
-        /// The browser information is lazy loaded since it can take a few
-        /// milliseconds to parse the regex and is only rarely used.
-        /// </summary>
-        private readonly Lazy<ClientInfo> _browser;
 
         #endregion
 
@@ -59,7 +58,7 @@ namespace Rock.Net
         /// <value>
         /// The browser object that identifies what we know about the browser.
         /// </value>
-        public ClientInfo Browser => _browser.Value;
+        public ClientInfo Browser => GetClientInfoForUserAgent( UserAgent );
 
         /// <summary>
         /// Gets the user agent identifier string.
@@ -79,26 +78,10 @@ namespace Rock.Net
         /// <param name="request">The request to initialize from.</param>
         internal ClientInformation( HttpRequest request )
         {
-            //
             // Set IP Address.
-            //
-            IpAddress = string.Empty;
-
-            // http://stackoverflow.com/questions/735350/how-to-get-a-users-client-ip-address-in-asp-net
-            string ipAddress = request.ServerVariables["HTTP_X_FORWARDED_FOR"];
-
-            if ( !string.IsNullOrEmpty( ipAddress ) )
-            {
-                string[] addresses = ipAddress.Split( ',' );
-                if ( addresses.Length != 0 )
-                {
-                    IpAddress = addresses[0];
-                }
-            }
-            else
-            {
-                IpAddress = request.ServerVariables["REMOTE_ADDR"];
-            }
+            IpAddress = Rock.Utility.WebRequestHelper.GetXForwardedForIpAddress( request.ServerVariables["HTTP_X_FORWARDED_FOR"] )
+                ?? request.ServerVariables["REMOTE_ADDR"]
+                ?? string.Empty;
 
             // nicely format localhost
             if ( IpAddress == "::1" )
@@ -107,29 +90,17 @@ namespace Rock.Net
             }
 
             UserAgent = request.UserAgent;
-            _browser = new Lazy<ClientInfo>( () => _uaParser.Parse( UserAgent ) );
         }
 
         /// <summary>
         /// Initializes a new instance of the <see cref="ClientInformation"/> class.
         /// </summary>
         /// <param name="request">The request to initalize from.</param>
-        internal ClientInformation( HttpRequestMessage request )
+        internal ClientInformation( IRequest request )
         {
-            //
-            // Set IP Address.
-            //
-            IpAddress = string.Empty;
-
-            // http://stackoverflow.com/questions/735350/how-to-get-a-users-client-ip-address-in-asp-net
-            if ( request.Headers.Contains( "X-FORWARDED-FOR" ) )
-            {
-                IpAddress = request.Headers.GetValues( "X-FORWARDED-FOR" ).First();
-            }
-            else if ( request.Properties.ContainsKey( "MS_HttpContext" ) )
-            {
-                IpAddress = ( ( HttpContextWrapper ) request.Properties["MS_HttpContext"] )?.Request?.UserHostAddress ?? string.Empty;
-            }
+            IpAddress = Rock.Utility.WebRequestHelper.GetXForwardedForIpAddress( request.Headers["X-FORWARDED-FOR"] )
+                ?? request.RemoteAddress?.ToString()
+                ?? string.Empty;
 
             // nicely format localhost
             if ( IpAddress == "::1" )
@@ -137,8 +108,33 @@ namespace Rock.Net
                 IpAddress = "localhost";
             }
 
-            UserAgent = request.Headers.UserAgent.ToString();
-            _browser = new Lazy<ClientInfo>( () => _uaParser.Parse( UserAgent ) );
+            UserAgent = request.Headers.GetValues( "USER-AGENT" )?.FirstOrDefault() ?? string.Empty;
+        }
+
+        #endregion
+
+        #region Methods
+
+        /// <summary>
+        /// Gets the client information from the user agent string. This uses
+        /// caching to reduce overhead from parsing.
+        /// </summary>
+        /// <param name="userAgent">The user agent string.</param>
+        /// <returns>The details from the user agent string.</returns>
+        internal static ClientInfo GetClientInfoForUserAgent( string userAgent )
+        {
+            if ( userAgent.IsNullOrWhiteSpace() )
+            {
+                return null;
+            }
+
+            // Prevent abuse of cache.
+            if ( _cachedBrowserInfo.Count > 10_000 )
+            {
+                _cachedBrowserInfo.Clear();
+            }
+
+            return _cachedBrowserInfo.GetOrAdd( userAgent, ua => _uaParser.Parse( ua ) );
         }
 
         #endregion

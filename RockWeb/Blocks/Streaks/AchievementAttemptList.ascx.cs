@@ -29,6 +29,7 @@ using Rock.Attribute;
 using Rock.Data;
 using Rock.Model;
 using Rock.Security;
+using Rock.Utility;
 using Rock.Web.Cache;
 using Rock.Web.UI;
 using Rock.Web.UI.Controls;
@@ -46,6 +47,7 @@ namespace RockWeb.Blocks.Streaks
         IsRequired = false,
         Order = 1 )]
 
+    [Rock.SystemGuid.BlockTypeGuid( "9C1236AE-4FF0-480C-A7DF-0E5277CA75FB" )]
     public partial class AchievementAttemptList : RockBlock, ISecondaryBlock, ICustomGridColumns
     {
         #region Keys
@@ -204,6 +206,12 @@ namespace RockWeb.Blocks.Streaks
             {
                 lProgress.Text = GetProgressBarHtml( achievementViewModel.Progress );
             }
+
+            var personColumn = e.Row.FindControl( "lPerson" ) as Literal;
+            if ( personColumn != null && achievementViewModel.Entity is PersonAlias personAlias )
+            {
+                personColumn.Text = $"<a class='btn btn-default btn-sm' href='/person/{personAlias.PersonId}'><i class='fa fa-user'></i></a>";
+            }
         }
 
         /// <summary>
@@ -240,11 +248,11 @@ namespace RockWeb.Blocks.Streaks
             var progressBarClass = progressLong >= 100 ? "progress-bar-success" : string.Empty;
 
             return string.Format(
-@"<div class=""progress"" style=""margin-bottom: 0;"">
+@"<div class=""progress m-0"">
     <div class=""progress-bar {5}"" role=""progressbar"" style=""width: {0}%;"">
         {1}{2}
     </div>
-    <span style=""padding-left: 5px;"">{3}{4}</span>
+    <span class=""pl-1"">{3}{4}</span>
 </div>", progressBarWidth, insideProgress, insideProgress.HasValue ? "%" : string.Empty, outsideProgress, outsideProgress.HasValue ? "%" : string.Empty, progressBarClass );
         }
 
@@ -255,10 +263,10 @@ namespace RockWeb.Blocks.Streaks
         /// <param name="e">The <see cref="EventArgs" /> instance containing the event data.</param>
         protected void rFilter_ApplyFilterClick( object sender, EventArgs e )
         {
-            rFilter.SaveUserPreference( FilterKey.AchieverName, "Achiever Name", tbAchieverName.Text );
-            rFilter.SaveUserPreference( FilterKey.AttemptStartDateRange, "Start Date", drpStartDate.DelimitedValues );
-            rFilter.SaveUserPreference( FilterKey.Status, "Status", ddlStatus.SelectedValue );
-            rFilter.SaveUserPreference( FilterKey.AchievementType, "Achievement Type", statPicker.SelectedValue );
+            rFilter.SetFilterPreference( FilterKey.AchieverName, "Achiever Name", tbAchieverName.Text );
+            rFilter.SetFilterPreference( FilterKey.AttemptStartDateRange, "Start Date", drpStartDate.DelimitedValues );
+            rFilter.SetFilterPreference( FilterKey.Status, "Status", ddlStatus.SelectedValue );
+            rFilter.SetFilterPreference( FilterKey.AchievementType, "Achievement Type", statPicker.SelectedValue );
 
             BindGrid();
         }
@@ -295,7 +303,7 @@ namespace RockWeb.Blocks.Streaks
         /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
         protected void rFilter_ClearFilterClick( object sender, EventArgs e )
         {
-            rFilter.DeleteUserPreferences();
+            rFilter.DeleteFilterPreferences();
             BindFilter();
         }
 
@@ -498,7 +506,7 @@ namespace RockWeb.Blocks.Streaks
 
                 if ( achievementType != null )
                 {
-                    rFilter.UserPreferenceKeyPrefix = string.Format( "{0}-", achievementType.Guid );
+                    rFilter.PreferenceKeyPrefix = string.Format( "{0}-", achievementType.Guid );
                 }
 
                 BindFilter();
@@ -549,7 +557,7 @@ namespace RockWeb.Blocks.Streaks
         {
             if ( GetAchievementTypeCache() == null )
             {
-                statPicker.SelectedValue = rFilter.GetUserPreference( FilterKey.AchievementType );
+                statPicker.SelectedValue = rFilter.GetFilterPreference( FilterKey.AchievementType );
             }
             else
             {
@@ -557,9 +565,9 @@ namespace RockWeb.Blocks.Streaks
                 statPicker.Visible = false;
             }
 
-            tbAchieverName.Text = rFilter.GetUserPreference( FilterKey.AchieverName );
-            drpStartDate.DelimitedValues = rFilter.GetUserPreference( FilterKey.AttemptStartDateRange );
-            ddlStatus.SelectedValue = rFilter.GetUserPreference( FilterKey.Status );
+            tbAchieverName.Text = rFilter.GetFilterPreference( FilterKey.AchieverName );
+            drpStartDate.DelimitedValues = rFilter.GetFilterPreference( FilterKey.AttemptStartDateRange );
+            ddlStatus.SelectedValue = rFilter.GetFilterPreference( FilterKey.Status );
         }
 
         /// <summary>
@@ -636,7 +644,8 @@ namespace RockWeb.Blocks.Streaks
                 IsSuccessful = aa.AchievementAttempt.IsSuccessful,
                 IsClosed = aa.AchievementAttempt.IsClosed,
                 Progress = aa.AchievementAttempt.Progress,
-                AchievementName = aa.AchievementAttempt.AchievementType.Name
+                AchievementName = aa.AchievementAttempt.AchievementType.Name,
+                Entity = aa.Achiever
             } );
 
             // Sort the grid
@@ -678,7 +687,7 @@ namespace RockWeb.Blocks.Streaks
         /// <summary>
         /// Represents an enrollment for a row in the grid
         /// </summary>
-        public class AttemptViewModel
+        public class AttemptViewModel : RockDynamic
         {
             public int Id { get; set; }
             public string AchieverName { get; set; }
@@ -688,6 +697,7 @@ namespace RockWeb.Blocks.Streaks
             public bool IsClosed { get; set; }
             public decimal Progress { get; set; }
             public string AchievementName { get; set; }
+            public IEntity Entity { get; set; }
         }
 
         /// <summary>

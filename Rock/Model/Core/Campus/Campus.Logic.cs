@@ -15,6 +15,8 @@
 // </copyright>
 //
 using Rock.Web.Cache;
+using System;
+using System.ComponentModel.DataAnnotations.Schema;
 using System.Data.Entity;
 
 namespace Rock.Model
@@ -43,5 +45,40 @@ namespace Rock.Model
         }
 
         #endregion
+
+        /// <summary>
+        /// Gets the current date time basd on the <see cref="Campus.TimeZoneId" />.
+        /// </summary>
+        /// <value>
+        /// The current date time.
+        /// </value>
+        [NotMapped]
+        public virtual DateTime CurrentDateTime
+        {
+            get
+            {
+                if ( TimeZoneId.IsNotNullOrWhiteSpace() )
+                {
+                    var campusTimeZoneInfo = TimeZoneInfo.FindSystemTimeZoneById( TimeZoneId );
+                    if ( campusTimeZoneInfo != null )
+                    {
+                        return TimeZoneInfo.ConvertTime( DateTime.UtcNow, campusTimeZoneInfo );
+                    }
+                }
+
+                return RockDateTime.Now;
+            }
+        }
+
+        /// <summary>
+        /// Gets the condensed name of the campus. This will be the short code
+        /// if set, otherwise the name of the campus by stripping off any
+        /// trailing " Campus" text.
+        /// </summary>
+        /// <value>
+        /// The condensed name of the campus.
+        /// </value>
+        [NotMapped]
+        public string CondensedName => ShortCode.IfEmpty( Name.ReplaceIfEndsWith( " Campus", string.Empty ) );
     }
 }

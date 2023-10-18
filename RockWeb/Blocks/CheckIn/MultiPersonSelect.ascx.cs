@@ -45,7 +45,7 @@ namespace RockWeb.Blocks.CheckIn
 
     [CodeEditorField( "Pre-Selected Options Format",
         Key = AttributeKey.OptionFormat,
-        Description = "The format to use when displaying auto-checkin options",
+        Description = "The format to use when displaying auto-checkin options. Merge fields include GroupType, Group, Location, Schedule, LocationCount and DisplayLocationCount (true/false).",
         EditorMode = CodeEditorMode.Lava,
         EditorTheme = CodeEditorTheme.Rock,
         EditorHeight = 100,
@@ -93,6 +93,7 @@ namespace RockWeb.Blocks.CheckIn
 
     #endregion Attribute Keys
 
+    [Rock.SystemGuid.BlockTypeGuid( "92DCF018-F551-4890-8BA1-511D97BF6B8A" )]
     public partial class MultiPersonSelect : CheckInBlock
     {
         /* 2021-05/07 ETD
@@ -113,7 +114,10 @@ namespace RockWeb.Blocks.CheckIn
         private const string PreSelectedOptionsFormatDefaultValue = @"
 <span class='auto-select-schedule'>{{ Schedule.Name }}:</span>
 <span class='auto-select-group'>{{ Group.Name }}</span>
-<span class='auto-select-location'>{{ Location.Name }}</span>
+<span class='auto-select-location'>{{ Location.Name }}</span
+{% if DisplayLocationCount == true %}
+<span class='ml-3'>Count: {{ LocationCount }}</span>
+{% endif %} 
 ";
 
 
@@ -244,16 +248,24 @@ namespace RockWeb.Blocks.CheckIn
                             Rock.Workflow.Action.CheckIn.SetAvailableSchedules.ProcessForFamily( rockContext, family );
                             Rock.Workflow.Action.CheckIn.FilterByPreviousCheckin.ProcessForFamily( rockContext, family, preventDuplicate );
                         }
+                    }
 
+                    foreach ( var person in family.People )
+                    {
                         // Check to see if person has option pre-selected and if not, select first item.
-                        foreach ( var person in family.People )
+                        if ( _autoCheckin && !person.GroupTypes.Any( t => t.PreSelected ) )
                         {
-                            if ( !person.GroupTypes.Any( t => t.PreSelected ) )
-                            {
-                                SelectFirstOption( person );
-                            }
+                            SelectFirstOption( person );
+                        }
+
+                        // JS uses this to keep track of the selected items, so make sure to start it out with the preselected persons.
+                        if ( person.PreSelected )
+                        {
+                            hfPeople.Value += $"{person.Person.Id},";
                         }
                     }
+
+                    hfPeople.Value = hfPeople.Value.TrimEnd( new char[] { ',' } );
 
                     BindData();
                 }
@@ -297,16 +309,10 @@ namespace RockWeb.Blocks.CheckIn
                     {
                         var selectedOptions = person.GetOptions( true, true );
 
-                        string format = GetAttributeValue( AttributeKey.OptionFormat );
                         foreach ( var option in selectedOptions )
                         {
-                            var mergeFields = new Dictionary<string, object> {
-                            { "GroupType", option.GroupType },
-                            { "Group", option.Group },
-                            { "Location", option.Location },
-                            { "Schedule", option.Schedule }
-                        };
-                            options.Add( format.ResolveMergeFields( mergeFields ) );
+                            var optionText = GetOptionText( option );
+                            options.Add( optionText );
                         }
 
                         var pnlPersonButton = e.Item.FindControl( "pnlPersonButton" ) as Panel;
@@ -351,12 +357,32 @@ namespace RockWeb.Blocks.CheckIn
                     var personSelectLavaTemplate = CurrentCheckInState.CheckInType.PersonSelectAdditionalInfoLavaTemplate;
                     if ( personSelectLavaTemplate.IsNotNullOrWhiteSpace() )
                     {
-                        var mergeFields = Rock.Lava.LavaHelper.GetCommonMergeFields( this.RockPage, null, new Rock.Lava.CommonMergeFieldsOptions { GetLegacyGlobalMergeFields = false } );
+                        var mergeFields = Rock.Lava.LavaHelper.GetCommonMergeFields( this.RockPage, null, new Rock.Lava.CommonMergeFieldsOptions() );
                         mergeFields.Add( "Person", person );
                         lPersonSelectLava.Text = personSelectLavaTemplate.ResolveMergeFields( mergeFields );
                     }
                 }
             }
+        }
+
+        /// <summary>
+        /// Get the option text.
+        /// </summary>
+        private string GetOptionText( CheckInPersonSummary option )
+        {
+            var format = GetAttributeValue( AttributeKey.OptionFormat );
+            var mergeFields = new Dictionary<string, object>
+            {
+                { "GroupType", option.GroupType },
+                { "Group", option.Group },
+                { "Location", option.Location },
+                { "Schedule", option.Schedule },
+                { "DisplayLocationCount", CurrentCheckInState.CheckInType.DisplayLocationCount },
+                { "LocationCount", KioskLocationAttendance.Get( option.Location.Location.Id ).CurrentCount }
+            };
+
+            var optionText = format.ResolveMergeFields( mergeFields );
+            return optionText;
         }
 
         /// <summary>
@@ -564,16 +590,10 @@ namespace RockWeb.Blocks.CheckIn
                 var options = new List<string>();
                 if ( _autoCheckin && person.PreSelected )
                 {
-                    string format = GetAttributeValue( AttributeKey.OptionFormat );
                     foreach ( var option in person.GetOptions( true, true ) )
                     {
-                        var mergeFields = new Dictionary<string, object> {
-                            { "GroupType", option.GroupType },
-                            { "Group", option.Group },
-                            { "Location", option.Location },
-                            { "Schedule", option.Schedule }
-                        };
-                        options.Add( format.ResolveMergeFields( mergeFields ) );
+                        var optionText = GetOptionText( option );
+                        options.Add( optionText );
                     }
                 }
 
@@ -653,14 +673,7 @@ namespace RockWeb.Blocks.CheckIn
             var option = dataItem as CheckInPersonSummary;
             if ( option != null )
             {
-                string format = GetAttributeValue( AttributeKey.OptionFormat );
-                var mergeFields = new Dictionary<string, object> {
-                            { "GroupType", option.GroupType },
-                            { "Group", option.Group },
-                            { "Location", option.Location },
-                            { "Schedule", option.Schedule }
-                        };
-                return format.ResolveMergeFields( mergeFields );
+                return GetOptionText( option );
             }
 
             return string.Empty;
@@ -704,16 +717,21 @@ namespace RockWeb.Blocks.CheckIn
             return false;
         }
 
+        /// <summary>
+        /// Selects the first option based on the order property of Schedule from CheckinPerson.PossibleSchedules.
+        /// If no schedules exists in PossibleSchedules than one is chosen based on the Order property of GroupType, Group, Location, and Schedule.
+        /// </summary>
+        /// <param name="person">The person.</param>
         private void SelectFirstOption( CheckInPerson person )
         {
-            var firstSchedule = person.PossibleSchedules.FirstOrDefault();
+            var firstSchedule = person.PossibleSchedules.OrderBy( s => s.Schedule.Order ).FirstOrDefault();
             if ( firstSchedule != null )
             {
-                foreach ( var groupType in person.GroupTypes.Where( t => t.AvailableForSchedule.Contains( firstSchedule.Schedule.Id ) ) )
+                foreach ( var groupType in person.GroupTypes.Where( t => t.AvailableForSchedule.Contains( firstSchedule.Schedule.Id ) ).OrderBy( t => t.GroupType.Order ) )
                 {
-                    foreach ( var group in groupType.Groups.Where( t => t.AvailableForSchedule.Contains( firstSchedule.Schedule.Id ) ) )
+                    foreach ( var group in groupType.Groups.Where( g => g.AvailableForSchedule.Contains( firstSchedule.Schedule.Id ) ).OrderBy( g => g.Group.Order ) )
                     {
-                        foreach ( var location in group.Locations.Where( t => t.AvailableForSchedule.Contains( firstSchedule.Schedule.Id ) ) )
+                        foreach ( var location in group.Locations.Where( l => l.AvailableForSchedule.Contains( firstSchedule.Schedule.Id ) ).OrderBy( l => l.Order ) )
                         {
                             foreach ( var schedule in location.Schedules.Where( s => s.Schedule.Id == firstSchedule.Schedule.Id ) )
                             {
@@ -732,14 +750,14 @@ namespace RockWeb.Blocks.CheckIn
                 }
             }
 
-            // Couldn't find a match for first schedule, just select first option
-            foreach ( var groupType in person.GroupTypes )
+            // Couldn't find a match for first schedule, just select first available option based on the order property
+            foreach ( var groupType in person.GroupTypes.OrderBy( t => t.GroupType.Order ) )
             {
-                foreach ( var group in groupType.Groups )
+                foreach ( var group in groupType.Groups.OrderBy( g => g.Group.Order ) )
                 {
-                    foreach ( var location in group.Locations )
+                    foreach ( var location in group.Locations.OrderBy( l => l.Order ) )
                     {
-                        foreach ( var schedule in location.Schedules )
+                        foreach ( var schedule in location.Schedules.OrderBy( s => s.Schedule.Order ) )
                         {
                             int scheduleId = schedule.Schedule.Id;
 

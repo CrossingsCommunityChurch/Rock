@@ -23,7 +23,7 @@ using Rock.Web.UI.Controls;
 namespace Rock.Reporting.Dashboard
 {
     /// <summary>
-    /// 
+    /// A panel that displays content suitable for an element of a Rock dashboard.
     /// </summary>
     [TextField( "Title", "The title of the widget", false, Order = 0 )]
     [TextField( "Subtitle", "The subtitle of the widget", false, Order = 1 )]
@@ -101,7 +101,7 @@ namespace Rock.Reporting.Dashboard
             writer.AddAttribute( System.Web.UI.HtmlTextWriterAttribute.Class, widgetCssList.AsDelimited( " " ) );
             writer.RenderBeginTag( System.Web.UI.HtmlTextWriterTag.Div );
 
-            writer.AddAttribute( System.Web.UI.HtmlTextWriterAttribute.Class, "panel-dashboard" );
+            writer.AddAttribute( System.Web.UI.HtmlTextWriterAttribute.Class, "panel-dashboard panel-block" );
             writer.RenderBeginTag( System.Web.UI.HtmlTextWriterTag.Div );
 
             writer.AddAttribute( System.Web.UI.HtmlTextWriterAttribute.Class, "panel-body" );

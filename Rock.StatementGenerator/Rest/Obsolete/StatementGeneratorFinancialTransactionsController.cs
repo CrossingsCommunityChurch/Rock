@@ -35,6 +35,7 @@ namespace Rock.StatementGenerator.Rest
     /// <seealso cref="Rock.Rest.ApiControllerBase" />
     [Obsolete( "Use ~/api/FinancialGivingStatement/ endpoints instead " )]
     [RockObsolete( "1.12.4" )]
+    [Rock.SystemGuid.RestControllerGuid( "745A5C57-6091-4563-A447-566BC649C776")]
     public class StatementGeneratorFinancialTransactionsController : Rock.Rest.ApiControllerBase
     {
         /// <summary>
@@ -190,8 +191,7 @@ namespace Rock.StatementGenerator.Rest
                     var dataView = new DataViewService( new RockContext() ).Get( options.DataViewId.Value );
                     if ( dataView != null )
                     {
-                        var dataViewGetQueryArgs = new DataViewGetQueryArgs();
-                        var personList = dataView.GetQuery( dataViewGetQueryArgs ).OfType<Rock.Model.Person>().Select( a => new { a.Id, a.GivingGroupId } ).ToList();
+                        var personList = dataView.GetQuery().OfType<Rock.Model.Person>().Select( a => new { a.Id, a.GivingGroupId } ).ToList();
                         HashSet<int> personIds = new HashSet<int>( personList.Select( a => a.Id ) );
                         HashSet<int> groupsIds = new HashSet<int>( personList.Where( a => a.GivingGroupId.HasValue ).Select( a => a.GivingGroupId.Value ).Distinct() );
 
@@ -455,7 +455,7 @@ namespace Rock.StatementGenerator.Rest
                 var lavaTemplateLava = lavaTemplateValue.GetAttributeValue( "LavaTemplate" );
                 var lavaTemplateFooterLava = lavaTemplateValue.GetAttributeValue( "FooterHtml" );
 
-                var mergeFields = Rock.Lava.LavaHelper.GetCommonMergeFields( null, null, new Lava.CommonMergeFieldsOptions { GetLegacyGlobalMergeFields = false, GetDeviceFamily = false, GetOSFamily = false, GetPageContext = false, GetPageParameters = false, GetCampuses = true, GetCurrentPerson = true } );
+                var mergeFields = Rock.Lava.LavaHelper.GetCommonMergeFields( null, null, new Lava.CommonMergeFieldsOptions { GetDeviceFamily = false, GetOSFamily = false, GetPageContext = false, GetPageParameters = false, GetCampuses = true, GetCurrentPerson = true } );
                 mergeFields.Add( "LavaTemplate", lavaTemplateValue );
 
                 mergeFields.Add( "PersonList", personList );

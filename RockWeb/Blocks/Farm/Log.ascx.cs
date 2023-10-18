@@ -33,6 +33,7 @@ namespace RockWeb.Blocks.Farm
     [Category( "Farm" )]
     [Description( "Shows a list of Web Farm logs." )]
 
+    [Rock.SystemGuid.BlockTypeGuid( "63ADDB5A-75D6-4E86-A031-98B3451C49A3" )]
     public partial class Log : RockBlock, ISecondaryBlock
     {
         #region Keys
@@ -154,7 +155,7 @@ namespace RockWeb.Blocks.Farm
         }
 
         /// <summary>
-        /// Handles the GridRebind event of the gPledges control.
+        /// Handles the GridRebind event of the gLog control.
         /// </summary>
         /// <param name="sender">The source of the event.</param>
         /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
@@ -174,12 +175,12 @@ namespace RockWeb.Blocks.Farm
         /// <param name="e">The <see cref="EventArgs" /> instance containing the event data.</param>
         protected void rFilter_ApplyFilterClick( object sender, EventArgs e )
         {
-            rFilter.SaveUserPreference( FilterKey.DateRange, "Date Range", sdrpDateRange.DelimitedValues );
-            rFilter.SaveUserPreference( FilterKey.NodeName, "Node Name", tbNodeName.Text );
-            rFilter.SaveUserPreference( FilterKey.WriterNodeName, "Writer Node Name", tbWriterNodeName.Text );
-            rFilter.SaveUserPreference( FilterKey.Severity, "Severity", ddlSeverity.SelectedValue );
-            rFilter.SaveUserPreference( FilterKey.EventType, "Event Type", ddlEventType.SelectedValue );
-            rFilter.SaveUserPreference( FilterKey.Text, "Text", tbText.Text );
+            rFilter.SetFilterPreference( FilterKey.DateRange, "Date Range", sdrpDateRange.DelimitedValues );
+            rFilter.SetFilterPreference( FilterKey.NodeName, "Node Name", tbNodeName.Text );
+            rFilter.SetFilterPreference( FilterKey.WriterNodeName, "Writer Node Name", tbWriterNodeName.Text );
+            rFilter.SetFilterPreference( FilterKey.Severity, "Severity", ddlSeverity.SelectedValue );
+            rFilter.SetFilterPreference( FilterKey.EventType, "Event Type", ddlEventType.SelectedValue );
+            rFilter.SetFilterPreference( FilterKey.Text, "Text", tbText.Text );
 
             BindGrid();
         }
@@ -191,7 +192,7 @@ namespace RockWeb.Blocks.Farm
         /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
         protected void rFilter_ClearFilterClick( object sender, EventArgs e )
         {
-            rFilter.DeleteUserPreferences();
+            rFilter.DeleteFilterPreferences();
             BindFilter();
         }
 
@@ -237,12 +238,12 @@ namespace RockWeb.Blocks.Farm
             ddlEventType.DataSource = _eventTypes;
             ddlEventType.DataBind();
 
-            sdrpDateRange.DelimitedValues = rFilter.GetUserPreference( FilterKey.DateRange );
-            tbNodeName.Text = rFilter.GetUserPreference( FilterKey.NodeName );
-            tbWriterNodeName.Text = rFilter.GetUserPreference( FilterKey.WriterNodeName );
-            ddlSeverity.SelectedValue = rFilter.GetUserPreference( FilterKey.Severity );
-            ddlEventType.SelectedValue = rFilter.GetUserPreference( FilterKey.EventType );
-            tbText.Text = rFilter.GetUserPreference( FilterKey.Text );
+            sdrpDateRange.DelimitedValues = rFilter.GetFilterPreference( FilterKey.DateRange );
+            tbNodeName.Text = rFilter.GetFilterPreference( FilterKey.NodeName );
+            tbWriterNodeName.Text = rFilter.GetFilterPreference( FilterKey.WriterNodeName );
+            ddlSeverity.SelectedValue = rFilter.GetFilterPreference( FilterKey.Severity );
+            ddlEventType.SelectedValue = rFilter.GetFilterPreference( FilterKey.EventType );
+            tbText.Text = rFilter.GetFilterPreference( FilterKey.Text );
         }
 
         /// <summary>

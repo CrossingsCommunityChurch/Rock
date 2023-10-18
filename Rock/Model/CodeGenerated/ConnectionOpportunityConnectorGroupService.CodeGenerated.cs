@@ -23,10 +23,7 @@
 using System;
 using System.Linq;
 
-using Rock.Attribute;
 using Rock.Data;
-using Rock.ViewModel;
-using Rock.Web.Cache;
 
 namespace Rock.Model
 {
@@ -57,46 +54,6 @@ namespace Rock.Model
             return true;
         }
     }
-
-    /// <summary>
-    /// ConnectionOpportunityConnectorGroup View Model Helper
-    /// </summary>
-    [DefaultViewModelHelper( typeof( ConnectionOpportunityConnectorGroup ) )]
-    public partial class ConnectionOpportunityConnectorGroupViewModelHelper : ViewModelHelper<ConnectionOpportunityConnectorGroup, Rock.ViewModel.ConnectionOpportunityConnectorGroupViewModel>
-    {
-        /// <summary>
-        /// Converts the model to a view model.
-        /// </summary>
-        /// <param name="model">The entity.</param>
-        /// <param name="currentPerson">The current person.</param>
-        /// <param name="loadAttributes">if set to <c>true</c> [load attributes].</param>
-        /// <returns></returns>
-        public override Rock.ViewModel.ConnectionOpportunityConnectorGroupViewModel CreateViewModel( ConnectionOpportunityConnectorGroup model, Person currentPerson = null, bool loadAttributes = true )
-        {
-            if ( model == null )
-            {
-                return default;
-            }
-
-            var viewModel = new Rock.ViewModel.ConnectionOpportunityConnectorGroupViewModel
-            {
-                Id = model.Id,
-                Guid = model.Guid,
-                CampusId = model.CampusId,
-                ConnectionOpportunityId = model.ConnectionOpportunityId,
-                ConnectorGroupId = model.ConnectorGroupId,
-                CreatedDateTime = model.CreatedDateTime,
-                ModifiedDateTime = model.ModifiedDateTime,
-                CreatedByPersonAliasId = model.CreatedByPersonAliasId,
-                ModifiedByPersonAliasId = model.ModifiedByPersonAliasId,
-            };
-
-            AddAttributesToViewModel( model, viewModel, currentPerson, loadAttributes );
-            ApplyAdditionalPropertiesAndSecurityToViewModel( model, viewModel, currentPerson, loadAttributes );
-            return viewModel;
-        }
-    }
-
 
     /// <summary>
     /// Generated Extension Methods
@@ -167,20 +124,5 @@ namespace Rock.Model
             target.ForeignId = source.ForeignId;
 
         }
-
-        /// <summary>
-        /// Creates a view model from this entity
-        /// </summary>
-        /// <param name="model">The entity.</param>
-        /// <param name="currentPerson" >The currentPerson.</param>
-        /// <param name="loadAttributes" >Load attributes?</param>
-        public static Rock.ViewModel.ConnectionOpportunityConnectorGroupViewModel ToViewModel( this ConnectionOpportunityConnectorGroup model, Person currentPerson = null, bool loadAttributes = false )
-        {
-            var helper = new ConnectionOpportunityConnectorGroupViewModelHelper();
-            var viewModel = helper.CreateViewModel( model, currentPerson, loadAttributes );
-            return viewModel;
-        }
-
     }
-
 }

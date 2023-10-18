@@ -16,14 +16,25 @@
 //
 using System;
 using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
+using System.Security.Claims;
+using System.Threading.Tasks;
+
+using Microsoft.AspNet.SignalR;
+using Microsoft.AspNet.SignalR.Hubs;
+using Microsoft.Owin;
+
+using Newtonsoft.Json;
+using Newtonsoft.Json.Serialization;
+
+using Owin;
+
 using Rock;
 using Rock.Model;
 using Rock.Utility;
-using System.Linq;
-using Owin;
-using Microsoft.Owin;
 
-[assembly: OwinStartup(typeof(RockWeb.Startup))]
+[assembly: OwinStartup( typeof( RockWeb.Startup ) )]
 namespace RockWeb
 {
     /// <summary>
@@ -37,7 +48,9 @@ namespace RockWeb
         /// <param name="app">The application.</param>
         public void Configuration( IAppBuilder app )
         {
-            app.MapSignalR();
+            Rock.WebStartup.RockApplicationStartupHelper.LogStartupMessage( "Initializing the RealTime system." );
+            Rock.RealTime.AspNet.AspNetEngineStartup.Configure( app );
+            Rock.WebStartup.RockApplicationStartupHelper.ShowDebugTimingMessage( "Initialized the RealTime system." );
 
             try
             {

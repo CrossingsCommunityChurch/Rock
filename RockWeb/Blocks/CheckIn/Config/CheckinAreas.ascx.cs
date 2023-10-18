@@ -39,6 +39,7 @@ namespace RockWeb.Blocks.CheckIn.Config
     [DisplayName( "Check-in Areas" )]
     [Category( "Check-in > Configuration" )]
     [Description( "Configure Check-in areas and groups." )]
+    [Rock.SystemGuid.BlockTypeGuid( "B7CD296F-3AAB-4BA3-902C-44DB96C79798" )]
     public partial class CheckinAreas : RockBlock, ISecondaryBlock
     {
 
@@ -81,7 +82,9 @@ namespace RockWeb.Blocks.CheckIn.Config
         {
             base.OnInit( e );
 
-            cbShowInactive.Checked = GetUserPreference( BlockCache.Guid.ToString() + "_showInactive" ).AsBoolean();
+            RockPage.AddCSSLink( "~/Styles/Blocks/Checkin/CheckinAreas.css", true );
+
+            cbShowInactive.Checked = GetBlockPersonPreferences().GetValue( "show-inactive" ).AsBoolean();
 
             BuildRows( !Page.IsPostBack );
 
@@ -708,7 +711,11 @@ namespace RockWeb.Blocks.CheckIn.Config
         /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
         protected void cbShowInactive_CheckedChanged( object sender, EventArgs e )
         {
-            SetUserPreference( BlockCache.Guid.ToString() + "_showInactive", cbShowInactive.Checked.ToString() );
+            var preferences = GetBlockPersonPreferences();
+
+            preferences.SetValue( "show-inactive", cbShowInactive.Checked.ToString() );
+            preferences.Save();
+
             BuildRows( true );
         }
 
@@ -801,7 +808,7 @@ namespace RockWeb.Blocks.CheckIn.Config
                          !g.ParentGroupId.HasValue ||
                         !allGroupIds.Contains( g.ParentGroupId.Value ) );
 
-                if ( !GetUserPreference( BlockCache.Guid.ToString() + "_showInactive" ).AsBoolean() )
+                if ( !GetBlockPersonPreferences().GetValue( "show-inactive" ).AsBoolean() )
                 {
                     childGroups = childGroups.Where( g => g.IsActive );
                 }

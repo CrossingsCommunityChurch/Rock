@@ -43,6 +43,7 @@ namespace Rock.Workflow.Action
     [WorkflowTextOrAttribute( "Message", "Attribute Value", "The message or an attribute that contains the message that should be sent. <span class='tip tip-lava'></span>", true, "", "", 3, "Message",
         new string[] { "Rock.Field.Types.TextFieldType" } )]
     [WorkflowTextOrAttribute( "Url", "Attribute Value", "The URL or an attribute that contains the URL that the notification should link to.", false, "", "", 4, "Url", new string[] { "Rock.Field.Types.TextFieldType" } )]
+    [Rock.SystemGuid.EntityTypeGuid( "22CAA82F-7AE2-430C-AE88-FA7401981F60")]
     public class SendPushNotification : ActionComponent
     {
         /// <summary>
@@ -79,7 +80,7 @@ namespace Rock.Workflow.Action
                                     {
                                         var personAlias = new PersonAliasService( rockContext ).Get( personAliasGuid );
                                         List<string> devices = new PersonalDeviceService( rockContext ).Queryable()
-                                            .Where( a => a.PersonAliasId.HasValue && a.PersonAliasId == personAlias.Id && a.NotificationsEnabled )
+                                            .Where( a => a.PersonAliasId.HasValue && a.PersonAliasId == personAlias.Id && a.IsActive && a.NotificationsEnabled )
                                             .Select( a => a.DeviceRegistrationId )
                                             .ToList();
 
@@ -93,7 +94,7 @@ namespace Rock.Workflow.Action
                                         {
 
                                             var person = new PersonAliasService( rockContext ).GetPerson( personAliasGuid );
-                                            var recipient = new RockPushMessageRecipient( person, deviceIds, mergeFields );
+                                            var recipient = new RockPushMessageRecipient( person, deviceIds, new Dictionary<string, object>( mergeFields ) );
                                             recipients.Add( recipient );
                                             if ( person != null )
                                             {
@@ -134,7 +135,7 @@ namespace Rock.Workflow.Action
                                             .Select( m => m.Person ) )
                                         {
                                             List<string> devices = new PersonalDeviceService( rockContext ).Queryable()
-                                                .Where( p => p.PersonAliasId.HasValue && p.PersonAliasId == person.PrimaryAliasId && p.NotificationsEnabled && !string.IsNullOrEmpty( p.DeviceRegistrationId ) )
+                                                .Where( p => p.PersonAliasId.HasValue && p.PersonAliasId == person.PrimaryAliasId && p.IsActive && p.NotificationsEnabled && !string.IsNullOrEmpty( p.DeviceRegistrationId ) )
                                                 .Select( p => p.DeviceRegistrationId )
                                                 .ToList();
 
@@ -142,7 +143,7 @@ namespace Rock.Workflow.Action
 
                                             if ( deviceIds.IsNotNullOrWhiteSpace() )
                                             {
-                                                var recipient = new RockPushMessageRecipient( person, deviceIds, mergeFields );
+                                                var recipient = new RockPushMessageRecipient( person, deviceIds, new Dictionary<string, object> (mergeFields) );
                                                 recipients.Add( recipient );
                                                 recipient.MergeFields.Add( recipient.PersonMergeFieldKey, person );
                                             }
@@ -158,7 +159,7 @@ namespace Rock.Workflow.Action
             {
                 if ( !string.IsNullOrWhiteSpace( toValue ) )
                 {
-                    recipients.Add( RockPushMessageRecipient.CreateAnonymous( toValue.ResolveMergeFields( mergeFields ), mergeFields ) );
+                    recipients.Add( RockPushMessageRecipient.CreateAnonymous( toValue.ResolveMergeFields( mergeFields ), new Dictionary<string, object>( mergeFields ) ) );
                 }
             }
 
@@ -234,8 +235,6 @@ namespace Rock.Workflow.Action
                     }
                 }
             }
-            PushData pushData = new PushData();
-            pushData.Url = url;
 
             if ( recipients.Any() && !string.IsNullOrWhiteSpace( message ) )
             {
@@ -244,7 +243,37 @@ namespace Rock.Workflow.Action
                 pushMessage.Title = title;
                 pushMessage.Message = message;
                 pushMessage.Sound = sound;
-                pushMessage.Data = pushData;
+                pushMessage.OpenAction = url.IsNotNullOrWhiteSpace() ? Utility.PushOpenAction.LinkToUrl : Utility.PushOpenAction.NoAction;
+                pushMessage.Data = new PushData
+                {
+                    Url = url
+                };
+
+                // Check if the URL is a mobile app style URL, which is "<guid>[?key=value]".
+                if ( url.Length >= 36 && Guid.TryParse( url.Substring( 0, 36 ), out var pageGuid ) )
+                {
+                    var pageId = PageCache.Get( pageGuid )?.Id;
+
+                    if ( pageId.HasValue )
+                    {
+                        pushMessage.Data.MobilePageId = pageId.Value;
+
+                        // Check if there are any query string values.
+                        if ( url.Length >= 38 && url[36] == '?' )
+                        {
+                            var queryString = url.Substring( 37 ).ParseQueryString();
+
+                            pushMessage.Data.MobilePageQueryString = new Dictionary<string, string>();
+
+                            foreach ( string key in queryString.Keys )
+                            {
+                                pushMessage.Data.MobilePageQueryString.AddOrReplace( key, queryString[key].ToString() );
+                            }
+                        }
+
+                        pushMessage.OpenAction = Utility.PushOpenAction.LinkToMobilePage;
+                    }
+                }
 
                 pushMessage.Send( out errorMessages );
             }

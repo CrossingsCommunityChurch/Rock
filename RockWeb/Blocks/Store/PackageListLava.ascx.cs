@@ -34,9 +34,6 @@ using Rock.Security;
 
 namespace RockWeb.Blocks.Store
 {
-    /// <summary>
-    /// Template block for developers to use to start a new block.
-    /// </summary>
     [DisplayName( "Package List Lava" )]
     [Category( "Store" )]
     [Description( "Lists Rock Store packages using a Lava template." )]
@@ -45,6 +42,7 @@ namespace RockWeb.Blocks.Store
     [TextField("Category Id", "Filters packages for a specific category id. If none is provided it will show all packages.", false, "","", 1)]
     [LinkedPage( "Detail Page", "Page reference to use for the detail page.", false, "", "", 4 )]
     [BooleanField( "Set Page Title", "Determines if the block should set the page title with the category name (category name must be provided via the query string as &CategoryName=.)", false )]
+    [Rock.SystemGuid.BlockTypeGuid( "A494D4DD-0C96-4BA7-AF1B-43EFEF078261" )]
     public partial class PackageListLava : Rock.Web.UI.RockBlock
     {
         #region Fields
@@ -70,6 +68,8 @@ namespace RockWeb.Blocks.Store
         protected override void OnInit( EventArgs e )
         {
             base.OnInit( e );
+
+            RockPage.AddCSSLink(  "~/Styles/Blocks/Store/Store.css", true );
 
             // this event gets fired after block settings are updated. it's nice to repaint the screen if these settings would alter it
             this.BlockUpdated += Block_BlockUpdated;
@@ -132,7 +132,7 @@ namespace RockWeb.Blocks.Store
                 RockPage.BrowserTitle = String.Format( "{0} | {1}", pageTitle, RockPage.Site.Name );
                 RockPage.Header.Title = String.Format( "{0} | {1}", pageTitle, RockPage.Site.Name );
             }
-            
+
             PackageService packageService = new PackageService();
             var packages = packageService.GetAllPackages( categoryId );
 

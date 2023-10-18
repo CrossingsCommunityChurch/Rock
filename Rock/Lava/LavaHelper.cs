@@ -21,14 +21,18 @@ using System.Reflection;
 using System.Text.RegularExpressions;
 using System.Web;
 
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
+
 using Rock.Data;
 using Rock.Model;
 using Rock.Web.Cache;
 using Rock.Web.UI;
 
-using Context = DotLiquid.Context;
-
 using UAParser;
+
+using Context = DotLiquid.Context;
+using Template = DotLiquid.Template;
 
 namespace Rock.Lava
 {
@@ -47,19 +51,21 @@ namespace Rock.Lava
         #endregion
 
         /// <summary>
-        /// Gets the rock context from lava context or returns a new one if one does not exist.
+        /// Gets the current data context from the specified lava context or returns a new data context if either context does not exist.
         /// </summary>
         /// <param name="context">The context.</param>
         /// <returns></returns>
         public static RockContext GetRockContextFromLavaContext( ILavaRenderContext context )
         {
-            var rockContext = context.GetInternalField( "rock_context", null ) as RockContext;
+            var rockContext = context?.GetInternalField( "rock_context", null ) as RockContext;
 
             if ( rockContext == null )
             {
                 rockContext = new RockContext();
-
-                context.SetInternalField( "rock_context", rockContext );
+                if ( context != null )
+                {
+                    context.SetInternalField( "rock_context", rockContext );
+                }
             }
 
             return rockContext;
@@ -95,19 +101,6 @@ namespace Rock.Lava
                 else if ( HttpContext.Current != null && HttpContext.Current.Items.Contains( "CurrentPerson" ) )
                 {
                     currentPerson = HttpContext.Current.Items["CurrentPerson"] as Person;
-                }
-            }
-
-            if ( options.GetLegacyGlobalMergeFields )
-            {
-                var globalAttributes = GlobalAttributesCache.Get();
-                if ( globalAttributes.LavaSupportLevel != Lava.LavaSupportLevel.NoLegacy )
-                {
-                    var legacyGlobalAttributeMergeFields = GlobalAttributesCache.GetLegacyMergeFields( currentPerson );
-                    foreach ( var legacyGlobalAttributeMergeField in legacyGlobalAttributeMergeFields )
-                    {
-                        mergeFields.Add( legacyGlobalAttributeMergeField.Key, legacyGlobalAttributeMergeField.Value );
-                    }
                 }
             }
 
@@ -167,6 +160,12 @@ namespace Rock.Lava
                 {
                     mergeFields.Add( "CurrentPerson", currentPerson );
                 }
+            }
+
+            if ( options.GetCurrentVisitor && rockPage != null )
+            {
+                var currentVisitor = rockPage.CurrentVisitor ?? rockPage.CurrentPersonAlias;
+                mergeFields.Add( "CurrentVisitor", currentVisitor );
             }
 
             if ( options.GetCampuses )
@@ -327,6 +326,123 @@ namespace Rock.Lava
         }
 
         /// <summary>
+        /// Gets a Person object from a Lava input parameter containing a person reference.
+        /// </summary>
+        /// <param name="input"></param>
+        /// <param name="context"></param>
+        /// <returns></returns>
+        public static Person GetPersonFromInputParameter( object input, ILavaRenderContext context )
+        {
+            var rockContext = LavaHelper.GetRockContextFromLavaContext( context );
+
+            // Parse the input object for a Person.
+            if ( input is Person p )
+            {
+                return p;
+            }
+            else if ( input is PersonAlias pa )
+            {
+                return pa?.Person;
+            }
+            else if ( input is string s )
+            {
+                var inputAsGuid = s.AsGuidOrNull();
+                if ( inputAsGuid != null )
+                {
+                    // If the input is a Guid, retrieve the corresponding Person.
+                    var personService = new PersonService( rockContext );
+                    var person = personService.Get( inputAsGuid.Value );
+                    return person;
+                }
+
+                var inputAsInt = s.AsIntegerOrNull();
+                if ( inputAsInt != null )
+                {
+                    // If the input is an integer, retrieve the corresponding Person.
+                    var personService = new PersonService( rockContext );
+                    var person = personService.Get( inputAsInt.Value );
+                    return person;
+                }
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// Gets a DataView object from a Lava input parameter containing a Data View reference.
+        /// </summary>
+        /// <param name="input"></param>
+        /// <param name="rockContext"></param>
+        /// <returns></returns>
+        public static DataView GetDataViewFromInputParameter( object input, RockContext rockContext )
+        {
+            DataView dataView = null;
+
+            // Parse the input object for a dataView.
+            if ( input is DataView dv )
+            {
+                dataView = dv;
+            }
+            else if ( input is string s )
+            {
+                var dataViewService = new DataViewService( rockContext );
+
+                var inputAsGuid = s.AsGuidOrNull();
+                if ( inputAsGuid != null )
+                {
+                    // If the input is a Guid, retrieve the corresponding DataView.
+                    dataView = dataViewService.Get( inputAsGuid.Value );
+                }
+                else
+                {
+                    var inputAsInt = s.AsIntegerOrNull();
+                    if ( inputAsInt != null )
+                    {
+                        // If the input is an integer, retrieve the corresponding dataView.
+                        dataView = dataViewService.Get( inputAsInt.Value );
+                    }
+                    else
+                    {
+                        // If the input is a string, retrieve by name.
+                        var inputAsString = s.ToStringSafe().Trim();
+                        dataView = dataViewService.Queryable()
+                            .FirstOrDefault( d => d.Name != null && d.Name.Equals( inputAsString ) );
+                    }
+                }
+            }
+            return dataView;
+        }
+
+        /// <summary>
+        /// Gets a PersonAlias representing the current visitor for whom a request is being processed.
+        /// </summary>
+        /// <param name="context">The Lava context.</param>
+        /// <returns></returns>
+        public static PersonAlias GetCurrentVisitorInContext( ILavaRenderContext context )
+        {
+            // If an override value is available in the Lava context, use it.
+            var currentVisitor = context.GetMergeField( "CurrentVisitor", null ) as PersonAlias;
+
+            // ... or try to get a value from the current HttpRequest.
+            if ( currentVisitor == null )
+            {
+                var httpContext = System.Web.HttpContext.Current;
+                if ( httpContext != null && httpContext.Items.Contains( "CurrentVisitor" ) )
+                {
+                    currentVisitor = httpContext.Items["CurrentVisitor"] as PersonAlias;
+                }
+            }
+
+            // ... or use the primary alias of the current person.
+            if ( currentVisitor == null )
+            {
+                var person = GetCurrentPerson( context );
+                currentVisitor = person?.PrimaryAlias;
+            }
+
+            return currentVisitor;
+        }
+
+        /// <summary>
         /// Parses the Lava Command markup, first resolving merge fields and then harvesting any provided parameters.
         /// </summary>
         /// <param name="markup">The Lava Command markup.</param>
@@ -343,7 +459,7 @@ namespace Rock.Lava
         /// </param>
         public static void ParseCommandMarkup( string markup, ILavaRenderContext context, Dictionary<string, string> parms )
         {
-            if ( markup.IsNull() )
+            if ( markup == null )
             {
                 return;
             }
@@ -429,6 +545,66 @@ namespace Rock.Lava
             return false;
         }
 
+        /// <summary>
+        /// Converts an object that came from JavaScript into an object that
+        /// can be used with Lava. Because <paramref name="input"/> is an unknown
+        /// we can't just pass it to Lava otherwise it will deny access to
+        /// the object values. This also converts any camelCase keys into PascalCase.
+        /// </summary>
+        /// <param name="input">The input object to be converted.</param>
+        /// <returns>A new object that represents <paramref name="input"/>.</returns>
+        internal static object JavaScriptObjectToLavaObject( object input )
+        {
+            if ( input == null )
+            {
+                return null;
+            }
+
+            // Even though we expect the input parameter to be a JToken, we don't
+            // know that for sure. So if it isn't then serialize and deserialize it
+            // so it is forced into a known format.
+            if ( !( input is JToken rootToken ) )
+            {
+                rootToken = JsonConvert.DeserializeObject<JToken>( input.ToJson() );
+            }
+
+            return JavaScriptObjectToLavaObjectInternal( rootToken );
+        }
+
+        /// <summary>
+        /// Internal converter to take an object that came from JavaScript and
+        /// coerce it into something that can be used in Lava.
+        /// </summary>
+        /// <param name="input">The input object to be converted.</param>
+        /// <returns>A new object that represents the <paramref name="input"/>.</returns>
+        private static object JavaScriptObjectToLavaObjectInternal( JToken input )
+        {
+            switch ( input )
+            {
+                case JObject jObject:
+                    var dict = new Dictionary<string, object>();
+                    foreach ( var item in jObject )
+                    {
+                        // Force the key to be uppercase since JavaScript probably
+                        // gave us a camelCase string.
+                        var key = $"{item.Key.Substring( 0, 1 ).ToUpper()}{item.Key.Substring( 1 )}";
+                        var value = JavaScriptObjectToLavaObjectInternal( item.Value );
+
+                        dict.AddOrReplace( key, value );
+                    }
+                    return dict;
+
+                case JArray jArray:
+                    return jArray.Select( JavaScriptObjectToLavaObjectInternal ).ToList();
+
+                case JValue jValue:
+                    return jValue.Value;
+
+                default:
+                    return input;
+            }
+        }
+
         #region Lava Comments
 
         private static string LavaTokenBlockCommentStart = @"/-";
@@ -436,6 +612,7 @@ namespace Rock.Lava
         private static string LavaTokenLineComment = @"//-";
 
         private static Regex _lavaCommentMatchGroupsRegex = null;
+        private static Regex _lavaLineCommentRegex = null;
 
         /// <summary>
         /// Build the regular expression that will be used to remove Lava-style comments from the template.
@@ -445,15 +622,14 @@ namespace Rock.Lava
             const string doubleQuotedString = @"(""[^""]*"")+";
             const string singleQuotedString = @"('[^']*')+";
 
-            string lineCommentElement = LavaTokenLineComment + @"(.*?)\r?\n";
-
-            var blockCommentElement = Regex.Escape( LavaTokenBlockCommentStart ) + @"(.*?)" + Regex.Escape( LavaTokenBlockCommentEnd );
-
+            var lineCommentElement = LavaTokenLineComment + @"(.*?)\r?\n";
+            var blockCommentElement = @"(?<!/)" + Regex.Escape( LavaTokenBlockCommentStart ) + @"(.*?)" + Regex.Escape( LavaTokenBlockCommentEnd ) + @"( *)([\r\n]*)";
             var rawBlock = @"\{%\sraw\s%\}(.*?)\{%\sendraw\s%\}";
 
             var templateElementMatchGroups = rawBlock + "|" + singleQuotedString + "|" + doubleQuotedString + "|" + blockCommentElement + "|" + lineCommentElement;
 
             // Create and compile the Regex, because it will be used very frequently.
+            _lavaLineCommentRegex = new Regex( lineCommentElement, RegexOptions.Compiled | RegexOptions.Singleline );
             _lavaCommentMatchGroupsRegex = new Regex( templateElementMatchGroups, RegexOptions.Compiled | RegexOptions.Singleline );
         }
 
@@ -477,14 +653,32 @@ namespace Rock.Lava
                 return string.Empty;
             }
 
-            // Remove comments from the content.
+            // Remove comments from the lava template text.
+            // This is achieved using a RegEx replace operation as follows:
+            // 1. Identify and ignore content enclosed in a "{% raw %}" tag.
+            // 2. Identify any text enclosed in quotes (single or double).
+            //    If the quoted text spans multiple lines and contains a single-line comment, remove the comment.
+            // 4. Identify and remove any short-form comments not enclosed in quotes.
+            // 5. Leave all other text unchanged.
             var lavaWithoutComments = _lavaCommentMatchGroupsRegex.Replace( lavaTemplate,
                 me =>
                 {
-                    // If the match group is a line comment, retain the end-of-line marker.
-                    if ( me.Value.StartsWith( LavaTokenBlockCommentStart ) || me.Value.StartsWith( LavaTokenLineComment ) )
+                    if ( me.Value.StartsWith( LavaTokenLineComment ) )
                     {
-                        return me.Value.StartsWith( LavaTokenLineComment ) ? Environment.NewLine : string.Empty;
+                        // If the match is a line comment, retain the end-of-line marker.
+                        return Environment.NewLine;
+                    }
+                    else if ( me.Value.StartsWith( LavaTokenBlockCommentStart ) )
+                    {
+                        return string.Empty;
+                    }
+                    else if ( me.Value.StartsWith( "'" ) || me.Value.StartsWith( "\"" ) )
+                    {
+                        // If the match is a quoted string, remove any single-line comments.
+                        // This may cause unexpected behavior in some literal text, but it ensures that
+                        // these comments are never unintentionally exposed as output.
+                        // (refer https://github.com/SparkDevNetwork/Rock/issues/4975)
+                        return _lavaLineCommentRegex.Replace( me.Value, Environment.NewLine );
                     }
 
                     // If the match group is not a comment, return a literal string.
@@ -528,7 +722,7 @@ namespace Rock.Lava
 
         #endregion
 
-        #region IsLavaTemplate
+        #region Contains
 
         /// <summary>
         /// Indicates if the target string contains any elements of a Lava template.
@@ -544,7 +738,7 @@ namespace Rock.Lava
             }
 
             // If the input string contains any Lava tags, consider it as a template.
-            if ( content.HasMergeFields() )
+            if ( ContainsLavaTags( content ) )
             {
                 return true;
             }
@@ -556,6 +750,61 @@ namespace Rock.Lava
             }
 
             return false;
+        }
+
+        /// <summary>
+        /// Compiled Regex for detecting if a string has lava tags. This is
+        /// a more strict version that should prevent false positives.
+        /// </summary>
+        private static readonly Regex _hasStrictLavaTags = new Regex( @"{{.*}}|{%.*%}|{\[.*\]}", RegexOptions.Compiled );
+
+        /// <summary>
+        /// Indicates if the target string contains any elements of a Lava template.
+        /// This is a much stricter check as it specifically looks for {{...}}, {%...%}
+        /// and {[...]}. This should reduce the risk of false positives at the expense
+        /// of a slightly longer check time.
+        /// </summary>
+        /// <param name="content">The content to be checked.</param>
+        /// <returns><c>true</c> if the content contains lava tags; otherwise <c>false</c>.</returns>
+        internal static bool IsStrictLavaTemplate( string content )
+        {
+            if ( content.IsNullOrWhiteSpace() )
+            {
+                return false;
+            }
+
+            // On a 3KB test string with a single lava merge field at the end, this
+            // took 0.002ms on the development machine.
+            return _hasStrictLavaTags.IsMatch( content );
+        }
+
+        /// <summary>
+        /// Compiled RegEx for detecting if a string has Lava tags
+        /// regex from some ideas in
+        ///  http://stackoverflow.com/a/16538131/1755417
+        ///  http://stackoverflow.com/a/25776530/1755417
+        /// </summary>
+        private static Regex _hasLavaTags = new Regex( @"(?<=\{).+(?<=\})", RegexOptions.Compiled );
+
+        /// <summary>
+        /// Determines whether a string potentially contains Lava tags.
+        /// NOTE: Might return true even though it doesn't really have merge fields, but something like looks like it. For example '{56408602-5E41-4D66-98C7-BD361CD93AED}'
+        /// </summary>
+        /// <param name="content">The content.</param>
+        /// <returns></returns>
+        public static bool ContainsLavaTags( this string content )
+        {
+            if ( content == null )
+            {
+                return false;
+            }
+
+            if ( !_hasLavaTags.IsMatch( content ) )
+            {
+                return false;
+            }
+
+            return true;
         }
 
         #endregion
@@ -642,7 +891,7 @@ namespace Rock.Lava
         /// </param>
         public static void ParseCommandMarkup( string markup, Context context, Dictionary<string, string> parms )
         {
-            if ( markup.IsNull() )
+            if ( markup == null )
             {
                 return;
             }
@@ -762,6 +1011,20 @@ namespace Rock.Lava
             {
                 return new LavaException( "Lava Processing Error.", ex );
             }
+        }
+
+        /// <summary>
+        /// Create a DotLiquid Template object from a string.
+        /// </summary>
+        /// <param name="templateString"></param>
+        /// <returns></returns>
+        public static Template CreateDotLiquidTemplate( string templateString )
+        {
+            // Strip out Lava comments before parsing the template because they are not recognized by standard Liquid syntax.
+            templateString = LavaHelper.RemoveLavaComments( templateString );
+
+            var template = Template.Parse( templateString );
+            return template;
         }
 
         #endregion
