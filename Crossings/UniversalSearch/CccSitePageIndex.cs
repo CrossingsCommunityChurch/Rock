@@ -80,6 +80,17 @@ namespace Crossings.UniversalSearch
         public string Tags { get; set; }
 
         /// <summary>
+        /// gets or sets the content type. 
+        /// </summary>
+        public Array PageContentType { get; set; }
+
+
+        /// <summary>
+        /// gets or sets the content type. 
+        /// </summary>
+        public Array PageSampleKey { get; set; }
+
+        /// <summary>
         /// Gets or sets the last indexed date time.
         /// </summary>
         /// <value>
