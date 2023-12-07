@@ -190,10 +190,18 @@ namespace Crossings.UniversalSearch
                                     sitePage.PageKeywords = metaKeynotes.Attributes["content"].Value;
                                 }
 
-                                HtmlNode metaPageContentType = htmlDoc.DocumentNode.SelectSingleNode("//meta[@data-content-type='user-defined-type']");
-                                if (metaPageContentType != null && metaPageContentType.Attributes["content"] != null)
+                                // HtmlNode metaPageContentType = htmlDoc.DocumentNode.SelectSingleNode("//meta[@data-content-type='user-defined-type']");
+                                // if (metaPageContentType != null && metaPageContentType.Attributes["content"] != null)
+                                // {
+                                // string pageContentTypeString = metaPageContentType.Attributes["content"].Value;
+                                // string[] pageContentType = pageContentTypeString.Split(new char[] { ',', ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                                // sitePage.PageContentType = pageContentType;
+                                // }
+
+                                HtmlNode stringPageContentType = htmlDoc.DocumentNode.SelectSingleNode("//div[@id='userDefinedPageContentType']");
+                                if (stringPageContentType != null)
                                 {
-                                    string pageContentTypeString = metaPageContentType.Attributes["content"].Value;
+                                    string pageContentTypeString = stringPageContentType.InnerText;
                                     string[] pageContentType = pageContentTypeString.Split(new char[] { ',', ' ' }, StringSplitOptions.RemoveEmptyEntries);
                                     sitePage.PageContentType = pageContentType;
                                 }
