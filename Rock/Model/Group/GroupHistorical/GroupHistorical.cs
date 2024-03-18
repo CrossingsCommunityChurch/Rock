@@ -29,6 +29,7 @@ namespace Rock.Model
     [RockDomain( "Group" )]
     [Table( "GroupHistorical" )]
     [DataContract]
+    [Rock.SystemGuid.EntityTypeGuid( "422A2EF2-9D74-4308-8CDB-D5FA4B6A01FF")]
     public partial class GroupHistorical : Model<GroupHistorical>, IHistoricalTracking
     {
         #region Entity Properties
@@ -108,8 +109,7 @@ namespace Rock.Model
         public int? StatusValueId { get; set; }
 
         /// <summary>
-        /// If this group's group type supports a schedule for a group, this is the schedule id for that group at this point in history
-        /// NOTE: If this Group has Schedules at it's Locations, those will be in GroupLocationHistorical.GroupLocationHistoricalSchedules
+        /// If this group's group type supports a schedule for a group, this is the schedule id for that group at this point in history.
         /// </summary>
         /// <value>
         /// The schedule identifier.
@@ -118,8 +118,7 @@ namespace Rock.Model
         public int? ScheduleId { get; set; }
 
         /// <summary>
-        /// If this group's group type supports a schedule for a group, this is the schedule text (Schedule.ToString()) for that group at this point in history
-        /// NOTE: If this Group has Schedules at it's Locations, those will be in GroupLocationHistorical.GroupLocationHistoricalSchedules
+        /// If this group's group type supports a schedule for a group, this is the schedule text (Schedule.ToString()) for that group at this point in history.
         /// </summary>
         /// <value>
         /// The schedule name.
@@ -249,8 +248,7 @@ namespace Rock.Model
         public virtual GroupType GroupType { get; set; }
 
         /// <summary>
-        /// If this group's group type supports a schedule for a group, this is the schedule for that group at this point in history
-        /// NOTE: If this Group has Schedules at it's Locations, those will be in GroupLocationHistorical[n].GroupLocationHistoricalSchedules
+        /// If this group's group type supports a schedule for a group, this is the schedule for that group at this point in history.
         /// </summary>
         /// <value>
         /// The schedule identifier.

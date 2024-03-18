@@ -91,7 +91,7 @@ namespace Rock.Tests.Shared
                 return;
             }
 
-            Assert.IsFalse( value.Contains( substring ) );
+            Assert.IsFalse( value.Contains( substring ), $"The result \"{ value }\" contains the unexpected value \"{ substring }\"." );
         }
 
         public static void AreEqual( this Assert assert, System.Single expected, System.Single actual, System.Single delta )
@@ -266,40 +266,40 @@ namespace Rock.Tests.Shared
         {
             Assert.ReplaceNullChars( input );
         }
-        public static void ThrowsException<T>( this Assert assert, Action action )
+        public static T ThrowsException<T>( this Assert assert, Action action )
             where T : Exception
         {
-            Assert.ThrowsException<T>( action );
+            return Assert.ThrowsException<T>( action );
         }
-        public static void ThrowsException<T>( this Assert assert, Action action, string message )
+        public static T ThrowsException<T>( this Assert assert, Action action, string message )
             where T : Exception
         {
-            Assert.ThrowsException<T>( action, message );
+            return Assert.ThrowsException<T>( action, message );
         }
-        public static void ThrowsException<T>( this Assert assert, Func<object> action )
+        public static T ThrowsException<T>( this Assert assert, Func<object> action )
             where T : Exception
         {
-            Assert.ThrowsException<T>( action );
+            return Assert.ThrowsException<T>( action );
         }
-        public static void ThrowsException<T>( this Assert assert, Func<object> action, string message )
+        public static T ThrowsException<T>( this Assert assert, Func<object> action, string message )
             where T : Exception
         {
-            Assert.ThrowsException<T>( action, message );
-        }
-
-        public static void ThrowsException<T>( this Assert assert, Func<object> action, string message, params object[] parameters )
-            where T : Exception
-        {
-            Assert.ThrowsException<T>( action, message, parameters );
+            return Assert.ThrowsException<T>( action, message );
         }
 
-        public static void ThrowsException<T>( this Assert assert, Action action, string message, params object[] parameters )
+        public static T ThrowsException<T>( this Assert assert, Func<object> action, string message, params object[] parameters )
             where T : Exception
         {
-            Assert.ThrowsException<T>( action, message, parameters );
+            return Assert.ThrowsException<T>( action, message, parameters );
         }
 
-        public static void ThrowsExceptionWithMessage<T>( this Assert assert, Action action, string expectedMessage )
+        public static T ThrowsException<T>( this Assert assert, Action action, string message, params object[] parameters )
+            where T : Exception
+        {
+            return Assert.ThrowsException<T>( action, message, parameters );
+        }
+
+        public static T ThrowsExceptionWithMessage<T>( this Assert assert, Action action, string expectedMessage )
             where T : Exception
         {
             try
@@ -310,12 +310,16 @@ namespace Rock.Tests.Shared
             {
                 if ( !ex.Message.Equals( expectedMessage, StringComparison.InvariantCultureIgnoreCase ) )
                 {
-                    Assert.Fail( $"Excepted error message to be {expectedMessage}, but it was ${ex.Message}" );
+                    Assert.Fail( $"Excepted error message to be {expectedMessage}, but it was {ex.Message}" );
                 }
-                return;
+
+                return ex;
             }
 
             Assert.Fail( $"A ${typeof( T )} exception was expected but was not thrown." );
+
+            // Doesn't actually do anything, but makes the compiler happy.
+            return ( T ) null;
         }
 
         #region Empty Assertions
@@ -365,5 +369,49 @@ namespace Rock.Tests.Shared
         }
         #endregion
 
+        #region Pattern Matches
+
+        /// <summary>
+        /// Asserts that the two strings can be considered equivalent if a pattern containing one or more wildcards is matched.
+        /// </summary>
+        /// <param name="expected">The expected string, containing one or more wildcards.</param>
+        /// <param name="actual">The actual string.</param>
+        public static void MatchesWildcard( this Assert assert, string expected, string actual, bool ignoreCase = false, bool ignoreWhiteSpace = false, string wildcard = "*" )
+        {
+            var expectedOutput = expected;
+
+            // If ignoring whitespace, strip it from the comparison strings.
+            if ( ignoreWhiteSpace )
+            {
+                expectedOutput = Regex.Replace( expectedOutput, @"\s*", string.Empty );
+                actual = Regex.Replace( actual, @"\s*", string.Empty );
+            }
+
+            // Replace wildcards with a non-Regex symbol.
+            expectedOutput = expectedOutput.Replace( wildcard, "<<<wildCard>>>" );
+
+            expectedOutput = Regex.Escape( expectedOutput );
+
+            // Require a match of 1 or more characters for a wildcard.
+            expectedOutput = expectedOutput.Replace( "<<<wildCard>>>", "(.+)" );
+
+            // Add anchors for the start and end of the string, to ensure that the entire string is matched.
+            // If the caller wants to match a substring, they can place a wildcard at the start and end of the string.
+            expectedOutput = "^" + expectedOutput + "$";
+
+            // Allow the wildcard regex to match newlines.
+            var options = RegexOptions.Singleline;
+
+            if ( ignoreCase )
+            {
+                options = options | RegexOptions.IgnoreCase;
+            }
+
+            var regex = new Regex( expectedOutput, options );
+
+            StringAssert.Matches( actual, regex );
+        }
+
+        #endregion
     }
 }

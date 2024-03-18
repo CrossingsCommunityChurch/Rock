@@ -34,14 +34,12 @@ using Rock.Security;
 
 namespace RockWeb.Blocks.Store
 {
-    /// <summary>
-    /// Template block for developers to use to start a new block.
-    /// </summary>
     [DisplayName( "Package Detail Lava" )]
     [Category( "Store" )]
     [Description( "Displays details for a specific package." )]
     [CodeEditorField( "Lava Template", "Lava template to use to display the package details.", CodeEditorMode.Lava, CodeEditorTheme.Rock, 400, true, @"{% include '~/Assets/Lava/Store/PackageDetail.lava' %}", "", 2 )]
     [BooleanField( "Set Page Title", "Determines if the block should set the page title with the package name.", false )]
+    [Rock.SystemGuid.BlockTypeGuid( "9EC29D0F-7EE7-434B-A30F-6C36A81B0DEB" )]
     public partial class PackageDetailLava : Rock.Web.UI.RockBlock
     {
         #region Fields
@@ -68,6 +66,7 @@ namespace RockWeb.Blocks.Store
         {
             base.OnInit( e );
 
+            RockPage.AddCSSLink(  "~/Styles/Blocks/Store/Store.css", true );
             // this event gets fired after block settings are updated. it's nice to repaint the screen if these settings would alter it
             this.BlockUpdated += Block_BlockUpdated;
             this.AddConfigurationUpdateTrigger( upnlContent );

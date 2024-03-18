@@ -59,6 +59,7 @@ namespace Rock.Communication.Transport
         DefaultIntegerValue = 10,
         Order = 5,
         Key = AttributeKey.MaxParallelization )]
+    [Rock.SystemGuid.EntityTypeGuid( "BF3123A0-E5D1-42E0-9B95-C077DCD3C8BF")]
     public class SendGridHttp : EmailTransportComponent, IAsyncTransport
     {
         /// <summary>
@@ -228,6 +229,12 @@ namespace Rock.Communication.Transport
                     ClickTracking = new ClickTracking { Enable = true },
                     OpenTracking = new OpenTracking { Enable = true }
                 };
+            }
+
+            // Headers
+            if ( rockEmailMessage.EmailHeaders?.Any() == true )
+            {
+                sendGridMessage.AddHeaders( rockEmailMessage.EmailHeaders );
             }
 
             // Attachments

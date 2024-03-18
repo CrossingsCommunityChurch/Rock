@@ -38,6 +38,7 @@ namespace RockWeb.Blocks.Prayer
 
     [LinkedPage( "Detail Page", Order = 0 ),]
     [CategoryField( "Category Selection", "A top level category. Only prayer requests comments under this category will be shown.", false, "Rock.Model.PrayerRequest", "", "", false, "", "Category Selection", 1, "PrayerRequestCategory" )]
+    [Rock.SystemGuid.BlockTypeGuid( "DF0F5743-2BFF-40C0-8BEE-39F1DE7B4C22" )]
     public partial class PrayerCommentsList : RockBlock, ICustomGridColumns
     {
         #region Fields
@@ -210,8 +211,8 @@ namespace RockWeb.Blocks.Prayer
         /// <param name="e"></param>
         protected void gfFilter_ApplyFilterClick( object sender, EventArgs e )
         {
-            gfFilter.SaveUserPreference( FilterSetting.DateRange, drpDateRange.DelimitedValues );
-            gfFilter.SaveUserPreference( FilterSetting.PrayerCategory, catpPrayerCategoryFilter.SelectedValue == Rock.Constants.None.IdValue ? string.Empty : catpPrayerCategoryFilter.SelectedValue );
+            gfFilter.SetFilterPreference( FilterSetting.DateRange, drpDateRange.DelimitedValues );
+            gfFilter.SetFilterPreference( FilterSetting.PrayerCategory, catpPrayerCategoryFilter.SelectedValue == Rock.Constants.None.IdValue ? string.Empty : catpPrayerCategoryFilter.SelectedValue );
             BindCommentsGrid();
         }
 
@@ -339,10 +340,10 @@ namespace RockWeb.Blocks.Prayer
         /// </summary>
         private void BindFilter()
         {
-            drpDateRange.DelimitedValues = gfFilter.GetUserPreference( FilterSetting.DateRange );
+            drpDateRange.DelimitedValues = gfFilter.GetFilterPreference( FilterSetting.DateRange );
 
             // Set the category picker's selected value
-            int selectedPrayerCategoryId = gfFilter.GetUserPreference( FilterSetting.PrayerCategory ).AsInteger();
+            int selectedPrayerCategoryId = gfFilter.GetFilterPreference( FilterSetting.PrayerCategory ).AsInteger();
             Category prayerCategory = new CategoryService( new RockContext() ).Get( selectedPrayerCategoryId );
             catpPrayerCategoryFilter.SetValue( prayerCategory );
 

@@ -14,13 +14,17 @@
 // limitations under the License.
 // </copyright>
 //
+using System;
 using System.ComponentModel;
 using System.Linq;
 
 using Rock.Attribute;
 using Rock.Common.Mobile;
+using Rock.Common.Mobile.Enums;
+using Rock.Data;
 using Rock.Mobile;
 using Rock.Model;
+using Rock.Security;
 using Rock.Web.Cache;
 
 namespace Rock.Blocks.Types.Mobile.Cms
@@ -28,12 +32,12 @@ namespace Rock.Blocks.Types.Mobile.Cms
     /// <summary>
     /// Allows the user to edit their account on a mobile application.
     /// </summary>
-    /// <seealso cref="Rock.Blocks.RockMobileBlockType" />
-
+    /// <seealso cref="Rock.Blocks.RockBlockType" />
     [DisplayName( "Profile Details" )]
     [Category( "Mobile > Cms" )]
     [Description( "Allows the user to edit their account on a mobile application." )]
     [IconCssClass( "fa fa-user-cog" )]
+    [SupportedSiteTypes( Model.SiteType.Mobile )]
 
     #region Block Attributes
 
@@ -147,9 +151,20 @@ namespace Rock.Blocks.Types.Mobile.Cms
         Category = "custommobile",
         Order = 9 )]
 
+    [EnumField( "Gender",
+        Description = "Determines if the Gender field should be hidden, optional or required.",
+        EnumSourceType = typeof( VisibilityTriState ),
+        IsRequired = true,
+        DefaultEnumValue = ( int ) VisibilityTriState.Required,
+        Category = "custommobile",
+        Key = AttributeKeys.Gender,
+        Order = 10 )]
+
     #endregion
 
-    public class ProfileDetails: RockMobileBlockType
+    [Rock.SystemGuid.EntityTypeGuid( Rock.SystemGuid.EntityType.MOBILE_PROFILE_DETAILS_BLOCK_TYPE )]
+    [Rock.SystemGuid.BlockTypeGuid( "66B2B513-1C71-4E6B-B4BE-C4EF90E1899C" )]
+    public class ProfileDetails : RockBlockType
     {
         /// <summary>
         /// The block setting attribute keys for the MobileProfileDetails block.
@@ -215,25 +230,29 @@ namespace Rock.Blocks.Types.Mobile.Cms
             /// The address required key
             /// </summary>
             public const string AddressRequired = "AddressRequired";
+
+            /// <summary>
+            /// The gender key.
+            /// </summary>
+            public const string Gender = "Gender";
         }
+
+        #region Block Attributes
+
+        /// <summary>
+        /// Gets the gender visibility.
+        /// </summary>
+        /// <value>
+        /// The gender visibility.
+        /// </value>
+        public VisibilityTriState GenderVisibility => GetAttributeValue( AttributeKeys.Gender ).ConvertToEnum<VisibilityTriState>();
+
+        #endregion
 
         #region IRockMobileBlockType Implementation
 
-        /// <summary>
-        /// Gets the required mobile application binary interface version required to render this block.
-        /// </summary>
-        /// <value>
-        /// The required mobile application binary interface version required to render this block.
-        /// </value>
-        public override int RequiredMobileAbiVersion => 1;
-
-        /// <summary>
-        /// Gets the class name of the mobile block to use during rendering on the device.
-        /// </summary>
-        /// <value>
-        /// The class name of the mobile block to use during rendering on the device
-        /// </value>
-        public override string MobileBlockType => "Rock.Mobile.Blocks.ProfileDetails";
+        /// <inheritdoc/>
+        public override Version RequiredMobileVersion => new Version( 1, 1 );
 
         /// <summary>
         /// Gets the property values that will be sent to the device in the application bundle.
@@ -250,23 +269,39 @@ namespace Rock.Blocks.Types.Mobile.Cms
 
         #endregion
 
-        #region Action Methods
+        #region Block Actions
 
         /// <summary>
-        /// Updates the user's profile.
+        /// Gets a <see cref="MobilePerson" /> from a specified personGuid.
         /// </summary>
-        /// <param name="profile">The new profile data.</param>
-        /// <returns>A full reference to the person.</returns>
+        /// <param name="personGuid">The guid of the person to return profile details of.</param>
+        /// <returns>A <see cref="MobilePerson"/> </returns>
         [BlockAction]
-        public object UpdateProfile( MobilePerson profile )
+        public BlockActionResult GetMobilePersonProfileDetails( Guid personGuid )
         {
-            var user = UserLoginService.GetCurrentUser( false );
-
-            if ( user == null )
+            using ( var rockContext = new RockContext() )
             {
-                return ActionStatusCode( System.Net.HttpStatusCode.Unauthorized );
-            }
+                var person = new PersonService( rockContext ).Get( personGuid );
+                var site = MobileHelper.GetCurrentApplicationSite( true, rockContext );
 
+                if ( person == null || site == null )
+                {
+                    return ActionNotFound();
+                }
+
+
+                return ActionOk( MobileHelper.GetMobilePerson( person, site ) );
+            }
+        }
+
+        /// <summary>
+        /// Updates a user profile based off the MobilePerson passed in.
+        /// </summary>
+        /// <param name="profile">The profile to use to update the user.</param>
+        /// <param name="user">The user to update.</param>
+        /// <returns></returns>
+        private MobilePerson UpdateUserProfile( MobilePerson profile, UserLogin user )
+        {
             var personId = user.PersonId.Value;
             var rockContext = new Data.RockContext();
 
@@ -277,7 +312,13 @@ namespace Rock.Blocks.Types.Mobile.Cms
             person.NickName = person.NickName == person.FirstName ? profile.FirstName : person.NickName;
             person.FirstName = profile.FirstName;
             person.LastName = profile.LastName;
-            person.Gender = ( Gender ) profile.Gender;
+
+            var gender = ( Model.Gender ) profile.Gender;
+
+            if ( GenderVisibility != VisibilityTriState.Hidden )
+            {
+                person.Gender = gender;
+            }
 
             if ( GetAttributeValue( AttributeKeys.BirthDateShow ).AsBoolean() )
             {
@@ -369,17 +410,19 @@ namespace Rock.Blocks.Types.Mobile.Cms
                             }
                         }
 
-                        // TODO: ???
-                        //familyAddress.IsMailingLocation = cbIsMailingAddress.Checked;
-                        //familyAddress.IsMappedLocation = cbIsPhysicalAddress.Checked;
+                        // If there is already a country associated, use that, if not, get the default organizational country.
+                        var country = profile.HomeAddress.Country.IsNotNullOrWhiteSpace() ? profile.HomeAddress.Country : GetDefaultCountry();
 
+                        // TODO: ???
+                        // familyAddress.IsMailingLocation = cbIsMailingAddress.Checked;
+                        // familyAddress.IsMappedLocation = cbIsPhysicalAddress.Checked;
                         familyAddress.Location = new LocationService( rockContext ).Get(
                             profile.HomeAddress.Street1,
-                            "",
+                            string.Empty,
                             profile.HomeAddress.City,
                             profile.HomeAddress.State,
                             profile.HomeAddress.PostalCode,
-                            profile.HomeAddress.Country,
+                            country,
                             person.PrimaryFamily,
                             true );
 
@@ -402,10 +445,110 @@ namespace Rock.Blocks.Types.Mobile.Cms
 
             rockContext.SaveChanges();
 
-            var mobilePerson = MobileHelper.GetMobilePerson( person, MobileHelper.GetCurrentApplicationSite() );
-            mobilePerson.AuthToken = MobileHelper.GetAuthenticationToken( user.UserName );
+            /*
+             * BC 7/26/2022
+             * We have to provide a new RockContext, since EF Core has a caching mechanism that will return the old person with
+             * the wrong primary campus.
+             */
+            using ( var rockContext2 = new RockContext() )
+            {
+                person = new PersonService( rockContext2 ).Get( person.Id );
 
-            return ActionOk( mobilePerson );
+                var mobilePerson = MobileHelper.GetMobilePerson( person, MobileHelper.GetCurrentApplicationSite() );
+                mobilePerson.AuthToken = MobileHelper.GetAuthenticationToken( user.UserName );
+
+                return mobilePerson;
+            }
+        }
+
+        /// <summary>
+        /// Updates the user's profile.
+        /// </summary>
+        /// <param name="profile">The new profile data.</param>
+        /// <returns>A full reference to the person.</returns>
+        [BlockAction]
+        public object UpdateProfile( MobilePerson profile )
+        {
+            var user = UserLoginService.GetCurrentUser( false );
+
+            if ( user == null )
+            {
+                return ActionStatusCode( System.Net.HttpStatusCode.Unauthorized );
+            }
+
+            return ActionOk( UpdateUserProfile( profile, user ) );
+        }
+
+        /// <summary>
+        /// Updates another user's profile based off the personGuid, if authorized.
+        /// </summary>
+        /// <param name="profile">The new profile data.</param>
+        /// <param name="personGuid">.</param>
+        /// <returns>A full reference to the person.</returns>
+        [BlockAction]
+        public object UpdatePersonProfile( MobilePerson profile, Guid personGuid )
+        {
+            using ( var rockContext = new RockContext() )
+            {
+                var user = new UserLoginService( rockContext )
+                    .Queryable()
+                    .FirstOrDefault( x => x.Person != null && x.Person.Guid == personGuid );
+
+                if ( user == null )
+                {
+                    return ActionStatusCode( System.Net.HttpStatusCode.Unauthorized );
+                }
+
+                var personToEdit = new PersonService( rockContext ).Get( personGuid );
+                if ( personToEdit == null )
+                {
+                    return ActionNotFound();
+                }
+
+                if ( RequestContext.CurrentPerson?.Guid != personGuid && !IsAuthorizedToEditPerson( personToEdit ) )
+                {
+                    return ActionStatusCode( System.Net.HttpStatusCode.Unauthorized );
+                }
+
+                return ActionOk( UpdateUserProfile( profile, user ) );
+            }
+        }
+
+        #endregion
+
+        #region Methods
+
+        /// <summary>
+        /// Determines whether the current person is authorized to edit another person.
+        /// </summary>
+        /// <param name="personToEdit">The person to edit.</param>
+        /// <returns><c>true</c> if is authorized to edit; otherwise, <c>false</c>.</returns>
+        private bool IsAuthorizedToEditPerson( Person personToEdit )
+        {
+            if ( RequestContext.CurrentPerson != null )
+            {
+                var currentPerson = RequestContext.CurrentPerson;
+
+                // The security on this block is to check whether or not the person
+                // attempting to make the edit has permission to edit the block itself.
+                if ( BlockCache.IsAuthorized( Authorization.EDIT, currentPerson ) )
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Gets the default country from the OrganizationCountry global attribute, or returns 'US' if none are
+        /// specified.
+        /// </summary>
+        /// <returns>System.String.</returns>
+        private string GetDefaultCountry()
+        {
+            var organizationCountryAttribute = GlobalAttributesCache.Get().OrganizationCountry;
+            return organizationCountryAttribute.IsNotNullOrWhiteSpace() ? organizationCountryAttribute : "US";
         }
 
         #endregion

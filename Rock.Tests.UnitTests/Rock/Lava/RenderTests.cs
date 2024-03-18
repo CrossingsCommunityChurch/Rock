@@ -16,7 +16,10 @@
 //
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Rock.Lava;
+using Rock.Lava.Fluid;
+using Rock.Lava.RockLiquid;
 using Rock.Model;
+using Rock.Tests.Shared;
 
 namespace Rock.Tests.UnitTests.Lava
 {
@@ -38,5 +41,73 @@ namespace Rock.Tests.UnitTests.Lava
 
             TestHelper.AssertTemplateOutput( "Approved", "{{ EnumValue }}", mergeValues );
         }
+
+        /// <summary>
+        /// Rendering a template with the EncodeStringsAsXml option enabled should produce encoded output.
+        /// </summary>
+        [TestMethod]
+        public void Render_StringVariableWithXmlEncodingOption_RendersEncodedString()
+        {
+            var mergeValues = new LavaDataDictionary { { "StringToEncode", "Ted & Cindy" } };
+            var template = @"Xml Encoded String: {{ StringToEncode }}";
+            var expectedOutput = @"Xml Encoded String: Ted &amp; Cindy";
+
+            var parameters = new LavaRenderParameters
+            {
+                ShouldEncodeStringsAsXml = true,
+                Context = LavaRenderContext.FromMergeValues( mergeValues )
+            };
+            TestHelper.AssertTemplateOutput( expectedOutput, template, parameters );
+        }
+
+        /// <summary>
+        /// Rendering a template with the EncodeStringsAsXml option disabled should produce unencoded output.
+        /// </summary>
+        [TestMethod]
+        public void Render_StringVariableWithXmlEncodingOption_RendersUnencodedString()
+        {
+            var mergeValues = new LavaDataDictionary { { "UnencodedString", "Ted & Cindy" } };
+            var template = @"Unencoded String: {{ UnencodedString }}";
+            var expectedOutput = @"Unencoded String: Ted & Cindy";
+
+            var parameters = new LavaRenderParameters
+            {
+                ShouldEncodeStringsAsXml = false,
+                Context = LavaRenderContext.FromMergeValues( mergeValues )
+            };
+            TestHelper.AssertTemplateOutput( expectedOutput, template, parameters );
+        }
+
+        /// <summary>
+        /// Attempting to render a Lava template containing a syntax error renders a valid error message.
+        /// </summary>
+        [TestMethod]
+        public void Render_TemplateParsingError_RendersUserFriendlyErrorMessage()
+        {
+            var template = @"{% assignnnnn test = 'sd' %}";
+
+            // Fluid Engine
+            var expectedOutputFluid = @"
+Lava Error: Unknown tag 'assignnnnn' at (1:14)
+";
+
+            var fluidEngine = TestHelper.GetEngineInstance( typeof( FluidEngine ) );
+
+            var result = fluidEngine.RenderTemplate( template );
+            Assert.IsTrue( result.HasErrors );
+            Assert.That.AreEqualIgnoreWhitespace( expectedOutputFluid, result.Text );
+
+            // DotLiquid Engine
+            var expectedOutputRockLiquid = @"
+Lava Error: Unknown tag 'assignnnnn'
+";
+
+            var rockLiquidEngine = TestHelper.GetEngineInstance( typeof( RockLiquidEngine ) );
+
+            var result2 = rockLiquidEngine.RenderTemplate( template );
+            Assert.IsTrue( result2.HasErrors );
+            Assert.That.AreEqualIgnoreWhitespace( expectedOutputRockLiquid, result2.Text );
+        }
+
     }
 }

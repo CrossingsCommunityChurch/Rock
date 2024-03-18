@@ -18,6 +18,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Data.Entity;
+using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Text;
@@ -28,6 +29,7 @@ using Rock.Attribute;
 using Rock.Data;
 using Rock.Lava;
 using Rock.Model;
+using Rock.Net;
 using Rock.Web.Cache;
 
 namespace Rock
@@ -56,7 +58,7 @@ namespace Rock
 
             lavaDebugPanel.Append( preText );
 
-            lavaDebugPanel.Append( "<p>Below is a listing of available merge fields for this block. Find out more on Lava at <a href='http://www.rockrms.com/lava' target='_blank'>rockrms.com/lava</a>." );
+            lavaDebugPanel.Append( "<p>Below is a listing of available merge fields for this block. Find out more on Lava at <a href='http://www.rockrms.com/lava' target='_blank' rel='noopener noreferrer'>rockrms.com/lava</a>." );
 
 
             int maxWaitMS = 10000;
@@ -210,7 +212,12 @@ namespace Rock
                         {
                             object propValue = null;
 
-                            var propType = entityType.GetProperty( key )?.PropertyType;
+                            // There may be multiple inherited properties with the same name but different return types, so select the first match.
+                            var propType = entityType.GetProperties()
+                                .Where( x => x.Name == key )
+                                .Select( x => x.PropertyType )
+                                .FirstOrDefault();
+
                             if ( propType?.Name == "ICollection`1" )
                             {
                                 // if the property type is an ICollection, get the underlying query and just fetch one for an example (just in case there are 1000s of records)
@@ -429,7 +436,7 @@ namespace Rock
 
                             if ( keyVal.Key == "GlobalAttribute" )
                             {
-                                sb.Append( "<p>Global attributes should be accessed using <code>{{ 'Global' | Attribute:'[AttributeKey]' }}</code>. Find out more about using Global Attributes in Lava at <a href='http://www.rockrms.com/lava/globalattributes' target='_blank'>rockrms.com/lava/globalattributes</a>.</p>" );
+                                sb.Append( "<p>Global attributes should be accessed using <code>{{ 'Global' | Attribute:'[AttributeKey]' }}</code>. Find out more about using Global Attributes in Lava at <a href='http://www.rockrms.com/lava/globalattributes' target='_blank' rel='noopener noreferrer'>rockrms.com/lava/globalattributes</a>.</p>" );
                             }
                             else if ( keyVal.Value is List<object> )
                             {
@@ -437,7 +444,7 @@ namespace Rock
                             }
                             else if ( keyVal.Key == "CurrentPerson" )
                             {
-                                sb.Append( string.Format( "<p>{0} properties can be accessed by <code>{{{{ {1}.[PropertyKey] }}}}</code>. Find out more about using 'Person' fields in Lava at <a href='http://www.rockrms.com/lava/person' target='_blank'>rockrms.com/lava/person</a>.</p>", char.ToUpper( keyVal.Key[0] ) + keyVal.Key.Substring( 1 ), keyVal.Key ) );
+                                sb.Append( string.Format( "<p>{0} properties can be accessed by <code>{{{{ {1}.[PropertyKey] }}}}</code>. Find out more about using 'Person' fields in Lava at <a href='http://www.rockrms.com/lava/person' target='_blank' rel='noopener noreferrer'>rockrms.com/lava/person</a>.</p>", char.ToUpper( keyVal.Key[0] ) + keyVal.Key.Substring( 1 ), keyVal.Key ) );
                             }
                             else
                             {
@@ -585,7 +592,7 @@ namespace Rock
         {
             try
             {
-                if ( !content.HasMergeFields() )
+                if ( !content.IsLavaTemplate() ) 
                 {
                     return content ?? string.Empty;
                 }
@@ -593,14 +600,6 @@ namespace Rock
                 if ( mergeObjects == null )
                 {
                     mergeObjects = new Dictionary<string, object>();
-                }
-
-                if ( GlobalAttributesCache.Get().LavaSupportLevel == Lava.LavaSupportLevel.LegacyWithWarning && mergeObjects.ContainsKey( "GlobalAttribute" ) )
-                {
-                    if ( hasLegacyGlobalAttributeLavaMergeFields.IsMatch( content ) )
-                    {
-                        Rock.Model.ExceptionLogService.LogException( new Rock.Lava.LegacyLavaSyntaxDetectedException( "GlobalAttribute", "" ), System.Web.HttpContext.Current );
-                    }
                 }
 
                 if ( LavaService.RockLiquidIsEnabled )
@@ -614,39 +613,62 @@ namespace Rock
 
                     if ( engine != null )
                     {
-                        var cacheKey = engine.TemplateCacheService.GetCacheKeyForTemplate( content );
-                        var isCached = engine.TemplateCacheService.ContainsKey( cacheKey );
+                        var isCached = false;
+                        string cacheKey = null;
+                        if ( engine.TemplateCacheService != null )
+                        {
+                            cacheKey = engine.TemplateCacheService.GetCacheKeyForTemplate( content );
+                            isCached = engine.TemplateCacheService.ContainsKey( cacheKey );
+                        }
 
                         if ( !isCached )
                         {
-                            // Verify the Lava template using the current LavaEngine.
-                            // Although it would improve performance, we can't execute this task on a background thread because some Lava filters require access to the current HttpRequest.
-                            try
-                            {
-                                var result = ResolveMergeFieldsWithCurrentLavaEngine( content, mergeObjects, currentPersonOverride, enabledLavaCommands );
+                            bool addCachePlaceholder = false;
 
-                                // If an exception occurred during the render process, make sure it will be caught and logged.
-                                if ( result.HasErrors
-                                     && engine.ExceptionHandlingStrategy != ExceptionHandlingStrategySpecifier.Throw )
+                            // Verify the template, unless it contains tokens that are non-idempotent.
+                            // These templates cause non-repeatable state change, so multiple executions may produce unwanted results.
+                            var canVerify = !_nonIdempotentLavaTokens.IsMatch( content );
+                            if ( canVerify )
+                            {
+                                // Verify the Lava template using the current LavaEngine.
+                                // Although it would improve performance, we can't execute this task on a background thread because some Lava filters require access to the current HttpRequest.
+                                try
                                 {
-                                    throw result.Error;
+                                    var result = ResolveMergeFieldsWithCurrentLavaEngine( content, mergeObjects, currentPersonOverride, enabledLavaCommands, encodeStrings );
+
+                                    // If an exception occurred during the render process, make sure it will be caught and logged.
+                                    if ( result.HasErrors
+                                         && engine.ExceptionHandlingStrategy != ExceptionHandlingStrategySpecifier.Throw )
+                                    {
+                                        throw result.Error;
+                                    }
+
+                                    lavaEngineOutput = result.Text;
                                 }
-
-                                lavaEngineOutput = result.Text;
+                                catch ( System.Threading.ThreadAbortException )
+                                {
+                                    // Ignore abort error caused by Lava PageRedirect filter.
+                                }
+                                catch ( Exception ex )
+                                {
+                                    // Log the exception and continue, because the final render will be performed by RockLiquid.
+                                    ExceptionLogService.LogException( new LavaException( "Lava Verification Error: Parse template failed.", ex ), System.Web.HttpContext.Current );
+                                    addCachePlaceholder = true;
+                                }
                             }
-                            catch ( System.Threading.ThreadAbortException )
+                            else
                             {
-                                // Ignore abort error caused by Lava PageRedirect filter.
+                                addCachePlaceholder = true;
                             }
-                            catch ( Exception ex )
+
+                            if ( addCachePlaceholder )
                             {
-                                // Log the exception and continue, because the final render will be performed by RockLiquid.
-                                ExceptionLogService.LogException( new LavaException( "Lava Verification Error: Parse template failed.", ex ), System.Web.HttpContext.Current );
-
-                                // Add a placeholder to prevent this invalid template from being recompiled.
-                                var emptyTemplate = engine.ParseTemplate( string.Empty ).Template;
-
-                                engine.TemplateCacheService.AddTemplate( emptyTemplate, cacheKey );
+                                if ( engine.TemplateCacheService != null )
+                                {
+                                    // Add a placeholder in the cache to prevent this template from being recompiled.
+                                    var emptyTemplate = engine.ParseTemplate( string.Empty ).Template;
+                                    engine.TemplateCacheService.AddTemplate( emptyTemplate, cacheKey );
+                                }
                             }
                         }
                     }
@@ -676,7 +698,7 @@ namespace Rock
                 }
                 else
                 {
-                    var result = ResolveMergeFieldsWithCurrentLavaEngine( content, mergeObjects, currentPersonOverride, enabledLavaCommands );
+                    var result = ResolveMergeFieldsWithCurrentLavaEngine( content, mergeObjects, currentPersonOverride, enabledLavaCommands, encodeStrings );
 
                     return result.Text;
                 }
@@ -704,36 +726,52 @@ namespace Rock
         [Obsolete( "This method is only required for the DotLiquid Lava implementation." )]
         private static string ResolveMergeFieldsForRockLiquid( this string content, IDictionary<string, object> mergeObjects, Person currentPersonOverride, string enabledLavaCommands, bool encodeStrings = false, bool throwExceptionOnErrors = false )
         {
-            Template template = GetTemplate( content );
-
-            template.Registers.AddOrReplace( "EnabledCommands", enabledLavaCommands );
-            template.InstanceAssigns.AddOrReplace( "CurrentPerson", currentPersonOverride );
+            var template = GetTemplate( content );
 
             string result;
+            List<Exception> errors;
 
-            if ( encodeStrings )
+            var renderParameters = new RenderParameters();
+            renderParameters.LocalVariables = Hash.FromDictionary( mergeObjects );
+            renderParameters.Registers = new Hash();
+
+            if ( string.IsNullOrWhiteSpace( enabledLavaCommands ) )
             {
-                // if encodeStrings = true, we want any string values to be XML Encoded ( 
-                RenderParameters renderParameters = new RenderParameters();
-                renderParameters.LocalVariables = Hash.FromDictionary( mergeObjects );
-                renderParameters.ValueTypeTransformers = new Dictionary<Type, Func<object, object>>();
-                renderParameters.ValueTypeTransformers[typeof( string )] = EncodeStringTransformer;
-                result = template.Render( renderParameters );
+                if ( template.Registers.ContainsKey( "EnabledCommands" ) )
+                {
+                    renderParameters.Registers.AddOrReplace( "EnabledCommands", template.Registers["EnabledCommands"].ToStringSafe() );
+                }
             }
             else
             {
-                result = template.Render( Hash.FromDictionary( mergeObjects ) );
+                renderParameters.Registers.AddOrReplace( "EnabledCommands", enabledLavaCommands );
+            }
+            if ( currentPersonOverride != null )
+            {
+                renderParameters.Registers.AddOrReplace( "CurrentPerson", currentPersonOverride );
             }
 
-            if ( throwExceptionOnErrors && template.Errors.Any() )
+            if ( encodeStrings )
             {
-                if ( template.Errors.Count == 1 )
+                renderParameters.ValueTypeTransformers = new Dictionary<Type, Func<object, object>>();
+                renderParameters.ValueTypeTransformers[typeof( string )] = EncodeStringTransformer;
+            }
+
+            using ( TextWriter writer = new StringWriter() )
+            {
+                template.Render( writer, renderParameters, out errors );
+                result = writer.ToString();
+            }
+
+            if ( throwExceptionOnErrors && errors.Any() )
+            {
+                if ( errors.Count == 1 )
                 {
-                    throw template.Errors[0];
+                    throw errors[0];
                 }
                 else
                 {
-                    throw new AggregateException( template.Errors );
+                    throw new AggregateException( errors );
                 }
             }
 
@@ -747,8 +785,9 @@ namespace Rock
         /// <param name="mergeObjects">The merge objects.</param>
         /// <param name="currentPersonOverride">The current person override.</param>
         /// <param name="enabledLavaCommands">A comma-delimited list of the lava commands that are enabled for this template.</param>
+        /// <param name="encodeStringOutput">if set to <c>true</c> [encode string output].</param>
         /// <returns>If lava present returns merged string, if no lava returns original string, if null returns empty string</returns>
-        private static LavaRenderResult ResolveMergeFieldsWithCurrentLavaEngine( string content, IDictionary<string, object> mergeObjects, Person currentPersonOverride, string enabledLavaCommands )
+        private static LavaRenderResult ResolveMergeFieldsWithCurrentLavaEngine( string content, IDictionary<string, object> mergeObjects, Person currentPersonOverride, string enabledLavaCommands, bool encodeStringOutput )
         {
             // If there have not been any EnabledLavaCommands explicitly set, then use the global defaults.
             if ( enabledLavaCommands == null )
@@ -762,12 +801,25 @@ namespace Rock
 
             if ( currentPersonOverride != null )
             {
-                context.SetMergeField( "CurrentPerson", currentPersonOverride );
+                context.SetInternalField( "CurrentPerson", currentPersonOverride );
             }
 
-            context.SetMergeFields( mergeObjects );
+            foreach ( var kvp in mergeObjects )
+            {
+                if ( kvp.Key.StartsWith( LavaHelper.InternalMergeFieldPrefix ) )
+                {
+                    context.SetInternalField( kvp.Key.Substring( LavaHelper.InternalMergeFieldPrefix.Length ), kvp.Value );
+                }
+                else
+                {
+                    context.SetMergeField( kvp.Key, kvp.Value );
+                }
+            }
 
-            var result = LavaService.RenderTemplate( content, LavaRenderParameters.WithContext( context ) );
+            var parameters = LavaRenderParameters.WithContext( context );
+            parameters.ShouldEncodeStringsAsXml = encodeStringOutput;
+
+            var result = LavaService.RenderTemplate( content, parameters );
 
             if ( result.HasErrors
                  && LavaService.ExceptionHandlingStrategy == ExceptionHandlingStrategySpecifier.RenderToOutput )
@@ -828,11 +880,18 @@ namespace Rock
         private static Regex hasLegacyGlobalAttributeLavaMergeFields = new Regex( @"(?<=\{).+GlobalAttribute.+(?<=\})", RegexOptions.Compiled );
 
         /// <summary>
+        /// Compiled RegEx for finding Lava tokens that produce unique output or side effects.
+        /// </summary>
+        private static Regex _nonIdempotentLavaTokens = new Regex( @"{%[^\S\r\n]*((webrequest|workflowactivate)[^\S\r\n]+|(.+\|[^\S\r\n]*PersonTokenCreate)).*%}", RegexOptions.Compiled );
+
+        /// <summary>
         /// Determines whether the string potentially has lava merge fields in it.
         /// NOTE: Might return true even though it doesn't really have merge fields, but something like looks like it. For example '{56408602-5E41-4D66-98C7-BD361CD93AED}'
         /// </summary>
         /// <param name="content">The content.</param>
         /// <returns></returns>
+        [Obsolete("Use the LavaHelper.IsLavaTemplate method instead.")]
+        [RockObsolete("1.13.3")]
         public static bool HasMergeFields( this string content )
         {
             if ( content == null )
@@ -879,6 +938,36 @@ namespace Rock
         public static bool IsLavaTemplate( this string content )
         {
             return LavaHelper.IsLavaTemplate( content );
+        }
+
+        /// <summary>
+        /// Indicates if the target string contains any elements of a Lava template.
+        /// This is a much stricter check as it specifically looks for {{...}}, {%...%}
+        /// and {[...]}. This should reduce the risk of false positives at the expense
+        /// of a slightly longer check time.
+        /// </summary>
+        /// <param name="content">The content to be checked.</param>
+        /// <returns><c>true</c> if the content contains lava tags; otherwise <c>false</c>.</returns>
+        internal static bool IsStrictLavaTemplate( this string content )
+        {
+            return LavaHelper.IsStrictLavaTemplate( content );
+        }
+
+        /// <summary>
+        /// Attempts to retrieve the <see cref="RockRequestContext"/> from the <see cref="ILavaRenderContext"/>.
+        /// </summary>
+        /// <param name="renderContext">The <see cref="ILavaRenderContext"/>.</param>
+        /// <returns>The <see cref="RockRequestContext"/> or null if not found.</returns>
+        internal static RockRequestContext GetRockRequestContext( this ILavaRenderContext renderContext )
+        {
+            if ( renderContext == null )
+            {
+                return null;
+            }
+
+            var rockRequestContext = renderContext.GetInternalField( "RockRequestContext" ) as RockRequestContext;
+
+            return rockRequestContext;
         }
 
         #endregion Lava Extensions

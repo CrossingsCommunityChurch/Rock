@@ -44,6 +44,7 @@ namespace RockWeb.Blocks.Finance
         Order = 0 )]
 
     #endregion Block Attributes
+    [Rock.SystemGuid.BlockTypeGuid( "1ACCF349-73A5-4568-B801-2A6A620791D9" )]
     public partial class BusinessList : RockBlock, ICustomGridColumns
     {
         #region Attribute Keys
@@ -118,14 +119,14 @@ namespace RockWeb.Blocks.Finance
         /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
         private void gfBusinessFilter_ApplyFilterClick( object sender, EventArgs e )
         {
-            gfBusinessFilter.SaveUserPreference( "Business Name", tbBusinessName.Text );
+            gfBusinessFilter.SetFilterPreference( "Business Name", tbBusinessName.Text );
             if ( ddlActiveFilter.SelectedValue == "all" )
             {
-                gfBusinessFilter.SaveUserPreference( "Active Status", string.Empty );
+                gfBusinessFilter.SetFilterPreference( "Active Status", string.Empty );
             }
             else
             {
-                gfBusinessFilter.SaveUserPreference( "Active Status", ddlActiveFilter.SelectedValue );
+                gfBusinessFilter.SetFilterPreference( "Active Status", ddlActiveFilter.SelectedValue );
             }
 
             // If it's there, strip the SearchTerm parameter from the query string and reload.
@@ -187,13 +188,11 @@ namespace RockWeb.Blocks.Finance
         /// </summary>
         private void BindFilter()
         {
-            var rockContext = new RockContext();
-
             // Business Name Filter
-            tbBusinessName.Text = gfBusinessFilter.GetUserPreference( "Business Name" );
+            tbBusinessName.Text = gfBusinessFilter.GetFilterPreference( "Business Name" );
 
             // Set the Active Status
-            var itemActiveStatus = ddlActiveFilter.Items.FindByValue( gfBusinessFilter.GetUserPreference( "Active Status" ) );
+            var itemActiveStatus = ddlActiveFilter.Items.FindByValue( gfBusinessFilter.GetFilterPreference( "Active Status" ) );
             if ( itemActiveStatus != null )
             {
                 itemActiveStatus.Selected = true;
@@ -224,7 +223,7 @@ namespace RockWeb.Blocks.Finance
             else
             {
                 // Business Name Filter
-                businessName = gfBusinessFilter.GetUserPreference( "Business Name" );
+                businessName = gfBusinessFilter.GetFilterPreference( "Business Name" );
             }
 
             if ( !string.IsNullOrWhiteSpace( businessName ) )
@@ -235,7 +234,7 @@ namespace RockWeb.Blocks.Finance
             if ( !viaSearch )
             {
                 var activeRecordStatusValueId = DefinedValueCache.Get( Rock.SystemGuid.DefinedValue.PERSON_RECORD_STATUS_ACTIVE.AsGuid() ).Id;
-                string activeFilterValue = gfBusinessFilter.GetUserPreference( "Active Status" );
+                string activeFilterValue = gfBusinessFilter.GetFilterPreference( "Active Status" );
                 if ( activeFilterValue == "inactive" )
                 {
                     businessQueryable = businessQueryable.Where( b => b.RecordStatusValueId != activeRecordStatusValueId );
@@ -288,7 +287,8 @@ namespace RockWeb.Blocks.Finance
                                             .Where( m => m.Group.GroupTypeId == groupTypeIdKnownRelationShips )
                                             .SelectMany( m => m.Group.Members )
                                             .Where( p => p.GroupRoleId == groupTypeRoleIdKnownRelationShipsOwner && p.PersonId != b.Id )
-                                            .Select( p => p.Person.LastName + ", " + p.Person.NickName )
+                                            .Select( p => p.Person.LastName + ", " + p.Person.NickName ),
+                        Campus = b.PrimaryCampus == null ? "" : b.PrimaryCampus.Name
                     } );
 
                 SortProperty sortProperty = gBusinessList.SortProperty;
@@ -382,6 +382,8 @@ namespace RockWeb.Blocks.Finance
             public string Email { get; set; }
             public Location Address { get; set; }
             public IEnumerable<string> Contacts { get; set; }
+
+            public string Campus { get; set; }
         }
     }
 }

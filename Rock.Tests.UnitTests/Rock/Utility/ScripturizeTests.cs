@@ -11,6 +11,7 @@ namespace Rock.Tests.UnitTests.Utility
     public class ScripturizeTests
     {
         #region Scripturize Tests
+
         /// <summary>
         /// Scripturizes for YouVersion format with the simple cases from the documentation:
         /// John 3:16
@@ -66,6 +67,24 @@ namespace Rock.Tests.UnitTests.Utility
             var output = Scripturize.Parse( "John 3:16-18, 1 Peter 1:1-10" ).Replace( "  ", " " );
             var expected = "<a href=\"https://www.bible.com/bible/116/JHN.3.16-18.NLT\"  title=\"YouVersion\">John 3:16-18</a>, <a href=\"https://www.bible.com/bible/116/1PE.1.1-10.NLT\"  title=\"YouVersion\">1 Peter 1:1-10</a>".Replace( "  ", " " );
             Assert.That.AreEqual( expected, output );
+        }
+
+        /// <summary>
+        /// Scripturizes YouVersion format with references to both John's Gospel and Epistles.
+        /// </summary>
+        /// <remarks>
+        /// Fixes Issue #5053. (refer https://github.com/SparkDevNetwork/Rock/issues/5053)
+        /// </remarks>
+        [TestMethod]
+        public void Scripturize_YouVersion_JohnsGospelAndEpistles()
+        {
+            var output = Scripturize.Parse( "John 3:16-18, 1 John 1:1-5, John 3:16-18" ).Replace( "  ", " " );
+            var expected = @"
+<a href=""https://www.bible.com/bible/116/JHN.3.16-18.NLT""  title=""YouVersion"">John 3:16-18</a>,
+<a href=""https://www.bible.com/bible/116/1JN.1.1-5.NLT"" title=""YouVersion"">1 John 1:1-5</a>,
+<a href=""https://www.bible.com/bible/116/JHN.3.16-18.NLT""  title=""YouVersion"">John 3:16-18</a>
+";
+            Assert.That.AreEqualIgnoreWhitespace( expected, output );
         }
 
         #endregion

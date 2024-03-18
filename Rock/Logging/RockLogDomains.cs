@@ -14,11 +14,15 @@
 // limitations under the License.
 // </copyright>
 //
+using System;
+
 namespace Rock.Logging
 {
     /// <summary>
     /// A list of Rock log domains that can be used with the RockLogger.
     /// </summary>
+    [Obsolete( "This is not used and will be removed in the future." )]
+    [RockObsolete( "1.17" )]
     public class RockLogDomains
     {
         /// <summary>
@@ -81,13 +85,31 @@ namespace Rock.Logging
         /// The other
         /// </summary>
         public const string Other = "OTHER";
+
+        /// <summary>
+        /// The domain used to log RealTime related messages.
+        /// </summary>
+        public const string RealTime = "REALTIME";
+
         /// <summary>
         /// The lava
         /// </summary>
         public const string Lava = "LAVA";
         /// <summary>
-        /// Bus evtns
+        /// Bus events
         /// </summary>
         public const string Bus = "BUS";
+        /// <summary>
+        /// The mobile events.
+        /// </summary>
+        public const string Mobile = "MOBILE";
+        /// <summary>
+        /// The Apple TV events.
+        /// </summary>
+        public const string AppleTv = "APPLETV";
+        /// <summary>
+        /// Interaction events.
+        /// </summary>
+        public const string Interaction = "INTERACTION";
     }
 }

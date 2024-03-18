@@ -16,6 +16,7 @@
 //
 using System;
 
+using Rock.Utility.Settings;
 using Rock.Web.Cache;
 
 namespace Rock.Attribute
@@ -45,7 +46,7 @@ namespace Rock.Attribute
         /// <param name="order">The order.</param>
         /// <param name="key">The key.</param>
         /// <param name="fieldTypeClass">The field type class.</param>
-        internal ValueListFieldAttribute( string name = "", string description = "", bool required = true, string defaultValue = "", string valuePrompt = "", 
+        protected ValueListFieldAttribute( string name = "", string description = "", bool required = true, string defaultValue = "", string valuePrompt = "", 
             string definedTypeGuid = "", string customValues = "", string category = "", int order = 0, string key = null, string fieldTypeClass = null )
             : base( name, description, required, defaultValue, category, order, key, fieldTypeClass )
          {
@@ -56,7 +57,7 @@ namespace Rock.Attribute
             }
 
             Guid? guid = definedTypeGuid.AsGuidOrNull();
-            if ( guid.HasValue )
+            if ( guid.HasValue && RockInstanceConfig.DatabaseIsAvailable )
             {
                 var definedType = DefinedTypeCache.Get( guid.Value );
                 if ( definedType != null )

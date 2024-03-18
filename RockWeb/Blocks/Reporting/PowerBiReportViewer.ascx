@@ -20,6 +20,9 @@
                             <Rock:RockCheckBox ID="cbSettingPowerBIRightPane" runat="server" Label="Show Right Pane" />
                             <Rock:RockCheckBox ID="cbSettingPowerBINavPane" runat="server" Label="Show Navigation Pane" />
 
+                            <Rock:CodeEditor ID="ceAppendUrlTemplate" runat="server" Label="Append URL Template"
+                                Help="The results of this Lava template will be appended to the end of the URL for the iframe. As an example, if you wanted to provide a filter you could provide '&filter=ModelName/PropertyName eq 12'. See <a href='https://learn.microsoft.com/en-us/power-bi/collaborate-share/service-url-filters'>Power BI docs</a> for details on filters." />
+
                         </ContentTemplate>
                     </asp:UpdatePanel>
                 </Content>
@@ -127,9 +130,9 @@
 
         <asp:Panel ID="pnlLogin" runat="server" Visible="false">
             <p>
-                The connection to Power BI could not be established. Please attempt to re-login.
+                The connection to Power BI could not be established. Please attempt to log in again.
             </p>
-            <asp:Button ID="btnLogin" runat="server" Text="Login" CssClass="btn btn-primary" OnClick="btnLogin_Click" />
+            <asp:Button ID="btnLogin" runat="server" Text="Log In" CssClass="btn btn-primary" OnClick="btnLogin_Click" />
         </asp:Panel>
     </ContentTemplate>
 </asp:UpdatePanel>

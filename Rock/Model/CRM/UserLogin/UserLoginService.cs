@@ -152,13 +152,31 @@ namespace Rock.Model
 
         #region Static Methods
 
-        /// <summary>
-        /// Returns the <see cref="Rock.Model.UserLogin"/> of the user who is currently logged in, and updates their last activity date
-        /// </summary>
-        /// <returns>The <see cref="Rock.Model.UserLogin"/> of the user who is currently logged in</returns>
+        /// <inheritdoc cref="GetCurrentUser(bool)"/>
         public static UserLogin GetCurrentUser()
         {
             return GetCurrentUser( true );
+        }
+
+        /// <summary>
+        /// Checks to see if the given username is valid according to the UsernameRegex (if defined).
+        /// </summary>
+        /// <param name="username">A username to verify.</param>
+        /// <returns>A <see cref="System.Boolean"/> value that indicates if the password is valid. <c>true</c> if valid; otherwise <c>false</c>.</returns>
+        public static bool IsUsernameValid( string username )
+        {
+            var globalAttributes = GlobalAttributesCache.Get();
+            string usernameRegex = globalAttributes.GetValue( "core.ValidUsernameRegularExpression" );
+
+            if ( string.IsNullOrEmpty( usernameRegex ) )
+            {
+                return true;
+            }
+            else
+            {
+                var regex = new Regex( usernameRegex );
+                return regex.IsMatch( username );
+            }
         }
 
         /// <summary>
@@ -228,20 +246,40 @@ namespace Rock.Model
         }
 
         /// <summary>
+        /// Returns a user friendly description of the username rules.
+        /// </summary>
+        /// <returns></returns>
+        public static string FriendlyUsernameRules()
+        {
+            var globalAttributes = GlobalAttributesCache.Get();
+            string validUsernameCaption = globalAttributes.GetValue( "core.ValidUsernameCaption" );
+
+            if ( string.IsNullOrEmpty( validUsernameCaption ) )
+            {
+                return string.Empty;
+            }
+            else
+            {
+                return validUsernameCaption;
+            }
+        }
+
+        /// <summary>
         /// Returns a user friendly description of the password rules.
         /// </summary>
         /// <returns>A user friendly description of the password rules.</returns>
         public static string FriendlyPasswordRules()
         {
             var globalAttributes = GlobalAttributesCache.Get();
-            string passwordRegex = globalAttributes.GetValue( "PasswordRegexFriendlyDescription" );
-            if ( string.IsNullOrEmpty( passwordRegex ) )
+            string validPasswordCaption = globalAttributes.GetValue( "PasswordRegexFriendlyDescription" );
+
+            if ( string.IsNullOrEmpty( validPasswordCaption ) )
             {
                 return string.Empty;
             }
             else
             {
-                return passwordRegex;
+                return validPasswordCaption;
             }
         }
 
@@ -360,7 +398,7 @@ namespace Rock.Model
         }
 
         /// <summary>
-        /// Call this method if the login attempt fails.  Updates the
+        /// Call this method if the log in attempt fails.  Updates the
         /// <see cref="Rock.Model.UserLogin"/> failed password attempt count.
         /// </summary>
         /// <param name="user">The <see cref="Rock.Model.UserLogin"/> to update the failure count on.</param>
@@ -369,8 +407,8 @@ namespace Rock.Model
             var globalAttributes = GlobalAttributesCache.Get();
 
             // Get the global attribute that defines what the window in minutes of time
-            // are between the first unsuccessful login and the point in time where those
-            // failed logins will be forgiven
+            // are between the first unsuccessful log in and the point in time where those
+            // failed log ins will be forgiven
             var passwordAttemptWindow = globalAttributes.GetValue( "PasswordAttemptWindow" ).AsIntegerOrNull() ?? 0;
             var passwordAttemptWindowMinutes = TimeSpan.FromMinutes( passwordAttemptWindow );
 
@@ -378,18 +416,18 @@ namespace Rock.Model
             // permitted within the window before the use is locked out
             var maxInvalidPasswordAttempts = globalAttributes.GetValue( "MaxInvalidPasswordAttempts" ).AsIntegerOrNull() ?? int.MaxValue;
 
-            // Get the current state of this user's failed login attempts
+            // Get the current state of this user's failed log in attempts
             var firstAttempt = user.FailedPasswordAttemptWindowStartDateTime ?? DateTime.MinValue;
             var attempts = user.FailedPasswordAttemptCount ?? 0;
             var endOfWindow = firstAttempt.Add( passwordAttemptWindowMinutes );
 
-            // Determine if the user is still inside the window where failed logins have not
+            // Determine if the user is still inside the window where failed log ins have not
             // yet been forgiven
             var inWindow = RockDateTime.Now < endOfWindow;
 
             if ( inWindow )
             {
-                // The user is within the window meaning the failed logins are accumulating and
+                // The user is within the window meaning the failed log ins are accumulating and
                 // cannot yet be forgiven
                 attempts++;
 
@@ -403,9 +441,9 @@ namespace Rock.Model
             }
             else
             {
-                // The user is outside the window, so failed logins can be forgiven and the
+                // The user is outside the window, so failed log ins can be forgiven and the
                 // database record tracking fields can be reset to only reflect this single
-                // failed login
+                // failed log in attempt
                 user.FailedPasswordAttemptCount = 1;
                 user.FailedPasswordAttemptWindowStartDateTime = RockDateTime.Now;
             }
@@ -444,6 +482,16 @@ namespace Rock.Model
             }
 
             var component = AuthenticationContainer.GetComponent( userLogin.EntityType.Name );
+
+            var excludedAuthProviderTypes = new List<Guid>
+            {
+                SystemGuid.EntityType.AUTHENTICATION_PIN.AsGuid()
+            };
+
+            if( component?.EntityType?.Guid != null && excludedAuthProviderTypes.Contains( component.EntityType.Guid ) )
+            {
+                return ( UserLoginValidationState.InvalidPassword, userLogin );
+            }
 
             // Check if the password is valid for this login.
             if ( component?.IsActive != true || !component.Authenticate( userLogin, password ) )

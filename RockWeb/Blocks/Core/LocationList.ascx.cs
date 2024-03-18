@@ -23,7 +23,6 @@ using Rock;
 using Rock.Attribute;
 using Rock.Data;
 using Rock.Model;
-using Rock.Security;
 using Rock.Web.Cache;
 using Rock.Web.UI;
 using Rock.Web.UI.Controls;
@@ -40,6 +39,7 @@ namespace RockWeb.Blocks.Core
     [LinkedPage( "Detail Page",
         Key = AttributeKey.DetailPage )]
 
+    [Rock.SystemGuid.BlockTypeGuid( "5144ED5B-89A9-4D77-B0E5-695070BE0C8E" )]
     public partial class LocationList : RockBlock, ICustomGridColumns
     {
         public static class AttributeKey
@@ -142,9 +142,9 @@ namespace RockWeb.Blocks.Core
         /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
         protected void rFilter_ApplyFilterClick( object sender, EventArgs e )
         {
-            rFilter.SaveUserPreference( "Street Address", txtStreetAddress1.Text );
-            rFilter.SaveUserPreference( "City", txtCity.Text );
-            rFilter.SaveUserPreference( "Not Geocoded", cbNotGeocoded.Checked.ToString() );
+            rFilter.SetFilterPreference( "Street Address", txtStreetAddress1.Text );
+            rFilter.SetFilterPreference( "City", txtCity.Text );
+            rFilter.SetFilterPreference( "Not Geocoded", cbNotGeocoded.Checked.ToString() );
             BindGrid();
         }
 
@@ -157,19 +157,19 @@ namespace RockWeb.Blocks.Core
         /// </summary>
         private void BindFilter()
         {
-            if ( !string.IsNullOrWhiteSpace( rFilter.GetUserPreference( "Street Address" ) ) )
+            if ( !string.IsNullOrWhiteSpace( rFilter.GetFilterPreference( "Street Address" ) ) )
             {
-                txtStreetAddress1.Text = rFilter.GetUserPreference( "Street Address" );
+                txtStreetAddress1.Text = rFilter.GetFilterPreference( "Street Address" );
             }
 
-            if ( !string.IsNullOrWhiteSpace( rFilter.GetUserPreference( "City" ) ) )
+            if ( !string.IsNullOrWhiteSpace( rFilter.GetFilterPreference( "City" ) ) )
             {
-                txtCity.Text = rFilter.GetUserPreference( "City" );
+                txtCity.Text = rFilter.GetFilterPreference( "City" );
             }
 
-            if ( !string.IsNullOrWhiteSpace( rFilter.GetUserPreference( "Not Geocoded" ) ) )
+            if ( !string.IsNullOrWhiteSpace( rFilter.GetFilterPreference( "Not Geocoded" ) ) )
             {
-                cbNotGeocoded.Checked = Convert.ToBoolean( rFilter.GetUserPreference( "Not Geocoded" ) );
+                cbNotGeocoded.Checked = Convert.ToBoolean( rFilter.GetFilterPreference( "Not Geocoded" ) );
             }
         }
 
@@ -214,23 +214,23 @@ namespace RockWeb.Blocks.Core
             var queryable = new Rock.Model.LocationService( new RockContext() ).Queryable()
                                 .Where( l => l.Street1 != null && l.Street1 != string.Empty );
 
-            if ( !string.IsNullOrWhiteSpace( rFilter.GetUserPreference( "Street Address" ) ) )
+            if ( !string.IsNullOrWhiteSpace( rFilter.GetFilterPreference( "Street Address" ) ) )
             {
-                string streetAddress1 = rFilter.GetUserPreference( "Street Address" );
+                string streetAddress1 = rFilter.GetFilterPreference( "Street Address" );
                 queryable = queryable.Where( l => l.Street1.StartsWith( streetAddress1 ) );
                 filterCount++;
             }
 
-            if ( !string.IsNullOrWhiteSpace( rFilter.GetUserPreference( "City" ) ) )
+            if ( !string.IsNullOrWhiteSpace( rFilter.GetFilterPreference( "City" ) ) )
             {
-                string city = rFilter.GetUserPreference( "City" );
+                string city = rFilter.GetFilterPreference( "City" );
                 queryable = queryable.Where( l => l.City.StartsWith( city ) );
                 filterCount++;
             }
 
-            if ( !string.IsNullOrWhiteSpace( rFilter.GetUserPreference( "Not Geocoded" ) ) )
+            if ( !string.IsNullOrWhiteSpace( rFilter.GetFilterPreference( "Not Geocoded" ) ) )
             {
-                bool notGeocoded = Convert.ToBoolean( rFilter.GetUserPreference( "Not Geocoded" ) );
+                bool notGeocoded = Convert.ToBoolean( rFilter.GetFilterPreference( "Not Geocoded" ) );
                 if ( notGeocoded )
                 {
                     queryable = queryable.Where( l => l.GeoPoint == null );

@@ -28,6 +28,7 @@ namespace Rock.Model
     [RockDomain( "CMS" )]
     [Table( "ContentChannelItemSlug" )]
     [DataContract]
+    [Rock.SystemGuid.EntityTypeGuid( "2FF2F1C3-A440-4D24-8FB8-2B0D9436EA75")]
     public partial class ContentChannelItemSlug : Model<ContentChannelItemSlug>
     {
         #region Entity Properties
@@ -49,7 +50,7 @@ namespace Rock.Model
         /// <value>
         /// The slug.
         /// </value>
-        [MaxLength( 75 )]
+        [MaxLength( 200 )]
         [DataMember]
         public string Slug { get; set; }
 

@@ -20,6 +20,7 @@ using System.Linq;
 using System.Web.UI.WebControls;
 
 using Rock.Data;
+using Rock.ViewModels.Utility;
 using Rock.Web.Cache;
 
 namespace Rock
@@ -98,7 +99,199 @@ namespace Rock
             }
         }
 
+        /// <summary>
+        ///     <para>
+        ///     Changes the order of an entity in a list of entities by using its
+        ///     item key (Id, Guid, IdKey) and the item key of the item it should
+        ///     be placed before.
+        ///     </para>
+        ///     <para>
+        ///     If <typeparamref name="TEntity"/> is of type <see cref="IOrdered"/>
+        ///     then the <see cref="IOrdered.Order"/> property will be updated
+        ///     on all entities after the move is performed.
+        ///     </para>
+        /// </summary>
+        /// <typeparam name="TEntity">The type of entity to be moved.</typeparam>
+        /// <param name="entities">The list of entities containing the item to move.</param>
+        /// <param name="itemKey">The key that identifies the item to be moved.</param>
+        /// <param name="beforeItemKey">The key that identifies the item it should be placed before.</param>
+        /// <returns><c>true</c> if the reorder operation was successful or <c>false</c> if one of the items could not be found.</returns>
+        internal static bool ReorderEntity<TEntity>( this List<TEntity> entities, string itemKey, string beforeItemKey )
+            where TEntity : IEntity
+        {
+            if ( itemKey.IsNullOrWhiteSpace() )
+            {
+                return false;
+            }
+
+            TEntity item;
+
+            // Find the source entity to be moved.
+            if ( Guid.TryParse( itemKey, out var itemGuid ) )
+            {
+                item = entities.FirstOrDefault( s => s.Guid == itemGuid );
+            }
+            else if ( int.TryParse( itemKey, out var itemId ) )
+            {
+                item = entities.FirstOrDefault( s => s.Id == itemId );
+            }
+            else
+            {
+                item = entities.FirstOrDefault( s => s.IdKey == itemKey );
+            }
+
+            if ( item == null )
+            {
+                return false;
+            }
+
+            // If there is a before item key then find it.
+            if ( beforeItemKey.IsNotNullOrWhiteSpace() )
+            {
+                TEntity beforeItem;
+
+                if ( Guid.TryParse( beforeItemKey, out var beforeItemGuid ) )
+                {
+                    beforeItem = entities.FirstOrDefault( s => s.Guid == beforeItemGuid );
+                }
+                else if ( int.TryParse( beforeItemKey, out var beforeItemId ) )
+                {
+                    beforeItem = entities.FirstOrDefault( s => s.Id == beforeItemId );
+                }
+                else
+                {
+                    beforeItem = entities.FirstOrDefault( s => s.IdKey == beforeItemKey );
+                }
+
+                if ( beforeItem == null )
+                {
+                    return false;
+                }
+
+                entities.Remove( item );
+                entities.Insert( entities.IndexOf( beforeItem ), item );
+            }
+            else
+            {
+                // Otherwise just move it to the end.
+                entities.Remove( item );
+                entities.Add( item );
+            }
+
+            // If the TEntity type implements IOrdered then update the Order
+            // property of all the entities as well.
+            if ( typeof( IOrdered ).IsAssignableFrom( typeof( TEntity ) ) )
+            {
+                // Set all the Order properties.
+                for ( int i = 0; i < entities.Count; i++ )
+                {
+                    ( entities[i] as IOrdered ).Order = i;
+                }
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// Converts a single entity to a ListItemBag.
+        /// </summary>
+        /// <param name="entity">The entity to be represented by the bag.</param>
+        /// <returns>A <see cref="ListItemBag"/> that represents the entity.</returns>
+        public static ListItemBag ToListItemBag( this IEntity entity )
+        {
+            if ( entity == null )
+            {
+                return null;
+            }
+
+            var viewModel = new ListItemBag
+            {
+                Value = entity.Guid.ToString(),
+                Text = entity.ToString()
+            };
+
+            return viewModel;
+        }
+
+        /// <summary>
+        /// Converts a collection of entities to ListItemBags.
+        /// </summary>
+        /// <param name="entities">The entities to be represented by the bags.</param>
+        /// <returns>A collection of <see cref="ListItemBag"/> that represents the entities.</returns>
+        public static List<ListItemBag> ToListItemBagList( this IEnumerable<IEntity> entities )
+        {
+            if ( entities == null )
+            {
+                return new List<ListItemBag>();
+            }
+
+            return entities.Select( e => e.ToListItemBag() ).ToList();
+        }
+
+        /// <summary>
+        /// Converts a single entity to a ListItemBag.
+        /// </summary>
+        /// <param name="entity">The entity to be represented by the bag.</param>
+        /// <returns>A <see cref="ListItemBag"/> that represents the entity.</returns>
+        public static ListItemBag ToListItemBag( this IEntityCache entity )
+        {
+            if ( entity == null )
+            {
+                return null;
+            }
+
+            var viewModel = new ListItemBag
+            {
+                Value = entity.Guid.ToString(),
+                Text = entity.ToString()
+            };
+
+            return viewModel;
+        }
+
+        /// <summary>
+        /// Converts a collection of entities to ListItemBags.
+        /// </summary>
+        /// <param name="entities">The entities to be represented by the bags.</param>
+        /// <returns>A collection of <see cref="ListItemBag"/> that represents the entities.</returns>
+        public static List<ListItemBag> ToListItemBagList( this IEnumerable<IEntityCache> entities )
+        {
+            if ( entities == null )
+            {
+                return new List<ListItemBag>();
+            }
+
+            return entities.Select( e => e.ToListItemBag() ).ToList();
+        }
+
+
         #endregion IEntity extensions
+
+        #region IModel Extensions
+
+        /// <summary>
+        /// Gets the <see cref="EntityAuditBag"/> that contains the information
+        /// used by the standard (Obsidian) audit detail control.
+        /// </summary>
+        /// <param name="model">The model whose audit details are requested.</param>
+        /// <returns>An instance of <see cref="EntityAuditBag"/> that represents the audit information.</returns>
+        internal static EntityAuditBag GetEntityAuditBag( this IModel model )
+        {
+            return new EntityAuditBag
+            {
+                Id = model.Id,
+                IdKey = model.IdKey,
+                Guid = model.Guid,
+                CreatedByPersonId = model.CreatedByPersonAlias?.PersonId,
+                CreatedByName = model.CreatedByPersonAlias?.Person?.FullName,
+                CreatedRelativeTime = model.CreatedDateTime?.ToRelativeDateString(),
+                ModifiedByPersonId = model.ModifiedByPersonAlias?.PersonId,
+                ModifiedByName = model.ModifiedByPersonAlias?.Person?.FullName,
+                ModifiedRelativeTime = model.ModifiedDateTime?.ToRelativeDateString()
+            };
+        }
+
+        #endregion
 
         #region EntityType Extensions
 
@@ -153,6 +346,103 @@ namespace Rock
             {
                 return false;
             }
+        }
+
+        /// <summary>
+        /// Gets the System.Type of the individual elements of the specified collection type.
+        /// </summary>
+        /// <param name="collectionType">A collection Type.</param>
+        /// <returns></returns>
+        public static Type GetCollectionElementType( this Type collectionType )
+        {
+            if ( collectionType == null )
+            {
+                return null;
+            }
+
+            // Get the type of an Array element.
+            if ( collectionType.IsArray )
+            {
+                return collectionType.GetElementType();
+            }
+
+            // Get the element type of IEnumerable<T>.
+            if ( collectionType.IsGenericType && collectionType.GetGenericTypeDefinition() == typeof( IEnumerable<> ) )
+            {
+                return collectionType.GetGenericArguments()[0];
+            }
+
+            // Get the element type of an object that implements or extends IEnumerable<T>.
+            var implementedType = collectionType.GetInterfaces()
+                .Where( t => t.IsGenericType &&
+                        t.GetGenericTypeDefinition() == typeof( IEnumerable<> ) )
+                .Select( t => t.GenericTypeArguments[0] ).FirstOrDefault();
+            if ( implementedType != null )
+            {
+                return implementedType;
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Returns a flag indicating if the specified type can be represented by the Rock.Data.IEntity interface.
+        /// </summary>
+        /// <param name="type"></param>
+        /// <returns></returns>
+        public static bool IsRockEntityType( this Type type )
+        {
+            if ( type == null )
+            {
+                return false;
+            }
+
+            if ( type.IsDynamicProxyType() )
+            {
+                type = type.BaseType;
+            }
+
+            var isIEntity = type.GetInterface( nameof( Rock.Data.IEntity ) ) != null;
+            return isIEntity;
+        }
+
+        /// <summary>
+        /// Returns a flag indicating if the specified object can be represented by the Rock.Data.IEntity interface.
+        /// </summary>
+        /// <param name="inputObject"></param>
+        /// <returns></returns>
+        public static bool IsRockEntityObject<T>( this T inputObject )
+            where T : class
+        {
+            var isEntityType = IsRockEntityType( inputObject?.GetType() );
+            return isEntityType;
+        }
+
+        /// <summary>
+        /// Returns a flag indicating if the specified object represents a collection of elements that implement the Rock.Data.IEntity interface.
+        /// </summary>
+        /// <param name="inputObject"></param>
+        /// <returns></returns>
+        public static bool IsRockEntityCollection<T>( this T inputObject )
+            where T : class
+        {
+            // First, try to detect the element type using the Type system.
+            // This is available even if the input object is null.
+            var elementType = GetCollectionElementType( typeof( T ) );
+
+            var isRockEntity = IsRockEntityType( elementType );
+            if ( !isRockEntity )
+            {
+                // If the collection is not strongly-typed, try to inspect the first element.
+                // This will force the collection to materialize if it is defined by a Linq query,
+                // which may be expensive and therefore should be performed last.
+                var inputEnumerable = inputObject as IEnumerable<object>;
+                var firstElement = inputEnumerable?.FirstOrDefault();
+
+                isRockEntity = IsRockEntityObject( firstElement );
+            }
+
+            return isRockEntity;
         }
 
         #endregion EntityType Extensions

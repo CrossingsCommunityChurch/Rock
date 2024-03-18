@@ -70,6 +70,7 @@ namespace RockWeb.Blocks.CheckIn
         Category = AttributeCategory.CategoryNone,
         Order = 8 )]
 
+    [Rock.SystemGuid.BlockTypeGuid( "3B5FBE9A-2904-4220-92F3-47DD16E805C0" )]
     public partial class Admin : CheckInBlock
     {
         #region Attribute Keys
@@ -106,6 +107,7 @@ namespace RockWeb.Blocks.CheckIn
             public const string GroupIds = "GroupIds";
             public const string FamilyId = "FamilyId";
             public const string CameraIndex = "CameraIndex";
+            public const string Theme = "Theme";
         }
 
         #endregion PageParameterKeys
@@ -201,6 +203,7 @@ namespace RockWeb.Blocks.CheckIn
                 nbGeoMessage.Text = "Manual configuration is not currently enabled.";
             }
 
+            // Load the themes selector and set the active theme.
             ddlTheme.Items.Clear();
             DirectoryInfo di = new DirectoryInfo( this.Page.Request.MapPath( ResolveRockUrl( "~~" ) ) );
             foreach ( var themeDir in di.Parent.EnumerateDirectories().OrderBy( a => a.Name ) )
@@ -208,15 +211,20 @@ namespace RockWeb.Blocks.CheckIn
                 ddlTheme.Items.Add( new ListItem( themeDir.Name, themeDir.Name.ToLower() ) );
             }
 
-            if ( !string.IsNullOrWhiteSpace( LocalDeviceConfig.CurrentTheme ) )
+            // If a theme has been specified in the URL, prefer it.
+            // If not, use the local device configuration cookie or the default theme for the site.
+            var activeTheme = PageParameter( PageParameterKey.Theme ).ToLower();
+            if ( string.IsNullOrWhiteSpace( activeTheme ) )
             {
-                ddlTheme.SetValue( LocalDeviceConfig.CurrentTheme );
-                SetSelectedTheme( LocalDeviceConfig.CurrentTheme );
+                activeTheme = LocalDeviceConfig.CurrentTheme;
             }
-            else
+            if ( string.IsNullOrWhiteSpace( activeTheme ) )
             {
-                ddlTheme.SetValue( RockPage.Site.Theme.ToLower() );
+                activeTheme = RockPage.Site.Theme.ToLower();
             }
+
+            ddlTheme.SetValue( activeTheme );
+            SetSelectedTheme( activeTheme );
 
             int? kioskDeviceTypeValueId = DefinedValueCache.GetId( Rock.SystemGuid.DefinedValue.DEVICE_TYPE_CHECKIN_KIOSK.AsGuid() );
 
@@ -737,8 +745,9 @@ tryGeoLocation();
             // -- HasCamera is true
             // -- KioskType has been set (the HTML5 camera feature won't be enabled until they specifically set the KioskType)
             // -- The KioskType is not an IPad
+            // -- The current Theme supports the HTML5 Camera feature
             // Also, Javascript will hide this option if it detects this is running an on IPad, even though they didn't select Ipad as the KioskType
-            bool showHtml5CameraOptions = device.HasCamera && device.KioskType.HasValue && device?.KioskType != KioskType.IPad;
+            bool showHtml5CameraOptions = device.HasCamera && device.KioskType.HasValue && device?.KioskType != KioskType.IPad && this.CurrentThemeSupportsHTML5Camera();
             hfKioskType.Value = device?.KioskType?.ConvertToString( false );
             pnlHtml5CameraOptions.Visible = showHtml5CameraOptions;
         }

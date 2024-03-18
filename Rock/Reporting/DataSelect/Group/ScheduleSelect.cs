@@ -1,4 +1,4 @@
-﻿// <copyright>
+// <copyright>
 // Copyright by the Spark Development Network
 //
 // Licensed under the Rock Community License (the "License");
@@ -14,16 +14,14 @@
 // limitations under the License.
 // </copyright>
 //
-using Rock.Data;
-using Rock.Model;
 using System;
-using System.Collections.Generic;
 using System.ComponentModel;
 using System.ComponentModel.Composition;
 using System.Linq;
 using System.Linq.Expressions;
-using System.Text;
-using System.Threading.Tasks;
+using System.Web.UI.WebControls;
+using Rock.Data;
+using Rock.Model;
 
 namespace Rock.Reporting.DataSelect.Group
 {
@@ -33,6 +31,7 @@ namespace Rock.Reporting.DataSelect.Group
     [Description("Select the Schedule of the Group")]
     [Export(typeof(DataSelectComponent))]
     [ExportMetadata("ComponentName", "Select Group's Schedule")]
+    [Rock.SystemGuid.EntityTypeGuid( "FB5548AC-6953-495B-82EF-BC2A60F35767")]
     public class ScheduleSelect : DataSelectComponent
     {
         #region Properties
@@ -134,6 +133,21 @@ namespace Rock.Reporting.DataSelect.Group
             var groupScheduleQry = new GroupService(context).Queryable().Select(p => p.Schedule);
 
             return SelectExpressionExtractor.Extract(groupScheduleQry, entityIdProperty, "p");
+        }
+
+        /// <summary>
+        /// Gets the grid field.
+        /// </summary>
+        /// <param name="entityType">Type of the entity.</param>
+        /// <param name="selection">The selection.</param>
+        /// <returns></returns>
+        public override System.Web.UI.WebControls.DataControlField GetGridField( Type entityType, string selection )
+        {
+            var result = new BoundField();
+
+            // Disable encoding of field content because the value contains markup.
+            result.HtmlEncode = false;
+            return result;
         }
 
         #endregion

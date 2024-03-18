@@ -64,6 +64,7 @@ namespace Rock
             _defaultTimeZoneInfo = organizationTimeZoneInfo ?? TimeZoneInfo.Local;
 
             // Initialize the default graduation date.
+#pragma warning disable CS0618 // Type or member is obsolete
             var graduationDateWithCurrentYear = new DateTime( Today.Year, 6, 1 );
 
             if ( graduationDateWithCurrentYear < Today )
@@ -75,6 +76,7 @@ namespace Rock
             {
                 CurrentGraduationDate = graduationDateWithCurrentYear;
             }
+#pragma warning restore CS0618 // Type or member is obsolete
         }
 
         /// <summary>
@@ -176,13 +178,29 @@ namespace Rock
         /// <returns></returns>
         public static DateTime? New( int year, int month, int day )
         {
+            return New( year, month, day, 0, 0, 0, 0 );
+        }
+
+        /// <summary>
+        /// Creates a new datetime based on year, month, day, and handles 2/29 for non leap years (returns 2/28 in this case)
+        /// </summary>
+        /// <param name="year">The year.</param>
+        /// <param name="month">The month.</param>
+        /// <param name="day">The day.</param>
+        /// <param name="hour">The year.</param>
+        /// <param name="minute">The minute.</param>
+        /// <param name="second">The second.</param>
+        /// <param name="millisecond">The millisecond.</param>
+        /// <returns></returns>
+        public static DateTime? New( int year, int month, int day, int hour, int minute, int second, int millisecond )
+        {
             try
             {
                 if ( !DateTime.IsLeapYear( year ) && month == 2 && day == 29 )
                 {
-                    return new DateTime( year, 2, 28 );
+                    return new DateTime( year, 2, 28, hour, minute, second, millisecond );
                 }
-                return new DateTime( year, month, day );
+                return new DateTime( year, month, day, hour, minute, second, millisecond );
             }
             catch { }
 
@@ -197,6 +215,8 @@ namespace Rock
         /// <value>
         /// The current graduation date.
         /// </value>
+        [RockObsolete("1.13")]
+        [Obsolete( "Use PersonService.GetCurrentGraduationDate() instead." )]
         public static DateTime CurrentGraduationDate { get; internal set; }
 
         /// <summary>
@@ -205,6 +225,8 @@ namespace Rock
         /// <value>
         /// The current graduation year.
         /// </value>
+        [RockObsolete( "1.13" )] 
+        [Obsolete( "Use PersonService.GetCurrentGraduationYear() instead." )]
         public static int CurrentGraduationYear => CurrentGraduationDate.Year;
 
         /// <summary>
@@ -279,6 +301,35 @@ namespace Rock
             }
 
             return sundayDate.Date;
+        }
+
+        /// <summary>
+        /// Returns a human-friendly description of the time of day.
+        /// </summary>
+        /// <param name="inputDateTime">A valid date/time value</param>
+        /// <returns></returns>
+        public static string GetTimeOfDay( DateTime inputDateTime )
+        {
+            string response;
+            var hour = inputDateTime.Hour;
+            if ( hour >= 5 && hour < 12 )
+            {
+                response = "Morning";
+            }
+            else if ( hour >= 12 && hour < 17 )
+            {
+                response = "Afternoon";
+            }
+            else if ( hour >= 17 && hour < 21 )
+            {
+                response = "Evening";
+            }
+            else
+            {
+                response = "Night";
+            }
+
+            return response;
         }
     }
 }

@@ -35,6 +35,7 @@ namespace Rock.Model
     [RockDomain( "Engagement" )]
     [Table( "ConnectionType" )]
     [DataContract]
+    [Rock.SystemGuid.EntityTypeGuid( Rock.SystemGuid.EntityType.CONNECTION_TYPE )]
     public partial class ConnectionType : Model<ConnectionType>, IOrdered, ICacheable
     {
         #region Entity Properties
@@ -65,6 +66,7 @@ namespace Rock.Model
         /// <value>
         /// The icon CSS class.
         /// </value>
+        [MaxLength( 100 )]
         [DataMember]
         public string IconCssClass { get; set; }
 

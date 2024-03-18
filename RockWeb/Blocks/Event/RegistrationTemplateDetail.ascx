@@ -60,7 +60,7 @@
                     <Rock:PanelWidget ID="pwDetails" runat="server" Title="Details" Expanded="true">
                         <div class="row">
                             <div class="col-md-4">
-                                <Rock:GroupTypePicker ID="gtpGroupType" runat="server" Label="Group Type" AutoPostBack="true" OnSelectedIndexChanged="gtpGroupType_SelectedIndexChanged" />
+                                <Rock:GroupTypePicker ID="gtpGroupType" runat="server" Label="Group Type" AutoPostBack="true" OnSelectedIndexChanged="gtpGroupType_SelectedIndexChanged" IsSortedByName="true" />
                                 <Rock:GroupRolePicker ID="rpGroupTypeRole" runat="server" Label="Group Member Role"
                                     Help="The group member role that new registrants should be added to group with." />
                                 <Rock:RockDropDownList ID="ddlGroupMemberStatus" runat="server" Label="Group Member Status"
@@ -97,6 +97,7 @@
                                             <asp:ListItem Value="2" Text="Use First Registrant" />
                                             <asp:ListItem Value="3" Text="Use Logged In Person" />
                                         </Rock:RockDropDownList>
+                                        <Rock:RockCheckBox ID="cbShowSmsOptIn" runat="server" Label="Show SMS Opt-In" Text="Yes" Help="When enabled a checkbox will be shown next to each mobile phone number for registrants allowing the registrar to enable SMS messaging for this number." />
                                     </div>
                                 </div>
                             </div>
@@ -152,7 +153,7 @@
                                 </div>
                                 <div class="col-md-6">
                                     <Rock:FinancialGatewayPicker ID="fgpFinancialGateway" runat="server" Label="Financial Gateway"
-                                        Help="The financial gateway to use for processing registration payments." ShowAll="true" AutoPostBack="true" OnSelectedIndexChanged="fgpFinancialGateway_SelectedIndexChanged" />
+                                        Help="The financial gateway to use for processing registration payments." IncludeInactive="false" ShowAllGatewayComponents="true" AutoPostBack="true" OnSelectedIndexChanged="fgpFinancialGateway_SelectedIndexChanged" />
                                     <Rock:RockTextBox ID="txtBatchNamePrefix" runat="server" Label="Batch Prefix" Help="Optional prefix to add the the financial batches. If left blank the prefix from the registration block will be used." />
                                 </div>
                             </div>
@@ -173,11 +174,11 @@
                             <div class="col-md-6">
                                 <div class="row">
                                     <div class="col-xs-6">
-                                        <Rock:RockDropDownList ID="ddlSignatureDocumentTemplate" runat="server" Label="Required Signature Document"
-                                            Help="A document that needs to be signed for registrations of this type." />
+                                        <Rock:RockDropDownList ID="ddlSignatureDocumentTemplate" runat="server" Label="Required Signature Document" AutoPostBack="true"
+                                            Help="A document that needs to be signed for registrations of this type." OnSelectedIndexChanged="ddlSignatureDocumentTemplate_SelectedIndexChanged" />
                                     </div>
                                     <div class="col-xs-6">
-                                        <Rock:RockCheckBox ID="cbDisplayInLine" runat="server" Label="In-Line Signature" Text="Yes"
+                                        <Rock:RockCheckBox ID="cbDisplayInLine" runat="server" Label="In-Line Signature" Text="Yes" Visible="false"
                                             Help="When registering for this type of event, should the Required Signature Document be displayed during the registration steps? If not, a request will be sent after the registration is completed." />
                                     </div>
                                 </div>
@@ -292,10 +293,12 @@
                     </Rock:PanelWidget>
 
                     <%-- Show Communication Settings --%>
-                    <div class="clearfix" id="registration-detailscheckbox">
-                        <div class="pull-right">
-                            <input id="cb-showdetails" type="checkbox" />
-                            Show Communication Settings
+                    <div class="justify-content-end" id="registration-detailscheckbox" style="display:flex;">
+                        <div class="checkbox pull-right">
+                            <label>
+                                <input id="cb-showdetails" type="checkbox" />
+                                <span class="label-text">Show Communication Settings</span>
+                            </label>
                         </div>
                     </div>
 
@@ -463,6 +466,7 @@
             <Content>
                 <asp:HiddenField ID="hfFormGuid" runat="server" />
                 <asp:HiddenField ID="hfAttributeGuid" runat="server" />
+                <Rock:NotificationBox ID="nbFormField" runat="server" Visible="false" NotificationBoxType="Validation"></Rock:NotificationBox>
                 <asp:ValidationSummary ID="ValidationSummaryAttribute" runat="server" HeaderText="Please correct the following:" CssClass="alert alert-validation" ValidationGroup="Field" />
                 <div class="row">
                     <div class="col-md-3">
@@ -582,7 +586,7 @@
                 <asp:ValidationSummary ID="ValidationSummaryFee" runat="server" HeaderText="Please correct the following:" CssClass="alert alert-validation" ValidationGroup="Fee" />
                 <div class="row">
                     <div class="col-md-12">
-                        <Rock:RockTextBox ID="tbFeeName" runat="server" Label="Name" ValidationGroup="Fee" Required="true" />
+                        <Rock:RockTextBox ID="tbFeeName" runat="server" Label="Name" ValidationGroup="Fee" Required="true" MaxLength="100" />
                     </div>
                 </div>
                 <div class="row">
@@ -605,7 +609,7 @@
                                         <asp:HiddenField ID="hfFeeItemGuid" runat="server" />
                                         <asp:Panel ID="pnlFeeItemNameContainer" runat="server">
                                             <Rock:NotificationBox ID="nbFeeItemWarning" runat="server" NotificationBoxType="Default" />
-                                            <Rock:RockTextBox ID="tbFeeItemName" runat="server" CssClass="input-width-md margin-b-sm" Placeholder="Option" ValidationGroup="Fee" Required="true" />
+                                            <Rock:RockTextBox ID="tbFeeItemName" runat="server" CssClass="input-width-md margin-b-sm" Placeholder="Option" ValidationGroup="Fee" Required="true" MaxLength="100" />
                                         </asp:Panel>
                                         <Rock:CurrencyBox ID="cbFeeItemCost" runat="server" CssClass="input-width-md margin-b-sm" Placeholder="Cost" ValidationGroup="Fee" NumberType="Currency" Required="false" />
                                         <Rock:NumberBox ID="nbMaximumUsageCount" runat="server" CssClass="input-width-md margin-b-sm" Placeholder="Max Available" ValidationGroup="Fee" Required="false" NumberType="Integer" />

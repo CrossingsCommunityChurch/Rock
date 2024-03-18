@@ -20,22 +20,24 @@ using System.ComponentModel;
 using System.Linq;
 
 using Rock.Attribute;
+using Rock.ClientService.Core.Campus;
+using Rock.ClientService.Core.Campus.Options;
 using Rock.Data;
 using Rock.Model;
 using Rock.Utility;
-using Rock.ViewModel.Client;
 
 namespace Rock.Blocks.Types.Mobile.Prayer
 {
     /// <summary>
     /// Provides an additional experience to pray using a card based view.
     /// </summary>
-    /// <seealso cref="Rock.Blocks.RockMobileBlockType" />
+    /// <seealso cref="Rock.Blocks.RockBlockType" />
 
     [DisplayName( "Prayer Card View" )]
     [Category( "Mobile > Prayer" )]
     [Description( "Provides an additional experience to pray using a card based view." )]
     [IconCssClass( "fa fa-th" )]
+    [SupportedSiteTypes( Model.SiteType.Mobile )]
 
     #region Block Attributes
 
@@ -63,13 +65,22 @@ namespace Rock.Blocks.Types.Mobile.Prayer
         Key = AttributeKey.HideCampusWhenKnown,
         Order = 2 )]
 
+    [BooleanField(
+        "Always Hide Campus",
+        Description = "Hides the campus picker and disables filtering by campus.",
+        IsRequired = false,
+        DefaultBooleanValue = false,
+        ControlType = Field.Types.BooleanFieldType.BooleanControlType.Toggle,
+        Key = AttributeKey.AlwaysHideCampus,
+        Order = 3 )]
+
     [CategoryField(
         "Category",
         Description = "A top level category. This controls which categories are shown when starting a prayer session.",
         EntityType = typeof( Rock.Model.PrayerRequest ),
         IsRequired = true,
         Key = AttributeKey.Category,
-        Order = 3 )]
+        Order = 4 )]
 
     [BooleanField(
         "Public Only",
@@ -78,7 +89,7 @@ namespace Rock.Blocks.Types.Mobile.Prayer
         DefaultBooleanValue = true,
         ControlType = Field.Types.BooleanFieldType.BooleanControlType.Toggle,
         Key = AttributeKey.PublicOnly,
-        Order = 4 )]
+        Order = 5 )]
 
     [EnumField(
         "Order",
@@ -87,7 +98,7 @@ namespace Rock.Blocks.Types.Mobile.Prayer
         EnumSourceType = typeof( PrayerRequestOrder ),
         DefaultEnumValue = ( int ) PrayerRequestOrder.LeastPrayedFor,
         Key = AttributeKey.PrayerOrder,
-        Order = 5 )]
+        Order = 6 )]
 
     [DefinedValueField(
         "Campus Types",
@@ -96,7 +107,7 @@ namespace Rock.Blocks.Types.Mobile.Prayer
         IsRequired = false,
         DefinedTypeGuid = Rock.SystemGuid.DefinedType.CAMPUS_TYPE,
         AllowMultiple = true,
-        Order = 6 )]
+        Order = 7 )]
 
     [DefinedValueField(
         "Campus Statuses",
@@ -105,14 +116,14 @@ namespace Rock.Blocks.Types.Mobile.Prayer
         IsRequired = false,
         DefinedTypeGuid = Rock.SystemGuid.DefinedType.CAMPUS_STATUS,
         AllowMultiple = true,
-        Order = 7 )]
+        Order = 8 )]
 
     [IntegerField(
         "Max Requests",
         Description = "The maximum number of requests to display. Leave blank for all.",
         IsRequired = false,
         Key = AttributeKey.MaxRequests,
-        Order = 8 )]
+        Order = 9 )]
 
     [BooleanField(
         "Load Last Prayed Collection",
@@ -121,7 +132,7 @@ namespace Rock.Blocks.Types.Mobile.Prayer
         DefaultBooleanValue = false,
         ControlType = Field.Types.BooleanFieldType.BooleanControlType.Toggle,
         Key = AttributeKey.LoadLastPrayedCollection,
-        Order = 9 )]
+        Order = 10 )]
 
     [WorkflowTypeField(
         "Prayed Workflow",
@@ -129,12 +140,32 @@ namespace Rock.Blocks.Types.Mobile.Prayer
         Key = AttributeKey.PrayedWorkflow,
         Description = "The workflow type to launch when someone presses the Pray button. Prayer Request will be passed to the workflow as a generic \"Entity\" field type. Additionally if the workflow type has any of the following attribute keys defined, those attribute values will also be set: PrayerOfferedByPersonId.",
         IsRequired = false,
-        Order = 10 )]
+        Order = 11 )]
+
+    [BooleanField( "Include Group Requests",
+        Description = "Includes prayer requests that are attached to a group.",
+        IsRequired = false,
+        DefaultBooleanValue = false,
+        ControlType = Field.Types.BooleanFieldType.BooleanControlType.Toggle,
+        Key = AttributeKey.IncludeGroupRequests,
+        Order = 12 )]
+
+    [IntegerField(
+        "Prayed For in Last x Minutes Filter",
+        Description = "An integer (minutes) that you can use to filter out recently prayed for items. Uses interaction data. 0 to disable.",
+        IsRequired = true,
+        DefaultIntegerValue = 0,
+        Key = AttributeKey.MinutesToFilter,
+        Order = 13 )]
 
     #endregion
 
-    public class PrayerCardView : RockMobileBlockType
+    [Rock.SystemGuid.EntityTypeGuid( Rock.SystemGuid.EntityType.MOBILE_PRAYER_PRAYER_CARD_VIEW_BLOCK_TYPE )]
+    [Rock.SystemGuid.BlockTypeGuid( Rock.SystemGuid.BlockType.MOBILE_PRAYER_PRAYER_CARD_VIEW )]
+    public class PrayerCardView : RockBlockType
     {
+        #region Page Parameters
+
         /// <summary>
         /// The page parameter keys for the <see cref="PrayerCardView"/> block.
         /// </summary>
@@ -144,7 +175,21 @@ namespace Rock.Blocks.Types.Mobile.Prayer
             /// The campus unique identifier key.
             /// </summary>
             public const string CampusGuid = "CampusGuid";
+
+            /// <summary>
+            /// The unique identifier of the group to use when filtering prayer
+            /// requests.
+            /// </summary>
+            public const string GroupGuid = "GroupGuid";
         }
+
+        /// <summary>
+        /// The unique identifier of the group to use when filtering prayer
+        /// requests.
+        /// </summary>
+        protected Guid? GroupGuid => RequestContext.GetPageParameter( PageParameterKey.GroupGuid ).AsGuidOrNull();
+
+        #endregion
 
         #region Block Attributes
 
@@ -158,6 +203,8 @@ namespace Rock.Blocks.Types.Mobile.Prayer
             public const string TitleContent = "TitleContent";
 
             public const string HideCampusWhenKnown = "HideCampusWhenKnown";
+
+            public const string AlwaysHideCampus = "AlwaysHideCampus";
 
             public const string Category = "Category";
 
@@ -174,6 +221,16 @@ namespace Rock.Blocks.Types.Mobile.Prayer
             public const string LoadLastPrayedCollection = "LoadLastPrayedCollection";
 
             public const string PrayedWorkflow = "PrayedWorkflow";
+
+            /// <summary>
+            /// The include group requests key.
+            /// </summary>
+            public const string IncludeGroupRequests = "IncludeGroupRequests";
+
+            /// <summary>
+            /// The minutes to filter.
+            /// </summary>
+            public const string MinutesToFilter = "MinutesToFilter";
         }
 
         /// <summary>
@@ -199,6 +256,15 @@ namespace Rock.Blocks.Types.Mobile.Prayer
         ///   <c>true</c> if campus picker should be hidden if campus is already known; otherwise, <c>false</c>.
         /// </value>
         protected bool HideCampusWhenKnown => GetAttributeValue( AttributeKey.HideCampusWhenKnown ).AsBoolean();
+
+        /// <summary>
+        /// Gets a value indicating whether to always hide the campus picker. If
+        /// enabled then no campus filtering will be performed.
+        /// </summary>
+        /// <value>
+        ///   <c>true</c> if the campus picker should always be hidden; otherwise, <c>false</c>.
+        /// </value>
+        protected bool AlwaysHideCampus => GetAttributeValue( AttributeKey.AlwaysHideCampus ).AsBoolean();
 
         /// <summary>
         /// Gets the root prayer category to limit display of prayer requests to.
@@ -264,25 +330,22 @@ namespace Rock.Blocks.Types.Mobile.Prayer
         /// </value>
         protected Guid? PrayedWorkflowGuid => GetAttributeValue( AttributeKey.PrayedWorkflow ).AsGuidOrNull();
 
+        /// <summary>
+        /// Gets a value that specifies if group requests should be included by default.
+        /// If <c>false</c> and no group is specified in the page parameters then any
+        /// requests that are attached to a group will be excluded.
+        /// </summary>
+        /// <value>
+        /// A value that specifies if group requests should be included by default.
+        /// </value>
+        protected bool IncludeGroupRequests => GetAttributeValue( AttributeKey.IncludeGroupRequests ).AsBoolean( false );
+
         #endregion
 
         #region IRockMobileBlockType Implementation
 
-        /// <summary>
-        /// Gets the required mobile application binary interface version required to render this block.
-        /// </summary>
-        /// <value>
-        /// The required mobile application binary interface version required to render this block.
-        /// </value>
-        public override int RequiredMobileAbiVersion => 3;
-
-        /// <summary>
-        /// Gets the class name of the mobile block to use during rendering on the device.
-        /// </summary>
-        /// <value>
-        /// The class name of the mobile block to use during rendering on the device
-        /// </value>
-        public override string MobileBlockType => "Rock.Mobile.Blocks.Prayer.PrayerCardView";
+        /// <inheritdoc/>
+        public override Version RequiredMobileVersion => new Version( 1, 3 );
 
         /// <summary>
         /// Gets the property values that will be sent to the device in the application bundle.
@@ -301,6 +364,7 @@ namespace Rock.Blocks.Types.Mobile.Prayer
                 {
                     TitleContent,
                     HideCampusWhenKnown,
+                    AlwaysHideCampus,
                     Campuses = GetValidCampuses( rockContext )
                 };
             }
@@ -315,15 +379,15 @@ namespace Rock.Blocks.Types.Mobile.Prayer
         /// </summary>
         /// <param name="rockContext">The rock context.</param>
         /// <returns>A collection of list items.</returns>
-        private List<ViewModel.NonEntities.ListItemViewModel> GetValidCampuses( RockContext rockContext )
+        private List<ViewModels.Utility.ListItemBag> GetValidCampuses( RockContext rockContext )
         {
-            var helper = new ClientHelper( rockContext, RequestContext.CurrentPerson );
+            var campusClientService = new CampusClientService( rockContext, RequestContext.CurrentPerson );
 
             // Bypass security because the admin has specified which campuses
             // they want to show up.
-            helper.EnableSecurity = false;
+            campusClientService.EnableSecurity = false;
 
-            return helper.GetCampusesAsListItems( new ViewModel.Client.CampusOptions
+            return campusClientService.GetCampusesAsListItems( new CampusOptions
             {
                 LimitCampusTypes = CampusTypeGuids,
                 LimitCampusStatuses = CampusStatusGuids
@@ -371,14 +435,32 @@ namespace Rock.Blocks.Types.Mobile.Prayer
         {
             var prayerRequestService = new PrayerRequestService( rockContext );
 
-            // Get the prayer requests filtered to our block settings.
-            IEnumerable<PrayerRequest> prayerRequests = prayerRequestService.GetPrayerRequests( new PrayerRequestQueryOptions
+            var queryOptions = new PrayerRequestQueryOptions
             {
                 IncludeNonPublic = !PublicOnly,
                 IncludeEmptyCampus = true,
-                Campuses = campusGuid.HasValue ? new List<Guid> { campusGuid.Value } : null,
-                Categories = new List<Guid> { CategoryGuid ?? Guid.Empty }
-            } );
+                IncludeGroupRequests = IncludeGroupRequests,
+                Categories = new List<Guid> { CategoryGuid ?? Guid.Empty },
+                MinutesToFilter = GetAttributeValue( AttributeKey.MinutesToFilter ).AsInteger(),
+                CurrentPersonId = RequestContext.CurrentPerson?.Id
+            };
+
+            // If we have been requested to show only prayer requests attached
+            // to a specific group, then add that identifier to the options.
+            if ( GroupGuid.HasValue )
+            {
+                queryOptions.GroupGuids = new List<Guid> { GroupGuid.Value };
+            }
+
+            // If we have shown the campus picker and been provided with a campus
+            // then add its identifier to the options.
+            if ( !AlwaysHideCampus && campusGuid.HasValue )
+            {
+                queryOptions.Campuses = new List<Guid> { campusGuid.Value };
+            }
+
+            // Get the prayer requests filtered to our block settings.
+            IEnumerable<PrayerRequest> prayerRequests = prayerRequestService.GetPrayerRequests( queryOptions );
 
             // Order by how the block has been configured.
             prayerRequests = prayerRequests.OrderBy( PrayerOrder );

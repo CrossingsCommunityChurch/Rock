@@ -24,7 +24,6 @@ using System.Web.UI.WebControls;
 using Rock;
 using Rock.Attribute;
 using Rock.Data;
-using Rock.Jobs;
 using Rock.Model;
 using Rock.Security;
 using Rock.Tasks;
@@ -44,12 +43,19 @@ namespace RockWeb.Blocks.Administration
         Description = "The page to display group history.",
         Key = AttributeKey.HistoryPage )]
 
+    [Rock.SystemGuid.BlockTypeGuid( "6D3F924E-BDD0-4C78-981E-B698351E75AD" )]
     public partial class ScheduledJobList : RockBlock, ICustomGridColumns
     {
         public static class AttributeKey
         {
             public const string DetailPage = "DetailPage";
             public const string HistoryPage = "HistoryPage";
+        }
+
+        public static class GridUserPreferenceKey
+        {
+            public const string Name = "Name";
+            public const string ActiveStatus = "Active Status";
         }
 
         #region Control Methods
@@ -81,15 +87,108 @@ namespace RockWeb.Blocks.Administration
         {
             if ( !Page.IsPostBack )
             {
+                BindGridFilter();
                 BindGrid();
             }
 
             base.OnLoad( e );
         }
 
+        /// <summary>
+        /// Binds the grid filter.
+        /// </summary>
+        private void BindGridFilter()
+        {
+            tbNameFilter.Text = gfSettings.GetFilterPreference( GridUserPreferenceKey.Name );
+
+            // Set the Active Status
+            var activeStatusFilter = gfSettings.GetFilterPreference( GridUserPreferenceKey.ActiveStatus );
+            ddlActiveFilter.SetValue( activeStatusFilter );
+        }
+
+        /// <summary>
+        /// Handles the ApplyFilterClick event of the gfSettings control.
+        /// </summary>
+        /// <param name="sender">The source of the event.</param>
+        /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
+        protected void gfSettings_ApplyFilterClick( object sender, EventArgs e )
+        {
+            if ( ddlActiveFilter.SelectedValue == "all" )
+            {
+                gfSettings.SetFilterPreference( GridUserPreferenceKey.ActiveStatus, string.Empty );
+            }
+            else
+            {
+                gfSettings.SetFilterPreference( GridUserPreferenceKey.ActiveStatus, ddlActiveFilter.SelectedValue );
+            }
+
+            gfSettings.SetFilterPreference( GridUserPreferenceKey.Name, tbNameFilter.Text );
+
+            BindGrid();
+        }
+
+        /// <summary>
+        /// Handles the ClearFilterClick event of the gfSettings control.
+        /// </summary>
+        /// <param name="sender">The source of the event.</param>
+        /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
+        protected void gfSettings_ClearFilterClick( object sender, EventArgs e )
+        {
+            gfSettings.DeleteFilterPreferences();
+            BindGridFilter();
+        }
+
         #endregion
 
         #region Grid Events
+
+        /// <summary>
+        /// Handles the DataBound event of the gScheduledJobs_History control.
+        /// </summary>
+        /// <param name="sender">The source of the event.</param>
+        /// <param name="e">The <see cref="RowEventArgs"/> instance containing the event data.</param>
+        protected void gScheduledJobs_History_DataBound( object sender, RowEventArgs e )
+        {
+            var job = e.Row.DataItem as ServiceJob;
+            if ( job == null )
+            {
+                return;
+            }
+
+            // Remove the "Run Now" option and "History" button from the Job Pulse job
+            if ( job.Guid == Rock.SystemGuid.ServiceJob.JOB_PULSE.AsGuid() )
+            {
+                var btnShowHistory = sender as LinkButton;
+                if ( btnShowHistory != null )
+                {
+                    btnShowHistory.Visible = false;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Handles the DataBound event of the gScheduledJobs_RunNow control.
+        /// </summary>
+        /// <param name="sender">The source of the event.</param>
+        /// <param name="e">The <see cref="RowEventArgs"/> instance containing the event data.</param>
+        protected void gScheduledJobs_RunNow_DataBound( object sender, RowEventArgs e )
+        {
+            var job = e.Row.DataItem as ServiceJob;
+            if ( job == null )
+            {
+                return;
+            }
+
+            // Remove the "Run Now" option and "History" button from the Job Pulse job
+            if ( job.Guid == Rock.SystemGuid.ServiceJob.JOB_PULSE.AsGuid() )
+            {
+                var btnRunNow = sender as LinkButton;
+                if ( btnRunNow != null )
+                {
+                    btnRunNow.Visible = false;
+                }
+            }
+        }
 
         /// <summary>
         /// Handles the RowDataBound event of the gScheduledJobs control.
@@ -98,24 +197,12 @@ namespace RockWeb.Blocks.Administration
         /// <param name="e">The <see cref="System.Web.UI.WebControls.GridViewRowEventArgs"/> instance containing the event data.</param>
         protected void gScheduledJobs_RowDataBound( object sender, System.Web.UI.WebControls.GridViewRowEventArgs e )
         {
-            var site = RockPage.Site;
             if ( e.Row.RowType == DataControlRowType.DataRow )
             {
                 ServiceJob serviceJob = e.Row.DataItem as ServiceJob;
                 if ( serviceJob == null )
                 {
                     return;
-                }
-
-                // Remove the "Run Now" option and "History" button from the Job Pulse job
-                Guid? jobGuid = serviceJob.Guid;
-                if ( jobGuid.HasValue && jobGuid.Value.Equals( Rock.SystemGuid.ServiceJob.JOB_PULSE.AsGuid() ) )
-                {
-                    var runNowColumn = gScheduledJobs.ColumnsOfType<EditField>().Where( a => a.HeaderText == "Run Now" ).FirstOrDefault();
-                    e.Row.Cells[gScheduledJobs.GetColumnIndex( runNowColumn )].Text = string.Empty;
-
-                    var historyColumn = gScheduledJobs.ColumnsOfType<LinkButtonField>().Where( a => a.HeaderText == "History" ).FirstOrDefault();
-                    e.Row.Cells[gScheduledJobs.GetColumnIndex( historyColumn )].Text = string.Empty;
                 }
 
                 // format duration
@@ -220,7 +307,16 @@ namespace RockWeb.Blocks.Administration
             var job = new ServiceJobService( new RockContext() ).Get( e.RowKeyId );
             if ( job != null )
             {
-                new ProcessRunJobNow.Message { JobId = job.Id }.Send();
+                // Force the job to run as an entirely new activity instead of
+                // inheriting the curring page activity. This must be done on
+                // a task otherwise we will wipe out the current activity.
+                System.Threading.Tasks.Task.Run( () =>
+                {
+                    System.Diagnostics.Activity.Current = null;
+
+                    new ProcessRunJobNow.Message { JobId = job.Id }.Send();
+                } );
+
                 mdGridWarning.Show( string.Format( "The '{0}' job has been started.", job.Name ), ModalAlertType.Information );
 
                 // wait a split second for the job to start so that the grid will show the status (if it changed)
@@ -277,6 +373,7 @@ namespace RockWeb.Blocks.Administration
             Response.Redirect( groupHistoryUrl, false );
             Context.ApplicationInstance.CompleteRequest();
         }
+
         #endregion
 
         #region Internal Methods
@@ -289,18 +386,35 @@ namespace RockWeb.Blocks.Administration
             var jobService = new ServiceJobService( new RockContext() );
             SortProperty sortProperty = gScheduledJobs.SortProperty;
 
+            var jobsQuery = jobService.GetAllJobs();
+
+            var nameFilter = gfSettings.GetFilterPreference( GridUserPreferenceKey.Name );
+            if ( nameFilter.IsNotNullOrWhiteSpace() )
+            {
+                jobsQuery = jobsQuery.Where( a => a.Name.Contains( nameFilter ) );
+            }
+
+            var activeFilter = gfSettings.GetFilterPreference( GridUserPreferenceKey.ActiveStatus );
+            if ( activeFilter.IsNotNullOrWhiteSpace() )
+            {
+                var activeStatus = activeFilter.AsBoolean();
+                jobsQuery = jobsQuery.Where( a => a.IsActive == activeStatus );
+            }
+
             if ( sortProperty != null )
             {
-                gScheduledJobs.DataSource = jobService.GetAllJobs().Sort( sortProperty ).ToList();
+                gScheduledJobs.DataSource = jobsQuery.Sort( sortProperty ).ToList();
             }
             else
             {
-                gScheduledJobs.DataSource = jobService.GetAllJobs().OrderByDescending( a => a.LastRunDateTime ).ThenBy( a => a.Name ).ToList();
+                gScheduledJobs.DataSource = jobsQuery.OrderByDescending( a => a.LastRunDateTime ).ThenBy( a => a.Name ).ToList();
             }
 
             gScheduledJobs.DataBind();
         }
 
         #endregion
+
+        
     }
 }

@@ -49,6 +49,7 @@ namespace RockWeb.Blocks.CheckIn
         Category = "Text",
         Order = 9 )]
 
+    [Rock.SystemGuid.BlockTypeGuid( "34B48E0F-5E37-425E-9588-E612ED34DB03" )]
     public partial class PersonSelect : CheckInBlock
     {
         /* 2021-05/07 ETD
@@ -181,7 +182,7 @@ namespace RockWeb.Blocks.CheckIn
             var personSelectLavaTemplate = CurrentCheckInState.CheckInType.PersonSelectAdditionalInfoLavaTemplate;
             if ( personSelectLavaTemplate.IsNotNullOrWhiteSpace() )
             {
-                var mergeFields = Rock.Lava.LavaHelper.GetCommonMergeFields( this.RockPage, null, new Rock.Lava.CommonMergeFieldsOptions { GetLegacyGlobalMergeFields = false } );
+                var mergeFields = Rock.Lava.LavaHelper.GetCommonMergeFields( this.RockPage, null, new Rock.Lava.CommonMergeFieldsOptions() );
                 mergeFields.Add( "Person", person );
                 buttonText += string.Format( "<br /><span class='text-light'>{0}</span>", personSelectLavaTemplate.ResolveMergeFields( mergeFields ) );
             }

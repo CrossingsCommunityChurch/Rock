@@ -13,14 +13,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 // </copyright>
-//
-using System;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.Linq;
-using System.Runtime.Serialization;
-using System.Web.UI;
-using System.Web.UI.WebControls;
 
 using Rock;
 using Rock.Attribute;
@@ -29,9 +21,18 @@ using Rock.Data;
 using Rock.Model;
 using Rock.Reporting;
 using Rock.Security;
+using Rock.Web;
 using Rock.Web.Cache;
 using Rock.Web.UI;
 using Rock.Web.UI.Controls;
+using Rock.Web.Utilities;
+using System;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Linq;
+using System.Runtime.Serialization;
+using System.Web.UI;
+using System.Web.UI.WebControls;
 
 namespace RockWeb.Blocks.Reporting
 {
@@ -39,7 +40,6 @@ namespace RockWeb.Blocks.Reporting
     /// Displays the details of the given report.
     /// </summary>
     /// <seealso cref="Rock.Web.UI.RockBlock" />
-    /// <seealso cref="Rock.Web.UI.IDetailBlock" />
     [DisplayName( "Report Detail" )]
     [Category( "Reporting" )]
     [Description( "Displays the details of the given report." )]
@@ -48,7 +48,7 @@ namespace RockWeb.Blocks.Reporting
         Key = AttributeKey.AddAdministrateSecurityToItemCreator,
         Description = "If enabled, the person who creates a new item will be granted 'Administrate' and 'Edit' security rights to the item.  This was the behavior in previous versions of Rock.  If disabled, the item creator will not be able to edit the report, its security settings, or possibly perform other functions without the Rock administrator settings up a role that is allowed to perform such functions.",
         DefaultBooleanValue = false,
-        Order = 0)]
+        Order = 0 )]
 
     [IntegerField( "Database Timeout",
         Key = AttributeKey.DatabaseTimeout,
@@ -69,7 +69,8 @@ namespace RockWeb.Blocks.Reporting
         IsRequired = false,
         Order = 3 )]
 
-    public partial class ReportDetail : RockBlock, IDetailBlock
+    [Rock.SystemGuid.BlockTypeGuid( "E431DBDF-5C65-45DC-ADC5-157A02045CCD" )]
+    public partial class ReportDetail : RockBlock
     {
         #region Attribute Keys
 
@@ -117,7 +118,7 @@ namespace RockWeb.Blocks.Reporting
         }
 
         private const string _ViewStateKeyShowResults = "ShowResults";
-        private string _SettingKeyShowResults = "report-show-results-{blockId}";
+        private const string SHOW_RESULTS_PREFERENCE = "show-results";
 
         protected bool ShowResults
         {
@@ -132,7 +133,9 @@ namespace RockWeb.Blocks.Reporting
                 {
                     ViewState[_ViewStateKeyShowResults] = value;
 
-                    SetUserPreference( _SettingKeyShowResults, value.ToString() );
+                    var preferences = GetBlockPersonPreferences();
+                    preferences.SetValue( SHOW_RESULTS_PREFERENCE, value.ToString() );
+                    preferences.Save();
                 }
 
                 pnlResultsGrid.Visible = this.ShowResults;
@@ -141,7 +144,6 @@ namespace RockWeb.Blocks.Reporting
                 {
                     btnToggleResults.Text = "Hide Results <i class='fa fa-chevron-up'></i>";
                     btnToggleResults.ToolTip = "Hide Results";
-
                 }
                 else
                 {
@@ -155,16 +157,16 @@ namespace RockWeb.Blocks.Reporting
                 }
 
                 // Run the Report and show the results.
-                var reportService = new ReportService( new RockContext() );
+                var reportServiceReadOnly = new ReportService( new RockContextReadOnly() );
 
-                var report = reportService.Get( hfReportId.Value.AsInteger() );
+                var reportReadOnly = reportServiceReadOnly.Get( hfReportId.Value.AsInteger() );
 
-                if ( report == null )
+                if ( reportReadOnly == null )
                 {
                     return;
                 }
 
-                BindGrid( report, false );
+                BindGrid( reportReadOnly, false );
             }
         }
 
@@ -179,9 +181,6 @@ namespace RockWeb.Blocks.Reporting
         protected override void OnInit( EventArgs e )
         {
             base.OnInit( e );
-
-            // Create unique user setting keys for this block.
-            _SettingKeyShowResults = _SettingKeyShowResults.Replace( "{blockId}", this.BlockId.ToString() );
 
             gReport.GridRebind += gReport_GridRebind;
             btnDelete.Attributes["onclick"] = string.Format( "javascript: return Rock.dialogs.confirmDelete(event, '{0}');", Report.FriendlyTypeName );
@@ -207,7 +206,9 @@ namespace RockWeb.Blocks.Reporting
 
             if ( !Page.IsPostBack )
             {
-                this.ShowResults = GetUserPreference( _SettingKeyShowResults ).AsBoolean( true );
+                var preferences = GetBlockPersonPreferences();
+
+                ShowResults = preferences.GetValue( SHOW_RESULTS_PREFERENCE ).AsBoolean( true );
 
                 var reportId = GetReportId();
                 if ( reportId.HasValue )
@@ -284,6 +285,7 @@ namespace RockWeb.Blocks.Reporting
                 {
                     string ddlFieldsId = panelWidget.ID + "_ddlFields";
                     RockDropDownList ddlFields = phReportFields.ControlsOfTypeRecursive<RockDropDownList>().First( a => a.ID == ddlFieldsId );
+                    ddlFields.EnhanceForLongLists = true;
                     var fieldTypeSelection = GetSelectedFieldTypeSelection( ddlFields );
                     if ( fieldTypeSelection != null )
                     {
@@ -359,8 +361,8 @@ namespace RockWeb.Blocks.Reporting
         /// <param name="e">The <see cref="EventArgs" /> instance containing the event data.</param>
         protected void gReport_GridRebind( object sender, GridRebindEventArgs e )
         {
-            var report = new ReportService( new RockContext() ).Get( hfReportId.ValueAsInt() );
-            BindGrid( report, e.IsCommunication );
+            var reportReadOnly = new ReportService( new RockContextReadOnly() ).Get( hfReportId.ValueAsInt() );
+            BindGrid( reportReadOnly, e.IsCommunication );
         }
 
         /// <summary>
@@ -387,12 +389,36 @@ namespace RockWeb.Blocks.Reporting
 
             try
             {
-                if ( report.EntityTypeId.HasValue )
+                /*
+
+                    11/30/2022 - CWR
+                    If there is a dataview for the report, use its DbContext.  This null check is necessary because a report does not require a dataview.
+                    
+                 */
+                if ( report.DataView != null )
                 {
-                    var entityType = EntityTypeCache.Get( report.EntityTypeId.Value );
-                    if ( entityType != null )
+                    bindGridOptions.ReportDbContext = report.DataView.GetDbContext();
+                }
+                else
+                {
+                    if ( report.EntityTypeId.HasValue )
                     {
-                        bindGridOptions.ReportDbContext = Reflection.GetDbContextForEntityType( entityType.GetEntityType() );
+                        var entityType = EntityTypeCache.Get( report.EntityTypeId.Value );
+                        if ( entityType != null )
+                        {
+                            var contextForEntityType = Reflection.GetDbContextForEntityType( entityType.GetEntityType() );
+
+                            // If the DbContext for the entity type returns a standard RockContext, proceed with the ReadOnly context here.
+                            // If it returns other than a RockContext, use that DbContext for the bindGridOptions.
+                            if ( contextForEntityType.GetType() == typeof( Rock.Data.RockContext ) )
+                            {
+                                bindGridOptions.ReportDbContext = new RockContextReadOnly();
+                            }
+                            else
+                            {
+                                bindGridOptions.ReportDbContext = contextForEntityType;
+                            }
+                        }
                     }
                 }
 
@@ -413,7 +439,7 @@ namespace RockWeb.Blocks.Reporting
                     if ( ex is RockDataViewFilterExpressionException )
                     {
                         RockDataViewFilterExpressionException rockDataViewFilterExpressionException = ex as RockDataViewFilterExpressionException;
-                        nbErrorMessage.Text = rockDataViewFilterExpressionException.GetFriendlyMessage( report.DataView );
+                        nbErrorMessage.Text = rockDataViewFilterExpressionException.GetFriendlyMessage( ( IDataViewDefinition ) report.DataView );
                     }
                     else
                     {
@@ -560,10 +586,10 @@ namespace RockWeb.Blocks.Reporting
         protected void btnSave_Click( object sender, EventArgs e )
         {
             cvSecurityError.IsValid = true;
-            var AddAdminToCreator = GetAttributeValue( AttributeKey.AddAdministrateSecurityToItemCreator ).AsBoolean();
+            var addAdminToCreator = GetAttributeValue( AttributeKey.AddAdministrateSecurityToItemCreator ).AsBoolean();
             var rptCategory = CategoryCache.Get( cpCategory.SelectedValueAsInt( false ).Value );
 
-            if ( !AddAdminToCreator && !rptCategory.IsAuthorized( Authorization.EDIT, CurrentPerson ) )
+            if ( !addAdminToCreator && !rptCategory.IsAuthorized( Authorization.EDIT, CurrentPerson ) )
             {
                 cvSecurityError.IsValid = false;
                 cvSecurityError.ErrorMessage = string.Format( "You are not authorized to create or edit Reports for the Category '{0}'.", rptCategory.Name );
@@ -603,7 +629,7 @@ namespace RockWeb.Blocks.Reporting
 
             if ( !report.IsValid )
             {
-                // Controls will render the error messages                    
+                // Controls will render the error messages
                 return;
             }
 
@@ -667,6 +693,14 @@ namespace RockWeb.Blocks.Reporting
                         reportField.Selection = dataSelectComponent.GetSelection( placeHolder.Controls.OfType<Control>().ToArray() );
                     }
                 }
+                else if ( reportFieldType == ReportFieldType.Attribute )
+                {
+                    string placeHolderId = string.Format( "{0}_phDataSelectControls", panelWidget.ID );
+                    var placeHolder = phReportFields.ControlsOfTypeRecursive<PlaceHolder>().FirstOrDefault( a => a.ID == placeHolderId );
+
+                    var info = GetAttributeFieldInfoFromControls( panelWidget, fieldSelection, rockContext );
+                    reportField.Selection = info.SerializeConfiguration();
+                }
                 else
                 {
                     reportField.Selection = fieldSelection;
@@ -701,7 +735,7 @@ namespace RockWeb.Blocks.Reporting
 
             rockContext.SaveChanges();
 
-            if ( adding && GetAttributeValue( AttributeKey.AddAdministrateSecurityToItemCreator ).AsBoolean())
+            if ( adding && GetAttributeValue( AttributeKey.AddAdministrateSecurityToItemCreator ).AsBoolean() )
             {
                 Rock.Security.Authorization.AllowPerson( report, Authorization.EDIT, this.CurrentPerson, rockContext );
                 Rock.Security.Authorization.AllowPerson( report, Authorization.ADMINISTRATE, this.CurrentPerson, rockContext );
@@ -737,7 +771,7 @@ namespace RockWeb.Blocks.Reporting
         }
 
         /// <summary>
-        /// 
+        ///
         /// </summary>
         private class FieldTypeSelection
         {
@@ -793,9 +827,9 @@ namespace RockWeb.Blocks.Reporting
             else
             {
                 // Cancelling on Edit.  Return to Details
-                ReportService service = new ReportService( new RockContext() );
-                Report item = service.Get( reportId );
-                ShowReadonlyDetails( item );
+                ReportService serviceReadOnly = new ReportService( new RockContextReadOnly() );
+                Report itemReadOnly = serviceReadOnly.Get( reportId );
+                ShowReadonlyDetails( itemReadOnly );
             }
         }
 
@@ -815,10 +849,10 @@ namespace RockWeb.Blocks.Reporting
 
             if ( reportGuid.HasValue )
             {
-                var report = new ReportService( new RockContext() ).Get( reportGuid.Value );
-                if ( report != null )
+                var reportReadOnly = new ReportService( new RockContextReadOnly() ).Get( reportGuid.Value );
+                if ( reportReadOnly != null )
                 {
-                    reportId = report.Id;
+                    reportId = reportReadOnly.Id;
                 }
             }
 
@@ -868,11 +902,17 @@ namespace RockWeb.Blocks.Reporting
         }
 
         /// <summary>
-        /// Updates UI controls based on the selected entitytype
+        /// Updates UI controls based on the selected EntityType
         /// </summary>
         /// <param name="entityTypeId">The entity type identifier.</param>
         private void UpdateControlsForEntityType( int? entityTypeId )
         {
+            // If the DataView picker already has a value, and it's not the same type as the entity type ID.
+            if ( dvpDataView.SelectedValueAsId().HasValue && dvpDataView.EntityTypeId != entityTypeId )
+            {
+                dvpDataView.SetValue( null );
+            }
+
             dvpDataView.EntityTypeId = entityTypeId;
             dvpDataView.Enabled = entityTypeId.HasValue;
             btnAddField.Enabled = entityTypeId.HasValue;
@@ -918,7 +958,7 @@ namespace RockWeb.Blocks.Reporting
                             }
                         }
 
-                        listItem.Value = string.Format( "{0}|{1}", ReportFieldType.Attribute, entityField.AttributeGuid.Value.ToString( "n" ) );
+                        listItem.Value = GetAttributeFieldListKey( entityField.AttributeGuid );
                     }
 
                     if ( entityField.IsPreviewable )
@@ -1036,13 +1076,14 @@ namespace RockWeb.Blocks.Reporting
             if ( report == null )
             {
                 report = new Report { Id = 0, IsSystem = false, CategoryId = parentCategoryId };
-                // hide the panel drawer that show created and last modified dates
+
+                // Hide the panel drawer that shows created and last modified dates.
                 pdAuditDetails.Visible = false;
             }
             else
             {
                 string quickReturnLava = "{{ Report.Name | AddQuickReturn:'Reports', 40 }}";
-                var quickReturnMergeFields = Rock.Lava.LavaHelper.GetCommonMergeFields( this.RockPage, this.CurrentPerson, new Rock.Lava.CommonMergeFieldsOptions { GetLegacyGlobalMergeFields = false } );
+                var quickReturnMergeFields = Rock.Lava.LavaHelper.GetCommonMergeFields( this.RockPage, this.CurrentPerson, new Rock.Lava.CommonMergeFieldsOptions() );
                 quickReturnMergeFields.Add( "Report", report );
                 quickReturnLava.ResolveMergeFields( quickReturnMergeFields );
             }
@@ -1166,7 +1207,9 @@ namespace RockWeb.Blocks.Reporting
             var componentType = EntityTypeCache.Get( dataSelectComponentId, rockContext ).GetEntityType();
 
             if ( componentType == null )
+            {
                 return null;
+            }
 
             string dataSelectComponentTypeName = componentType.FullName;
 
@@ -1220,11 +1263,17 @@ namespace RockWeb.Blocks.Reporting
             etpEntityType.SelectedEntityTypeId = entityTypeId;
             UpdateControlsForEntityType( etpEntityType.SelectedEntityTypeId );
             dvpDataView.SetValue( dataViewId );
+            if ( dataViewId.HasValue )
+            {
+                // If the Data View has a value, then prevent the report admin from changing the entity type since it was decided by the Data View already.
+                // If the Data View is changed, then the page should reload the entire Edit control since options will change.
+                etpEntityType.Enabled = false;
+            }
+
             nbFetchTop.Text = report.FetchTop.ToString();
             tbQueryHint.Text = report.QueryHint;
 
             ReportFieldsDictionary = new List<ReportFieldInfo>();
-
 
             kvSortFields.CustomKeys = new Dictionary<string, string>();
             kvSortFields.CustomValues = new Dictionary<string, string>();
@@ -1257,7 +1306,6 @@ namespace RockWeb.Blocks.Reporting
                 ReportFieldsDictionary.Add( new ReportFieldInfo { Guid = reportField.Guid, ReportFieldType = reportField.ReportFieldType, FieldSelection = fieldSelection } );
                 AddFieldPanelWidget( reportField.Guid, reportField.ReportFieldType, fieldSelection, false, rockContext, true, reportField );
             }
-
         }
 
         /// <summary>
@@ -1275,19 +1323,23 @@ namespace RockWeb.Blocks.Reporting
             SetupNumberOfRuns( report );
             SetupLastRun( report );
 
+            if ( report.Category != null )
+            {
+                lCategory.Text = new DescriptionList()
+                    .Add( "Category", report.Category.Name )
+                    .Html;
+            }
+
             if ( report.DataView != null )
             {
-                lbDataView.Visible = UserCanEdit;
+                lDataView.Visible = UserCanEdit;
 
                 var queryParams = new Dictionary<string, string>();
                 queryParams.Add( "DataViewId", report.DataViewId.ToString() );
-                lbDataView.NavigateUrl = LinkedPageUrl( AttributeKey.DataViewPage, queryParams );
 
-                lbDataView.ToolTip = report.DataView.Name;
-            }
-            else
-            {
-                lbDataView.Visible = false;
+                lDataView.Text = new DescriptionList()
+                    .Add( "Data View", $"<a href='{LinkedPageUrl( AttributeKey.DataViewPage, queryParams )}'>{report.DataView.Name}</a>" )
+                    .Html;
             }
 
             BindGrid( report, false );
@@ -1480,6 +1532,26 @@ namespace RockWeb.Blocks.Reporting
                     SetDataSelectControlsValidationGroup( dataSelectControls, this.BlockValidationGroup );
                 }
             }
+            else if ( reportFieldType == ReportFieldType.Attribute )
+            {
+                var fieldInfo = ReportingHelper.GetAttributeReportFieldInfo( fieldSelection, rockContext );
+
+                var attributeGuid = fieldInfo.AttributeGuid;
+                if ( attributeGuid.HasValue && fieldInfo.HasMaximumLength )
+                {
+                    var maxLengthControl = new NumberBox();
+                    maxLengthControl.ID = phDataSelectControls.ID + "_maxLengthTextBox";
+                    maxLengthControl.Label = "Maximum Length";
+                    maxLengthControl.Help = "The number of characters after which the field content will be truncated. If not specified, the default condensed format will be displayed.";
+                    maxLengthControl.NumberType = ValidationDataType.Integer;
+                    maxLengthControl.MinimumValue = "0";
+                    maxLengthControl.MaximumValue = "10000";
+
+                    phDataSelectControls.Controls.Add( maxLengthControl );
+
+                    SetValidationGroup( phDataSelectControls.Controls, this.BlockValidationGroup );
+                }
+            }
         }
 
         /// <summary>
@@ -1515,6 +1587,8 @@ namespace RockWeb.Blocks.Reporting
                 fieldSelection = fieldSelectionValueParts[1];
             }
 
+            var rockContext = new RockContext();
+
             Guid reportFieldGuid = new Guid( panelWidget.ID.Replace( "reportFieldWidget_", string.Empty ) );
 
             ReportField reportField = new ReportField { ShowInGrid = true, ReportFieldType = reportFieldType };
@@ -1522,13 +1596,22 @@ namespace RockWeb.Blocks.Reporting
             {
                 reportField.Selection = string.Empty;
             }
+            else if ( reportFieldType == ReportFieldType.Attribute )
+            {
+                var info = GetAttributeFieldInfoFromControls( panelWidget, fieldSelection, rockContext );
+                fieldSelection = info.SerializeConfiguration();
+
+                reportField.Selection = fieldSelection;
+                reportField.ColumnHeaderText = info.ColumnHeader;
+                reportField.ShowInGrid = info.ShowInGrid;
+            }
             else
             {
                 reportField.Selection = fieldSelection;
             }
 
             var reportFieldInfo = ReportFieldsDictionary.First( a => a.Guid == reportFieldGuid );
-            var rockContext = new RockContext();
+
             if ( reportFieldInfo.ReportFieldType != reportFieldType || reportFieldInfo.FieldSelection != fieldSelection )
             {
                 CreateFieldTypeSpecificControls( reportFieldType, fieldSelection, panelWidget, rockContext );
@@ -1538,6 +1621,34 @@ namespace RockWeb.Blocks.Reporting
 
                 PopulateFieldPanelWidget( panelWidget, reportField, reportFieldType, fieldSelection, rockContext );
             }
+        }
+
+        private ReportingHelper.AttributeReportFieldInfo GetAttributeFieldInfoFromControls( Control container, string attributeGuid, RockContext rockContext )
+        {
+            var info = ReportingHelper.GetAttributeReportFieldInfo( attributeGuid, rockContext );
+
+            // Column Header
+            var columnHeaderTextTextBox = WebControlHelper.TryGetByName<RockTextBox>( container.Controls, "columnHeaderTextTextBox" );
+            if ( columnHeaderTextTextBox != null )
+            {
+                info.ColumnHeader = columnHeaderTextTextBox.Text;
+            }
+
+            // Show in Grid
+            var showInGridCheckBox = WebControlHelper.TryGetByName<RockCheckBox>( container.Controls, "showInGridCheckBox" );
+            if ( showInGridCheckBox != null )
+            {
+                info.ShowInGrid = showInGridCheckBox.Checked;
+            }
+
+            // Maximum Length
+            var maxLengthTextBox = GetMaxLengthControl( container );
+            if ( maxLengthTextBox != null )
+            {
+                info.MaximumLength = maxLengthTextBox.Text.AsIntegerOrNull();
+            }
+
+            return info;
         }
 
         /// <summary>
@@ -1573,11 +1684,16 @@ namespace RockWeb.Blocks.Reporting
                     break;
 
                 case ReportFieldType.Attribute:
-                    var attribute = AttributeCache.Get( fieldSelection.AsGuid(), rockContext );
-                    if ( attribute != null )
+                    var fieldInfo = ReportingHelper.GetAttributeReportFieldInfo( fieldSelection, rockContext );
+                    var attributeGuid = fieldInfo.AttributeGuid;
+                    if ( attributeGuid.HasValue )
                     {
-                        defaultColumnHeaderText = attribute.Name;
-                        fieldDefined = true;
+                        var attribute = AttributeCache.Get( attributeGuid.Value, rockContext );
+                        if ( attribute != null )
+                        {
+                            defaultColumnHeaderText = attribute.Name;
+                            fieldDefined = true;
+                        }
                     }
 
                     break;
@@ -1614,7 +1730,9 @@ namespace RockWeb.Blocks.Reporting
             RockDropDownList ddlFields = panelWidget.ControlsOfTypeRecursive<RockDropDownList>().FirstOrDefault( a => a.ID == panelWidget.ID + "_ddlFields" );
             if ( reportField.ReportFieldType == ReportFieldType.Attribute )
             {
-                var selectedValue = string.Format( "{0}|{1}", reportField.ReportFieldType, reportField.Selection );
+                var fieldInfo = ReportingHelper.GetAttributeReportFieldInfo( reportField.Selection, rockContext );
+                var attributeGuid = fieldInfo.AttributeGuid;
+                var selectedValue = GetAttributeFieldListKey( attributeGuid );
                 if ( ddlFields.Items.OfType<ListItem>().Any( a => a.Value == selectedValue ) )
                 {
                     ddlFields.SelectedValue = selectedValue;
@@ -1622,9 +1740,16 @@ namespace RockWeb.Blocks.Reporting
                 else
                 {
                     // if this EntityField is not available for the current person, but this reportField already has it configured, let them keep it
-                    var attribute = AttributeCache.Get( fieldSelection.AsGuid(), rockContext );
+                    var attribute = AttributeCache.Get( attributeGuid.Value, rockContext );
                     ddlFields.Items.Add( new ListItem( attribute.Name, selectedValue ) );
                     ddlFields.SelectedValue = selectedValue;
+                }
+
+                var hasMaxLengthControl = GetMaxLengthControl( panelWidget );
+                if ( hasMaxLengthControl != null
+                        && fieldInfo.HasMaximumLength && fieldInfo.MaximumLength.HasValue )
+                {
+                    hasMaxLengthControl.Text = fieldInfo.MaximumLength.ToString();
                 }
             }
             else if ( reportField.ReportFieldType == ReportFieldType.Property )
@@ -1647,12 +1772,25 @@ namespace RockWeb.Blocks.Reporting
             }
         }
 
+        private string GetAttributeFieldListKey( Guid? attributeGuid )
+        {
+            //var settings = ReportingHelper.DeserializeAttributeReportFieldConfig( attributeConfigurationString, rockContext );
+            var key = "Attribute|" + attributeGuid.GetValueOrDefault().ToString("n");
+            return key;
+        }
+
+        private NumberBox GetMaxLengthControl( Control container )
+        {
+            var maxLengthTextBox = WebControlHelper.TryGetByName<NumberBox>( container.Controls, "maxLengthTextBox" );
+            return maxLengthTextBox;
+        }
+
         #endregion
 
         #region ReportFieldInfo Class
 
         /// <summary>
-        /// 
+        ///
         /// </summary>
         [Serializable]
         protected class ReportFieldInfo
@@ -1676,7 +1814,7 @@ namespace RockWeb.Blocks.Reporting
             public ReportFieldType ReportFieldType { get; set; }
 
             /// <summary>
-            /// Gets or sets the field selection. 
+            /// Gets or sets the field selection.
             /// </summary>
             /// <value>
             /// The selection.

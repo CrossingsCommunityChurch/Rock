@@ -17,8 +17,10 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.ComponentModel.DataAnnotations.Schema;
 using System.Data.Entity;
 using System.Linq;
+using System.Reflection;
 using System.Web.UI;
 using System.Web.UI.WebControls;
 using Rock;
@@ -79,6 +81,7 @@ namespace RockWeb.Blocks.WorkFlow
 
     #endregion Block Attributes
 
+    [Rock.SystemGuid.BlockTypeGuid( "D7C15C1B-7487-42C3-A485-AD154F46558A" )]
     public partial class WorkflowLaunch : Rock.Web.UI.RockBlock
     {
 
@@ -366,7 +369,7 @@ namespace RockWeb.Blocks.WorkFlow
             var entitySetId = GetEntitySetId();
             var rockContext = new RockContext();
             var entitySetService = new EntitySetService( rockContext );
-            entitySetService.LaunchWorkflows( entitySetId, workflowType.Id, workflowAttributes );
+            entitySetService.LaunchWorkflows( entitySetId, workflowType.Id, CurrentPersonAliasId, workflowAttributes );
         }
 
         /// <summary>
@@ -646,6 +649,8 @@ namespace RockWeb.Blocks.WorkFlow
              * would be evaluated for every entity. Since this block has potential to display thousands of entities, I thought it best
              * to try to optimize this way.
              */
+            var hasName = theType.GetProperty( "Name" ) != null;
+            var hasTitle = theType.GetProperty( "Title" ) != null;
 
             if ( entityTypeCache.Id == EntityTypeCache.Get<Person>().Id || entityTypeCache.Id == EntityTypeCache.Get<Group>().Id )
             {
@@ -671,23 +676,17 @@ namespace RockWeb.Blocks.WorkFlow
                     Html = string.Format( twoLineTemplate, ( ( ConnectionRequest ) e ).PersonAlias.Person, ( ( ConnectionRequest ) e ).ConnectionOpportunity )
                 } );
             }
-            else if ( theType.GetProperty( "Name" ) != null )
+            else if ( hasName || hasTitle )
             {
-                // If there is a name property then use that
+                // In order of preference, use the Name, Title or Entity Type/Id properties.
                 viewModels = entityQuery.ToList().Select( e => new RepeaterViewModel
                 {
-                    Html = e.GetPropertyValue( "Name" ).ToString()
+                    Html = ( ( hasName ? e.GetPropertyValue( "Name" ) : null )
+                           ?? ( hasTitle ? e.GetPropertyValue( "Title" ) : null )
+                           ?? string.Format( nameAndIdTemplate, entityTypeCache.FriendlyName, e.Id ) ).ToStringSafe()
                 } );
             }
-            else if ( theType.GetProperty( "Title" ) != null )
-            {
-                // If there is a title property then use that
-                viewModels = entityQuery.ToList().Select( e => new RepeaterViewModel
-                {
-                    Html = e.GetPropertyValue( "Title" ).ToString()
-                } );
-            }
-            else if ( theType.GetProperty( "Person" ) != null )
+            else if ( theType.GetProperty( "Person" ) != null && theType.GetProperty( "Person" ).GetCustomAttribute( typeof( NotMappedAttribute ) ) == null )
             {
                 // If there is a Person property then use the person's name with the entity id underneath
                 viewModels = entityQuery.Include( "Person" ).ToList().Select( e => new RepeaterViewModel
@@ -697,7 +696,7 @@ namespace RockWeb.Blocks.WorkFlow
                         string.Format( nameAndIdTemplate, entityTypeCache.FriendlyName, e.Id ) )
                 } );
             }
-            else if ( theType.GetProperty( "PersonAlias" ) != null )
+            else if ( theType.GetProperty( "PersonAlias" ) != null && theType.GetProperty( "PersonAlias" ).GetCustomAttribute( typeof( NotMappedAttribute ) ) == null )
             {
                 // If there is a PersonAlias property then use the person's name with the entity id underneath
                 viewModels = entityQuery.Include( "PersonAlias.Person" ).ToList().Select( e => new RepeaterViewModel

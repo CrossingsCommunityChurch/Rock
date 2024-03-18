@@ -12,7 +12,7 @@
 <asp:UpdatePanel ID="upContent" runat="server">
 
     <Triggers>
-        <%-- make sure lbLogin and lbCancel causes a full postback due to an issue with buttons not firing in IE after clicking the login button --%>
+        <%-- make sure lbLogin and lbCancel causes a full postback due to an issue with buttons not firing in IE after clicking the log in button --%>
         <asp:PostBackTrigger ControlID="lbLogin" />
         <asp:PostBackTrigger ControlID="lbCancel" />
     </Triggers>
@@ -80,8 +80,6 @@
                     return true;
                 }
             }
-
-            
 
             Sys.Application.add_load(function () {
 
@@ -290,7 +288,7 @@
                                     submitScannedCodeSearch(decodedText);
                                 }
                                 else {
-                                    // already scanned this 
+                                    // already scanned this
                                 }
                             },
                             errorMessage => {
@@ -303,20 +301,24 @@
                             });
                     }, 0);
                 }
-                
+
                 var isIPadAppWithCamera = IsIpadAppWithCamera();
 
                 var $cameraButton = $('.js-camera-button');
+                var themeSupportsHtmlCamera = $('body').hasClass('js-camera-supported');
 
                 // handle click of scan button
-                $cameraButton.on('click', function (a) {
-                    a.preventDefault();
-                    if (isIPadAppWithCamera) {
-                        // Reset the swipe processing as it may have failed silently.
-                        swipeProcessing = false;
-                        window.RockCheckinNative.StartCamera(false);
-                    }
-                });
+                // Limit HTML5 camera to theme support, but allow the IPad Camera to be used on any theme (since it would be full screen or passive)
+                if (themeSupportsHtmlCamera || isIPadAppWithCamera) {
+                    $cameraButton.on('click', function (a) {
+                        a.preventDefault();
+                        if (isIPadAppWithCamera) {
+                            // Reset the swipe processing as it may have failed silently.
+                            swipeProcessing = false;
+                            window.RockCheckinNative.StartCamera(false);
+                        }
+                    });
+                }
 
                 // auto-show or auto-enable camera if configured to do so.
                 if (isIPadAppWithCamera) {
@@ -328,7 +330,7 @@
                         window.RockCheckinNative.StartCamera(true);
                     }
                 }
-                else if ($cameraButton.length > 0) {
+                else if (themeSupportsHtmlCamera && $cameraButton.length > 0) {
                     // using browser or windows checkin client
                     // Lava creates the js-camera-button html, but it probably doesn't
                     // have an id assigned to it, so set it if it isn't set
@@ -651,7 +653,7 @@
         <asp:Panel ID="pnlManagerLogin" CssClass="js-manager-login" runat="server" Visible="false" DefaultButton="lbLogin">
 
             <div class="checkin-header">
-                <h1>Manager Login</h1>
+                <h1>Manager Log In</h1>
             </div>
 
             <div class="checkin-body">
@@ -704,7 +706,7 @@
             <div class="checkin-footer">
 
                 <div class="checkin-actions">
-                    <asp:LinkButton ID="lbLogin" runat="server" OnClick="lbLogin_Click" CssClass="btn btn-primary">Login</asp:LinkButton>
+                    <asp:LinkButton ID="lbLogin" runat="server" OnClick="lbLogin_Click" CssClass="btn btn-primary">Log In</asp:LinkButton>
                     <asp:LinkButton ID="lbCancel" runat="server" CausesValidation="false" OnClick="lbCancel_Click" CssClass="btn btn-default btn-cancel">Cancel</asp:LinkButton>
                 </div>
             </div>

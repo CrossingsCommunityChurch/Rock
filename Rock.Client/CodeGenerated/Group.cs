@@ -50,6 +50,9 @@ namespace Rock.Client
         public int? CampusId { get; set; }
 
         /// <summary />
+        public string ConfirmationAdditionalDetails { get; set; }
+
+        /// <summary />
         public string Description { get; set; }
 
         /// <summary />
@@ -118,6 +121,15 @@ namespace Rock.Client
         public int? ParentGroupId { get; set; }
 
         /// <summary />
+        public string ReminderAdditionalDetails { get; set; }
+
+        /// <summary />
+        public int? ReminderOffsetDays { get; set; }
+
+        /// <summary />
+        public int? ReminderSystemCommunicationId { get; set; }
+
+        /// <summary />
         public int? RequiredSignatureDocumentTemplateId { get; set; }
 
         /// <summary />
@@ -128,6 +140,9 @@ namespace Rock.Client
 
         /// <summary />
         public int? ScheduleCancellationPersonAliasId { get; set; }
+
+        /// <summary />
+        public Rock.Client.Enums.Group.ScheduleConfirmationLogic? ScheduleConfirmationLogic { get; set; }
 
         /// <summary />
         public int? ScheduleId { get; set; }
@@ -176,6 +191,7 @@ namespace Rock.Client
             this.ArchivedDateTime = source.ArchivedDateTime;
             this.AttendanceRecordRequiredForCheckIn = source.AttendanceRecordRequiredForCheckIn;
             this.CampusId = source.CampusId;
+            this.ConfirmationAdditionalDetails = source.ConfirmationAdditionalDetails;
             this.Description = source.Description;
             this.DisableScheduleToolboxAccess = source.DisableScheduleToolboxAccess;
             this.DisableScheduling = source.DisableScheduling;
@@ -198,10 +214,14 @@ namespace Rock.Client
             this.Name = source.Name;
             this.Order = source.Order;
             this.ParentGroupId = source.ParentGroupId;
+            this.ReminderAdditionalDetails = source.ReminderAdditionalDetails;
+            this.ReminderOffsetDays = source.ReminderOffsetDays;
+            this.ReminderSystemCommunicationId = source.ReminderSystemCommunicationId;
             this.RequiredSignatureDocumentTemplateId = source.RequiredSignatureDocumentTemplateId;
             this.RSVPReminderOffsetDays = source.RSVPReminderOffsetDays;
             this.RSVPReminderSystemCommunicationId = source.RSVPReminderSystemCommunicationId;
             this.ScheduleCancellationPersonAliasId = source.ScheduleCancellationPersonAliasId;
+            this.ScheduleConfirmationLogic = source.ScheduleConfirmationLogic;
             this.ScheduleId = source.ScheduleId;
             this.SchedulingMustMeetRequirements = source.SchedulingMustMeetRequirements;
             this.StatusValueId = source.StatusValueId;

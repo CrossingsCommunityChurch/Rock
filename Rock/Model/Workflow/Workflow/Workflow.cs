@@ -17,6 +17,8 @@
 using Rock.Data;
 using Rock.Lava;
 using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using System.Data.Entity.ModelConfiguration;
@@ -30,6 +32,7 @@ namespace Rock.Model
     [RockDomain( "Workflow" )]
     [Table( "Workflow" )]
     [DataContract]
+    [Rock.SystemGuid.EntityTypeGuid( Rock.SystemGuid.EntityType.WORKFLOW )]
     public partial class Workflow : Model<Workflow>
     {
         #region Entity Properties
@@ -53,13 +56,12 @@ namespace Rock.Model
         public int WorkflowIdNumber { get; set; }
 
         /// <summary>
-        /// Gets the workflow identifier.
+        /// This value is a string of the WorkflowType's WorkflowIdPrefix combined with the WorkflowIdNumber.
         /// </summary>
         /// <value>
         /// The workflow identifier.
         /// </value>
         [DataMember]
-        [DatabaseGenerated( DatabaseGeneratedOption.Computed )]
         public virtual string WorkflowId { get; set; }
 
         /// <summary>
@@ -158,6 +160,15 @@ namespace Rock.Model
         [DataMember]
         public int? EntityTypeId { get; set; }
 
+        /// <summary>
+        /// Gets or sets the Campus Id of the workflow campus
+        /// </summary>
+        /// <value>
+        /// The Campus Id
+        /// </value>
+        [DataMember]
+        public int? CampusId { get; set; }
+
         #endregion Entity Properties
 
         #region Navigation Properties
@@ -180,6 +191,29 @@ namespace Rock.Model
         [DataMember]
         public virtual PersonAlias InitiatorPersonAlias { get; set; }
 
+        /// <summary>
+        /// Gets or sets a collection containing all the <see cref="Rock.Model.WorkflowActivity">WorkflowActivities</see> that are a part of this Workflow instance.
+        /// </summary>
+        /// <value>
+        /// A collection containing the <see cref="Rock.Model.WorkflowActivity">WorkflowActivities</see> that are a part of this Workflow instance.
+        /// </value>
+        [DataMember]
+        public virtual ICollection<WorkflowActivity> Activities
+        {
+            get { return _activities ?? ( _activities = new Collection<WorkflowActivity>() ); }
+            set { _activities = value; }
+        }
+        private ICollection<WorkflowActivity> _activities;
+
+        /// <summary>
+        /// Gets or sets the campus tied to the <see cref="CampusId"/>.
+        /// </summary>
+        /// <value>
+        /// The initiator person alias.
+        /// </value>
+        [DataMember]
+        public virtual Campus Campus { get; set; }
+
         #endregion Navigation Properties
     }
 
@@ -197,6 +231,7 @@ namespace Rock.Model
         {
             this.HasRequired( w => w.WorkflowType ).WithMany().HasForeignKey( w => w.WorkflowTypeId ).WillCascadeOnDelete( true );
             this.HasOptional( w => w.InitiatorPersonAlias ).WithMany().HasForeignKey( w => w.InitiatorPersonAliasId ).WillCascadeOnDelete( false );
+            this.HasOptional( w => w.Campus ).WithMany().HasForeignKey( w => w.CampusId ).WillCascadeOnDelete( false );
         }
     }
 

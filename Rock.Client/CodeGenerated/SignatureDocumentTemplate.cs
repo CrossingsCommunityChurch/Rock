@@ -57,11 +57,14 @@ namespace Rock.Client
 
         /// <summary />
         // Made Obsolete in Rock "1.10"
-        [Obsolete( "Use InviteSystemCommunicationId instead.", false )]
+        [Obsolete( "Use InviteSystemCommunicationId instead.", true )]
         public int? InviteSystemEmailId { get; set; }
 
         /// <summary />
         public bool IsActive { get; set; } = true;
+
+        /// <summary />
+        public bool IsValidInFuture { get; set; }
 
         /// <summary />
         public string LavaTemplate { get; set; }
@@ -82,6 +85,9 @@ namespace Rock.Client
 
         /// <summary />
         public Rock.Client.Enums.SignatureType SignatureType { get; set; }
+
+        /// <summary />
+        public int? ValidityDurationInDays { get; set; }
 
         /// <summary>
         /// Leave this as NULL to let Rock set this
@@ -123,16 +129,15 @@ namespace Rock.Client
             this.ForeignGuid = source.ForeignGuid;
             this.ForeignKey = source.ForeignKey;
             this.InviteSystemCommunicationId = source.InviteSystemCommunicationId;
-            #pragma warning disable 612, 618
-            this.InviteSystemEmailId = source.InviteSystemEmailId;
-            #pragma warning restore 612, 618
             this.IsActive = source.IsActive;
+            this.IsValidInFuture = source.IsValidInFuture;
             this.LavaTemplate = source.LavaTemplate;
             this.ModifiedAuditValuesAlreadyUpdated = source.ModifiedAuditValuesAlreadyUpdated;
             this.Name = source.Name;
             this.ProviderEntityTypeId = source.ProviderEntityTypeId;
             this.ProviderTemplateKey = source.ProviderTemplateKey;
             this.SignatureType = source.SignatureType;
+            this.ValidityDurationInDays = source.ValidityDurationInDays;
             this.CreatedDateTime = source.CreatedDateTime;
             this.ModifiedDateTime = source.ModifiedDateTime;
             this.CreatedByPersonAliasId = source.CreatedByPersonAliasId;

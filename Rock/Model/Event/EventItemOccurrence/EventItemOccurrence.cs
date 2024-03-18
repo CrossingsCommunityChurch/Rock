@@ -1,4 +1,4 @@
-﻿// <copyright>
+// <copyright>
 // Copyright by the Spark Development Network
 //
 // Licensed under the Rock Community License (the "License");
@@ -33,6 +33,7 @@ namespace Rock.Model
     [RockDomain( "Event" )]
     [Table( "EventItemOccurrence" )]
     [DataContract]
+    [Rock.SystemGuid.EntityTypeGuid( "71632E1A-1E7F-42B9-A630-EC99F375303A")]
     public partial class EventItemOccurrence : Model<EventItemOccurrence>
     {
         #region Entity Properties
@@ -116,6 +117,15 @@ namespace Rock.Model
         /// </value>
         [DataMember]
         public string Note { get; set; }
+
+        /// <summary>
+        /// Gets or sets the datetime for the next scheduled occurrence of this event. 
+        /// </summary>
+        /// <value>
+        /// The datetime of the next occurrence.
+        /// </value>
+        [DataMember]
+        public DateTime? NextStartDateTime { get; set; }
 
         #endregion
 

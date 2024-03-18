@@ -247,6 +247,11 @@
                                         ControlToValidate="tbSlug"
                                         OnServerValidate="cvUrlSlug_ServerValidate"
                                         Display="None" />
+                                    <asp:RegularExpressionValidator runat="server"
+                                        ID="rvUrlSlug"
+                                        ErrorMessage="URL Slug must be lowercase and cannot contain any special characters other than -"
+                                        ControlToValidate="tbSlug"
+                                        ValidationExpression="^[a-z0-9]+(?:-[a-z0-9]+)*$" />
                                 </div>
                             </div>
 
@@ -271,16 +276,28 @@
                         <asp:ValidationSummary ID="vsGroup" runat="server" HeaderText="Please correct the following:" CssClass="alert alert-validation" />
 
                         <fieldset>
-                            <div class="row">
-                                <div class="col-md-6">
-                                    <Rock:RockTextBox ID="tbGroupName" runat="server" Label="New Group Name" />
+
+                            <Rock:Toggle ID="tgExistingroup" runat="server" OnText="Existing Group" OffText="New Group" OnCheckedChanged="tgExistingroup_CheckedChanged" ButtonSizeCssClass="btn-xs" CssClass="mb-2" />
+
+                            <asp:Panel ID="pnlNewGroup" runat="server">
+
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <Rock:RockTextBox ID="tbGroupName" runat="server" Label="New Group Name" />
+                                    </div>
                                 </div>
-                            </div>
-                            <div class="row">
-                                <div class="col-md-6">
-                                    <Rock:GroupPicker ID="gpParentGroup" runat="server" Label="Parent Group" OnSelectItem="gpParentGroup_SelectItem" />
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <Rock:GroupPicker ID="gpParentGroup" runat="server" Label="Parent Group" OnSelectItem="gpParentGroup_SelectItem" />
+                                    </div>
                                 </div>
-                            </div>
+
+                            </asp:Panel>
+                     
+                            <asp:Panel ID="pnlExistingGroup" runat="server">
+                                <Rock:GroupPicker ID="gpExistingGroup" runat="server" Label="Group" AllowMultiSelect="false" />
+                            </asp:Panel>
+
                             <asp:Panel ID="pnlCheckinOptions" runat="server" Visible="false" CssClass="row">
                                 <div class="col-md-6">
                                     <Rock:LocationPicker ID="lpGroupLocation" runat="server" AllowedPickerModes="Named" Label="Location" />

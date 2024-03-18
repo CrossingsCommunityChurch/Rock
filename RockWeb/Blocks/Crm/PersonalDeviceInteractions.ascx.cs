@@ -43,6 +43,7 @@ namespace RockWeb.Blocks.Crm
         DefaultIntegerValue = 5,
         Order = 0 )]
 
+    [Rock.SystemGuid.BlockTypeGuid( "D6224911-2590-427F-9DCE-6D14E79806BA" )]
     public partial class PersonalDeviceInteractions : RockBlock
     {
         #region Attribute Keys
@@ -91,8 +92,8 @@ namespace RockWeb.Blocks.Crm
             _personalDeviceId = PageParameter( "PersonalDeviceId" ).AsIntegerOrNull();
             if ( _personalDeviceId.HasValue )
             {
-                gfInteractions.SaveUserPreference( FilterSetting.PresentDevices, string.Empty );
-                gfInteractions.SaveUserPreference( FilterSetting.ShowUnassignedDevices, string.Empty );
+                gfInteractions.SetFilterPreference( FilterSetting.PresentDevices, string.Empty );
+                gfInteractions.SetFilterPreference( FilterSetting.ShowUnassignedDevices, string.Empty );
                 cbPresentDevices.Visible = false;
                 cbShowUnassignedDevices.Visible = false;
             }
@@ -136,7 +137,7 @@ namespace RockWeb.Blocks.Crm
         /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
         protected void gfInteractions_ClearFilterClick( object sender, EventArgs e )
         {
-            gfInteractions.DeleteUserPreferences();
+            gfInteractions.DeleteFilterPreferences();
             BindFilter();
         }
 
@@ -147,9 +148,9 @@ namespace RockWeb.Blocks.Crm
         /// <param name="e">The <see cref="EventArgs" /> instance containing the event data.</param>
         protected void gfInteractions_ApplyFilterClick( object sender, EventArgs e )
         {
-            gfInteractions.SaveUserPreference( FilterSetting.DateRange, sdpDateRange.DelimitedValues );
-            gfInteractions.SaveUserPreference( FilterSetting.ShowUnassignedDevices, cbShowUnassignedDevices.Checked.ToString() );
-            gfInteractions.SaveUserPreference( FilterSetting.PresentDevices, cbPresentDevices.Checked.ToString() );
+            gfInteractions.SetFilterPreference( FilterSetting.DateRange, sdpDateRange.DelimitedValues );
+            gfInteractions.SetFilterPreference( FilterSetting.ShowUnassignedDevices, cbShowUnassignedDevices.Checked.ToString() );
+            gfInteractions.SetFilterPreference( FilterSetting.PresentDevices, cbPresentDevices.Checked.ToString() );
 
             BindGrid();
         }
@@ -221,9 +222,9 @@ namespace RockWeb.Blocks.Crm
         /// </summary>
         private void BindFilter()
         {
-            sdpDateRange.DelimitedValues = gfInteractions.GetUserPreference( FilterSetting.DateRange );
-            cbShowUnassignedDevices.Checked = gfInteractions.GetUserPreference( FilterSetting.ShowUnassignedDevices ).AsBooleanOrNull() ?? false;
-            cbPresentDevices.Checked = gfInteractions.GetUserPreference( FilterSetting.PresentDevices ).AsBooleanOrNull() ?? false;
+            sdpDateRange.DelimitedValues = gfInteractions.GetFilterPreference( FilterSetting.DateRange );
+            cbShowUnassignedDevices.Checked = gfInteractions.GetFilterPreference( FilterSetting.ShowUnassignedDevices ).AsBooleanOrNull() ?? false;
+            cbPresentDevices.Checked = gfInteractions.GetFilterPreference( FilterSetting.PresentDevices ).AsBooleanOrNull() ?? false;
         }
 
         /// <summary>
@@ -263,7 +264,7 @@ namespace RockWeb.Blocks.Crm
                 }
                 gInteractions.ColumnsOfType<RockTemplateField>().First( a => a.HeaderText == "Assigned Individual" ).Visible = !_personalDeviceId.HasValue;
 
-                var dateRange = SlidingDateRangePicker.CalculateDateRangeFromDelimitedValues( gfInteractions.GetUserPreference( FilterSetting.DateRange ) );
+                var dateRange = SlidingDateRangePicker.CalculateDateRangeFromDelimitedValues( gfInteractions.GetFilterPreference( FilterSetting.DateRange ) );
 
                 if ( dateRange.Start.HasValue )
                 {

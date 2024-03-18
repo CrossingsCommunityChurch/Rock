@@ -14,6 +14,8 @@
 // limitations under the License.
 // </copyright>
 //
+using System;
+
 namespace Rock.Lava
 {
     /// <summary>
@@ -29,10 +31,10 @@ namespace Rock.Lava
             this.GetPageContext = true;
             this.GetPageParameters = true;
             this.GetCurrentPerson = true;
+            this.GetCurrentVisitor = true;
             this.GetCampuses = true;
             this.GetDeviceFamily = false;
             this.GetOSFamily = false;
-            this.GetLegacyGlobalMergeFields = true;
         }
 
         /// <summary>
@@ -51,10 +53,10 @@ namespace Rock.Lava
                     GetPageContext = false,
                     GetPageParameters = false,
                     GetCurrentPerson = false,
+                    GetCurrentVisitor = false,
                     GetCampuses = false,
                     GetDeviceFamily = false,
-                    GetOSFamily = false,
-                    GetLegacyGlobalMergeFields = false
+                    GetOSFamily = false
                 };
             }
         }
@@ -85,6 +87,12 @@ namespace Rock.Lava
         public bool GetCurrentPerson { get; set; }
 
         /// <summary>
+        /// Gets or sets a value indicating whether [get current visitor]. Defaults to True;
+        /// </summary>
+        /// <value><c>true</c> if [get current visitor]; otherwise, <c>false</c>.</value>
+        public bool GetCurrentVisitor { get; set; }
+
+        /// <summary>
         /// Gets or sets a value indicating whether [get campuses]. Defaults to True
         /// </summary>
         /// <value>
@@ -107,14 +115,5 @@ namespace Rock.Lava
         ///   <c>true</c> if [get os family]; otherwise, <c>false</c>.
         /// </value>
         public bool GetOSFamily { get; set; }
-
-        /// <summary>
-        /// If this is True (the default), get the GlobalAttribute merge fields when in LegacyMode
-        /// Set to False to never get the Legacy Global Merges fields, even when in Legacy Mode
-        /// </summary>
-        /// <value>
-        /// The get global attributes.
-        /// </value>
-        public bool GetLegacyGlobalMergeFields { get; set; }
     }
 }

@@ -217,9 +217,9 @@
                 pageContext
             };
 
-            const $btn = $panel.find('.js-load-more');
-            $btn.html('<i class="fa fa-refresh fa-spin"></i> Load More');
-            $btn.addClass("disabled");
+            const $btnLoadMore = $panel.find('.js-load-more');
+            $btnLoadMore.html('<i class="fa fa-refresh fa-spin"></i> Load More');
+            $btnLoadMore.addClass("disabled");
 
             const result = await $.ajax({
                 type: "POST",
@@ -229,13 +229,17 @@
             });
 
             if (!result.Items || result.Items.length === 0) {
-                $btn.hide();
+                $btnLoadMore.hide();
                 return;
+            } else {
+                if (result.Items.length < 25) {
+                    $btnLoadMore.hide();
+                }
             }
 
-            $btn.removeClass("disabled");
-            $btn.data("context", result.NextPage);
-            $btn.text("Load More");
+            $btnLoadMore.removeClass("disabled");
+            $btnLoadMore.data("context", result.NextPage);
+            $btnLoadMore.text("Load More");
 
             for (var i = 0; i < result.Items.length; i++) {
                 const item = result.Items[i];
@@ -244,10 +248,13 @@
                 var $date = $('<div class="individual-play-date"></div>');
                 var $bar = $('<div class="individual-play-bar"></div>');
                 var $person = $('<div class="individual-play-person"></div>');
+                var $additional = $('<div class="position-relative additional-data"></div>');
+                var $interaction = $('<div class="individual-play-interaction"></div>');
                 var $chart = $('<div class="individual-play-chart"></div>');
                 var $percent = $('<div class="individual-play-percent"></div>');
                 $row.append($date, $bar);
-                $bar.append($person, $chart, $percent);
+                $bar.append($person, $additional, $chart, $percent);
+                $additional.append($interaction);
 
                 const date = new moment(item.DateTime);
 
@@ -263,23 +270,113 @@
 
                 $person.append(getPerson(item))
 
+                if (item.Isp !== null || item.OperatingSystem !== null || item.Application !== null) {
+                    $interaction.append(getInteractionData(item));
+                } else {
+                    $interaction.addClass("no-details");
+                }
+
                 $chart.append(getHeatMap(item.Data.WatchMap));
                 $percent.text(Math.floor(item.Data.WatchedPercentage) + "%");
 
-                $row.insertBefore($btn);
+                $row.insertBefore($btnLoadMore);
             }
+
+            initializeExpanderHoverEventListener();
+        }
+
+        const getInteractionData = function (item) {
+            const sessionInfo = document.createElement("div");
+            sessionInfo.setAttribute("class", "individual-play-interaction-session");
+
+            const isp = document.createElement("span");
+            isp.textContent = item.Isp;
+            const operatingSystem = document.createElement("span");
+            operatingSystem.textContent = item.OperatingSystem;
+            const applciation = document.createElement("span");
+            applciation.textContent = item.Application;
+
+            sessionInfo.append(isp);
+            sessionInfo.append(operatingSystem);
+            sessionInfo.append(applciation);
+
+            const expander = document.createElement("div");
+            expander.setAttribute("class", "expander");
+            expander.setAttribute("name", "expander");
+            const expanderIcon = document.createElement("i");
+            expanderIcon.setAttribute("class", "fa fa-chevron-right text-muted o-50");
+            expander.setAttribute("name", "expander");
+            expander.append(expanderIcon);
+
+            return [sessionInfo, expander];
+        }
+
+        const initializeExpanderHoverEventListener = function () {
+            let interactions = document.querySelectorAll(".individual-play-interaction:not(.no-details)");
+
+            interactions.forEach(interaction => interaction.addEventListener("mouseover", event => {
+                if (event.target.getAttribute("name") === "expander") {
+                    let icon = event.target.querySelector(".fa-chevron-right");
+                    icon?.classList.add("fa-flip-horizontal");
+
+                    interaction.classList.add("expanded");
+                }
+            }));
+
+            interactions.forEach(interaction => interaction.addEventListener("mouseleave", event => {
+                if (interaction.querySelector(".fa-chevron-right")) {
+                    let icon = interaction.querySelector(".fa-chevron-right");
+                    icon.classList.remove("fa-flip-horizontal");
+
+                    interaction.classList.remove("expanded");
+                }
+            }));
         }
 
         const getPerson = function (item) {
+            const clientTypeIcons = {
+                Mobile: "fa fa-mobile-alt",
+                Desktop: "fa fa-desktop",
+                Tablet: "fa fa-tablet-alt",
+            }
+
+            const clientType = document.createElement("i");
+            clientType.setAttribute("class", clientTypeIcons[item.ClientType] + " fa-lg text-muted o-50 mx-2");
+            clientType.setAttribute("title", item.ClientType);
+
+            const interactions = document.createElement("span");
+            if (item.InteractionsCount > 0) {
+                interactions.setAttribute("class", "badge-circle badge-info flex-shrink-0 ml-1");
+                interactions.setAttribute("title", "Interactions");
+                interactions.textContent = item.InteractionsCount;
+            }
+
+            const personInfo = document.createElement("div");
+            personInfo.setAttribute("class", "individual-play-person-info");
+
+            const personDetail = document.createElement("span");
+            personDetail.setAttribute("class", "individual-play-person-detail");
+
             const photo = document.createElement("div");
             const url = item.PhotoUrl + (item.PhotoUrl.indexOf("?") === -1 ? "?w=50" : "&w=50");
-            photo.setAttribute("class", "photo-icon photo-round photo-round-xs pull-left margin-r-sm");
+            photo.setAttribute("class", "photo-icon photo-round photo-round-xs flex-shrink-0 margin-r-sm");
             photo.setAttribute("style", "background-image: url('" + url + "'); background-size: cover; background-repeat: no-repeat;");
 
             const name = document.createElement("span");
+            name.setAttribute("class", "text-truncate");
             name.textContent = item.FullName;
 
-            return [photo, name];
+            const location = document.createElement("span");
+            location.setAttribute("class", "individual-play-person-location");
+            location.textContent = item.Location;
+
+            personInfo.appendChild(personDetail);
+            personDetail.appendChild(photo);
+            personDetail.appendChild(name);
+            personInfo.appendChild(location);
+
+
+            return [personInfo, clientType, interactions];
         }
 
         const getHeatMap = function (watchMap) {
@@ -361,16 +458,16 @@
             }
 
             const $individualPlaysPanel = $("#" + options.individualPlaysId);
-            const $btn = $individualPlaysPanel.find(".js-load-more");
+            const $btnLoadMore = $individualPlaysPanel.find(".js-load-more");
 
-            $btn.on("click", ev => {
+            $btnLoadMore.on("click", ev => {
                 ev.preventDefault();
 
-                if ($btn.hasClass("disabled")) {
+                if ($btnLoadMore.hasClass("disabled")) {
                     return;
                 }
 
-                const context = $btn.data("context");
+                const context = $btnLoadMore.data("context");
 
                 loadMoreIndividualPlays($individualPlaysPanel, options, context);
             });

@@ -82,6 +82,16 @@
                                 </div>
                             </div>
 
+                            <div class="row form-row">
+                                <div class="col-md-6">
+                                    <Rock:RacePicker ID="rpRace" runat="server" />
+                                </div>
+
+                                <div class="col-md-6">
+                                    <Rock:EthnicityPicker ID="epEthnicity" runat="server"/>
+                                </div>
+                            </div>
+
                             <asp:Panel ID="pnlPersonAttributes" runat="server">
                                 <Rock:AttributeValuesContainer ID="avcPersonAttributesAdult" runat="server" NumberOfColumns="2" />
                                 <Rock:AttributeValuesContainer ID="avcPersonAttributesChild" runat="server" NumberOfColumns="2" />
@@ -113,7 +123,7 @@
                             </asp:Panel>
 
                             <div class="form-section">
-                                <Rock:DataTextBox ID="tbEmail" PrependText="<i class='fa fa-envelope'></i>" runat="server" SourceTypeName="Rock.Model.Person, Rock" PropertyName="Email" Label="Email Address" />
+                                <Rock:DataTextBox ID="tbEmail" PrependText="<i class='fa fa-envelope'></i>" FormGroupCssClass="email-box" runat="server" SourceTypeName="Rock.Model.Person, Rock" PropertyName="Email" Label="Email Address" />
 
                                 <Rock:RockRadioButtonList ID="rblEmailPreference" runat="server" RepeatDirection="Horizontal" Label="Email Preference">
                                     <asp:ListItem Text="All Emails" Value="EmailAllowed" />
@@ -156,6 +166,10 @@
                             <div class="actions">
                                 <asp:LinkButton ID="btnSave" runat="server" AccessKey="s" ToolTip="Alt+s" Text="Save" CssClass="btn btn-primary" OnClick="btnSave_Click" />
                                 <asp:LinkButton ID="btnCancel" runat="server" AccessKey="c" ToolTip="Alt+c" Text="Cancel" CssClass="btn btn-link" CausesValidation="false" OnClick="btnCancel_Click" />
+
+                                <div class="pull-right">
+                                    <Rock:HighlightLabel ID="hlblSuccess" runat="server" LabelType="Success" Text="Saved" Visible="false" />
+                                </div>
                             </div>
 
                         </div>

@@ -26,13 +26,17 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Web.UI;
 using System.Web.UI.WebControls;
-using Newtonsoft.Json;
+
+using Microsoft.Extensions.Logging;
+
 using Rock;
 using Rock.Attribute;
+using Rock.Chart;
 using Rock.Data;
+using Rock.Logging;
 using Rock.Model;
 using Rock.Reporting;
-using Rock.Security;
+using Rock.Utility;
 using Rock.Web.Cache;
 using Rock.Web.UI;
 using Rock.Web.UI.Controls;
@@ -185,6 +189,7 @@ namespace RockWeb.Blocks.CheckIn
         DefaultIntegerValue = 180,
         Order = 15 )]
 
+    [Rock.SystemGuid.BlockTypeGuid( "3CD3411C-C076-4344-A9D5-8F3B4F01E31D" )]
     public partial class AttendanceAnalytics : RockBlock
     {
         private static class AttributeKeys
@@ -239,7 +244,7 @@ namespace RockWeb.Blocks.CheckIn
             var rockContextAnalytics = new RockContextAnalytics();
             rockContextAnalytics.Database.CommandTimeout = databaseTimeoutSeconds;
 
-            cbShowInactive.Checked = GetUserPreference( BlockCache.Guid.ToString() + "_showInactive" ).AsBoolean();
+            cbShowInactive.Checked = GetBlockPersonPreferences().GetValue( "show-inactive" ).AsBoolean();
 
             // Determine if the block should be for a specific group
             _isGroupSpecific = GetAttributeValue( AttributeKeys.GroupSpecific ).AsBoolean();
@@ -304,16 +309,20 @@ namespace RockWeb.Blocks.CheckIn
             // GroupTypesUI dynamically creates controls, so we need to rebuild it on every OnLoad()
             BuildGroupTypesUI( false );
 
-            var chartStyleDefinedValueGuid = this.GetAttributeValue( AttributeKeys.ChartStyle ).AsGuidOrNull();
+            var chartStyle = GetChartStyle();
+            lcAttendance.SetChartStyle( chartStyle );
+            bcAttendance.SetChartStyle( chartStyle );
 
-            lcAttendance.Options.SetChartStyle( chartStyleDefinedValueGuid );
-            bcAttendance.Options.xaxis = new AxisOptions { mode = AxisMode.categories, tickLength = 0 };
-            bcAttendance.Options.series.bars.barWidth = 0.6;
-            bcAttendance.Options.series.bars.align = "center";
-            // Set chart style after setting options so they are not overwritten.
-            bcAttendance.Options.SetChartStyle( chartStyleDefinedValueGuid );
-
-            if ( !Page.IsPostBack )
+            if ( Page.IsPostBack )
+            {
+                // Assign event handlers to process the postback.
+                if ( this.DetailPageGuid.HasValue )
+                {
+                    lcAttendance.ChartClick += ChartClickEventHandler;
+                    bcAttendance.ChartClick += ChartClickEventHandler;
+                }
+            }
+            else
             {
                 lSlidingDateRangeHelp.Text = SlidingDateRangePicker.GetHelpHtml( RockDateTime.Now );
 
@@ -331,6 +340,40 @@ namespace RockWeb.Blocks.CheckIn
                     LogAndShowException( exception );
                 }
             }
+        }
+
+        /// <summary>
+        /// Gets the chart style.
+        /// </summary>
+        /// <value>
+        /// The chart style.
+        /// </value>
+        private ChartStyle GetChartStyle()
+        {
+            var chartStyle = new ChartStyle();
+
+            var chartStyleDefinedValueGuid = GetAttributeValue( AttributeKeys.ChartStyle ).AsGuidOrNull();
+
+            if ( chartStyleDefinedValueGuid.HasValue )
+            {
+                var rockContext = new RockContext();
+                var definedValue = DefinedValueCache.Get( chartStyleDefinedValueGuid.Value );
+                if ( definedValue != null )
+                {
+                    try
+                    {
+                        definedValue.LoadAttributes( rockContext );
+
+                        chartStyle = ChartStyle.CreateFromJson( definedValue.Value, definedValue.GetAttributeValue( AttributeKeys.ChartStyle ) );
+                    }
+                    catch
+                    {
+                        // intentionally ignore and default to basic style
+                    }
+                }
+            }
+
+            return chartStyle;
         }
 
         #endregion
@@ -378,7 +421,7 @@ namespace RockWeb.Blocks.CheckIn
         }
 
         /// <summary>
-        /// Handles the GridRebind event of the GAttendeesAttendance control.
+        /// Handles the GridRebind event of the gAttendeesAttendance control.
         /// </summary>
         /// <param name="sender">The source of the event.</param>
         /// <param name="e">The <see cref="GridRebindEventArgs"/> instance containing the event data.</param>
@@ -388,7 +431,7 @@ namespace RockWeb.Blocks.CheckIn
         }
 
         /// <summary>
-        /// Handles the GridRebind event of the gAttendance control.
+        /// Handles the GridRebind event of the gChartAttendance control.
         /// </summary>
         /// <param name="sender">The source of the event.</param>
         /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
@@ -579,7 +622,7 @@ namespace RockWeb.Blocks.CheckIn
                     {
                         var groupTypeIds = groupTypeService
                             .GetCheckinAreaDescendantsOrdered( ddlAttendanceArea.SelectedGroupTypeId.Value )
-                            .Select(a => a.Id)
+                            .Select( a => a.Id )
                             .ToList();
 
                         return groupTypeService.GetByIds( groupTypeIds ).ToList();
@@ -599,15 +642,11 @@ namespace RockWeb.Blocks.CheckIn
             pnlResults.Visible = true;
 
             lcAttendance.ShowTooltip = true;
-            if ( this.DetailPageGuid.HasValue )
-            {
-                lcAttendance.ChartClick += lcAttendance_ChartClick;
-            }
-
             bcAttendance.ShowTooltip = true;
             if ( this.DetailPageGuid.HasValue )
             {
-                bcAttendance.ChartClick += lcAttendance_ChartClick;
+                lcAttendance.ChartClick += ChartClickEventHandler;
+                bcAttendance.ChartClick += ChartClickEventHandler;
             }
 
             var dateRange = SlidingDateRangePicker.CalculateDateRangeFromDelimitedValues( drpSlidingDateRange.DelimitedValues );
@@ -630,106 +669,54 @@ namespace RockWeb.Blocks.CheckIn
             if ( pnlShowByChart.Visible )
             {
                 var groupBy = hfGroupBy.Value.ConvertToEnumOrNull<ChartGroupBy>() ?? ChartGroupBy.Week;
-                lcAttendance.TooltipFormatter = null;
-                double? chartDataWeekCount = null;
-                double? chartDataMonthCount = null;
-                int maxXLabelCount = 20;
-                if ( dateRange.End.HasValue && dateRange.Start.HasValue )
-                {
-                    chartDataWeekCount = ( dateRange.End.Value - dateRange.Start.Value ).TotalDays / 7;
-                    chartDataMonthCount = ( dateRange.End.Value - dateRange.Start.Value ).TotalDays / 30;
-                }
 
+                lcAttendance.TooltipContentScript = GetChartTooltipScript( groupBy );
+
+                string intervalType = null;
+                string intervalSize = null;
                 switch ( groupBy )
                 {
                     case ChartGroupBy.Week:
                         {
-                            if ( chartDataWeekCount < maxXLabelCount )
-                            {
-                                lcAttendance.Options.xaxis.tickSize = new string[] { "7", "day" };
-                            }
-                            else
-                            {
-                                lcAttendance.Options.xaxis.tickSize = null;
-                            }
-
-                            lcAttendance.TooltipFormatter = @"
-function(item) {
-    var itemDate = new Date(item.series.chartData[item.dataIndex].DateTimeStamp);
-    var dateText = 'Weekend of <br />' + itemDate.toLocaleDateString();
-    var seriesLabel = item.series.label || ( item.series.labels ? item.series.labels[item.dataIndex] : null );
-    var pointValue = item.series.chartData[item.dataIndex].YValue || item.series.chartData[item.dataIndex].YValueTotal || '-';
-    return dateText + '<br />' + seriesLabel + ': ' + pointValue;
-}
-";
+                            intervalType = "week";
+                            intervalSize = "1";
                         }
-
                         break;
 
                     case ChartGroupBy.Month:
                         {
-                            if ( chartDataMonthCount < maxXLabelCount )
-                            {
-                                lcAttendance.Options.xaxis.tickSize = new string[] { "1", "month" };
-                            }
-                            else
-                            {
-                                lcAttendance.Options.xaxis.tickSize = null;
-                            }
-
-                            lcAttendance.TooltipFormatter = @"
-function(item) {
-    var month_names = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-    var itemDate = new Date(item.series.chartData[item.dataIndex].DateTimeStamp);
-    var dateText = month_names[itemDate.getMonth()] + ' ' + itemDate.getFullYear();
-    var seriesLabel = item.series.label || ( item.series.labels ? item.series.labels[item.dataIndex] : null );
-    var pointValue = item.series.chartData[item.dataIndex].YValue || item.series.chartData[item.dataIndex].YValueTotal || '-';
-    return dateText + '<br />' + seriesLabel + ': ' + pointValue;
-}
-";
+                            intervalType = "month";
+                            intervalSize = "1";
                         }
-
                         break;
 
                     case ChartGroupBy.Year:
                         {
-                            lcAttendance.Options.xaxis.tickSize = new string[] { "1", "year" };
-                            lcAttendance.TooltipFormatter = @"
-function(item) {
-    var itemDate = new Date(item.series.chartData[item.dataIndex].DateTimeStamp);
-    var dateText = itemDate.getFullYear();
-    var seriesLabel = item.series.label || ( item.series.labels ? item.series.labels[item.dataIndex] : null );
-    var pointValue = item.series.chartData[item.dataIndex].YValue || item.series.chartData[item.dataIndex].YValueTotal || '-';
-    return dateText + '<br />' + seriesLabel + ': ' + pointValue;
-}
-";
+                            intervalType = "year";
+                            intervalSize = "1";
                         }
-
                         break;
                 }
+                lcAttendance.SeriesGroupIntervalType = intervalType;
+                lcAttendance.SeriesGroupIntervalSize = intervalSize;
 
                 string groupByTextPlural = groupBy.ConvertToString().ToLower().Pluralize();
                 lPatternXFor.Text = string.Format( " {0} for the selected date range", groupByTextPlural );
                 lPatternAndMissedXBetween.Text = string.Format( " {0} between", groupByTextPlural );
 
-                bcAttendance.TooltipFormatter = lcAttendance.TooltipFormatter;
+                bcAttendance.TooltipContentScript = lcAttendance.TooltipContentScript;
 
                 var chartData = this.GetAttendanceChartData().ToList();
-                var jsonSetting = new JsonSerializerSettings
-                {
-                    ReferenceLoopHandling = ReferenceLoopHandling.Ignore,
-                    ContractResolver = new Rock.Utility.IgnoreUrlEncodedKeyContractResolver()
-                };
-                string chartDataJson = JsonConvert.SerializeObject( chartData, Formatting.None, jsonSetting );
 
                 var singleDateTime = chartData.GroupBy( a => a.DateTimeStamp ).Count() == 1;
                 if ( singleDateTime )
                 {
-                    bcAttendance.ChartData = chartDataJson;
+                    var chartDataByCategory = ChartDataFactory.GetCategorySeriesFromChartData( chartData );
+                    bcAttendance.SetChartDataItems( chartDataByCategory );
                 }
                 else
                 {
-                    lcAttendance.ChartData = chartDataJson;
+                    lcAttendance.SetChartDataItems( chartData );
                 }
                 bcAttendance.Visible = singleDateTime;
                 lcAttendance.Visible = !singleDateTime;
@@ -748,28 +735,104 @@ function(item) {
             SaveSettings();
         }
 
+        private string GetChartTooltipScript( ChartGroupBy groupBy )
+        {
+            var tooltipScriptTemplate = @"
+function(tooltipModel)
+{
+    var colors = tooltipModel.labelColors[0];
+    var style = 'background:' + colors.backgroundColor;
+    style += '; border-color:' + colors.borderColor;
+    style += '; border-width: 2px';
+    style += '; width: 10px';
+    style += '; height: 10px';
+    style += '; margin-right: 10px';
+    style += '; display: inline-block';
+    var span = '<span style=""' + style + '""></span>';
+<assignContent>
+    var html = '<table><thead>';
+    html += '<tr><th style=""text-align:center"">' + headerText + '</th></tr>';
+    html += '</thead><tbody>';
+    html += '<tr><td>' + span + bodyText  + '</td></tr>';
+    html += '</tbody></table>';
+    return html;
+}
+";
+
+            string tooltipScript;
+            switch ( groupBy )
+            {
+                case ChartGroupBy.Week:
+                default:
+                    {
+                        var assignContentScript = @"
+var bodyText = tooltipModel.body[0].lines[0];
+var headerText = 'Weekend of <br />' + tooltipModel.title;
+";
+
+                        tooltipScript = tooltipScriptTemplate
+                            .Replace( "<assignContent>", assignContentScript );
+                    }
+                    break;
+
+                case ChartGroupBy.Month:
+                    {
+                        var assignContentScript = @"
+var bodyText = tooltipModel.body[0].lines[0];
+var month_names = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+var dp = tooltipModel.dataPoints[0];
+var dataValue = _chartData.data.datasets[dp.datasetIndex].data[dp.index];
+var itemDate = new Date( dataValue.x );
+var headerText = month_names[itemDate.getMonth()] + ' ' + itemDate.getFullYear();
+";
+
+                        tooltipScript = tooltipScriptTemplate
+                            .Replace( "<assignContent>", assignContentScript );
+
+                    }
+                    break;
+
+                case ChartGroupBy.Year:
+                    {
+                        var assignContentScript = @"
+var bodyText = tooltipModel.body[0].lines[0];
+var dp = tooltipModel.dataPoints[0];
+var dataValue = _chartData.data.datasets[dp.datasetIndex].data[dp.index];
+var itemDate = new Date( dataValue.x );
+var headerText = dp.label;
+";
+
+                        tooltipScript = tooltipScriptTemplate
+                            .Replace( "<assignContent>", assignContentScript );
+                    }
+                    break;
+            }
+
+            return tooltipScript;
+        }
+
         /// <summary>
         /// Saves the attendance reporting settings to user preferences.
         /// </summary>
         private void SaveSettings()
         {
-            string keyPrefix = string.Format( "attendance-reporting-{0}-", this.BlockId );
+            var preferences = GetBlockPersonPreferences();
 
-            this.SetUserPreference( keyPrefix + "TemplateGroupTypeId", ddlAttendanceArea.SelectedGroupTypeId.ToString(), false );
+            preferences.SetValue( "TemplateGroupTypeId", ddlAttendanceArea.SelectedGroupTypeId.ToString() );
 
-            this.SetUserPreference( keyPrefix + "SlidingDateRange", drpSlidingDateRange.DelimitedValues, false );
-            this.SetUserPreference( keyPrefix + "GroupBy", hfGroupBy.Value, false );
-            this.SetUserPreference( keyPrefix + "GraphBy", hfGraphBy.Value, false );
-            this.SetUserPreference( keyPrefix + "CampusIds", clbCampuses.SelectedValues.AsDelimited( "," ), false );
-            this.SetUserPreference( keyPrefix + "ScheduleIds", spSchedules.SelectedValues.ToList().AsDelimited( "," ), false );
-            this.SetUserPreference( keyPrefix + "DataView", dvpDataView.SelectedValue, false );
+            preferences.SetValue( "SlidingDateRange", drpSlidingDateRange.DelimitedValues );
+            preferences.SetValue( "GroupBy", hfGroupBy.Value );
+            preferences.SetValue( "GraphBy", hfGraphBy.Value );
+            preferences.SetValue( "CampusIds", clbCampuses.SelectedValues.AsDelimited( "," ) );
+            preferences.SetValue( "ScheduleIds", spSchedules.SelectedValues.ToList().AsDelimited( "," ) );
+            preferences.SetValue( "DataView", dvpDataView.SelectedValue );
 
             var selectedGroupIds = GetSelectedGroupIds();
-            this.SetUserPreference( keyPrefix + "GroupIds", selectedGroupIds.AsDelimited( "," ), false );
+            preferences.SetValue( "GroupIds", selectedGroupIds.AsDelimited( "," ) );
 
-            this.SetUserPreference( keyPrefix + "ShowBy", hfShowBy.Value, false );
+            preferences.SetValue( "ShowBy", hfShowBy.Value );
 
-            this.SetUserPreference( keyPrefix + "ViewBy", hfViewBy.Value, false );
+            preferences.SetValue( "ViewBy", hfViewBy.Value );
 
             AttendeesFilterBy attendeesFilterBy;
             if ( radByVisit.Checked )
@@ -785,18 +848,17 @@ function(item) {
                 attendeesFilterBy = AttendeesFilterBy.All;
             }
 
-            this.SetUserPreference( keyPrefix + "AttendeesFilterByType", attendeesFilterBy.ConvertToInt().ToString(), false );
-            this.SetUserPreference( keyPrefix + "AttendeesFilterByVisit", ddlNthVisit.SelectedValue, false );
-            this.SetUserPreference( keyPrefix + "AttendeesFilterByPattern", string.Format( "{0}|{1}|{2}|{3}", tbPatternXTimes.Text, cbPatternAndMissed.Checked, tbPatternMissedXTimes.Text, drpPatternDateRange.DelimitedValues ), false );
+            preferences.SetValue( "AttendeesFilterByType", attendeesFilterBy.ConvertToInt().ToString() );
+            preferences.SetValue( "AttendeesFilterByVisit", ddlNthVisit.SelectedValue );
+            preferences.SetValue( "AttendeesFilterByPattern", string.Format( "{0}|{1}|{2}|{3}", tbPatternXTimes.Text, cbPatternAndMissed.Checked, tbPatternMissedXTimes.Text, drpPatternDateRange.DelimitedValues ) );
 
-            this.SaveUserPreferences( keyPrefix );
+            preferences.Save();
 
             // Create URL for selected settings
             var pageReference = CurrentPageReference;
-            foreach ( var setting in GetUserPreferences( keyPrefix ) )
+            foreach ( var key in preferences.GetKeys() )
             {
-                string key = setting.Key.Substring( keyPrefix.Length );
-                pageReference.Parameters.AddOrReplace( key, setting.Value );
+                pageReference.Parameters.AddOrReplace( key, preferences.GetValue( key ) );
             }
 
             Uri uri = new Uri( Request.UrlProxySafe().ToString() );
@@ -846,16 +908,16 @@ function(item) {
         {
             FilterIncludedInURL = false;
 
-            string keyPrefix = string.Format( "attendance-reporting-{0}-", this.BlockId );
+            var preferences = GetBlockPersonPreferences();
 
             if ( !_isGroupSpecific )
             {
-                ddlAttendanceArea.SelectedGroupTypeId = GetSetting( keyPrefix, "TemplateGroupTypeId" ).AsIntegerOrNull();
-                cbIncludeGroupsWithoutSchedule.Checked = this.GetBlockUserPreference( "IncludeGroupsWithoutSchedule" ).AsBooleanOrNull() ?? true;
+                ddlAttendanceArea.SelectedGroupTypeId = GetSetting( preferences, "TemplateGroupTypeId" ).AsIntegerOrNull();
+                cbIncludeGroupsWithoutSchedule.Checked = preferences.GetValue( "IncludeGroupsWithoutSchedule" ).AsBooleanOrNull() ?? true;
                 BuildGroupTypesUI( false );
             }
 
-            string slidingDateRangeSettings = GetSetting( keyPrefix, "SlidingDateRange" );
+            string slidingDateRangeSettings = GetSetting( preferences, "SlidingDateRange" );
             if ( string.IsNullOrWhiteSpace( slidingDateRangeSettings ) )
             {
                 // default to current year
@@ -867,10 +929,10 @@ function(item) {
                 drpSlidingDateRange.DelimitedValues = slidingDateRangeSettings;
             }
 
-            dvpDataView.SetValue( GetSetting( keyPrefix, "DataView" ).AsIntegerOrNull() );
+            dvpDataView.SetValue( GetSetting( preferences, "DataView" ).AsIntegerOrNull() );
 
-            hfGroupBy.Value = GetSetting( keyPrefix, "GroupBy" );
-            hfGraphBy.Value = GetSetting( keyPrefix, "GraphBy" );
+            hfGroupBy.Value = GetSetting( preferences, "GroupBy" );
+            hfGraphBy.Value = GetSetting( preferences, "GraphBy" );
 
             if ( GetAttributeValue( AttributeKeys.ShowCampusFilter ).AsBoolean() )
             {
@@ -886,12 +948,9 @@ function(item) {
                 }
                 else
                 {
-                    string campusKey = keyPrefix + "CampusIds";
-
-                    var sessionPreferences = RockPage.SessionUserPreferences();
-                    if ( sessionPreferences.ContainsKey( campusKey ) )
+                    if ( preferences.ContainsKey( "CampusIds" ) )
                     {
-                        campusIdList = sessionPreferences[campusKey].Split( ',' ).ToList();
+                        campusIdList = preferences.GetValue( "CampusIds" ).Split( ',' ).ToList();
                         clbCampuses.SetValues( campusIdList );
                     }
                     else
@@ -913,7 +972,7 @@ function(item) {
             {
                 spSchedules.Visible = true;
 
-                var scheduleIdList = GetSetting( keyPrefix, "ScheduleIds" ).Split( new char[] { ',' }, StringSplitOptions.RemoveEmptyEntries ).AsIntegerList();
+                var scheduleIdList = GetSetting( preferences, "ScheduleIds" ).Split( new char[] { ',' }, StringSplitOptions.RemoveEmptyEntries ).AsIntegerList();
                 if ( scheduleIdList.Any() )
                 {
                     var schedules = new ScheduleService( new RockContextAnalytics() )
@@ -928,7 +987,7 @@ function(item) {
                 spSchedules.Visible = false;
             }
 
-            var groupIdList = GetSetting( keyPrefix, "GroupIds" ).Split( new char[] { ',' }, StringSplitOptions.RemoveEmptyEntries ).ToList();
+            var groupIdList = GetSetting( preferences, "GroupIds" ).Split( new char[] { ',' }, StringSplitOptions.RemoveEmptyEntries ).ToList();
 
             // if no groups are selected, and option to show all groups is configured, default to showing all of them
 
@@ -951,13 +1010,13 @@ function(item) {
                 BindSelectedGroups();
             }
 
-            ShowBy showBy = GetSetting( keyPrefix, "ShowBy" ).ConvertToEnumOrNull<ShowBy>() ?? ShowBy.Chart;
+            ShowBy showBy = GetSetting( preferences, "ShowBy" ).ConvertToEnumOrNull<ShowBy>() ?? ShowBy.Chart;
             DisplayShowBy( showBy );
 
             if ( GetAttributeValue( AttributeKeys.ShowViewByOption ).AsBoolean() )
             {
                 pnlViewBy.Visible = true;
-                ViewBy viewBy = GetSetting( keyPrefix, "ViewBy" ).ConvertToEnumOrNull<ViewBy>() ?? ViewBy.Attendees;
+                ViewBy viewBy = GetSetting( preferences, "ViewBy" ).ConvertToEnumOrNull<ViewBy>() ?? ViewBy.Attendees;
                 hfViewBy.Value = viewBy.ConvertToInt().ToString();
             }
             else
@@ -966,7 +1025,7 @@ function(item) {
                 hfViewBy.Value = ViewBy.Attendees.ConvertToInt().ToString();
             }
 
-            AttendeesFilterBy attendeesFilterBy = GetSetting( keyPrefix, "AttendeesFilterByType" ).ConvertToEnumOrNull<AttendeesFilterBy>() ?? AttendeesFilterBy.All;
+            AttendeesFilterBy attendeesFilterBy = GetSetting( preferences, "AttendeesFilterByType" ).ConvertToEnumOrNull<AttendeesFilterBy>() ?? AttendeesFilterBy.All;
 
             switch ( attendeesFilterBy )
             {
@@ -987,8 +1046,8 @@ function(item) {
                     break;
             }
 
-            ddlNthVisit.SelectedValue = GetSetting( keyPrefix, "AttendeesFilterByVisit" );
-            string attendeesFilterByPattern = GetSetting( keyPrefix, "AttendeesFilterByPattern" );
+            ddlNthVisit.SelectedValue = GetSetting( preferences, "AttendeesFilterByVisit" );
+            string attendeesFilterByPattern = GetSetting( preferences, "AttendeesFilterByPattern" );
             string[] attendeesFilterByPatternValues = attendeesFilterByPattern.Split( '|' );
             if ( attendeesFilterByPatternValues.Length == 4 )
             {
@@ -1005,7 +1064,7 @@ function(item) {
         /// <param name="prefix">The prefix.</param>
         /// <param name="key">The key.</param>
         /// <returns></returns>
-        private string GetSetting( string prefix, string key )
+        private string GetSetting( PersonPreferenceCollection preferences, string key )
         {
             string setting = Request.QueryString[key];
             if ( setting != null )
@@ -1014,15 +1073,15 @@ function(item) {
                 return setting;
             }
 
-            return this.GetUserPreference( prefix + key );
+            return preferences.GetValue( key );
         }
 
         /// <summary>
-        /// Lcs the attendance_ chart click.
+        /// Handles the chart click event.
         /// </summary>
         /// <param name="sender">The sender.</param>
         /// <param name="e">The e.</param>
-        protected void lcAttendance_ChartClick( object sender, ChartClickArgs e )
+        protected void ChartClickEventHandler( object sender, ChartClickArgs e )
         {
             if ( this.DetailPageGuid.HasValue )
             {
@@ -1180,7 +1239,7 @@ function(item) {
                 dateRange.End = RockDateTime.Now;
             }
             var start = dateRange.Start;
-            
+
             var endTime = dateRange.End.Value;
             // We need to pass '11/09/2020 11:59:59.000', because SQL Server rounds '11/09/2020 11:59:59.999' up to '11/10/2020 12:00:00.000'.
             // Since this is used for Sunday Date the milliseconds don't matter
@@ -1273,7 +1332,7 @@ function(item) {
             if ( !showNonAttenders )
             {
                 // Call the stored procedure to get all the person ids and their attendance dates for anyone
-                // whith attendance that matches the selected criteria.
+                // with attendance that matches the selected criteria.
                 qryTasks.Add( Task.Run( () =>
                 {
                     var ti = new TaskInfo { name = "Get Attendee Dates", start = RockDateTime.Now };
@@ -1454,8 +1513,9 @@ function(item) {
                         person.Email = row["Email"].ToString();
                         person.GivingId = row["GivingId"].ToString();
                         person.Birthdate = row["BirthDate"] as DateTime?;
+                        person.DeceasedDate = row["DeceasedDate"] as DateTime?;
                         person.Gender = row["Gender"].ToString().ConvertToEnum<Gender>();
-                        person.Age = Person.GetAge( person.Birthdate );
+                        person.Age = Person.GetAge( person.Birthdate, person.DeceasedDate );
                         person.Grade = dtNonAttenders.Columns.Contains( "GraduationYear" ) ? Person.GradeFormattedFromGraduationYear( row["GraduationYear"] as int? ) : null;
 
                         person.ConnectionStatusValueId = row["ConnectionStatusValueId"] as int?;
@@ -1470,8 +1530,9 @@ function(item) {
                             parent.Email = row["ParentEmail"].ToString();
                             parent.GivingId = row["ParentGivingId"].ToString();
                             parent.Birthdate = row["ParentBirthDate"] as DateTime?;
+                            parent.DeceasedDate = row["ParentDeceasedDate"] as DateTime?;
                             parent.Gender = row["ParentGender"].ToString().ConvertToEnum<Gender>();
-                            parent.Age = Person.GetAge( parent.Birthdate );
+                            parent.Age = Person.GetAge( parent.Birthdate, parent.DeceasedDate );
                             result.Parent = parent;
                         }
 
@@ -1484,9 +1545,10 @@ function(item) {
                             child.Email = row["ChildEmail"].ToString();
                             child.GivingId = row["ChildGivingId"].ToString();
                             child.Birthdate = row["ChildBirthDate"] as DateTime?;
+                            child.DeceasedDate = row["ChildDeceasedDate"] as DateTime?;
                             child.Gender = row["ChildGender"].ToString().ConvertToEnum<Gender>();
                             child.Grade = Person.GradeFormattedFromGraduationYear( row["ChildGraduationYear"] as int? );
-                            child.Age = Person.GetAge( child.Birthdate );
+                            child.Age = Person.GetAge( child.Birthdate, child.DeceasedDate );
                             result.Child = child;
                         }
 
@@ -1534,6 +1596,18 @@ function(item) {
 
             // Wait for all the queries to finish
             Task.WaitAll( qryTasks.ToArray() );
+
+            // Log the task time and parameters information.
+            string taskLogMessage = "";
+            foreach ( var info in taskInfos )
+            {
+                taskLogMessage += $"Task Name: {info.name}, Time To Run: {info.TimeToRun()}. ";
+            }
+            Logger.LogInformation( "Attendance Analytics Task Times: " + taskLogMessage );
+            Logger.LogInformation( "Attendance Analytics Parameters: " +
+                "groupTypeIdList: {@groupTypeIdList}, groupIdList: {@groupIdList}, start: {@start}, end: {@end}, " +
+                "campusIdList: {@campusIdList}, includeNullCampus: {@includeNullCampus}, scheduleIdList: {@scheduleIdList}",
+                groupTypeIdList, groupIdList, start, end, campusIdList, includeNullCampus, scheduleIdList );
 
             if ( !showNonAttenders )
             {
@@ -1626,8 +1700,9 @@ function(item) {
                             person.Email = row["Email"].ToString();
                             person.GivingId = row["GivingId"].ToString();
                             person.Birthdate = row["BirthDate"] as DateTime?;
+                            person.DeceasedDate = row["DeceasedDate"] as DateTime?;
                             person.Gender = row["Gender"].ToString().ConvertToEnum<Gender>();
-                            person.Age = Person.GetAge( person.Birthdate );
+                            person.Age = Person.GetAge( person.Birthdate, person.DeceasedDate );
                             person.ConnectionStatusValueId = row["ConnectionStatusValueId"] as int?;
                             person.Grade = dtAttendees.Columns.Contains( "GraduationYear" ) ? Person.GradeFormattedFromGraduationYear( row["GraduationYear"] as int? ) : null;
                             result.Person = person;
@@ -1641,8 +1716,9 @@ function(item) {
                                 parent.Email = row["ParentEmail"].ToString();
                                 parent.GivingId = row["ParentGivingId"].ToString();
                                 parent.Birthdate = row["ParentBirthDate"] as DateTime?;
+                                person.DeceasedDate = row["ParentDeceasedDate"] as DateTime?;
                                 parent.Gender = row["ParentGender"].ToString().ConvertToEnum<Gender>();
-                                parent.Age = Person.GetAge( parent.Birthdate );
+                                parent.Age = Person.GetAge( parent.Birthdate, parent.DeceasedDate );
                                 result.Parent = parent;
                             }
 
@@ -1655,9 +1731,10 @@ function(item) {
                                 child.Email = row["ChildEmail"].ToString();
                                 child.GivingId = row["ChildGivingId"].ToString();
                                 child.Birthdate = row["ChildBirthDate"] as DateTime?;
+                                child.DeceasedDate = row["ChildDeceasedDate"] as DateTime?;
                                 child.Gender = row["ChildGender"].ToString().ConvertToEnum<Gender>();
                                 child.Grade = Person.GradeFormattedFromGraduationYear( row["ChildGraduationYear"] as int? );
-                                child.Age = Person.GetAge( child.Birthdate );
+                                child.Age = Person.GetAge( child.Birthdate, child.DeceasedDate );
                                 result.Child = child;
                             }
 
@@ -2327,7 +2404,7 @@ function(item) {
             {
                 _addedGroupTypeIds.Add( groupType.Id );
 
-                bool showInactive = GetUserPreference( BlockCache.Guid.ToString() + "_showInactive" ).AsBoolean();
+                bool showInactive = GetBlockPersonPreferences().GetValue( "show-inactive" ).AsBoolean();
 
                 if ( ( groupType.Groups.Any() && showInactive ) || groupType.Groups.Where( g => g.IsActive ).Any() )
                 {
@@ -2410,7 +2487,7 @@ function(item) {
                         checkBoxList.Items.Add( new ListItem( displayName, group.Id.ToString() ) );
                     }
 
-                    bool showInactive = GetUserPreference( BlockCache.Guid.ToString() + "_showInactive" ).AsBoolean();
+                    bool showInactive = GetBlockPersonPreferences().GetValue( "show-inactive" ).AsBoolean();
 
                     if ( group.Groups != null )
                     {
@@ -2654,6 +2731,8 @@ function(item) {
 
             public DateTime? Birthdate { get; set; }
 
+            public DateTime? DeceasedDate { get; set; }
+
             public string Grade { get; set; }
 
             public int? ConnectionStatusValueId { get; set; }
@@ -2707,12 +2786,43 @@ function(item) {
             {
                 return string.Format( "{0}: {1:c}", name, duration );
             }
+
+            public string TimeToRun()
+            {
+                double timeValue = duration.TotalMilliseconds;
+                var timeUnit = "ms";
+                if ( timeValue > 1000 )
+                {
+                    timeValue /= 1000;
+                    timeUnit = "s";
+                }
+
+                if ( timeValue > 60 && timeUnit == "s" )
+                {
+                    timeValue /= 60;
+                    timeUnit = "m";
+                }
+
+                var isValueAWholeNumber = Math.Abs( timeValue % 1 ) < 0.01;
+                if ( isValueAWholeNumber )
+                {
+                    return string.Format( "{0:0}{1}", timeValue, timeUnit );
+                }
+                else
+                {
+                    return string.Format( "{0:0.0}{1}", timeValue, timeUnit );
+                }
+            }
         }
 
 
         protected void cbShowInactive_CheckedChanged( object sender, EventArgs e )
         {
-            SetUserPreference( BlockCache.Guid.ToString() + "_showInactive", cbShowInactive.Checked.ToString() );
+            var preferences = GetBlockPersonPreferences();
+
+            preferences.SetValue( "show-inactive", cbShowInactive.Checked.ToString() );
+            preferences.Save();
+
             BuildGroupTypesUI( true );
         }
 
@@ -2723,8 +2833,12 @@ function(item) {
         /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
         protected void cbIncludeGroupsWithoutSchedule_CheckedChanged( object sender, EventArgs e )
         {
+            var preferences = GetBlockPersonPreferences();
+
+            preferences.SetValue( "IncludeGroupsWithoutSchedule", cbIncludeGroupsWithoutSchedule.Checked.ToTrueFalse() );
+            preferences.Save();
+
             // NOTE: OnLoad already rebuilt the GroupTypes UI with the changed value of cbIncludeGroupsWithoutSchedule , so we just need to set it as a preference
-            this.SetBlockUserPreference( "IncludeGroupsWithoutSchedule", cbIncludeGroupsWithoutSchedule.Checked.ToTrueFalse() );
         }
 
         protected void gpGroups_SelectItem( object sender, EventArgs e )

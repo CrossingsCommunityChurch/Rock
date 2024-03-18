@@ -37,6 +37,7 @@ namespace RockWeb.Blocks.Crm.PersonDetail
     [DisplayName( "Person Key Attributes" )]
     [Category( "CRM > Person Detail" )]
     [Description( "Person key attributes (Person Detail Page)." )]
+    [Rock.SystemGuid.BlockTypeGuid( "23CE11A0-6C5C-4189-8E8C-6F3C9C9E4178" )]
     public partial class KeyAttributes : Rock.Web.UI.PersonBlock
     {
         #region Fields
@@ -297,7 +298,10 @@ namespace RockWeb.Blocks.Crm.PersonDetail
                 {
                     // Split and deliminate again to remove trailing delimiter
                     var attributeOrder = hfAttributeOrder.Value.SplitDelimitedValues().ToList().AsDelimited( "," );
-                    SetUserPreference( _preferenceKey, attributeOrder );
+                    var preferences = GetBlockPersonPreferences();
+
+                    preferences.SetValue( "selected-attributes", attributeOrder );
+                    preferences.Save();
 
                     BindAttributes();
                 }
@@ -373,7 +377,10 @@ namespace RockWeb.Blocks.Crm.PersonDetail
             // here the SelectedAttributes list has all the right items. So I changed
             // the SetUserPreference line to just use the SelectedAttributes instead of AttributeList.
             //SelectedAttributes.Where( a => !AttributeList.Contains( a ) ).ToList().ForEach( a => AttributeList.Add( a ) );
-            SetUserPreference( _preferenceKey, SelectedAttributes.AsDelimited( "," ) );
+            var preferences = GetBlockPersonPreferences();
+            preferences.SetValue( "selected-attributes", SelectedAttributes.AsDelimited( "," ) );
+            preferences.Save();
+
             BindAttributes();
             CreateControls( true );
 
@@ -388,9 +395,10 @@ namespace RockWeb.Blocks.Crm.PersonDetail
         {
             AttributeList = new List<int>();
 
+            var preferences = GetBlockPersonPreferences();
             var attributes = new List<NameValue>();
 
-            foreach ( string keyAttributeId in GetUserPreference( _preferenceKey ).SplitDelimitedValues() )
+            foreach ( string keyAttributeId in preferences.GetValue( "selected-attributes" ).SplitDelimitedValues() )
             {
                 int attributeId = 0;
                 if ( Int32.TryParse( keyAttributeId, out attributeId ) )
@@ -401,6 +409,17 @@ namespace RockWeb.Blocks.Crm.PersonDetail
                         AttributeList.Add( attribute.Id );
                     }
                 }
+            }
+
+            if ( AttributeList.Count > 0 )
+            {
+                lbEdit.Visible = true;
+                lbOrder.Visible = true;
+            }
+            else
+            {
+                lbEdit.Visible = false;
+                lbOrder.Visible = false;
             }
 
             CreateControls( true );

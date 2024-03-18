@@ -28,9 +28,6 @@ using Rock.Web.Cache;
 
 namespace RockWeb.Blocks.Utility
 {
-    /// <summary>
-    /// Template block for developers to use to start a new block.
-    /// </summary>
     [DisplayName( "Cache Reader" )]
     [Category( "Utility" )]
     [Description( "Shows information about what's being cached in Rock." )]
@@ -52,6 +49,7 @@ namespace RockWeb.Blocks.Utility
         Order = 2 )]
 
     #endregion Block Attributes
+    [Rock.SystemGuid.BlockTypeGuid( "B2859CA9-F796-4D83-A83B-62AA44FC6BC5" )]
     public partial class CacheReader : Rock.Web.UI.RockBlock
     {
 
@@ -144,13 +142,14 @@ namespace RockWeb.Blocks.Utility
             var totalCacheSize = 0;
 
             // Determine the size of the object cache
-            var objectCacheKeys = RockCache.ObjectCacheKeyReferences;
+            var objectCacheKeys = RockCache.ObjectConcurrentCacheKeyReferences;
 
             var objectCacheSize = 0;
-            foreach( var objectCacheKey in objectCacheKeys )
+            foreach( var objectCacheKeyItem in objectCacheKeys )
             {
+                var objectCacheKey = objectCacheKeyItem.Value;
                 var cacheItem = RockCache.Get( objectCacheKey.Key, objectCacheKey.Region );
-                if ( cacheItem.IsNotNull() )
+                if ( cacheItem != null )
                 {
                     objectCacheSize += cacheItem.ToJson().Length;
                 }
@@ -162,18 +161,20 @@ namespace RockWeb.Blocks.Utility
             lOutput.Text = string.Format( "Object Cache: {0:n0} KB", objectCacheSize / 1024 );
 
             // Determine the size of the string cache
-            var stringCacheKeys = RockCache.StringCacheKeyReferences;
+            var stringCacheKeys = RockCache.StringConcurrentCacheKeyReferences;
 
             var stringCacheSize = 0;
 
-            foreach ( var stringCacheKey in stringCacheKeys )
+            foreach ( var stringCacheKeyItem in stringCacheKeys )
             {
+                var stringCacheKey = stringCacheKeyItem.Value;
+
                 // Cache tags are in an empty region. Calls without a region throw an exception
                 if ( stringCacheKey.Region.IsNotNullOrWhiteSpace() )
                 {
                     var value = RockCacheManager<List<string>>.Instance.Get( stringCacheKey.Key, stringCacheKey.Region );
 
-                    if ( value.IsNotNull() )
+                    if ( value != null )
                     {
                         stringCacheSize += value.ToJson().Length;
                     }
@@ -181,7 +182,7 @@ namespace RockWeb.Blocks.Utility
                 else
                 {
                     var cacheItem = RockCache.Get( stringCacheKey.Key, stringCacheKey.Region );
-                    if ( cacheItem.IsNotNull() )
+                    if ( cacheItem != null )
                     {
                         stringCacheSize += cacheItem.ToJson().Length;
                     }

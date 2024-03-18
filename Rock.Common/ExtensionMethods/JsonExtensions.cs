@@ -17,6 +17,7 @@
 using System;
 using System.Collections.Generic;
 using System.Dynamic;
+using System.Runtime.CompilerServices;
 
 using Newtonsoft.Json;
 using Newtonsoft.Json.Converters;
@@ -28,6 +29,37 @@ namespace Rock
     /// </summary>
     public static class JsonExtensions
     {
+        #region Fields
+
+        /// <summary>
+        /// Contains the singleton serialize settings that match the specified
+        /// options key.
+        /// </summary>
+        private static readonly Dictionary<string, JsonSerializerSettings> _jsonSerializeSettingsCache = new Dictionary<string, JsonSerializerSettings>();
+
+        #endregion
+
+        #region Constructors
+
+        /// <summary>
+        /// Handles initialization of any data required by the <see cref="JsonExtensions"/> class.
+        /// </summary>
+        static JsonExtensions()
+        {
+            // This effectively forces the cache to be initialized under single
+            // threaded conditions so we don't have to worry about concurrency.
+            GetSerializeSettings( false, false, false );
+            GetSerializeSettings( false, false, true );
+            GetSerializeSettings( false, true, false );
+            GetSerializeSettings( false, true, true );
+            GetSerializeSettings( true, false, false );
+            GetSerializeSettings( true, false, true );
+            GetSerializeSettings( true, true, false );
+            GetSerializeSettings( true, true, true );
+        }
+
+        #endregion
+
         #region JSON Extensions
 
         /// <summary>
@@ -63,19 +95,7 @@ namespace Rock
         /// <returns></returns>
         public static string ToJson( this object obj, bool indentOutput, bool ignoreErrors )
         {
-            var settings = new JsonSerializerSettings
-            {
-                ReferenceLoopHandling = ReferenceLoopHandling.Ignore,
-                Formatting = indentOutput ? Formatting.Indented : Formatting.None
-            };
-
-            if ( ignoreErrors )
-            {
-                settings.Error += new EventHandler<Newtonsoft.Json.Serialization.ErrorEventArgs>( ( s, e ) =>
-                {
-                    e.ErrorContext.Handled = true;
-                } );
-            }
+            var settings = GetSerializeSettings( indentOutput, ignoreErrors, false );
 
             return JsonConvert.SerializeObject( obj, settings );
         }
@@ -87,23 +107,16 @@ namespace Rock
         /// <param name="indentOutput"><c>true</c> if the output should be indented for easy reading; otherwise <c>false</c>.</param>
         /// <param name="ignoreErrors">if set to <c>true</c> errors will be ignored.</param>
         /// <returns></returns>
-        /// <remarks>Marked as internal until there is decision on method name and parameters. -dsh</remarks>
-        internal static string ToCamelCaseJson( this object obj, bool indentOutput, bool ignoreErrors )
+        /// <remarks>
+        /// This only converts POCO and anonymous object property names into
+        /// camel case. It will not convert Dictionary keys as those should be
+        /// preserved since they have specified the explicit key to use.
+        /// 
+        /// Marked as internal until there is decision on method name and parameters. -dsh
+        /// </remarks>
+        public static string ToCamelCaseJson( this object obj, bool indentOutput, bool ignoreErrors )
         {
-            var settings = new JsonSerializerSettings
-            {
-                ReferenceLoopHandling = ReferenceLoopHandling.Ignore,
-                Formatting = indentOutput ? Formatting.Indented : Formatting.None,
-                ContractResolver = new Newtonsoft.Json.Serialization.CamelCasePropertyNamesContractResolver()
-            };
-
-            if ( ignoreErrors )
-            {
-                settings.Error += new EventHandler<Newtonsoft.Json.Serialization.ErrorEventArgs>( ( s, e ) =>
-                {
-                    e.ErrorContext.Handled = true;
-                } );
-            }
+            var settings = GetSerializeSettings( indentOutput, ignoreErrors, true );
 
             return JsonConvert.SerializeObject( obj, settings );
         }
@@ -120,9 +133,8 @@ namespace Rock
             {
                 return val.FromJsonOrThrow<T>();
             }
-            catch ( Exception ex )
+            catch
             {
-                System.Diagnostics.Debug.WriteLine( ex.Message );
                 return default( T );
             }
         }
@@ -222,6 +234,74 @@ namespace Rock
             }
 
             return dynamicObject;
+        }
+
+        #endregion
+
+        #region Private Methods
+
+        /// <summary>
+        /// Get the cached serializer settings for the given serializer options.
+        /// </summary>
+        /// <param name="indentOutput"><c>true</c> if output should be indented.</param>
+        /// <param name="ignoreErrors"><c>true</c> if errors should be silently ignored.</param>
+        /// <param name="camelCase"><c>true</c> if key names should be in camel case.</param>
+        /// <returns>A cached instance of <see cref="JsonSerializerSettings"/> to be used.</returns>
+        internal static JsonSerializerSettings GetSerializeSettings( bool indentOutput, bool ignoreErrors, bool camelCase )
+        {
+            var settingsKey = $"{indentOutput}_{ignoreErrors}_{camelCase}";
+
+            // Reading the dictionary is thread-safe.
+            if ( !_jsonSerializeSettingsCache.TryGetValue( settingsKey, out var settings ) )
+            {
+                // This is only the case during class initialization on a single thread.
+                settings = CreateSerializerSettings( indentOutput, ignoreErrors, camelCase );
+
+                _jsonSerializeSettingsCache[settingsKey] = settings;
+            }
+
+            return settings;
+        }
+
+        /// <summary>
+        /// Create a serializer settings for the given serializer options.
+        /// </summary>
+        /// <param name="indentOutput"><c>true</c> if output should be indented.</param>
+        /// <param name="ignoreErrors"><c>true</c> if errors should be silently ignored.</param>
+        /// <param name="camelCase"><c>true</c> if key names should be in camel case.</param>
+        /// <returns>An instance of <see cref="JsonSerializerSettings"/> to be used.</returns>
+        internal static JsonSerializerSettings CreateSerializerSettings( bool indentOutput, bool ignoreErrors, bool camelCase )
+        {
+            var settings = new JsonSerializerSettings
+            {
+                ReferenceLoopHandling = ReferenceLoopHandling.Ignore,
+                Formatting = indentOutput ? Formatting.Indented : Formatting.None
+            };
+
+            if ( ignoreErrors )
+            {
+                settings.Error += new EventHandler<Newtonsoft.Json.Serialization.ErrorEventArgs>( ( s, e ) =>
+                {
+                    e.ErrorContext.Handled = true;
+                } );
+            }
+
+            if ( camelCase )
+            {
+                settings.ContractResolver = new Newtonsoft.Json.Serialization.DefaultContractResolver
+                {
+                    NamingStrategy = new Newtonsoft.Json.Serialization.CamelCaseNamingStrategy
+                    {
+                        // Do not process dictionaries, this messes up attribute keys
+                        // and generally with a dictionary they are specifying a specific
+                        // key that it should be anyway.
+                        ProcessDictionaryKeys = false,
+                        OverrideSpecifiedNames = true
+                    }
+                };
+            }
+
+            return settings;
         }
 
         #endregion

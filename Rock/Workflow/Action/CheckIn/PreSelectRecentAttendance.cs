@@ -31,6 +31,7 @@ namespace Rock.Workflow.Action.CheckIn
     [Description( "Preselects options if using Family check-in type based on the 'days back' value." )]
     [Export( typeof( ActionComponent ) )]
     [ExportMetadata( "ComponentName", "Preselect Recent Attendance" )]
+    [Rock.SystemGuid.EntityTypeGuid( "23C1D3FA-4F16-4AF6-9528-04C7C52F5C2A")]
     public class PreSelectRecentAttendance : CheckInActionComponent
     {
         /// <summary>
@@ -55,15 +56,21 @@ namespace Rock.Workflow.Action.CheckIn
                     {
                         foreach ( var groupType in person.GroupTypes )
                         {
-                            groupType.PreSelected = groupType.LastCheckIn.HasValue && groupType.LastCheckIn.Value.CompareTo( preSelectCutoff ) >= 0;
+                            groupType.PreSelected = groupType.LastCheckIn.HasValue
+                                && groupType.LastCheckIn.Value.CompareTo( preSelectCutoff ) >= 0
+                                && groupType.AnyGroupsWithLocationsAndSchedules;
 
                             foreach ( var group in groupType.Groups )
                             {
-                                group.PreSelected = group.LastCheckIn.HasValue && group.LastCheckIn.Value.CompareTo( preSelectCutoff ) >= 0;
+                                group.PreSelected = group.LastCheckIn.HasValue
+                                    && group.LastCheckIn.Value.CompareTo( preSelectCutoff ) >= 0
+                                    && group.AnyLocationsWithSchedules;
 
                                 foreach ( var location in group.Locations )
                                 {
-                                    location.PreSelected = location.LastCheckIn.HasValue && location.LastCheckIn.Value.CompareTo( preSelectCutoff ) >= 0;
+                                    location.PreSelected = location.LastCheckIn.HasValue
+                                        && location.LastCheckIn.Value.CompareTo( preSelectCutoff ) >= 0
+                                        && location.AnySchedules;
 
                                     foreach ( var schedule in location.Schedules )
                                     {

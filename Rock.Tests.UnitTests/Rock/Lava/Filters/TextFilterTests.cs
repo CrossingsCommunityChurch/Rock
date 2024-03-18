@@ -92,6 +92,28 @@ namespace Rock.Tests.UnitTests.Lava
             TestHelper.AssertTemplateOutput( "Job Posting For Groundskeeper", "{{ 'Job posting for groundskeeper' | TitleCase }}" );
         }
 
+        #region Filter Tests: TruncateWords
+
+        [TestMethod]
+        public void TruncateWords_WithLongerText_AddsEllipis()
+        {
+            TestHelper.AssertTemplateOutput( "one two three...", "{{ 'one two three four five' | TruncateWords:3 }}" );
+        }
+
+        [TestMethod]
+        public void TruncateWords_WithShorterText_DoesNotTruncate()
+        {
+            TestHelper.AssertTemplateOutput( "one two three four five", "{{ 'one two three four five' | TruncateWords:6 }}" );
+        }
+
+        [TestMethod]
+        public void TruncateWords_WithEmptyString_HasNoEffect()
+        {
+            TestHelper.AssertTemplateOutput( "", "{{ '' | TruncateWords:1 }}" );
+        }
+
+        #endregion
+
         /// <summary>
         /// A lower-case string should be formatted with the first letter of each word capitalized and all whitespace removed.
         /// </summary>
@@ -168,6 +190,27 @@ namespace Rock.Tests.UnitTests.Lava
         public void PluralizeForQuantity_QuantityOf1_ProducesSingularTerm()
         {
             TestHelper.AssertTemplateOutput( "Leader", "{{ 'Leader' | PluralizeForQuantity:1 }}" );
+        }
+
+        /// <summary>
+        /// PluralizeForQuantity should return correct plural form for negative and positive decimals.
+        /// </summary>
+        [DataTestMethod]
+        [DataRow( "-2", "degrees" )]
+        [DataRow( "-1.5", "degrees" )]
+        [DataRow( "-1", "degree" )]
+        [DataRow( "-0.5", "degrees" )]
+        [DataRow( "0", "degrees" )]
+        [DataRow( "0.5", "degrees" )]
+        [DataRow( "1", "degree" )]
+        [DataRow( "1.5", "degrees" )]
+        [DataRow( "2", "degrees" )]
+        public void PluralizeForQuantity_QuantityOfPositiveOrNegative_ProducesCorrectPluralizedTerm( string input, string expected )
+        {
+            var template = "{% assign x = <input> %}{{ 'degree' | PluralizeForQuantity:x }}"
+               .Replace( "<input>", input );
+
+            TestHelper.AssertTemplateOutput( expected, template );
         }
 
         #endregion
@@ -425,23 +468,78 @@ namespace Rock.Tests.UnitTests.Lava
         #region Filter Tests: Split
 
         /// <summary>
+        /// Split filter should retain or remove zero-length items in accordance with the specified "removeEmpty" parameter when handling an empty string or empty list.
+        /// </summary>
+        /// <remarks>
+        /// The default Liquid language behavior for this filter is to remove empty entries.
+        /// </remarks>
+        [DataTestMethod]
+        [DataRow( ",", "','", "0" )]
+        [DataRow( ",", "',',true", "0" )]
+        [DataRow( ",", "',',false", "2" )]
+        [DataRow( "", "','", "0" )]
+        [DataRow( "", "',',true", "0" )]
+        [DataRow( "", "',',false", "1" )]
+        public void Split_WithRemoveEmptyEntriesOption_RetainsOrRemovesEmptyEntries_WhenEmptyString( string inputString, string filterArgsString, string expectedOutput )
+        {
+            // Note: This test is different than the other Split tests so we
+            // we can truly detect the empty list case.
+            var template = @"
+{{ '<inputString>' | Split:<args> | Size }}
+";
+
+            template = template.Replace( "<inputString>", inputString );
+            template = template.Replace( "<args>", filterArgsString );
+
+            TestHelper.AssertTemplateOutput( expectedOutput, template, ignoreWhitespace: true );
+        }
+
+        /// <summary>
         /// Split filter should retain or remove zero-length items in accordance with the specified "removeEmpty" parameter.
         /// </summary>
         /// <remarks>
         /// The default Liquid language behavior for this filter is to remove empty entries.
         /// </remarks>
         [DataTestMethod]
-        [DataRow( ",1,,3,4,5,6,7,,9,", "','", "1+3+4+5+6+7+9+" )]
-        [DataRow( ",1,,3,4,5,6,7,,9,", "',',true", "1+3+4+5+6+7+9+" )]
-        [DataRow( ",1,,3,4,5,6,7,,9,", "',','true'", "1+3+4+5+6+7+9+" )]
-        [DataRow( ",1,,3,4,5,6,7,,9,", "',',false", "+1++3+4+5+6+7++9++" )]
-        [DataRow( ",1,,3,4,5,6,7,,9,", "',','false'", "+1++3+4+5+6+7++9++" )]
+        [DataRow( ",1,,3,4,5,6,7,,9,", "','", "1+3+4+5+6+7+9" )]
+        [DataRow( ",1,,3,4,5,6,7,,9,", "',',true", "1+3+4+5+6+7+9" )]
+        [DataRow( ",1,,3,4,5,6,7,,9,", "',','true'", "1+3+4+5+6+7+9" )]
+        [DataRow( ",1,,3,4,5,6,7,,9,", "',',false", "+1++3+4+5+6+7++9+" )]
+        [DataRow( ",1,,3,4,5,6,7,,9,", "',','false'", "+1++3+4+5+6+7++9+" )]
         public void Split_WithRemoveEmptyEntriesOption_RetainsOrRemovesEmptyEntries( string inputString, string filterArgsString, string expectedOutput )
         {
             var template = @"
 {% assign items = '<inputString>' | Split:<args> %}
 {% for item in items %}
-{{ item }}+
+    {{ item }}
+    {% if forloop.last == false %}+{% endif %}
+{% endfor %}
+";
+
+            template = template.Replace( "<inputString>", inputString );
+            template = template.Replace( "<args>", filterArgsString );
+
+            TestHelper.AssertTemplateOutput( expectedOutput, template, ignoreWhitespace: true );
+        }
+
+        /// <summary>
+        /// Split filter should only return the specified number of substrings if the "count" parameter is specified.
+        /// The remainder text is included in the last element of the array.
+        /// </summary>
+        [DataTestMethod]
+        [DataRow( "1,2,3,4,5,6,7,8,9", "',',false,0", "" )]
+        [DataRow( "1,2,3,4,5,6,7,8,9", "',',false,1", "1,2,3,4,5,6,7,8,9" )]
+        [DataRow( "1,2,3,4,5,6,7,8,9", "',',false,2", "1+2,3,4,5,6,7,8,9" )]
+        [DataRow( "1,2,3,4,5,6,7,8,9", "',',false,3", "1+2+3,4,5,6,7,8,9" )]
+        [DataRow( "1,2,3,4,5,6,7,8,9", "',',false,10", "1+2+3+4+5+6+7+8+9" )]
+        [DataRow( "1,2,3,4,5,6,7,8,9", "','", "1+2+3+4+5+6+7+8+9" )]
+        public void Split_WithCountOption_ReturnsSpecifiedNumberOfSubstrings( string inputString, string filterArgsString, string expectedOutput )
+        {
+            var template = @"
+{% assign items = '<inputString>' | Split:<args> %}
+{% for item in items %}
+    {{ item }}
+    {% if forloop.last == false %}+{% endif %}
 {% endfor %}
 ";
 
@@ -491,6 +589,8 @@ namespace Rock.Tests.UnitTests.Lava
 
         #endregion
 
+        #region Filter Tests: Trim
+
         /// <summary>
         /// Leading and trailing whitespace should be removed, while internal whitespace is preserved.
         /// </summary>
@@ -500,12 +600,103 @@ namespace Rock.Tests.UnitTests.Lava
         [DataRow( "   Ted Decker    ", "Ted Decker" )]
         [DataRow( "   ", "" )]
         [DataRow( "", "" )]
-        public void Trim_LeadingAndTrailingWhitespaceIsRemoved( string input, string expected )
+        public void Trim_WithNoParameters_RemovesLeadingAndTrailingWhitespace( string input, string expected )
         {
             var template = "{{ '" + input + "' | Trim }}";
 
+            TestHelper.AssertTemplateOutput( expected, template, ignoreWhitespace: false );
+        }
+
+        /// <summary>
+        /// Leading and trailing character sequences should be removed, while other characters are preserved.
+        /// </summary>
+        [DataTestMethod]
+        [DataRow( "Ted#Decker", "#", "Ted#Decker" )]
+        [DataRow( "#Ted Decker", "#", "Ted Decker" )]
+        [DataRow( "#Ted Decker#", "#", "Ted Decker" )]
+        [DataRow( "###Ted##Decker###", "##", "#Ted##Decker#" )]
+        [DataRow( "###", "#", "" )]
+        [DataRow( "#$#$Ted#$Decker#$#$", "#$", "Ted#$Decker" )]
+        [DataRow( "#$#$#$#$", "#$", "" )]
+        [DataRow( "", "###", "" )]
+        public void Trim_WithSpecifiedTextToRemove_RemovesTextFromStartAndEndOfString( string input, string textToRemove, string expected )
+        {
+            var template = "{{ '" + input + "' | Trim:'" + textToRemove + "' }}";
+
             TestHelper.AssertTemplateOutput( expected, template );
         }
+
+        /// <summary>
+        /// Leading and trailing whitespace should be removed, while internal whitespace is preserved.
+        /// </summary>
+        [DataTestMethod]
+        [DataRow( "Ted Decker   ", "Ted Decker" )]
+        [DataRow( "   Ted Decker", "   Ted Decker" )]
+        [DataRow( "   Ted Decker   ", "   Ted Decker" )]
+        [DataRow( "   ", "" )]
+        [DataRow( "", "" )]
+        public void TrimEnd_WithNoParameters_RemovesTrailingWhitespace( string input, string expected )
+        {
+            var template = "{{ '" + input + "' | TrimEnd }}";
+
+            TestHelper.AssertTemplateOutput( expected, template, ignoreWhitespace:false );
+        }
+
+        /// <summary>
+        /// Trailing characters should be removed, while other characters are preserved.
+        /// </summary>
+        [DataTestMethod]
+        [DataRow( "Ted#Decker", "#", "Ted#Decker" )]
+        [DataRow( "Ted Decker#", "#", "Ted Decker" )]
+        [DataRow( "#Ted Decker#", "#", "#Ted Decker" )]
+        [DataRow( "###Ted##Decker###", "##", "###Ted##Decker#" )]
+        [DataRow( "###", "#", "" )]
+        [DataRow( "#$#$Ted#$Decker#$#$", "#$", "#$#$Ted#$Decker" )]
+        [DataRow( "#$#$#$#$", "#$", "" )]
+        [DataRow( "", "###", "" )]
+        public void TrimEnd_WithSpecifiedTextToRemove_RemovesTextFromEndOfString( string input, string textToRemove, string expected )
+        {
+            var template = "{{ '" + input + "' | TrimEnd:'" + textToRemove + "' }}";
+
+            TestHelper.AssertTemplateOutput( expected, template );
+        }
+
+        /// <summary>
+        /// Leading and trailing whitespace should be removed, while internal whitespace is preserved.
+        /// </summary>
+        [DataTestMethod]
+        [DataRow( "Ted Decker   ", "Ted Decker   " )]
+        [DataRow( "   Ted Decker", "Ted Decker" )]
+        [DataRow( "Ted Decker   ", "Ted Decker   " )]
+        [DataRow( "   ", "" )]
+        [DataRow( "", "" )]
+        public void TrimStart_WithNoParameters_RemovesLeadingWhitespace( string input, string expected )
+        {
+            var template = "{{ '" + input + "' | TrimStart }}";
+
+            TestHelper.AssertTemplateOutput( expected, template, ignoreWhitespace: false );
+        }
+
+        /// <summary>
+        /// Leading characters should be removed, while other characters are preserved.
+        /// </summary>
+        [DataTestMethod]
+        [DataRow( "Ted*Decker", "*", "Ted*Decker" )]
+        [DataRow( "*Ted Decker", "*", "Ted Decker" )]
+        [DataRow( "*Ted Decker*", "*", "Ted Decker*" )]
+        [DataRow( "***Ted**Decker***", "**", "*Ted**Decker***" )]
+        [DataRow( "***", "*", "" )]
+        [DataRow( "*$*$Ted*$Decker*$*$", "*$", "Ted*$Decker*$*$" )]
+        [DataRow( "*$*$*$*$", "*$", "" )]
+        [DataRow( "", "***", "" )]
+        public void TrimStart_WithSpecifiedTextToRemove_RemovesTextFromStartOfString( string input, string textToRemove, string expected )
+        {
+            var template = "{{ '" + input + "' | TrimStart:'" + textToRemove + "' }}";
+
+            TestHelper.AssertTemplateOutput( expected, template );
+        }
+
+        #endregion
 
         /// <summary>
         /// Url parts queries return the correct segment of the Url.

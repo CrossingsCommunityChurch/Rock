@@ -39,6 +39,7 @@ namespace RockWeb.Blocks.Groups
     [DisplayName( "Group Archived List" )]
     [Category( "Utility" )]
     [Description( "Lists Groups that have been archived" )]
+    [Rock.SystemGuid.BlockTypeGuid( "AD5B3A8A-2111-4FC4-A026-51EEB4929CBA" )]
     public partial class GroupArchivedList : RockBlock, ICustomGridColumns
     {
         #region Fields
@@ -105,7 +106,7 @@ namespace RockWeb.Blocks.Groups
         }
 
         /// <summary>
-        /// Handles the GridRebind event of the gPledges control.
+        /// Handles the GridRebind event of the gList control.
         /// </summary>
         /// <param name="sender">The source of the event.</param>
         /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
@@ -148,13 +149,13 @@ namespace RockWeb.Blocks.Groups
             // sample query to display a few people
             var qry = groupService.GetArchived();
 
-            int? groupTypeIdFilter = gfList.GetUserPreference( "Group Type" ).AsIntegerOrNull();
+            int? groupTypeIdFilter = gfList.GetFilterPreference( "Group Type" ).AsIntegerOrNull();
             if ( groupTypeIdFilter.HasValue )
             {
                 qry = qry.Where( a => a.GroupTypeId == groupTypeIdFilter.Value );
             }
 
-            string groupName = gfList.GetUserPreference( "Group Name" );
+            string groupName = gfList.GetFilterPreference( "Group Name" );
             if (!string.IsNullOrWhiteSpace( groupName ) )
             {
                 qry = qry.Where( a => a.Name.Contains( groupName ) );
@@ -178,10 +179,10 @@ namespace RockWeb.Blocks.Groups
         private void BindFilter()
         {
             // limit GroupType picker to group types that have groups that are archived
-            gtpGroupTypeFilter.GroupTypes = new GroupTypeService( new RockContext() ).Queryable().Where(a => a.Groups.Any(x => x.IsArchived)).OrderBy( a => a.Name).AsNoTracking().ToList();
+            gtpGroupTypeFilter.GroupTypes = new GroupTypeService( new RockContext() ).AsNoFilter().Where(a => a.Groups.Any(x => x.IsArchived)).OrderBy( a => a.Name).AsNoTracking().ToList();
 
-            gtpGroupTypeFilter.SetValue( gfList.GetUserPreference( "Group Type" ).AsIntegerOrNull() );
-            tbNameFilter.Text = gfList.GetUserPreference( "Group Name" );
+            gtpGroupTypeFilter.SetValue( gfList.GetFilterPreference( "Group Type" ).AsIntegerOrNull() );
+            tbNameFilter.Text = gfList.GetFilterPreference( "Group Name" );
         }
 
         /// <summary>
@@ -191,7 +192,7 @@ namespace RockWeb.Blocks.Groups
         /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
         protected void gfList_ClearFilterClick( object sender, EventArgs e )
         {
-            gfList.DeleteUserPreferences();
+            gfList.DeleteFilterPreferences();
             BindFilter();
         }
 
@@ -202,8 +203,8 @@ namespace RockWeb.Blocks.Groups
         /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
         protected void gfList_ApplyFilterClick( object sender, EventArgs e )
         {
-            gfList.SaveUserPreference( "Group Type", gtpGroupTypeFilter.SelectedValue );
-            gfList.SaveUserPreference( "Group Name", tbNameFilter.Text );
+            gfList.SetFilterPreference( "Group Type", gtpGroupTypeFilter.SelectedValue );
+            gfList.SetFilterPreference( "Group Name", tbNameFilter.Text );
             BindGrid();
         }
 

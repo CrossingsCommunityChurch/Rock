@@ -31,6 +31,7 @@ namespace Rock.Workflow.Action.CheckIn
     [Description( "Removes any group type that does not have any groups" )]
     [Export(typeof(ActionComponent))]
     [ExportMetadata( "ComponentName", "Remove Empty Group Types" )]
+    [Rock.SystemGuid.EntityTypeGuid( "E998B9A7-31C9-46F6-B91C-4E5C3F06C82F")]
     public class RemoveEmptyGroupTypes : CheckInActionComponent
     {
         /// <summary>
@@ -51,22 +52,31 @@ namespace Rock.Workflow.Action.CheckIn
                 {
                     foreach ( var person in family.People.ToList() )
                     {
+                        var anyGroupTypesExcluded = false;
+
                         foreach ( var groupType in person.GroupTypes.ToList() )
                         {
                             if ( groupType.Groups.Count == 0 )
                             {
                                 person.GroupTypes.Remove( groupType );
+                                anyGroupTypesExcluded = true;
                             }
                             else if ( !groupType.Groups.Any( g => !g.ExcludedByFilter ) )
                             {
                                 groupType.ExcludedByFilter = true;
+                                anyGroupTypesExcluded = true;
                             }
+                        }
+
+                        // If this person has no group types available as a result of this action, set their "No Option Reason".
+                        if ( anyGroupTypesExcluded && !person.GroupTypes.Any( gt => !gt.ExcludedByFilter ) )
+                        {
+                            person.NoOptionReason = "No Matching Groups Found";
                         }
                     }
                 }
 
                 return true;
-
             }
 
             return false;

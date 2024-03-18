@@ -23,10 +23,7 @@
 using System;
 using System.Linq;
 
-using Rock.Attribute;
 using Rock.Data;
-using Rock.ViewModel;
-using Rock.Web.Cache;
 
 namespace Rock.Model
 {
@@ -115,15 +112,9 @@ namespace Rock.Model
                 return false;
             }
 
-            if ( new Service<Communication>( Context ).Queryable().Any( a => a.SMSFromDefinedValueId == item.Id ) )
+            if ( new Service<CampusTopic>( Context ).Queryable().Any( a => a.TopicTypeValueId == item.Id ) )
             {
-                errorMessage = string.Format( "This {0} is assigned to a {1}.", DefinedValue.FriendlyTypeName, Communication.FriendlyTypeName );
-                return false;
-            }
-
-            if ( new Service<CommunicationTemplate>( Context ).Queryable().Any( a => a.SMSFromDefinedValueId == item.Id ) )
-            {
-                errorMessage = string.Format( "This {0} is assigned to a {1}.", DefinedValue.FriendlyTypeName, CommunicationTemplate.FriendlyTypeName );
+                errorMessage = string.Format( "This {0} is assigned to a {1}.", DefinedValue.FriendlyTypeName, CampusTopic.FriendlyTypeName );
                 return false;
             }
 
@@ -253,6 +244,18 @@ namespace Rock.Model
                 return false;
             }
 
+            if ( new Service<InteractionSessionLocation>( Context ).Queryable().Any( a => a.CountryValueId == item.Id ) )
+            {
+                errorMessage = string.Format( "This {0} is assigned to a {1}.", DefinedValue.FriendlyTypeName, InteractionSessionLocation.FriendlyTypeName );
+                return false;
+            }
+
+            if ( new Service<InteractionSessionLocation>( Context ).Queryable().Any( a => a.RegionValueId == item.Id ) )
+            {
+                errorMessage = string.Format( "This {0} is assigned to a {1}.", DefinedValue.FriendlyTypeName, InteractionSessionLocation.FriendlyTypeName );
+                return false;
+            }
+
             if ( new Service<Location>( Context ).Queryable().Any( a => a.LocationTypeValueId == item.Id ) )
             {
                 errorMessage = string.Format( "This {0} is assigned to a {1}.", DefinedValue.FriendlyTypeName, Location.FriendlyTypeName );
@@ -271,6 +274,12 @@ namespace Rock.Model
                 return false;
             }
 
+            if ( new Service<Person>( Context ).Queryable().Any( a => a.EthnicityValueId == item.Id ) )
+            {
+                errorMessage = string.Format( "This {0} is assigned to a {1}.", DefinedValue.FriendlyTypeName, Person.FriendlyTypeName );
+                return false;
+            }
+
             if ( new Service<Person>( Context ).Queryable().Any( a => a.MaritalStatusValueId == item.Id ) )
             {
                 errorMessage = string.Format( "This {0} is assigned to a {1}.", DefinedValue.FriendlyTypeName, Person.FriendlyTypeName );
@@ -278,6 +287,12 @@ namespace Rock.Model
             }
 
             if ( new Service<Person>( Context ).Queryable().Any( a => a.PreferredLanguageValueId == item.Id ) )
+            {
+                errorMessage = string.Format( "This {0} is assigned to a {1}.", DefinedValue.FriendlyTypeName, Person.FriendlyTypeName );
+                return false;
+            }
+
+            if ( new Service<Person>( Context ).Queryable().Any( a => a.RaceValueId == item.Id ) )
             {
                 errorMessage = string.Format( "This {0} is assigned to a {1}.", DefinedValue.FriendlyTypeName, Person.FriendlyTypeName );
                 return false;
@@ -343,6 +358,12 @@ namespace Rock.Model
                 return false;
             }
 
+            if ( new Service<RegistrationTemplate>( Context ).Queryable().Any( a => a.ConnectionStatusValueId == item.Id ) )
+            {
+                errorMessage = string.Format( "This {0} is assigned to a {1}.", DefinedValue.FriendlyTypeName, RegistrationTemplate.FriendlyTypeName );
+                return false;
+            }
+
             if ( new Service<WorkflowActionForm>( Context ).Queryable().Any( a => a.PersonEntryCampusStatusValueId == item.Id ) )
             {
                 errorMessage = string.Format( "This {0} is assigned to a {1}.", DefinedValue.FriendlyTypeName, WorkflowActionForm.FriendlyTypeName );
@@ -372,52 +393,21 @@ namespace Rock.Model
                 errorMessage = string.Format( "This {0} is assigned to a {1}.", DefinedValue.FriendlyTypeName, WorkflowActionForm.FriendlyTypeName );
                 return false;
             }
+
+            if ( new Service<WorkflowActionForm>( Context ).Queryable().Any( a => a.PersonEntrySectionTypeValueId == item.Id ) )
+            {
+                errorMessage = string.Format( "This {0} is assigned to a {1}.", DefinedValue.FriendlyTypeName, WorkflowActionForm.FriendlyTypeName );
+                return false;
+            }
+
+            if ( new Service<WorkflowActionFormSection>( Context ).Queryable().Any( a => a.SectionTypeValueId == item.Id ) )
+            {
+                errorMessage = string.Format( "This {0} is assigned to a {1}.", DefinedValue.FriendlyTypeName, WorkflowActionFormSection.FriendlyTypeName );
+                return false;
+            }
             return true;
         }
     }
-
-    /// <summary>
-    /// DefinedValue View Model Helper
-    /// </summary>
-    [DefaultViewModelHelper( typeof( DefinedValue ) )]
-    public partial class DefinedValueViewModelHelper : ViewModelHelper<DefinedValue, Rock.ViewModel.DefinedValueViewModel>
-    {
-        /// <summary>
-        /// Converts the model to a view model.
-        /// </summary>
-        /// <param name="model">The entity.</param>
-        /// <param name="currentPerson">The current person.</param>
-        /// <param name="loadAttributes">if set to <c>true</c> [load attributes].</param>
-        /// <returns></returns>
-        public override Rock.ViewModel.DefinedValueViewModel CreateViewModel( DefinedValue model, Person currentPerson = null, bool loadAttributes = true )
-        {
-            if ( model == null )
-            {
-                return default;
-            }
-
-            var viewModel = new Rock.ViewModel.DefinedValueViewModel
-            {
-                Id = model.Id,
-                Guid = model.Guid,
-                DefinedTypeId = model.DefinedTypeId,
-                Description = model.Description,
-                IsActive = model.IsActive,
-                IsSystem = model.IsSystem,
-                Order = model.Order,
-                Value = model.Value,
-                CreatedDateTime = model.CreatedDateTime,
-                ModifiedDateTime = model.ModifiedDateTime,
-                CreatedByPersonAliasId = model.CreatedByPersonAliasId,
-                ModifiedByPersonAliasId = model.ModifiedByPersonAliasId,
-            };
-
-            AddAttributesToViewModel( model, viewModel, currentPerson, loadAttributes );
-            ApplyAdditionalPropertiesAndSecurityToViewModel( model, viewModel, currentPerson, loadAttributes );
-            return viewModel;
-        }
-    }
-
 
     /// <summary>
     /// Generated Extension Methods
@@ -475,6 +465,7 @@ namespace Rock.Model
         public static void CopyPropertiesFrom( this DefinedValue target, DefinedValue source )
         {
             target.Id = source.Id;
+            target.CategoryId = source.CategoryId;
             target.DefinedTypeId = source.DefinedTypeId;
             target.Description = source.Description;
             target.ForeignGuid = source.ForeignGuid;
@@ -491,20 +482,5 @@ namespace Rock.Model
             target.ForeignId = source.ForeignId;
 
         }
-
-        /// <summary>
-        /// Creates a view model from this entity
-        /// </summary>
-        /// <param name="model">The entity.</param>
-        /// <param name="currentPerson" >The currentPerson.</param>
-        /// <param name="loadAttributes" >Load attributes?</param>
-        public static Rock.ViewModel.DefinedValueViewModel ToViewModel( this DefinedValue model, Person currentPerson = null, bool loadAttributes = false )
-        {
-            var helper = new DefinedValueViewModelHelper();
-            var viewModel = helper.CreateViewModel( model, currentPerson, loadAttributes );
-            return viewModel;
-        }
-
     }
-
 }

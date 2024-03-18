@@ -19,7 +19,10 @@ using System.Collections.Concurrent;
 using System.IO;
 using System.Runtime.Serialization;
 
+using Microsoft.Extensions.Logging;
+
 using Rock.Data;
+using Rock.Logging;
 using Rock.Model;
 using Rock.Security;
 
@@ -88,7 +91,7 @@ namespace Rock.Web.Cache
         /// A <see cref="System.String"/> that represents the Description of the BlockType
         /// </value>
         /// <example>
-        /// Provides ability to login to site.
+        /// Provides ability to log into the site.
         /// </example>
         [DataMember]
         public string Description { get; private set; }
@@ -114,17 +117,6 @@ namespace Rock.Web.Cache
         /// </value>
         [DataMember]
         public bool IsInstancePropertiesVerified { get; private set; }
-
-        /// <summary>
-        /// Gets or sets a value indicating whether [checked security actions].
-        /// </summary>
-        /// <value>
-        ///   <c>true</c> if [checked security actions]; otherwise, <c>false</c>.
-        /// </value>
-        [DataMember]
-        [Obsolete( "SecurityActions is now loaded on demand, so this no longer applies" )]
-        [RockObsolete( "1.11" )]
-        public bool CheckedSecurityActions { get; private set; }
 
         private ConcurrentDictionary<string, string> _securityActions = null;
 
@@ -193,30 +185,6 @@ namespace Rock.Web.Cache
         #region Public Methods
 
         /// <summary>
-        /// Sets the security actions.
-        /// </summary>
-        /// <param name="blockControl">The block control.</param>
-        [Obsolete( "SecurityActions is now loaded on demand, so this no longer applies" )]
-        [RockObsolete( "1.11" )]
-        public void SetSecurityActions( Web.UI.RockBlock blockControl )
-        {
-            // SecurityActions is now loaded on demand, so we don't need to do anything here
-            return;
-        }
-
-        /// <summary>
-        /// Sets the security actions.
-        /// </summary>
-        /// <param name="blockType">The block type.</param>
-        [Obsolete( "SecurityActions is now loaded on demand, so this no longer applies" )]
-        [RockObsolete( "1.11" )]
-        public void SetSecurityActions( Type blockType )
-        {
-            // SecurityActions is now loaded on demand, so we don't need to do anything here
-            return;
-        }
-
-        /// <summary>
         /// Copies from model.
         /// </summary>
         /// <param name="entity">The entity.</param>
@@ -257,7 +225,7 @@ namespace Rock.Web.Cache
 
             string physicalPath;
 
-            // This will add a file system watcher so that when the block on the file system changes, this 
+            // This will add a file system watcher so that when the block on the file system changes, this
             // object will be removed from cache. This is to force the cmsPage object to revalidate any
             // BlockPropery attributes that may have been added or modified.
             if ( System.Web.HttpContext.Current != null )
@@ -316,10 +284,15 @@ namespace Rock.Web.Cache
                 }
                 catch ( Exception ex )
                 {
+                    // Added some diagnostics to record where this code is being called from
+                    // since our current exceptions are missing this detail.
+                    var stackTrace = new System.Diagnostics.StackTrace( true );
+                    RockLogger.LoggerFactory.CreateLogger<BlockTypeCache>()
+                        .LogDebug( ex, $"Path: {Path}" + System.Environment.NewLine + stackTrace.ToString() );
                     ExceptionLogService.LogException( ex );
                     return null;
                 }
-                
+
             }
             else if ( EntityTypeId.HasValue )
             {
@@ -330,9 +303,9 @@ namespace Rock.Web.Cache
                 catch ( Exception ex )
                 {
                     ExceptionLogService.LogException( ex );
-                    return null;;
+                    return null;
                 }
-                
+
             }
 
             return null;

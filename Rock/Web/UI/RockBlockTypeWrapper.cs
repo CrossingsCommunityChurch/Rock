@@ -15,6 +15,7 @@
 // </copyright>
 //
 using System;
+using System.IO;
 using System.Web.UI;
 using Rock.Blocks;
 
@@ -27,6 +28,11 @@ namespace Rock.Web.UI
     /// <seealso cref="Rock.Web.UI.RockBlock" />
     public class RockBlockTypeWrapper : RockBlock
     {
+        /// <summary>
+        /// The cached output from RenderControl.
+        /// </summary>
+        private string _cachedRenderContent;
+
         #region Properties
 
         /// <summary>
@@ -41,10 +47,7 @@ namespace Rock.Web.UI
 
         #region Base Method Overrides
 
-        /// <summary>
-        /// Raises the <see cref="E:System.Web.UI.Control.Init" /> event.
-        /// </summary>
-        /// <param name="e">An <see cref="T:System.EventArgs" /> object that contains the event data.</param>
+        /// <inheritdoc/>
         protected override void OnInit( EventArgs e )
         {
             base.OnInit( e );
@@ -56,17 +59,28 @@ namespace Rock.Web.UI
             }
         }
 
-        /// <summary>
-        /// Outputs server control content to a provided <see cref="T:System.Web.UI.HtmlTextWriter" /> object and stores tracing information about the control if tracing is enabled.
-        /// </summary>
-        /// <param name="writer">The <see cref="T:System.Web.UI.HtmlTextWriter" /> object that receives the control content.</param>
-        public override void RenderControl( HtmlTextWriter writer )
+        /// <inheritdoc/>
+        protected override void OnLoad( EventArgs e )
         {
-            base.RenderControl( writer );
+            base.OnLoad( e );
 
             if ( Block is IRockWebBlockType webBlock )
             {
-                writer.Write( webBlock.GetControlMarkup() );
+                using ( var sw = new StringWriter() )
+                {
+                    sw.Write( webBlock.GetControlMarkup() );
+
+                    _cachedRenderContent = sw.ToString();
+                }
+            }
+        }
+
+        /// <inheritdoc/>
+        public override void RenderControl( HtmlTextWriter writer )
+        {
+            if ( _cachedRenderContent != null )
+            {
+                writer.Write( _cachedRenderContent );
             }
         }
 

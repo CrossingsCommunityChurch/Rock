@@ -35,6 +35,7 @@ namespace Rock.Workflow.Action.CheckIn
     [Description( "Calculates and updates the LastCheckIn property on check-in objects" )]
     [Export( typeof( ActionComponent ) )]
     [ExportMetadata( "ComponentName", "Calculate Last Attended" )]
+    [Rock.SystemGuid.EntityTypeGuid( "A2216790-9699-4213-8EB2-DDDCA54F2C03")]
     public class CalculateLastAttended : CheckInActionComponent
     {
         /// <summary>
@@ -186,9 +187,9 @@ namespace Rock.Workflow.Action.CheckIn
                                     group.LastCheckIn = groupAttendance.Max( a => a.StartDateTime );
                                 }
 
-                                // If person checked into this group on last visit, preselect it for now.
+                                // If person checked into this group on last visit and it has any locations with schedules, preselect it for now.
                                 var previousGroupCheckins = previousCheckins.Where( c => c.GroupId == group.Group.Id ).ToList();
-                                if ( previousGroupCheckins.Any() )
+                                if ( previousGroupCheckins.Any() && group.AnyLocationsWithSchedules )
                                 {
                                     group.PreSelected = true;
                                 }
@@ -202,7 +203,8 @@ namespace Rock.Workflow.Action.CheckIn
                                         location.LastCheckIn = locationAttendance.Max( a => a.StartDateTime );
                                     }
 
-                                    if ( group.PreSelected )
+                                    // Only attempt to preselect this location if the group was preselected and the location has any schedules.
+                                    if ( group.PreSelected && location.AnySchedules )
                                     {
                                         var previousLocationCheckins = previousGroupCheckins.Where( c => c.LocationId == location.Location.Id );
                                         if ( previousLocationCheckins.Any() )
@@ -234,9 +236,9 @@ namespace Rock.Workflow.Action.CheckIn
                                 }
 
                                 // If the group was preselected, but could not preselect the location, try to preselect the first location and schedule.
-                                if ( group.PreSelected && !group.Locations.Any( l => l.PreSelected ) && group.Locations.Any() )
+                                if ( group.PreSelected && !group.Locations.Any( l => l.PreSelected ) && group.Locations.Any( l => l.AnySchedules ) )
                                 {
-                                    var location = group.Locations.First();
+                                    var location = group.Locations.First( l => l.AnySchedules );
                                     var schedule = location.Schedules
                                                 .Where( s => !selectedSchedules.Contains( s.Schedule.Id ) )
                                                 .OrderBy( s => s.StartTime )
@@ -259,7 +261,7 @@ namespace Rock.Workflow.Action.CheckIn
                             groupType.PreSelected = groupType.Groups.Any( g => g.PreSelected );
                         }
 
-                        person.PreSelected = person.GroupTypes.Any( t => t.PreSelected );
+                        person.PreSelected = person.GroupTypes.Any( t => t.PreSelected ) && person.FamilyMember;
                     }
                     else
                     {

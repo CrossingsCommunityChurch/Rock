@@ -42,6 +42,7 @@ namespace Rock.Rest.Controllers
         [Authenticate, Secured]
         [HttpPost]
         [System.Web.Http.Route( "api/BinaryFiles/Upload" )]
+        [Rock.SystemGuid.RestActionGuid( "966630A2-9A43-4CD9-80B9-663B0A8D4D24" )]
         public HttpResponseMessage Upload( Guid binaryFileTypeGuid )
         {
             try
@@ -77,6 +78,7 @@ namespace Rock.Rest.Controllers
         [Authenticate, Secured]
         [HttpPost]
         [System.Web.Http.Route( "api/BinaryFiles/Upload" )]
+        [Rock.SystemGuid.RestActionGuid( "0419E557-B417-42A1-82CD-E72640858386" )]
         public HttpResponseMessage Upload( int binaryFileTypeId )
         {
             try
@@ -109,7 +111,7 @@ namespace Rock.Rest.Controllers
                 binaryFile.IsTemporary = false;
                 binaryFile.BinaryFileTypeId = binaryFileType.Id;
                 binaryFile.MimeType = uploadedFile.ContentType;
-                binaryFile.FileName = Path.GetFileName( uploadedFile.FileName );
+                binaryFile.FileName = FileUtilities.ScrubFileName( uploadedFile.FileName );
                 binaryFile.FileSize = uploadedFile.ContentLength;
                 binaryFile.ContentStream = FileUtilities.GetFileContentStream( uploadedFile );
 

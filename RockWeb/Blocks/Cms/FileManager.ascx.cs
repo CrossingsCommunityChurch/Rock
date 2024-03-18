@@ -65,6 +65,7 @@ namespace RockWeb.Blocks.Cms
         )]
 
     #endregion Block Attributes
+    [Rock.SystemGuid.BlockTypeGuid( "BA327D25-BD8A-4B67-B04C-17B499DDA4B6" )]
     public partial class FileManager : RockBlock
     {
         #region Attribute Keys
@@ -153,7 +154,7 @@ namespace RockWeb.Blocks.Cms
                 iframeUrl += "&RelativeFilePath=" + HttpUtility.UrlEncode( PageParameter( PageParameterKey.RelativeFilePath ) );
             }
             
-            iframeUrl += "&Theme=" + this.RockPage.Site.Theme;
+            iframeUrl += "&EditorTheme=" + this.RockPage.Site.Theme;
 
             iframeFileBrowser.Src = iframeUrl;
         }

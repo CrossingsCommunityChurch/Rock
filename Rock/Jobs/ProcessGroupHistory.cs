@@ -19,8 +19,6 @@ using System.ComponentModel;
 using System.Data.Entity;
 using System.Linq;
 
-using Quartz;
-
 using Rock.Data;
 using Rock.Model;
 
@@ -29,12 +27,10 @@ namespace Rock.Jobs
     /// <summary>
     /// Processes Group History
     /// </summary>
-    /// <seealso cref="Quartz.IJob" />
     [DisplayName( "Process Group History" )]
     [Description( "Creates Historical snapshots of Groups and Group Members for any group types that have history enabled." )]
 
-    [DisallowConcurrentExecution]
-    public class ProcessGroupHistory : IJob
+    public class ProcessGroupHistory : RockJob
     {
 
         #region Constructor
@@ -63,37 +59,32 @@ namespace Rock.Jobs
 
         #region Methods
 
-        /// <summary>
-        /// Executes the specified context.
-        /// </summary>
-        /// <param name="context">The context.</param>
-        public void Execute( IJobExecutionContext context )
+        /// <inheritdoc cref="RockJob.Execute()" />
+        public override void Execute()
         {
-            JobDataMap dataMap = context.JobDetail.JobDataMap;
 
             _jobStatusMessages = new List<string>();
 
-            UpdateGroupHistorical( context );
+            UpdateGroupHistorical();
 
-            UpdateGroupMemberHistorical( context );
+            UpdateGroupMemberHistorical();
 
-            UpdateGroupLocationHistorical( context );
+            UpdateGroupLocationHistorical();
 
             if ( _jobStatusMessages.Any() )
             {
-                context.UpdateLastStatusMessage( _jobStatusMessages.AsDelimited( ", ", " and " ) );
+                this.UpdateLastStatusMessage( _jobStatusMessages.AsDelimited( ", ", " and " ) );
             }
             else
             {
-                context.UpdateLastStatusMessage( "No group changes detected" );
+                this.UpdateLastStatusMessage( "No group changes detected" );
             }
         }
 
         /// <summary>
         /// Updates Group Historical for any groups that have data group history enabled
         /// </summary>
-        /// <param name="context">The context.</param>
-        public void UpdateGroupHistorical( IJobExecutionContext context )
+        public void UpdateGroupHistorical()
         {
             var rockContext = new RockContext();
             var groupHistoricalService = new GroupHistoricalService( rockContext );
@@ -179,8 +170,7 @@ namespace Rock.Jobs
         /// <summary>
         /// Updates GroupMemberHistorical for any group members in groups that have data group history enabled
         /// </summary>
-        /// <param name="context">The context.</param>
-        public void UpdateGroupMemberHistorical( IJobExecutionContext context )
+        public void UpdateGroupMemberHistorical()
         {
             var rockContext = new RockContext();
             var groupMemberHistoricalService = new GroupMemberHistoricalService( rockContext );
@@ -257,8 +247,7 @@ namespace Rock.Jobs
         /// <summary>
         /// Updates GroupLocationHistorical for any group locations in groups that have data group history enabled
         /// </summary>
-        /// <param name="context">The context.</param>
-        public void UpdateGroupLocationHistorical( IJobExecutionContext context )
+        public void UpdateGroupLocationHistorical()
         {
             var rockContext = new RockContext();
             var groupLocationHistoricalService = new GroupLocationHistoricalService( rockContext );
@@ -282,23 +271,19 @@ namespace Rock.Jobs
                         || ( a.GroupLocation.GroupLocationTypeValueId.HasValue && a.GroupLocation.GroupLocationTypeValue.Value != a.GroupLocationHistorical.GroupLocationTypeName )
                         || a.GroupLocation.LocationId != a.GroupLocationHistorical.LocationId
                         || a.GroupLocation.Location.ModifiedDateTime != a.GroupLocationHistorical.LocationModifiedDateTime
-                        || ( a.GroupLocation.Schedules.Select( s => new { ScheduleId = s.Id, s.ModifiedDateTime } ).Except( a.GroupLocationHistorical.GroupLocationHistoricalSchedules.Select( hs => new { hs.ScheduleId, ModifiedDateTime = hs.ScheduleModifiedDateTime } ) ) ).Any()
-                    );
+                        );
 
             var effectiveExpireDateTime = RockDateTime.Now;
             int groupLocationsLoggedToHistory = 0;
             int groupLocationsSaveToHistoryCurrent = 0;
 
-            if ( groupLocationHistoricalNoLongerCurrentQuery.Any() )
-            {
-                var groupLocationHistoricalNoLongerCurrent = groupLocationHistoricalNoLongerCurrentQuery.Select( a => a.GroupLocationHistorical ).AsNoTracking();
+            var groupLocationHistoricalNoLongerCurrent = groupLocationHistoricalNoLongerCurrentQuery.Select( a => a.GroupLocationHistorical ).AsNoTracking();
 
-                groupLocationsLoggedToHistory = rockContext.BulkUpdate( groupLocationHistoricalNoLongerCurrent, glh => new GroupLocationHistorical
-                {
-                    CurrentRowIndicator = false,
-                    ExpireDateTime = effectiveExpireDateTime
-                } );
-            }
+            groupLocationsLoggedToHistory = rockContext.BulkUpdate( groupLocationHistoricalNoLongerCurrent, glh => new GroupLocationHistorical
+            {
+                CurrentRowIndicator = false,
+                ExpireDateTime = effectiveExpireDateTime
+            } );
 
             // Insert Group Locations (that have a group with GroupType.EnableGroupHistory) that don't have a CurrentRowIndicator row yet ( or don't have a CurrentRowIndicator because it was stamped with CurrentRowIndicator=false )
             var groupLocationsToAddToHistoricalCurrentsQuery = groupLocationsWithHistoryEnabledQuery.Where( gl => !groupLocationsHistoricalCurrentQuery.Any( glh => glh.GroupLocationId == gl.Id ) );
@@ -312,35 +297,7 @@ namespace Rock.Jobs
 
                 groupLocationsSaveToHistoryCurrent = groupLocationHistoricalCurrentsToInsert.Count();
 
-                // get the current max GroupLocatiionHistorical.Id to help narrow down which ones were inserted
-                int groupLocationHistoricalStartId = groupLocationHistoricalService.Queryable().Max( a => ( int? ) a.Id ) ?? 0;
-
                 rockContext.BulkInsert( groupLocationHistoricalCurrentsToInsert );
-
-                // since we used BulkInsert, we'll need to go back and get the Ids and the associated GroupLocation's Schedules for the GroupLocationHistorical records that we just inserted
-                var insertedGroupLocationHistoricalIdsWithSchedules = groupLocationHistoricalService.Queryable()
-                    .Where( a => a.Id > groupLocationHistoricalStartId && a.GroupLocation.Schedules.Any() ).ToList()
-                    .Select( a => new { GroupLocationHistoricalId = a.Id, a.GroupLocation.Schedules } );
-
-                List<GroupLocationHistoricalSchedule> groupLocationHistoricalScheduleCurrentsToInsert = new List<GroupLocationHistoricalSchedule>();
-                foreach ( var insertedGroupLocationHistoricalIdWithSchedules in insertedGroupLocationHistoricalIdsWithSchedules )
-                {
-                    foreach ( Schedule schedule in insertedGroupLocationHistoricalIdWithSchedules.Schedules )
-                    {
-                        groupLocationHistoricalScheduleCurrentsToInsert.Add( new GroupLocationHistoricalSchedule
-                        {
-                            GroupLocationHistoricalId = insertedGroupLocationHistoricalIdWithSchedules.GroupLocationHistoricalId,
-                            ScheduleId = schedule.Id,
-                            ScheduleName = schedule.ToString(),
-                            ScheduleModifiedDateTime = schedule.ModifiedDateTime
-                        } );
-                    }
-                }
-
-                if ( groupLocationHistoricalScheduleCurrentsToInsert.Any() )
-                {
-                    rockContext.BulkInsert( groupLocationHistoricalScheduleCurrentsToInsert );
-                }
             }
 
             if ( groupLocationsLoggedToHistory > 0 )

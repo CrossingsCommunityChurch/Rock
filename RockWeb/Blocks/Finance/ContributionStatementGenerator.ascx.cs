@@ -16,6 +16,7 @@
 using System;
 using System.ComponentModel;
 using System.Linq;
+using System.Net;
 using System.Web.UI;
 
 using Rock;
@@ -33,6 +34,7 @@ namespace RockWeb.Blocks.Finance
     [Category( "Finance" )]
     [Description( "Block for generating a Contribution Statement" )]
 
+
     [BooleanField(
         "Allow Person QueryString",
         Key = AttributeKey.AllowPersonQueryString,
@@ -45,6 +47,8 @@ namespace RockWeb.Blocks.Finance
         Key = AttributeKey.FinancialStatementTemplate,
         DefaultValue = Rock.SystemGuid.FinancialStatementTemplate.ROCK_DEFAULT,
         Order = 1 )]
+
+    [Rock.SystemGuid.BlockTypeGuid( "E0A699C3-61AA-4522-9067-1FE56FA80972" )]
     public partial class ContributionStatementGenerator : RockBlock
     {
         #region Attribute Keys
@@ -62,6 +66,8 @@ namespace RockWeb.Blocks.Finance
         private static class PageParameterKey
         {
             public const string StatementYear = "StatementYear";
+            public const string StatementEndMonth = "StatementEndMonth";
+            public const string PersonActionIdentifier = "rckid";
             public const string PersonGuid = "PersonGuid";
         }
 
@@ -111,21 +117,31 @@ namespace RockWeb.Blocks.Finance
 
         private void DisplayResults()
         {
-            RockContext rockContext = new RockContext();
-
-            var statementYear = PageParameter( PageParameterKey.StatementYear ).AsIntegerOrNull() ?? RockDateTime.Now.Year;
-
-            FinancialTransactionDetailService financialTransactionDetailService = new FinancialTransactionDetailService( rockContext );
-
             Person targetPerson = CurrentPerson;
 
+            RockContext rockContext = new RockContext();
+                        
+            var statementYear = PageParameter( PageParameterKey.StatementYear ).AsIntegerOrNull() ?? RockDateTime.Now.Year;
+            var statementEndMonth = PageParameter( PageParameterKey.StatementEndMonth ).AsIntegerOrNull() ?? 0;
+            var personActionId = PageParameter( PageParameterKey.PersonActionIdentifier );
             var personGuid = PageParameter( PageParameterKey.PersonGuid ).AsGuidOrNull();
+            var allowPersonQueryString = GetAttributeValue( AttributeKey.AllowPersonQueryString ).AsBoolean();
 
-            if ( personGuid.HasValue )
+            if ( personActionId.IsNotNullOrWhiteSpace() )
+            {
+                var person = new PersonService( rockContext ).GetByPersonActionIdentifier( personActionId, "contribution-statement" );
+                var isCurrentPersonsBusiness = targetPerson != null && targetPerson.GetBusinesses().Any( b => b.Guid == person.Guid );
+                if ( person != null && ( allowPersonQueryString || isCurrentPersonsBusiness ) )
+                {
+                    targetPerson = person;
+                }
+            }
+            else if ( personGuid.HasValue )
             {
                 // if "AllowPersonQueryString is False", only use the PersonGuid if it is a Guid of one of the current person's businesses
                 var isCurrentPersonsBusiness = targetPerson != null && targetPerson.GetBusinesses().Any( b => b.Guid == personGuid.Value );
-                if ( GetAttributeValue( AttributeKey.AllowPersonQueryString ).AsBoolean() || isCurrentPersonsBusiness )
+
+                if ( allowPersonQueryString || isCurrentPersonsBusiness )
                 {
                     var person = new PersonService( rockContext ).Get( personGuid.Value );
                     if ( person != null )
@@ -135,10 +151,19 @@ namespace RockWeb.Blocks.Finance
                 }
             }
 
+            if ( targetPerson == null )
+            {
+                Response.StatusCode = ( int ) HttpStatusCode.BadRequest;
+                Response.Write( "Invalid Person" );
+                Response.End();
+            }
+
             FinancialStatementGeneratorOptions financialStatementGeneratorOptions = new FinancialStatementGeneratorOptions();
             var startDate = new DateTime( statementYear, 1, 1 );
+            // If the statementEndMonth page parameter exists and its value is between 1 and 12 use it, otherwise endDate retains the normal behavior.
+            var endDate = ( statementEndMonth > 0 && statementEndMonth < 12 ) ? ( new DateTime( statementYear, statementEndMonth, 1 ) ).AddMonths( 1 ) : startDate.AddYears( 1 );
             financialStatementGeneratorOptions.StartDate = startDate;
-            financialStatementGeneratorOptions.EndDate = startDate.AddYears( 1 );
+            financialStatementGeneratorOptions.EndDate = endDate;
             financialStatementGeneratorOptions.RenderMedium = "Html";
 
             var financialStatementTemplateGuid = this.GetAttributeValue( AttributeKey.FinancialStatementTemplate ).AsGuidOrNull() ?? Rock.SystemGuid.FinancialStatementTemplate.ROCK_DEFAULT.AsGuid();
@@ -147,6 +172,10 @@ namespace RockWeb.Blocks.Finance
 
             FinancialStatementGeneratorRecipient financialStatementGeneratorRecipient = new FinancialStatementGeneratorRecipient();
 
+            // It's required that we set the LocationId in order for the GetStatementGeneratorRecipientResult() to
+            // fetch all the required data for the Lava.
+            financialStatementGeneratorRecipient.LocationId = targetPerson.GetMailingLocation()?.Id;
+    
             if ( targetPerson.GivingGroupId.HasValue )
             {
                 financialStatementGeneratorRecipient.GroupId = targetPerson.GivingGroupId.Value;

@@ -64,6 +64,11 @@ namespace Rock.SystemGuid
         public const string HISTORY_PERSON = "6F09163D-7DDD-4E1E-8D18-D7CAA04451A7";
 
         /// <summary>
+        /// The history attendance changes for a person
+        /// </summary>
+        public const string HISTORY_ATTENDANCE_CHANGES = "BF6ABCD3-AD41-4D54-998F-B83C302756E3";
+
+        /// <summary>
         /// History of person demographic changes
         /// </summary>
         public const string HISTORY_PERSON_DEMOGRAPHIC_CHANGES = "51D3EC5A-D079-45ED-909E-B0AB2FD06835";
@@ -133,6 +138,11 @@ namespace Rock.SystemGuid
         /// </summary>
         public const string HISTORY_CONNECTION_REQUEST = "A8542DD2-91B1-4CCA-873A-D052BCD6EE06";
 
+        /// <summary>
+        /// History of location changes
+        /// </summary>
+        public const string HISTORY_LOCATION = "67E8F6D1-2F20-43FD-BAEC-144E70428AC3";
+
         #endregion
 
         #region Schedule Categories
@@ -146,6 +156,11 @@ namespace Rock.SystemGuid
         /// Gets the Metrics schedule category guid
         /// </summary>
         public const string SCHEDULE_METRICS = "5A794741-5444-43F0-90D7-48E47276D426";
+
+        /// <summary>
+        /// Gets the DataView Persisted Schedule category guid
+        /// </summary>
+        public const string SCHEDULE_PERSISTED_DATAVIEWS = "EEC7A935-BEF2-4450-9CBF-B85CEC6F7FEA";
 
         #endregion
 
@@ -170,6 +185,11 @@ namespace Rock.SystemGuid
         /// The category for person attributes for DISC
         /// </summary>
         public const string PERSON_ATTRIBUTES_DISC = "0B187C81-2106-4875-82B6-FBF1277AE23B";
+
+        /// <summary>
+        /// The category for the Check-in Manager Roster Alert Icons
+        /// </summary>
+        public const string PERSON_ATTRIBUTES_CHECK_IN_ROSTER_ALERT_ICON = "367571D1-62D3-4948-B588-C0FDCE00CF27";
 
         /// <summary>
         /// The category for person attributes for Personality Assessment Data
@@ -213,7 +233,7 @@ namespace Rock.SystemGuid
         /// <summary>
         /// The System Email Workflow Category guid
         /// </summary>
-        [Obsolete( "Use SYSTEM_COMMUNICATION_WORKFLOW instead." )]
+        [Obsolete( "Use SYSTEM_COMMUNICATION_WORKFLOW instead.", true )]
         [RockObsolete("1.10")]
         public const string SYSTEM_EMAIL_WORKFLOW = "C7B9B5F1-9D90-485F-93E4-5D7D81EC2B12";
 
@@ -226,6 +246,11 @@ namespace Rock.SystemGuid
         /// The System Communication RSVP Confirmation Category guid
         /// </summary>
         public const string SYSTEM_COMMUNICATION_RSVP_CONFIRMATION = "19024818-E456-4642-8858-F50C8B6DB5ED";
+
+        /// <summary>
+        /// The system communication Sign-Up Group confirmation Category guid
+        /// </summary>
+        public const string SYSTEM_COMMUNICATION_SIGNUP_GROUP_CONFIRMATION = "CB279EE1-9A12-4837-9A14-1F36B6F7CDAF";
 
         #endregion
 
@@ -258,6 +283,54 @@ namespace Rock.SystemGuid
         /// Hosting Metrics Metric Category Guid
         /// </summary>
         public const string METRIC_HOSTING_METRICS = "370FBBD8-7766-4B3F-81A9-F13EE819A832";
+
+        /// <summary>
+        /// The insights metrics Category Guid
+        /// </summary>
+        public const string INSIGHTS = "CEC746EE-76D6-477F-B7CF-374542F92041";
+
+        #endregion
+
+        #region WorkflowType Categories
+
+        /// <summary>
+        /// The GUID for the WorkflowType category "Check-in"
+        /// </summary>
+        public const string WORKFLOW_TYPE_CHECKIN = "8F8B272D-D351-485E-86D6-3EE5B7C84D99";
+
+        /// <summary>
+        /// The GUID for the WorkflowType category "Data Integrity"
+        /// </summary>
+        public const string WORKFLOW_TYPE_DATA_INTEGRITY = "BBAE05FD-8192-4616-A71E-903A927E0D90";
+
+        /// <summary>
+        /// The GUID for the WorkflowType category "Requests"
+        /// </summary>
+        public const string WORKFLOW_TYPE_REQUESTS = "78E38655-D951-41DB-A0FF-D6474775CFA1";
+
+        /// <summary>
+        /// The GUID for the WorkflowType category "Safety &amp; Security"
+        /// </summary>
+        public const string WORKFLOW_TYPE_SAFETY_AND_SECURITY = "6F8A431C-BEBD-4D33-AAD6-1D70870329C2";
+
+        /// <summary>
+        /// The GUID for the WorkflowType "Category Samples"
+        /// </summary>
+        public const string WORKFLOW_TYPE_SAMPLES = "CB99421E-9ADC-488E-8C71-94BB14F27F56";
+
+        /// <summary>
+        /// The GUID for the WorkflowType category "Staff Forms"
+        /// </summary>
+        public const string WORKFLOW_TYPE_STAFF_FORMS = "25E6844F-59BA-4C0D-9284-ED2A558E18EC";
+
+        #endregion FormBuilder Categories
+
+        #region Lava Shortcode Categories
+
+        /// <summary>
+        /// Lava Shortcode Category Guid
+        /// </summary>
+        public const string LAVA_SHORTCODE_AI = "125FB37E-5540-48A6-4A74-A49D1C1324F8";
 
         #endregion
     }

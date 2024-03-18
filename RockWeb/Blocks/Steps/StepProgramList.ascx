@@ -20,7 +20,7 @@
                             <asp:ListItem Text="Inactive" Value="Inactive"></asp:ListItem>
                         </Rock:RockDropDownList>
                     </Rock:GridFilter>
-                    <Rock:Grid ID="gStepProgram" runat="server" AllowSorting="false">
+                    <Rock:Grid ID="gStepProgram" runat="server" AllowSorting="false" CssClass="js-grid-stepProgram-list">
                         <Columns>
                             <Rock:ReorderField />
                              <Rock:RockTemplateField ExcelExportBehavior="NeverInclude" HeaderStyle-Width="48px">
@@ -32,7 +32,7 @@
                             <Rock:RockBoundField DataField="Category" HeaderText="Category"/>
                             <Rock:RockBoundField DataField="StepTypeCount" HeaderText="Step Types" DataFormatString="{0:N0}" HeaderStyle-HorizontalAlign="Right" ItemStyle-HorizontalAlign="Right" />
                             <Rock:RockBoundField DataField="StepCompletedCount" HeaderText="Steps Taken" DataFormatString="{0:N0}" HeaderStyle-HorizontalAlign="Right" ItemStyle-HorizontalAlign="Right" />
-                            <Rock:SecurityField />
+                            <Rock:SecurityField TitleField="Name" />
                             <Rock:DeleteField OnClick="gStepProgram_Delete" />
                         </Columns>
                     </Rock:Grid>

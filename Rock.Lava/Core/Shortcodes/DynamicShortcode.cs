@@ -16,7 +16,6 @@
 //
 using System;
 using System.Collections.Generic;
-using System.Data;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -94,8 +93,46 @@ namespace Rock.Lava
         /// <exception cref="System.Exception">Could not find the variable to place results in.</exception>
         public override void OnInitialize( string tagName, string markup, List<string> tokens )
         {
+            // This code is only required for the DotLiquid implementation of Lava.
+            if ( _engine.EngineName == "RockLiquid" )
+            {
+                InitializeRockLiquidShortcode( tagName, markup, tokens );
+                return;
+            }
+
             _elementAttributesMarkup = markup;
             _tagName = tagName;
+
+            _blockMarkup = new StringBuilder();
+
+            if ( tokens.Any() )
+            {
+                // To allow for backward-compatibility with custom blocks developed for the DotLiquid framework,
+                // the set of tokens returned by the Lava block parser includes the closing tag of the block.
+                // We remove the closing tag here because it is not needed for our internal dynamic shortcode implementation.
+                tokens = tokens.Take( tokens.Count - 1 ).ToList();
+
+                foreach ( var tokenText in tokens )
+                {
+                    _blockMarkup.Append( tokenText );
+                }
+            }
+
+            base.OnInitialize( tagName, markup, tokens );
+        }
+
+        /// <summary>
+        /// Initializes the specified tag name.
+        /// </summary>
+        /// <param name="tagName">Name of the tag.</param>
+        /// <param name="markup">The markup.</param>
+        /// <param name="tokens">The tokens.</param>
+        /// <exception cref="System.Exception">Could not find the variable to place results in.</exception>
+        private void InitializeRockLiquidShortcode( string tagName, string markup, List<string> tokens )
+        {
+            _elementAttributesMarkup = markup;
+            _tagName = tagName;
+
             _blockMarkup = new StringBuilder();
 
             // Get the block markup. The list of tokens contains all of the lava from the start tag to
@@ -105,10 +142,8 @@ namespace Rock.Lava
             var endTagFound = false;
 
             // Create regular expressions for start and end tags.
-            // In the source document, the Lava Shortcode element tag format is "{[ tagname ]}".
-            // However, our pre-processing of the document substitutes the Lava-specific tag format for the Liquid-compatible tag format "{% tagname@ %}"
-            var startTag = $@"{{\[\s*{ _tagName }\s*(.*?)\]}}";
-            var endTag = $@"{{\[\s*end{ _tagName }\s*\]}}";
+            var startTag = $@"{{\[\s*{_tagName}\s*(.*?)\]}}";
+            var endTag = $@"{{\[\s*end{_tagName}\s*\]}}";
 
             var startTags = 0;
 
@@ -215,19 +250,17 @@ namespace Rock.Lava
             // Resolve the merge fields in the shortcode template in a separate context, using the set of merge fields that have been modified by the shortcode parameters.
             // Apply the set of enabled commands specified by the shortcode definition, or those enabled for the current context if none are defined by the shortcode.
             // The resulting content is a shortcode template that is ready to be processed to resolve its child elements.
-            var enabledCommands = _shortcode.EnabledLavaCommands ?? new List<string>();
+            var shortcodeCommands = _shortcode.EnabledLavaCommands ?? new List<string>();
 
-            enabledCommands = enabledCommands.Where( x => !string.IsNullOrWhiteSpace( x ) ).ToList();
+            shortcodeCommands = shortcodeCommands.Where( x => !string.IsNullOrWhiteSpace( x ) ).ToList();
 
-            if ( !enabledCommands.Any() )
+            if ( !shortcodeCommands.Any() )
             {
-                enabledCommands = context.GetEnabledCommands();
+                shortcodeCommands = context.GetEnabledCommands();
             }
 
-            var shortcodeTemplateContext = _engine.NewRenderContext( internalMergeFields, enabledCommands );
-
+            var shortcodeTemplateContext = _engine.NewRenderContext( internalMergeFields, shortcodeCommands );
             var blockMarkupRenderResult = _engine.RenderTemplate( _blockMarkup.ToString(), LavaRenderParameters.WithContext( shortcodeTemplateContext ) );
-
             var shortcodeTemplateMarkup = blockMarkupRenderResult.Text;
 
             // Extract child elements from the shortcode template content.
@@ -238,7 +271,15 @@ namespace Rock.Lava
             // Parameters declared on child elements can be referenced in the shortcode template as <childElementName>.<paramName>.
             Dictionary<string, object> childElements;
 
-            var residualMarkup = ExtractShortcodeBlockChildElements( shortcodeTemplateMarkup, out childElements );
+            string residualMarkup;
+            var childElementsAreValid = ExtractShortcodeBlockChildElements( shortcodeTemplateMarkup, out childElements, out residualMarkup );
+
+            if ( !childElementsAreValid )
+            {
+                // The residual block markup contains the error message, so write it to the output stream.
+                result.Write( residualMarkup );
+                return;
+            }
 
             // Add the collections of child to the set of parameters that will be passed to the shortcode template.
             foreach ( var item in childElements )
@@ -247,56 +288,68 @@ namespace Rock.Lava
             }
 
             // Set context variables related to the block content so they can be referenced by the shortcode template.
-            if ( residualMarkup.IsNotNullOrWhiteSpace() )
+            var blockHasContent = residualMarkup.IsNotNullOrWhiteSpace();
+            parms.AddOrReplace( "blockContentExists", blockHasContent );
+
+            if ( blockHasContent )
             {
-                // JME (7/23/2019) Commented out the two lines below and substituted the line after to allow for better
-                // processing of the block content. Testing was done on all existing shortcodes but leaving
-                // this code in place in case a future edge case is found. Could/should remove this in the future.
-                // Regex rgx = new Regex( @"{{\s*blockContent\s*}}", RegexOptions.IgnoreCase );
-                // lavaTemplate = rgx.Replace( lavaTemplate, blockMarkup );
                 parms.AddOrReplace( "blockContent", residualMarkup );
 
-                parms.AddOrReplace( "blockContentExists", true );
+                // Render the shortcode template to check for security error messages.
+                // This is necessary because the shortcode may be configured to permit access to more entities than the source block, template, or current action permits.
+                // Note that in some situations, the template may fail to render for other reasons - for example, where the previous render operation has
+                // introduced invalid Lava as the output of a {% raw %} tag.
+                // This method of verifying security is unreliable and should be replaced with a more robust implementation in the future.
+                // We need a render process that can replace merge fields while leaving tags and blocks intact.
+                var securityRenderParameters = new LavaRenderParameters
+                {
+                    Context = context,
+                    ExceptionHandlingStrategy = ExceptionHandlingStrategySpecifier.RenderToOutput
+                };
+                var securityCheckResult = _engine.RenderTemplate( residualMarkup, securityRenderParameters );
+
+                var securityErrorPattern = new Regex( string.Format( Constants.Messages.NotAuthorizedMessage, ".*" ) );
+                var securityErrorMatch = securityErrorPattern.Match( securityCheckResult.Text );
+
+                // If the security check failed, return the error message.
+                if ( securityErrorMatch.Success )
+                {
+                    result.Write( securityErrorMatch.Value );
+
+                    return;
+                }
             }
-            else
+
+            // Render the shortcode template in a child scope that includes the shortcode parameters.
+            context.EnterChildScope();
+
+            LavaRenderResult results;
+            try
             {
-                parms.AddOrReplace( "blockContentExists", false );
+                context.SetMergeFields( parms );
+
+                // If the shortcode specifies a set of Lava commands, add these to the child context.
+                // The set of permitted entity commands is the union of the parent scope and the specific shortcode settings.
+                if ( _shortcode.EnabledLavaCommands != null )
+                {
+                    var enabledCommands = context.GetEnabledCommands();
+                    foreach ( var commandName in _shortcode.EnabledLavaCommands )
+                    {
+                        if ( !enabledCommands.Contains(commandName) )
+                        {
+                            enabledCommands.Add( commandName );
+                        }
+                    }
+                    context.SetEnabledCommands( enabledCommands );
+                }
+
+                results = _engine.RenderTemplate( _shortcode.TemplateMarkup, LavaRenderParameters.WithContext( context ) );
+                result.Write( results.Text.Trim() );
             }
-
-            // Now ensure there aren't any entity commands in the block that are not allowed.
-            // This is necessary because the shortcode may be configured to allow more entities for processing
-            // than the source block, template, action, etc. permits.
-            var securityCheckResult = _engine.RenderTemplate( residualMarkup, LavaRenderParameters.WithContext( context ) );
-
-            Regex securityErrorPattern = new Regex( string.Format( Constants.Messages.NotAuthorizedMessage, ".*" ) );
-            Match securityErrorMatch = securityErrorPattern.Match( securityCheckResult.Text );
-
-            // If the security check failed, return the error message.
-            if ( securityErrorMatch.Success )
+            finally
             {
-                result.Write( securityErrorMatch.Value );
-
-                return;
+                context.ExitChildScope();
             }
-
-            // Merge the shortcode template in a new context, using the parameters and security allowed by the shortcode.
-            var shortcodeContext = _engine.NewRenderContext( parms );
-
-            // If the shortcode specifies a set of enabled Lava commands, set these for the current context.
-            // If not, use the commands enabled for the current context.
-            if ( _shortcode.EnabledLavaCommands != null
-                 && _shortcode.EnabledLavaCommands.Any() )
-            {
-                shortcodeContext.SetEnabledCommands( _shortcode.EnabledLavaCommands );
-            }
-            else
-            {
-                shortcodeContext.SetEnabledCommands( context.GetEnabledCommands() );
-            }
-
-            var results = _engine.RenderTemplate( _shortcode.TemplateMarkup, LavaRenderParameters.WithContext( shortcodeContext ) );
-
-            result.Write( results.Text.Trim() );
         }
 
         #endregion
@@ -309,12 +362,13 @@ namespace Rock.Lava
         /// <param name="blockContent">Content of the block.</param>
         /// <param name="childParameters">The child parameters.</param>
         /// <returns></returns>
-        private string ExtractShortcodeBlockChildElements( string blockContent, out Dictionary<string, object> childParameters )
+        private bool ExtractShortcodeBlockChildElements( string blockContent, out Dictionary<string, object> childParameters, out string residualBlockContent )
         {
             childParameters = new Dictionary<string, object>();
 
             var startTagStartExpress = new Regex( @"\[\[\s*" );
 
+            var isValid = true;
             var matchExists = true;
             while ( matchExists )
             {
@@ -341,7 +395,7 @@ namespace Rock.Lava
                         var endTagMatchExpression = String.Format( @"\[\[\s*end{0}\s*\]\]", parmName );
                         var endTagMatch = new Regex( endTagMatchExpression ).Match( blockContent, startTagStartIndex );
 
-                        if ( endTagMatch != null )
+                        if ( endTagMatch.Success )
                         {
                             var endTagStartIndex = endTagMatch.Index;
                             var endTagEndIndex = endTagStartIndex + endTagMatch.Length;
@@ -391,6 +445,7 @@ namespace Rock.Lava
                         else
                         {
                             // there was no matching end tag, for safety sake we'd better bail out of loop
+                            isValid = false;
                             matchExists = false;
                             blockContent = blockContent + "Warning: missing end tag end" + parmName;
                         }
@@ -398,6 +453,7 @@ namespace Rock.Lava
                     else
                     {
                         // there was no parm name on the tag, for safety sake we'd better bail out of loop
+                        isValid = false;
                         matchExists = false;
                         blockContent = blockContent + "Warning: invalid child parameter definition.";
                     }
@@ -409,7 +465,9 @@ namespace Rock.Lava
                 }
             }
 
-            return blockContent.Trim();
+            residualBlockContent = blockContent.Trim();
+
+            return isValid;
         }
 
         /// <summary>

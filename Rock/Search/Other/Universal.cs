@@ -19,6 +19,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.ComponentModel.Composition;
 using System.Linq;
+using System.Text.RegularExpressions;
 
 using Rock.UniversalSearch;
 
@@ -30,6 +31,7 @@ namespace Rock.Search.Other
     [Description("Universal Search")]
     [Export(typeof(SearchComponent))]
     [ExportMetadata("ComponentName", "Universal Search")]
+    [Rock.SystemGuid.EntityTypeGuid( "BD0FAAC1-2313-4D36-8B78-268715320F02")]
     public class Universal : SearchComponent
     {
 
@@ -49,17 +51,19 @@ namespace Rock.Search.Other
             }
         }
 
-        
         /// <summary>
-        /// Returns a list of matching people
+        /// Gets the search result queryable that matches the search term.
         /// </summary>
-        /// <param name="searchterm"></param>
-        /// <returns></returns>
-        public override IQueryable<string> Search( string searchterm )
+        /// <param name="searchTerm">The search term used to find results.</param>
+        /// <returns>A queryable of index models that match the search term.</returns>
+        private List<UniversalSearch.IndexModels.IndexModelBase> GetSearchResults( string searchTerm )
         {
+            // Strip off the special HTML that might have been prepended
+            searchTerm = Regex.Replace( searchTerm, @"\<data.*\</i\>", string.Empty )?.Trim();
+
             // get configured entities and turn it into a list of entity ids
             List<int> entityIds = new List<int>();
-            
+
             var searchEntitiesSetting = Rock.Web.SystemSettings.GetValue( "core_SmartSearchUniversalSearchEntities" );
 
             if ( !string.IsNullOrWhiteSpace( searchEntitiesSetting ) )
@@ -67,7 +71,7 @@ namespace Rock.Search.Other
                 entityIds = searchEntitiesSetting.Split( ',' ).Select( int.Parse ).ToList();
             }
 
-            // get the field critiera
+            // get the field criteria
             var fieldCriteriaSetting = Rock.Web.SystemSettings.GetValue( "core_SmartSearchUniversalSearchFieldCriteria" );
             SearchFieldCriteria fieldCriteria = new SearchFieldCriteria();
 
@@ -76,7 +80,7 @@ namespace Rock.Search.Other
 
             if ( !string.IsNullOrWhiteSpace( Rock.Web.SystemSettings.GetValue( "core_SmartSearchUniversalSearchSearchType" ) ) )
             {
-                searchType = (SearchType)Enum.Parse( typeof( SearchType ), Rock.Web.SystemSettings.GetValue( "core_SmartSearchUniversalSearchSearchType" ) );
+                searchType = ( SearchType ) Enum.Parse( typeof( SearchType ), Rock.Web.SystemSettings.GetValue( "core_SmartSearchUniversalSearchSearchType" ) );
             }
 
             if ( !string.IsNullOrWhiteSpace( fieldCriteriaSetting ) )
@@ -88,14 +92,35 @@ namespace Rock.Search.Other
 
                     foreach ( var value in values )
                     {
-
                         fieldCriteria.FieldValues.Add( new FieldValue { Field = queryString.Key, Value = value } );
                     }
                 }
             }
 
             var client = IndexContainer.GetActiveComponent();
-            var results = client.Search( searchterm, searchType, entityIds, fieldCriteria );
+
+            return client.Search( searchTerm, searchType, entityIds, fieldCriteria );
+        }
+
+        /// <inheritdoc/>
+        public override IOrderedQueryable<object> SearchQuery( string searchTerm )
+        {
+            // This is a bit of a cheat. Since everything will have the same
+            // order .OrderBy() will return an IOrderedQueryable in the original
+            // order of the results.
+            return GetSearchResults( searchTerm )
+                .AsQueryable()
+                .OrderBy( a => true );
+        }
+
+        /// <summary>
+        /// Returns a list of matching people
+        /// </summary>
+        /// <param name="searchterm"></param>
+        /// <returns></returns>
+        public override IQueryable<string> Search( string searchterm )
+        {
+            var results = GetSearchResults( searchterm );
 
             // NOTE: Put a bunch of whitespace before and after it so that the Search box shows blank instead of stringified html
             return results.Select( r => $"                                                                       <data return-type='{r.IndexModelType}' return-id={r.Id}></data><i class='{ r.IconCssClass}'></i> {r.DocumentName}                                                                               " ).ToList().AsQueryable();

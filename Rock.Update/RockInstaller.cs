@@ -84,15 +84,10 @@ namespace Rock.Update
             // Record the current version to the database
             Web.SystemSettings.SetValue( Rock.SystemKey.SystemSetting.ROCK_INSTANCE_ID, _targetVersion.ToString() );
 
-            // register any new REST controllers
-            try
-            {
-                RestControllerService.RegisterControllers();
-            }
-            catch ( Exception ex )
-            {
-                ExceptionLogService.LogException( ex );
-            }
+            /* 
+             * ETD 2023-04-10
+             * Removed logic to register any new REST controllers here. The static collection could still have elements being added. Also this is done on Rock startup anyway and so is not needed here.
+             */
 
             return targetRelease;
         }
@@ -113,6 +108,7 @@ namespace Rock.Update
                     ProcessContentFiles( packageZip );
                     ProcessDeleteFiles( packageZip );
                     FileManagementHelper.CleanUpDeletedFiles();
+                    ClearPreviousBackups();
                 }
             }
             catch
@@ -189,60 +185,71 @@ namespace Rock.Update
         /// <param name="packageZip">The package zip.</param>
         private void ProcessDeleteFiles( ZipArchive packageZip )
         {
+            DeleteLegacyUpdateNugetPackages();
+
             // process deletefile.lst
             var deleteListEntry = packageZip
                 .Entries
                 .Where( e => e.FullName == "install\\deletefile.lst" || e.FullName == "install/deletefile.lst" )
                 .FirstOrDefault();
 
-            if ( deleteListEntry != null )
+            if ( deleteListEntry == null )
             {
-                var deleteList = System.Text.Encoding.Default.GetString( deleteListEntry.Open().ReadBytesToEnd() );
-                var itemsToDelete = deleteList.Split( new string[] { Environment.NewLine }, StringSplitOptions.None );
+                return;
+            }
 
-                foreach ( var deleteItem in itemsToDelete )
+            var deleteList = System.Text.Encoding.Default.GetString( deleteListEntry.Open().ReadBytesToEnd() );
+            var itemsToDelete = deleteList.Split( new string[] { Environment.NewLine }, StringSplitOptions.RemoveEmptyEntries );
+
+            foreach ( var deleteItem in itemsToDelete )
+            {
+                var deleteItemFullPath = Path.Combine( FileManagementHelper.ROOT_PATH, deleteItem );
+
+                var rockWeb = "RockWeb\\";
+                if ( deleteItem.StartsWith( rockWeb ) )
                 {
-                    if ( !string.IsNullOrWhiteSpace( deleteItem ) )
+                    deleteItemFullPath = Path.Combine( FileManagementHelper.ROOT_PATH, deleteItem.Substring( rockWeb.Length ) );
+                }
+
+                rockWeb = "RockWeb/";
+                if ( deleteItem.StartsWith( rockWeb ) )
+                {
+                    deleteItemFullPath = Path.Combine( FileManagementHelper.ROOT_PATH, deleteItem.Substring( rockWeb.Length ) );
+                }
+
+                var backupFilePath = GetBackupFileLocation( deleteItemFullPath );
+
+                if ( Directory.Exists( deleteItemFullPath ) )
+                {
+                    // if the backup folder already exists we need to process the individual files so we can keep the true originals.
+                    if ( Directory.Exists( backupFilePath ) )
                     {
-                        
-                        var deleteItemFullPath = Path.Combine( FileManagementHelper.ROOT_PATH, deleteItem );
-
-                        var rockWeb = "RockWeb\\";
-                        if ( deleteItem.StartsWith( rockWeb ) )
+                        var directoryFiles = Directory.GetFiles( deleteItemFullPath, "*.*", SearchOption.AllDirectories );
+                        foreach ( var subFile in directoryFiles )
                         {
-                            deleteItemFullPath = Path.Combine( FileManagementHelper.ROOT_PATH, deleteItem.Substring( rockWeb.Length ) );
+                            HandleFileDeletes( subFile, GetBackupFileLocation( subFile ) );
                         }
-
-                        rockWeb = "RockWeb/";
-                        if ( deleteItem.StartsWith( rockWeb ) )
-                        {
-                            deleteItemFullPath = Path.Combine( FileManagementHelper.ROOT_PATH, deleteItem.Substring( rockWeb.Length ) );
-                        }
-
-                        var backupFilePath = GetBackupFileLocation( deleteItemFullPath );
-
-                        if ( Directory.Exists( deleteItemFullPath ) )
-                        {
-                            // if the backup folder already exists we need to process the individual files so we can keep the true originals.
-                            if ( Directory.Exists( backupFilePath ) )
-                            {
-                                var directoryFiles = Directory.GetFiles( deleteItemFullPath, "*.*", SearchOption.AllDirectories );
-                                foreach ( var subFile in directoryFiles )
-                                {
-                                    HandleFileDeletes( subFile, GetBackupFileLocation( subFile ) );
-                                }
-                            }
-                            else
-                            {
-                                // Don't actually delete just move the directory to the backup folder.
-                                Directory.Move( deleteItemFullPath, backupFilePath );
-                            }
-                        }
-
-                        HandleFileDeletes( deleteItemFullPath, backupFilePath );
+                    }
+                    else
+                    {
+                        // Don't actually delete just move the directory to the backup folder.
+                        Directory.Move( deleteItemFullPath, backupFilePath );
                     }
                 }
+
+                HandleFileDeletes( deleteItemFullPath, backupFilePath );
             }
+        }
+
+        /// <summary>
+        /// Clean out the Packages folder for any left over Rock Update NuGet packages.
+        /// Marking this obsolete so it will be removed later.
+        /// </summary>
+        [RockObsolete( "1.13.3" )]
+        private void DeleteLegacyUpdateNugetPackages()
+        {
+            var packagesFolderPath = Path.Combine( FileManagementHelper.ROOT_PATH, LOCAL_ROCK_PACKAGE_FOLDER );
+            Directory.EnumerateFiles( packagesFolderPath, "*.nupkg" ).ToList().ForEach( f => File.Delete( f ) );
         }
 
         /// <summary>
@@ -288,10 +295,9 @@ namespace Rock.Update
             foreach ( ZipArchiveEntry entry in contentFilesToProcess )
             {
                 // process all content files
-                string fullpath = Path.Combine( FileManagementHelper.ROOT_PATH, entry.FullName.Replace( CONTENT_PATH, string.Empty ).Replace( CONTENT_PATH_ALT, string.Empty ) );
-                fullpath = Path.Combine( FileManagementHelper.ROOT_PATH, entry.FullName.Replace( CONTENT_PATH, string.Empty ).Replace( CONTENT_PATH_ALT, string.Empty ) );
+                string fullpath = Path.Combine( FileManagementHelper.ROOT_PATH, entry.FullName.ReplaceFirstOccurrence( CONTENT_PATH, string.Empty ).ReplaceFirstOccurrence( CONTENT_PATH_ALT, string.Empty ) );
 
-                string directory = Path.GetDirectoryName( fullpath ).Replace( CONTENT_PATH, string.Empty ).Replace( CONTENT_PATH_ALT, string.Empty );
+                string directory = Path.GetDirectoryName( fullpath ).ReplaceFirstOccurrence( CONTENT_PATH, string.Empty ).ReplaceFirstOccurrence( CONTENT_PATH_ALT, string.Empty );
 
                 ThrowTestExceptions( Path.GetFileNameWithoutExtension( entry.FullName ) );
 
@@ -320,11 +326,11 @@ namespace Rock.Update
         {
             var exceptionList = new Dictionary<string, Exception>
             {
-                { "exception", new Exception("Test Exception") },
-                { "ioexception", new IOException("Test IO Exception") },
-                { "outofmemoryexception", new OutOfMemoryException("Test Out of Memory Exception") },
-                { "versionvalidationexception", new Exception("Test Version Validation Exception") },
-                { "xmlexception", new Exception("XML Exception") },
+                { "rock.tests.integration.exception", new Exception("Test Exception") },
+                { "rock.tests.integration.ioexception", new IOException("Test IO Exception") },
+                { "rock.tests.integration.outofmemoryexception", new OutOfMemoryException("Test Out of Memory Exception") },
+                { "rock.tests.integration.versionvalidationexception", new Exception("Test Version Validation Exception") },
+                { "rock.tests.integration.xmlexception", new Exception("XML Exception") },
             };
 
             exception = exception.ToLower();
@@ -385,7 +391,7 @@ namespace Rock.Update
             foreach ( ZipArchiveEntry entry in transformFilesToProcess )
             {
                 // process xdt
-                string filename = entry.FullName.Replace( CONTENT_PATH, string.Empty ).Replace( CONTENT_PATH_ALT, string.Empty );
+                string filename = entry.FullName.ReplaceFirstOccurrence( CONTENT_PATH, string.Empty ).ReplaceFirstOccurrence( CONTENT_PATH_ALT, string.Empty );
                 string transformTargetFile = Path.Combine( FileManagementHelper.ROOT_PATH, filename.Substring( 0, filename.LastIndexOf( TRANSFORM_FILE_SUFFIX ) ) );
 
                 // process transform

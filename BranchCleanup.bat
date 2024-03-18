@@ -130,10 +130,10 @@ RMDIR "Applications\Wpf\StatementGenerator\Obj" /S /Q
 RMDIR "Applications\Wpf\Rock.Wpf\Bin" /S /Q
 RMDIR "Applications\Wpf\Rock.Wpf\Obj" /S /Q
 
-
-
 REN RockWeb\Bin\Microsoft.CodeDom.Providers.DotNetCompilerPlatform.dll Microsoft.CodeDom.Providers.DotNetCompilerPlatform.bak
 REN RockWeb\Bin\Rock.Common.Mobile.dll Rock.Common.Mobile.bak
+REN RockWeb\Bin\grpc_csharp_ext.x64.dll grpc_csharp_ext.x64.bak
+REN RockWeb\Bin\grpc_csharp_ext.x86.dll grpc_csharp_ext.x86.bak
 
 DEL "RockWeb\Bin\*.dll"
 DEL "RockWeb\Bin\*.pdb"
@@ -141,7 +141,12 @@ DEL "RockWeb\Bin\*.xml"
 
 REN RockWeb\Bin\Microsoft.CodeDom.Providers.DotNetCompilerPlatform.bak Microsoft.CodeDom.Providers.DotNetCompilerPlatform.dll
 REN RockWeb\Bin\Rock.Common.Mobile.bak Rock.Common.Mobile.dll
+REN RockWeb\Bin\grpc_csharp_ext.x64.bak grpc_csharp_ext.x64.dll
+REN RockWeb\Bin\grpc_csharp_ext.x86.bak grpc_csharp_ext.x86.dll
+
+RMDIR "RockWeb\Obsidian" /S /Q
 
 RMDIR "Applications\Wpf\packages" /S /Q
+RMDIR "Installers\StatementGeneratorInstall\packages" /S /Q
 
 FOR /D %%f in (packages\*) DO RMDIR %%f /S /Q

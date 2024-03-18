@@ -14,11 +14,17 @@
 // limitations under the License.
 // </copyright>
 //
+using System;
 using System.Collections.Generic;
+using System.Linq;
+#if WEBFORMS
 using System.Web.UI;
-
+#endif
+using Rock.Attribute;
 using Rock.Cms.StructuredContent;
 using Rock.Reporting;
+using Rock.ViewModels.Utility;
+using Rock.Web.Cache;
 using Rock.Web.UI.Controls;
 
 namespace Rock.Field.Types
@@ -27,9 +33,58 @@ namespace Rock.Field.Types
     /// Field type to encapsulate a structured content editor which allows
     /// the individual a nice UI interface to editing content.
     /// </summary>
+    [RockPlatformSupport( Utility.RockPlatform.WebForms, Utility.RockPlatform.Obsidian )]
+    [Rock.SystemGuid.FieldTypeGuid( Rock.SystemGuid.FieldType.STRUCTURE_CONTENT_EDITOR )]
     public class StructureContentEditorFieldType : FieldType
     {
         #region Edit Control
+
+        /// <inheritdoc/>
+        public override string GetPrivateEditValue( string publicValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            if ( publicValue.IsNullOrWhiteSpace() )
+            {
+                return "{}";
+            }
+
+            return base.GetPrivateEditValue( publicValue, privateConfigurationValues );
+        }
+
+        /// <inheritdoc/>
+        public override string GetPublicEditValue( string privateValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            if ( privateValue.IsNullOrWhiteSpace() )
+            {
+                return "{}";
+            }
+
+            return privateValue;
+        }
+
+        #endregion
+
+        #region Formatting
+
+        /// <inheritdoc/>
+        public override string GetPublicValue( string privateValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            var helper = new StructuredContentHelper( privateValue );
+
+            return helper.Render();
+        }
+
+        /// <inheritdoc/>
+        public override string GetHtmlValue( string value, Dictionary<string, string> configurationValues )
+        {
+            var helper = new StructuredContentHelper( value );
+
+            return helper.Render();
+        }
+
+        #endregion
+
+        #region WebForms
+#if WEBFORMS
 
         /// <summary>
         /// Creates the control(s) necessary for prompting user for a new value
@@ -78,16 +133,10 @@ namespace Rock.Field.Types
             }
         }
 
-        #endregion
-
-        #region Formatting
-
         /// <inheritdoc/>
-        public override string GetHtmlValue( string value, Dictionary<string, ConfigurationValue> configurationValues )
+        public override string FormatValue( Control parentControl, string value, Dictionary<string, ConfigurationValue> configurationValues, bool condensed )
         {
-            var helper = new StructuredContentHelper( value );
-
-            return helper.Render();
+            return GetHtmlValue( value, configurationValues.ToDictionary( k => k.Key, k => k.Value.Value ) );
         }
 
         /// <summary>
@@ -100,7 +149,7 @@ namespace Rock.Field.Types
         /// <returns></returns>
         public override string FormatValueAsHtml( Control parentControl, string value, Dictionary<string, ConfigurationValue> configurationValues, bool condensed = false )
         {
-            return GetHtmlValue( value, configurationValues );
+            return GetHtmlValue( value, configurationValues.ToDictionary( k => k.Key, k => k.Value.Value ) );
         }
 
         /// <summary>
@@ -115,9 +164,10 @@ namespace Rock.Field.Types
         /// <returns></returns>
         public override string FormatValueAsHtml( Control parentControl, int? entityTypeId, int? entityId, string value, Dictionary<string, ConfigurationValue> configurationValues, bool condensed = false )
         {
-            return GetHtmlValue( value, configurationValues );
+            return GetHtmlValue( value, configurationValues.ToDictionary( k => k.Key, k => k.Value.Value ) );
         }
 
+#endif
         #endregion
     }
 }

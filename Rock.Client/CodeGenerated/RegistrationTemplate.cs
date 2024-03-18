@@ -42,7 +42,7 @@ namespace Rock.Client
 
         /// <summary />
         // Made Obsolete in Rock "1.10"
-        [Obsolete( "No longer used. Replaced by Group Placement feature (RegistrationTemplatePlacement, etc)", false )]
+        [Obsolete( "No longer used. Replaced by Group Placement feature (RegistrationTemplatePlacement, etc)", true )]
         public bool AllowGroupPlacement { get; set; }
 
         /// <summary />
@@ -65,6 +65,9 @@ namespace Rock.Client
 
         /// <summary />
         public string ConfirmationSubject { get; set; }
+
+        /// <summary />
+        public int? ConnectionStatusValueId { get; set; }
 
         /// <summary />
         public decimal Cost { get; set; }
@@ -103,6 +106,9 @@ namespace Rock.Client
         public bool IsActive { get; set; } = true;
 
         /// <summary />
+        public bool IsPaymentPlanAllowed { get; set; }
+
+        /// <summary />
         public bool IsRegistrationMeteringEnabled { get; set; }
 
         /// <summary />
@@ -124,6 +130,9 @@ namespace Rock.Client
 
         /// <summary />
         public Rock.Client.Enums.RegistrationNotify Notify { get; set; }
+
+        /// <summary />
+        public string PaymentPlanFrequencyValueIds { get; set; }
 
         /// <summary />
         public string PaymentReminderEmailTemplate { get; set; }
@@ -192,6 +201,9 @@ namespace Rock.Client
         public bool ShowCurrentFamilyMembers { get; set; }
 
         /// <summary />
+        public bool ShowSmsOptIn { get; set; }
+
+        /// <summary />
         public Rock.Client.Enums.SignatureDocumentAction SignatureDocumentAction { get; set; }
 
         /// <summary />
@@ -250,9 +262,6 @@ namespace Rock.Client
             this.Id = source.Id;
             this.AddPersonNote = source.AddPersonNote;
             this.AllowExternalRegistrationUpdates = source.AllowExternalRegistrationUpdates;
-            #pragma warning disable 612, 618
-            this.AllowGroupPlacement = source.AllowGroupPlacement;
-            #pragma warning restore 612, 618
             this.AllowMultipleRegistrants = source.AllowMultipleRegistrants;
             this.BatchNamePrefix = source.BatchNamePrefix;
             this.CategoryId = source.CategoryId;
@@ -260,6 +269,7 @@ namespace Rock.Client
             this.ConfirmationFromEmail = source.ConfirmationFromEmail;
             this.ConfirmationFromName = source.ConfirmationFromName;
             this.ConfirmationSubject = source.ConfirmationSubject;
+            this.ConnectionStatusValueId = source.ConnectionStatusValueId;
             this.Cost = source.Cost;
             this.DefaultPayment = source.DefaultPayment;
             this.Description = source.Description;
@@ -272,6 +282,7 @@ namespace Rock.Client
             this.GroupMemberStatus = source.GroupMemberStatus;
             this.GroupTypeId = source.GroupTypeId;
             this.IsActive = source.IsActive;
+            this.IsPaymentPlanAllowed = source.IsPaymentPlanAllowed;
             this.IsRegistrationMeteringEnabled = source.IsRegistrationMeteringEnabled;
             this.LoginRequired = source.LoginRequired;
             this.MaxRegistrants = source.MaxRegistrants;
@@ -279,6 +290,7 @@ namespace Rock.Client
             this.ModifiedAuditValuesAlreadyUpdated = source.ModifiedAuditValuesAlreadyUpdated;
             this.Name = source.Name;
             this.Notify = source.Notify;
+            this.PaymentPlanFrequencyValueIds = source.PaymentPlanFrequencyValueIds;
             this.PaymentReminderEmailTemplate = source.PaymentReminderEmailTemplate;
             this.PaymentReminderFromEmail = source.PaymentReminderFromEmail;
             this.PaymentReminderFromName = source.PaymentReminderFromName;
@@ -301,6 +313,7 @@ namespace Rock.Client
             this.RequiredSignatureDocumentTemplateId = source.RequiredSignatureDocumentTemplateId;
             this.SetCostOnInstance = source.SetCostOnInstance;
             this.ShowCurrentFamilyMembers = source.ShowCurrentFamilyMembers;
+            this.ShowSmsOptIn = source.ShowSmsOptIn;
             this.SignatureDocumentAction = source.SignatureDocumentAction;
             this.SuccessText = source.SuccessText;
             this.SuccessTitle = source.SuccessTitle;
@@ -324,6 +337,9 @@ namespace Rock.Client
     /// </summary>
     public partial class RegistrationTemplate : RegistrationTemplateEntity
     {
+        /// <summary />
+        public DefinedValue ConnectionStatusValue { get; set; }
+
         /// <summary />
         public ICollection<RegistrationTemplateDiscount> Discounts { get; set; }
 

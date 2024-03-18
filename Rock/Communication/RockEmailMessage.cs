@@ -46,6 +46,15 @@ namespace Rock.Communication
         }
 
         /// <summary>
+        /// Gets or sets the from person identifier. Setting this will ensure we associate the correct
+        /// sender with the email, if there are multiple people with the same <see cref="FromEmail"/>.
+        /// </summary>
+        /// <value>
+        /// From person identifier.
+        /// </value>
+        public int? FromPersonId { get; set; }
+
+        /// <summary>
         /// Gets or sets from name.
         /// </summary>
         /// <value>
@@ -118,6 +127,14 @@ namespace Rock.Communication
         public Dictionary<string, string> MessageMetaData { get; set; } = new Dictionary<string, string>();
 
         /// <summary>
+        /// Gets or sets the email headers.
+        /// </summary>
+        /// <value>
+        /// The email headers.
+        /// </value>
+        public Dictionary<string, string> EmailHeaders { get; set; } = new Dictionary<string, string>();
+
+        /// <summary>
         /// Gets or sets the email attachments.
         /// </summary>
         /// <value>
@@ -166,21 +183,6 @@ namespace Rock.Communication
                 {
                     InitEmailMessage( systemCommunication );
                 }
-                else
-                {
-                    // If a matching SystemCommunication could not be found, check if this is a reference to a legacy SystemEmail object.
-                    // This is necessary to provide backward-compatibility for third-party plugins.
-#pragma warning disable CS0618 // Type or member is obsolete
-                    var systemEmail = new SystemEmailService( rockContext ).Get( systemGuid );
-#pragma warning restore CS0618 // Type or member is obsolete
-
-                    if ( systemEmail != null )
-                    {
-#pragma warning disable CS0612 // Type or member is obsolete
-                        InitEmailMessage( systemEmail );
-#pragma warning restore CS0612 // Type or member is obsolete
-                    }
-                }
             }
         }
 
@@ -227,8 +229,8 @@ namespace Rock.Communication
         /// Initializes a new instance of the <see cref="RockEmailMessage"/> class.
         /// </summary>
         /// <param name="systemEmail">The system email.</param>
-        [Obsolete( "Use constructor RockEmailMessage( SystemCommunication ) instead." )]
-        [RockObsolete( "1.10" )]
+        [Obsolete( "Use constructor RockEmailMessage( SystemCommunication ) instead.", true )]
+        [RockObsolete( "1.10")]
         public RockEmailMessage( SystemEmail systemEmail ) : this()
         {
             InitEmailMessage( systemEmail );
@@ -238,7 +240,7 @@ namespace Rock.Communication
         /// Initializes the email message.
         /// </summary>
         /// <param name="systemEmail">The system email.</param>
-        [Obsolete()]
+        [Obsolete("", true)]
         [RockObsolete( "1.10" )]
         private void InitEmailMessage( SystemEmail systemEmail )
         {

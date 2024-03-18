@@ -16,6 +16,9 @@
 //
 
 
+using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 using System.Linq;
 using System.Runtime.Serialization;
 using Rock.Media;
@@ -27,12 +30,15 @@ namespace Rock.Model
         #region Properties
 
         /// <summary>
-        /// Gets the default file URL to use for media playback.
+        /// Gets the default file URL to use for media playback. This value is
+        /// calculated at run time but also stored on the database so it is
+        /// available in SQL and LINQ queries as well.
         /// </summary>
         /// <value>
         /// The default file URL or an empty string if one is not available.
         /// </value>
         [DataMember]
+        [MaxLength( 2048 )]
         public string DefaultFileUrl
         {
             get
@@ -47,15 +53,23 @@ namespace Rock.Model
                     .ThenByDescending( f => f.Width )
                     .FirstOrDefault()?.Link ?? string.Empty;
             }
+            private set
+            {
+                // Make EF happy to use this property as a mapped column but
+                // do not allow anybody to try and update the value.
+            }
         }
 
         /// <summary>
-        /// Gets the default thumbnail URL.
+        /// Gets the default thumbnail URL. This value is calculated at run
+        /// time but also stored on the database so it is available in SQL
+        /// and LINQ queries as well.
         /// </summary>
         /// <value>
         /// The default thumbnail URL or an empty string if one is not available.
         /// </value>
         [DataMember]
+        [MaxLength( 2048 )]
         public string DefaultThumbnailUrl
         {
             get
@@ -63,7 +77,32 @@ namespace Rock.Model
                 return ThumbnailData.OrderByDescending( t => t.Width )
                     .FirstOrDefault()?.Link ?? string.Empty;
             }
+            private set
+            {
+                // Make EF happy to use this property as a mapped column but
+                // do not allow anybody to try and update the value.
+            }
         }
+
+        /// <summary>
+        /// Gets or sets the media element file data. This contains all the
+        /// information about the different file URLs available for the user
+        /// to stream or download.
+        /// </summary>
+        /// <value>
+        /// The media element file data.
+        /// </value>
+        [NotMapped]
+        public virtual List<MediaElementFileData> FileData { get; set; } = new List<MediaElementFileData>();
+
+        /// <summary>
+        /// Gets or sets the thumbnail data.
+        /// </summary>
+        /// <value>
+        /// The thumbnail data.
+        /// </value>
+        [NotMapped]
+        public virtual List<MediaElementThumbnailData> ThumbnailData { get; set; } = new List<MediaElementThumbnailData>();
 
         #endregion
     }

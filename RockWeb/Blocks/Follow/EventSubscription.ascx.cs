@@ -13,7 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 // </copyright>
-//
+
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -22,11 +22,9 @@ using System.Linq;
 using System.Web.UI.WebControls;
 
 using Rock;
-using Rock.Attribute;
 using Rock.Data;
 using Rock.Model;
 using Rock.Security;
-using Rock.Web.Cache;
 using Rock.Web.UI;
 using Rock.Web.UI.Controls;
 
@@ -38,6 +36,7 @@ namespace RockWeb.Blocks.Follow
     [DisplayName( "Event Subscription" )]
     [Category( "Follow" )]
     [Description( "Block for users to select which following events they would like to subscribe to." )]
+    [Rock.SystemGuid.BlockTypeGuid( "F72A4100-001E-47F9-9406-5529F2A45131" )]
     public partial class EventSubscription : RockBlock
     {
         #region Fields
@@ -104,23 +103,30 @@ namespace RockWeb.Blocks.Follow
             var followedEntityType = e.Item.DataItem as EntityType;
             if ( rptEvent != null && followedEntityType != null )
             {
-                var qry = new FollowingEventTypeService( _rockContext )
+                var authorizedFollowingEventTypes = new List<FollowingEventType>();
+                foreach ( var feType in new FollowingEventTypeService( _rockContext )
                     .Queryable().AsNoTracking()
                     .Where( f =>
                         f.FollowedEntityTypeId.HasValue &&
                         f.FollowedEntityTypeId.Value == followedEntityType.Id &&
                         f.IsActive )
-                    .OrderBy( f => f.Name );
+                    .OrderBy( f => f.Name ) )
+                {
+                    if ( feType.IsAuthorized( Authorization.VIEW, CurrentPerson ) )
+                    {
+                        authorizedFollowingEventTypes.Add( feType );
+                    }
+                }
 
-                rptEvent.DataSource = qry
+                rptEvent.DataSource = authorizedFollowingEventTypes
                     .Select( f => new
-                        {
-                            f.Id,
-                            f.IsNoticeRequired,
-                            Name = f.IsNoticeRequired ? f.Name + " <span class='label label-info'>required</span>" : f.Name,
-                            f.Description,
-                            Selected = f.IsNoticeRequired || _currentSubscriptions.Contains( f.Id )
-                        } )
+                    {
+                        f.Id,
+                        f.IsNoticeRequired,
+                        Name = f.IsNoticeRequired ? f.Name + " <span class='label label-info'>required</span>" : f.Name,
+                        f.Description,
+                        Selected = f.IsNoticeRequired || _currentSubscriptions.Contains( f.Id )
+                    } )
                     .ToList();
                 rptEvent.DataBind();
             }
@@ -201,8 +207,8 @@ namespace RockWeb.Blocks.Follow
 
             var qry = new FollowingEventTypeService( _rockContext )
                 .Queryable().AsNoTracking()
-                .Where( e => 
-                    e.IsActive && 
+                .Where( e =>
+                    e.IsActive &&
                     e.FollowedEntityType != null )
                 .Select( e => e.FollowedEntityType )
                 .OrderBy( e => e.Name )
@@ -213,6 +219,5 @@ namespace RockWeb.Blocks.Follow
         }
 
         #endregion
-
-}
+    }
 }

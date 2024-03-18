@@ -96,6 +96,11 @@ namespace Rock.SystemGuid
         public const string PERSON_ALLERGY = "DBD192C9-0AA1-46EC-92AB-A3DA8E056D31";
 
         /// <summary>
+        /// The Person legal note attribute
+        /// </summary>
+        public const string PERSON_LEGAL_NOTE = "F832AB6F-B684-4EEA-8DB4-C54B895C79ED";
+
+        /// <summary>
         /// The person attribute for the person's giving envelope number
         /// </summary>
         public const string PERSON_GIVING_ENVELOPE_NUMBER = "76C33FBC-8799-4DF1-B2FE-A6C41AC3DD49";
@@ -104,6 +109,15 @@ namespace Rock.SystemGuid
         /// The same site cookie setting
         /// </summary>
         public const string SAME_SITE_COOKIE_SETTING = "03F55022-C1E0-45F3-84E1-C2BE8C38E22B";
+
+        #region Observability
+
+        /// <summary>
+        /// The Active attribute for the observability HTTP filter.
+        /// </summary>
+        public const string HTTP_MODULE_OBSERVABILITY_ACTIVE = "DAC40EF2-1616-4E15-A897-8CCD7CF2C588";
+
+        #endregion
 
         #region Assessment Test Related
 
@@ -143,37 +157,37 @@ namespace Rock.SystemGuid
         public const string PERSON_CONFLICT_MODE_WINNING = "7147F706-388E-45E6-BE21-893FC7D652AA";
 
         /// <summary>
-        /// The person attribute for the conflict mode: resolving 
+        /// The person attribute for the conflict mode: resolving
         /// </summary>
         public const string PERSON_CONFLICT_MODE_RESOLVING = "5B811EAC-51B2-41F2-A55A-C966D9DB05EE";
 
         /// <summary>
-        /// The person attribute for the conflict mode: compromising  
+        /// The person attribute for the conflict mode: compromising
         /// </summary>
         public const string PERSON_CONFLICT_MODE_COMPROMISING = "817D6B13-E4AA-4E93-8547-FE711A0065F2";
 
         /// <summary>
-        /// The person attribute for the conflict mode: avoiding  
+        /// The person attribute for the conflict mode: avoiding
         /// </summary>
         public const string PERSON_CONFLICT_MODE_AVOIDING = "071A8EFA-AD1C-436A-8E1E-23D215617004";
 
         /// <summary>
-        /// The person attribute for the conflict mode: yielding  
+        /// The person attribute for the conflict mode: yielding
         /// </summary>
         public const string PERSON_CONFLICT_MODE_YIELDING = "D30A33AD-7A60-43E0-84DA-E23600156BF7";
 
         /// <summary>
-        /// The person attribute for the conflict engagement profile: accommodating  
+        /// The person attribute for the conflict engagement profile: accommodating
         /// </summary>
         public const string PERSON_CONFLICT_THEME_ACCOMMODATING = "404A64FB-7396-4896-9C94-84DE21E995CA";
 
         /// <summary>
-        /// The person attribute for the conflict engagement profile: winning  
+        /// The person attribute for the conflict engagement profile: winning
         /// </summary>
         public const string PERSON_CONFLICT_THEME_WINNING = "6DE5878D-7CDB-404D-93A7-27CFF5E98C3B";
 
         /// <summary>
-        /// The person attribute for the conflict engagement profile: solving  
+        /// The person attribute for the conflict engagement profile: solving
         /// </summary>
         public const string PERSON_CONFLICT_THEME_SOLVING = "33235605-D8BB-4C1E-B231-6F085970A14F";
 
@@ -455,7 +469,7 @@ namespace Rock.SystemGuid
         /// The groupmember (of a communication list) preferred communication medium
         /// </summary>
         [RockObsolete( "1.10" )]
-        [Obsolete( "This value is no longer used. The Communication Preference on the Group Member should be used." )]
+        [Obsolete( "This value is no longer used. The Communication Preference on the Group Member should be used.", true )]
         public const string GROUPMEMBER_COMMUNICATION_LIST_PREFERRED_COMMUNICATION_MEDIUM = "D7941908-1F65-CC9B-416C-CCFABE4221B9";
 
         #endregion
@@ -499,6 +513,11 @@ namespace Rock.SystemGuid
         /// The Transaction Source DefinedType > IconCssClass DefinedValue Attribute Guid
         /// </summary>
         public const string DEFINED_TYPE_TRANSACTION_SOURCE_ICONCSSCLASS = "9617D1DC-6561-4314-83EB-7F0ACBA2E259";
+
+        /// <summary>
+        /// The Financial Frequency DefinedType > Interval Days DefinedValue Attribute Guid
+        /// </summary>
+        public const string DEFINED_TYPE_FINANCIAL_FREQUENCY_INTERVAL_DAYS = "E18CB1D2-08A9-4D12-BCEA-33369193C869";
 
         #endregion
 
@@ -556,6 +575,16 @@ namespace Rock.SystemGuid
         /// The defined value attribute for storing a fundraising opportunity type's donation button text.
         /// </summary>
         public const string DEFINED_VALUE_FUNDRAISING_DONATE_BUTTON_TEXT = "7ACD6580-0E5B-4407-BC8B-1BBBAF443B1E";
+
+        /// <summary>
+        /// The group attribute for the type of participation in a Fundraising Opportunity group.
+        /// </summary>
+        public const string PARTICIPATION_TYPE = "EFA9F0D0-54CE-4B88-BC91-8BD110DEE0FC";
+
+        /// <summary>
+        /// The attribute for Transaction Header in the Fundraising Transaction Entry block.
+        /// </summary>
+        public const string FUNDRAISING_TRANSACTION_HEADER = "65FB0B9A-670E-4AB9-9666-77959B4B702E";
 
         #endregion
 
@@ -692,6 +721,11 @@ namespace Rock.SystemGuid
         /// </summary>
         public const string WORKFLOW_ENTRY_BLOCK_DISABLE_PASSING_WORKFLOWTYPEID = "BA7D9988-E6C9-467E-8F08-E0282FE6F7CB";
 
+        /// <summary>
+        /// The Workflow Entry Block Attribute that disables passing the WorkflowID.
+        /// </summary>
+        public const string WORKFLOW_ENTRY_BLOCK_DISABLE_PASSING_WORKFLOWID = "890676BC-18D3-445F-A6FA-CC2F515F1930";
+
         #endregion Workflow Entry Block Attributes
 
         /// <summary>
@@ -703,6 +737,11 @@ namespace Rock.SystemGuid
         /// The defined value log system settings
         /// </summary>
         public const string DEFINED_VALUE_LOG_SYSTEM_SETTINGS = "B9D4A315-8672-4214-B5D3-01A06C3CAD9F";
+
+        /// <summary>
+        /// The system security settings.
+        /// </summary>
+        public const string SYSTEM_SECURITY_SETTINGS = "450EF9DC-66F6-43A3-BE22-9CB8B1C42477";
 
         /// <summary>
         /// The phone number lookup title
@@ -813,7 +852,7 @@ namespace Rock.SystemGuid
         public const string PERSON_GIVING_PREFERRED_SOURCE = "0567B279-1F4D-4573-9AA7-927A7278443E";
 
         /// <summary>
-        /// Frequency Label - Single Select (1^Weekly, 2^Bi-Weekly, 3^Monthly, 4^Quarterly, 5^Erratic, 6^Undetermined)
+        /// Frequency Label. See <seealso cref="FinancialGivingAnalyticsFrequencyLabel"/>.
         /// </summary>
         public const string PERSON_GIVING_FREQUENCY_LABEL = "1A58F7AA-238B-46E5-B1DC-0A5BC1F213A5";
 
@@ -829,6 +868,7 @@ namespace Rock.SystemGuid
 
         /// <summary>
         /// Gift Amount: IQR - Currency
+        /// IQR = Interquartile Range calculated from the past 12 months of giving
         /// </summary>
         public const string PERSON_GIVING_AMOUNT_IQR = "CE129112-4BA9-4FC1-A67C-2A5C69140DA7";
 
@@ -859,7 +899,7 @@ namespace Rock.SystemGuid
 
         /// <summary>
         /// Last Classification Run Date Time - Date - sets the date time of then the giving unit was last classified.
-        /// Classification is updated after each new gift, but if they stop giving we’ll use this to occasionally update the classification. 
+        /// Classification is updated after each new gift, but if they stop giving we’ll use this to occasionally update the classification.
         /// </summary>
         public const string PERSON_GIVING_LAST_CLASSIFICATION_DATE = "7220B230-03CE-4D1E-985B-26AA28BE06F8";
 
@@ -996,5 +1036,24 @@ namespace Rock.SystemGuid
         /// The streak achievement time span in days
         /// </summary>
         public const string STREAK_ACHIEVEMENT_TIME_SPAN_IN_DAYS = "80030537-ED8E-41BA-BF61-AF242B9073CC";
+
+        /// <summary>
+        /// The statement generator configuration
+        /// </summary>
+        public const string STATEMENT_GENERATOR_CONFIG = "3C6B81A5-63AB-4EA7-A671-836505B9E444";
+
+        /// <summary>
+        /// The category treeview search results
+        /// </summary>
+        public const string CATEGORY_TREEVIEW_SEARCH_RESULTS = "7287F9CD-CDB2-43BA-8E80-E5F7A618415E";
+
+        #region Sign-Up Group (GroupType) Attributes
+
+        /// <summary>
+        /// The Sign-up Group - Group Type's project type attribute
+        /// </summary>
+        public const string GROUPTYPE_SIGNUP_GROUP_PROJECT_TYPE = "46FFBB10-6E4B-4B3A-A560-61B36C6B0E09";
+
+        #endregion
     }
 }

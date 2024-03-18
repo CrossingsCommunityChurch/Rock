@@ -16,9 +16,15 @@
 //
 using System;
 using System.Collections.Generic;
+using System.Linq;
+#if WEBFORMS
 using System.Web.UI;
+#endif
 
+using Rock.Attribute;
 using Rock.Data;
+using Rock.Model;
+using Rock.ViewModels.Utility;
 using Rock.Web.Cache;
 using Rock.Web.UI.Controls;
 
@@ -28,7 +34,9 @@ namespace Rock.Field.Types
     /// Field Type to select a single (or null) component filtered by a channel
     /// Stored as "Channel.Guid|Component.Guid"
     /// </summary>
-    public class InteractionChannelInteractionComponentFieldType : FieldType
+    [RockPlatformSupport( Utility.RockPlatform.WebForms, Utility.RockPlatform.Obsidian )]
+    [Rock.SystemGuid.FieldTypeGuid( Rock.SystemGuid.FieldType.INTERACTION_CHANNEL_INTERACTION_COMPONENT )]
+    public class InteractionChannelInteractionComponentFieldType : FieldType, IEntityReferenceFieldType
     {
         #region Keys
 
@@ -46,6 +54,216 @@ namespace Rock.Field.Types
         #endregion Keys
 
         #region Configuration
+
+        /// <inheritdoc/>
+        public override Dictionary<string, string> GetPrivateConfigurationValues( Dictionary<string, string> publicConfigurationValues )
+        {
+            var configurationValues = base.GetPrivateConfigurationValues( publicConfigurationValues );
+
+            if ( configurationValues.TryGetValue( ConfigKey.DefaultInteractionChannelGuid, out string interactionChannelJson ) )
+            {
+                var jsonValue = interactionChannelJson.FromJsonOrNull<ListItemBag>();
+
+                if ( jsonValue != null )
+                {
+                    var interactionChannel = InteractionChannelCache.Get( jsonValue.Value.AsGuid() );
+                    configurationValues[ConfigKey.DefaultInteractionChannelGuid] = interactionChannel?.Id.ToStringSafe();
+                }
+            }
+
+            return configurationValues;
+        }
+
+        /// <inheritdoc/>
+        public override Dictionary<string, string> GetPublicConfigurationValues( Dictionary<string, string> privateConfigurationValues, ConfigurationValueUsage usage, string value )
+        {
+            var configurationValues = base.GetPublicConfigurationValues( privateConfigurationValues, usage, value );
+
+            if ( usage != ConfigurationValueUsage.View && configurationValues.TryGetValue( ConfigKey.DefaultInteractionChannelGuid, out string interactionChannelId ) )
+            {
+                var interactionChannel = InteractionChannelCache.Get( interactionChannelId.AsInteger() );
+
+                if ( interactionChannel != null )
+                {
+                    configurationValues[ConfigKey.DefaultInteractionChannelGuid] = interactionChannel.ToListItemBag().ToCamelCaseJson( false, true );
+                }
+            }
+
+            return configurationValues;
+        }
+
+        #endregion Configuration
+
+        #region Formatting
+
+        /// <inheritdoc/>
+        public override string GetTextValue( string privateValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            var formattedValue = string.Empty;
+
+            GetModelsFromAttributeValue( privateValue, out var channel, out var component );
+
+            if ( component != null )
+            {
+                formattedValue = "Interaction Component: " + component.Name;
+            }
+
+            if ( channel != null )
+            {
+                formattedValue = "Interaction Channel: " + channel.Name;
+            }
+
+            return formattedValue;
+        }
+
+        #endregion Formatting
+
+        #region Edit Control
+
+        #endregion Edit Control
+
+        /// <inheritdoc />
+        public override string GetPublicValue( string privateValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            return GetTextValue( privateValue, privateConfigurationValues );
+        }
+
+        /// <inheritdoc />
+        public override string GetPublicEditValue( string privateValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            if ( !string.IsNullOrWhiteSpace( privateValue ) )
+            {
+                GetModelsFromAttributeValue( privateValue, out var interactionChannel, out var interactionComponent );
+
+                var jsonValue = new JsonValue
+                {
+                    InteractionChannel = interactionChannel?.ToListItemBag(),
+                    InteractionComponent = interactionComponent?.ToListItemBag()
+                };
+
+                return jsonValue.ToCamelCaseJson( false, true );
+            }
+
+            return string.Empty;
+        }
+
+        /// <inheritdoc />
+        public override string GetPrivateEditValue( string publicValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            var jsonValue = publicValue.FromJsonOrNull<JsonValue>();
+            return jsonValue != null ? $"{jsonValue.InteractionChannel?.Value}|{jsonValue.InteractionComponent?.Value}" : string.Empty;
+        }
+
+        #region Parse Helpers
+
+        /// <summary>
+        /// Gets the models from the delimited values.
+        /// </summary>
+        /// <param name="value">The value.</param>
+        /// <param name="interactionChannelGuid">The channel unique identifier.</param>
+        /// <param name="interactionComponentGuid">The component unique identifier.</param>
+        public static void ParseDelimitedGuids( string value, out Guid? interactionChannelGuid, out Guid? interactionComponentGuid )
+        {
+            var parts = ( value ?? string.Empty ).Split( '|' );
+
+            if ( parts.Length == 1 )
+            {
+                // If there is only one guid, assume it is the type
+                interactionChannelGuid = null;
+                interactionComponentGuid = parts[0].AsGuidOrNull();
+                return;
+            }
+
+            interactionChannelGuid = parts.Length > 0 ? parts[0].AsGuidOrNull() : null;
+            interactionComponentGuid = parts.Length > 1 ? parts[1].AsGuidOrNull() : null;
+        }
+
+        /// <summary>
+        /// Gets the models from the delimited values.
+        /// </summary>
+        /// <param name="value">The value.</param>
+        /// <param name="interactionChannel">The interactionChannel</param>
+        /// <param name="interactionComponent">The interactionComponent</param>
+        private void GetModelsFromAttributeValue( string value, out InteractionChannelCache interactionChannel, out InteractionComponentCache interactionComponent )
+        {
+            interactionChannel = null;
+            interactionComponent = null;
+
+            ParseDelimitedGuids( value, out var interactionChannelGuid, out var interactionComponentGuid );
+
+            if ( interactionChannelGuid.HasValue || interactionComponentGuid.HasValue )
+            {
+                if ( interactionChannelGuid.HasValue )
+                {
+                    interactionChannel = InteractionChannelCache.Get( interactionChannelGuid.Value );
+                }
+
+                if ( interactionComponentGuid.HasValue )
+                {
+                    interactionComponent = InteractionComponentCache.Get( interactionComponentGuid.Value );
+                }
+            }
+        }
+
+        #endregion Parse Helpers
+
+        #region IEntityReferenceFieldType
+
+        /// <inheritdoc/>
+        List<ReferencedEntity> IEntityReferenceFieldType.GetReferencedEntities( string privateValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            ParseDelimitedGuids( privateValue, out var interactionChannelGuid, out var interactionComponentGuid );
+
+            if ( !interactionChannelGuid.HasValue && !interactionComponentGuid.HasValue )
+            {
+                return null;
+            }
+
+            using ( var rockContext = new RockContext() )
+            {
+                var entityReferences = new List<ReferencedEntity>();
+
+                if ( interactionChannelGuid.HasValue )
+                {
+                    var interactionChannelId = InteractionChannelCache.GetId( interactionChannelGuid.Value );
+
+                    if ( interactionChannelId.HasValue )
+                    {
+                        entityReferences.Add( new ReferencedEntity( EntityTypeCache.GetId<InteractionChannel>().Value, interactionChannelId.Value ) );
+                    }
+                }
+
+                if ( interactionComponentGuid.HasValue )
+                {
+                    var interactionComponentId = InteractionComponentCache.GetId( interactionComponentGuid.Value );
+
+                    if ( interactionComponentId.HasValue )
+                    {
+                        entityReferences.Add( new ReferencedEntity( EntityTypeCache.GetId<InteractionComponent>().Value, interactionComponentId.Value ) );
+                    }
+                }
+
+                return entityReferences;
+            }
+        }
+
+        /// <inheritdoc/>
+        List<ReferencedProperty> IEntityReferenceFieldType.GetReferencedProperties( Dictionary<string, string> privateConfigurationValues )
+        {
+            // This field type references the Name property of InteractionChannel
+            // and InteractionComponent and should have its persisted values
+            // updated when changed.
+            return new List<ReferencedProperty>
+            {
+                new ReferencedProperty( EntityTypeCache.GetId<InteractionChannel>().Value, nameof( InteractionChannel.Name ) ),
+                new ReferencedProperty( EntityTypeCache.GetId<InteractionComponent>().Value, nameof( InteractionComponent.Name ) )
+            };
+        }
+
+        #endregion
+
+        #region WebForms
+#if WEBFORMS
 
         /// <summary>
         /// Returns a list of the configuration keys
@@ -118,10 +336,6 @@ namespace Rock.Field.Types
             }
         }
 
-        #endregion Configuration
-
-        #region Formatting
-
         /// <summary>
         /// Returns the field's current value(s)
         /// </summary>
@@ -132,25 +346,10 @@ namespace Rock.Field.Types
         /// <returns></returns>
         public override string FormatValue( Control parentControl, string value, Dictionary<string, ConfigurationValue> configurationValues, bool condensed )
         {
-            var formattedValue = string.Empty;
-            GetModelsFromAttributeValue( value, out var channel, out var component );
-
-            if ( component != null )
-            {
-                formattedValue = "Interaction Component: " + component.Name;
-            }
-
-            if ( channel != null )
-            {
-                formattedValue = "Interaction Channel: " + channel.Name;
-            }
-
-            return base.FormatValue( parentControl, formattedValue, null, condensed );
+            return !condensed
+                ? GetTextValue( value, configurationValues.ToDictionary( cv => cv.Key, cv => cv.Value.Value ) )
+                : GetCondensedTextValue( value, configurationValues.ToDictionary( cv => cv.Key, cv => cv.Value.Value ) );
         }
-
-        #endregion Formatting
-
-        #region Edit Control
 
         /// <summary>
         /// Creates the control(s) necessary for prompting user for a new value
@@ -241,59 +440,20 @@ namespace Rock.Field.Types
             }
         }
 
-        #endregion Edit Control
+#endif
+        #endregion
 
-        #region Parse Helpers
-
-        /// <summary>
-        /// Gets the models from the delimited values.
-        /// </summary>
-        /// <param name="value">The value.</param>
-        /// <param name="interactionChannelGuid">The channel unique identifier.</param>
-        /// <param name="interactionComponentGuid">The component unique identifier.</param>
-        public static void ParseDelimitedGuids( string value, out Guid? interactionChannelGuid, out Guid? interactionComponentGuid )
-        {
-            var parts = ( value ?? string.Empty ).Split( '|' );
-
-            if ( parts.Length == 1 )
-            {
-                // If there is only one guid, assume it is the type
-                interactionChannelGuid = null;
-                interactionComponentGuid = parts[0].AsGuidOrNull();
-                return;
-            }
-
-            interactionChannelGuid = parts.Length > 0 ? parts[0].AsGuidOrNull() : null;
-            interactionComponentGuid = parts.Length > 1 ? parts[1].AsGuidOrNull() : null;
-        }
+        #region Helper Classes
 
         /// <summary>
-        /// Gets the models from the delimited values.
+        /// Data sent to the obsidian client.
         /// </summary>
-        /// <param name="value">The value.</param>
-        /// <param name="interactionChannel">The interactionChannel</param>
-        /// <param name="interactionComponent">The interactionComponent</param>
-        private void GetModelsFromAttributeValue( string value, out InteractionChannelCache interactionChannel, out InteractionComponentCache interactionComponent )
+        private sealed class JsonValue
         {
-            interactionChannel = null;
-            interactionComponent = null;
-
-            ParseDelimitedGuids( value, out var interactionChannelGuid, out var interactionComponentGuid );
-
-            if ( interactionChannelGuid.HasValue || interactionComponentGuid.HasValue )
-            {
-                if ( interactionChannelGuid.HasValue )
-                {
-                    interactionChannel = InteractionChannelCache.Get( interactionChannelGuid.Value );
-                }
-
-                if ( interactionComponentGuid.HasValue )
-                {
-                    interactionComponent = InteractionComponentCache.Get( interactionComponentGuid.Value );
-                }
-            }
+            public ListItemBag InteractionChannel { get; set; }
+            public ListItemBag InteractionComponent { get; set; }
         }
 
-        #endregion Parse Helpers
+        #endregion
     }
 }

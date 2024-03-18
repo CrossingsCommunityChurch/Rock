@@ -17,17 +17,20 @@
 using System.Net;
 using System.Net.Http;
 using System.Web.Http;
+
 using Rock.Data;
 using Rock.Model;
+using Rock.Rest.Jwt;
 using Rock.Security;
-using Rock.Web.Cache;
 
 namespace Rock.Rest.Controllers
 {
     /// <summary>
-    /// 
+    /// Class AuthController.
+    /// Implements the <see cref="System.Web.Http.ApiController" />
     /// </summary>
-    public class AuthController : ApiController
+    [Rock.SystemGuid.RestControllerGuid( "713B9E66-E962-4637-B701-53372FB40DBF")]
+    public class AuthController : ApiController 
     {
         /// <summary>
         /// Use this to Login a user and return an AuthCookie which can be used in subsequent REST calls
@@ -36,15 +39,22 @@ namespace Rock.Rest.Controllers
         /// <exception cref="System.Web.Http.HttpResponseException"></exception>
         [HttpPost]
         [System.Web.Http.Route( "api/Auth/Login" )]
+        [Rock.SystemGuid.RestActionGuid( "6149C98B-134F-48EB-A92F-D37B9B08B322" )]
         public void Login( [FromBody] LoginParameters loginParameters )
         {
-            if ( !IsLoginValid( loginParameters, out var errorMessage ) )
+            string userName;
+            if ( !IsLoginValid( loginParameters, out var errorMessage, out userName ) )
             {
                 var errorResponse = ControllerContext.Request.CreateErrorResponse( HttpStatusCode.Unauthorized, errorMessage );
                 throw new HttpResponseException( errorResponse );
             }
 
-            Rock.Security.Authorization.SetAuthCookie( loginParameters.Username, loginParameters.Persisted, false );
+            // TODO: Add 2FA support to API authentication.
+            Rock.Security.Authorization.SetAuthCookie(
+                userName,
+                loginParameters.Persisted,
+                isImpersonated: false,
+                isTwoFactorAuthenticated: true );
         }
 
         /// <summary>
@@ -52,20 +62,44 @@ namespace Rock.Rest.Controllers
         /// </summary>
         /// <param name="loginParameters">The parameters that describe the login request.</param>
         /// <param name="errorMessage">The error message if method returns <c>false</c>.</param>
+        /// <param name="userName">Name of the user.</param>
         /// <returns><c>true</c> if the login request was valid; otherwise <c>false</c>.</returns>
-        private bool IsLoginValid( LoginParameters loginParameters, out string errorMessage )
+        internal static bool IsLoginValid( LoginParameters loginParameters, out string errorMessage, out string userName )
         {
-            if ( loginParameters == null || loginParameters.Username.IsNullOrWhiteSpace() )
+            userName = null;
+            if ( loginParameters == null )
             {
-                errorMessage = "Invalid user name.";
+                errorMessage = "Invalid Login Parameters";
                 return false;
             }
 
+            bool isAuthenticatedFromToken;
             UserLogin userLogin;
+
             using ( var rockContext = new RockContext() )
             {
                 var userLoginService = new UserLoginService( rockContext );
-                userLogin = userLoginService.GetByUserName( loginParameters.Username );
+                if ( loginParameters.Authorization.IsNotNullOrWhiteSpace() )
+                {
+                    userLogin = JwtHelper.GetUserLoginByJSONWebToken( rockContext, loginParameters.Authorization );
+                    if ( userLogin == null )
+                    {
+                        errorMessage = "Invalid Token";
+                        return false;
+                    }
+
+                    isAuthenticatedFromToken = true;
+                }
+                else if ( loginParameters.Username.IsNotNullOrWhiteSpace() )
+                {
+                    userLogin = userLoginService.GetByUserName( loginParameters.Username );
+                    isAuthenticatedFromToken = false;
+                }
+                else
+                {
+                    errorMessage = "Invalid Login Parameters";
+                    return false;
+                }
 
                 if ( userLogin == null || userLogin.EntityType == null )
                 {
@@ -88,29 +122,34 @@ namespace Rock.Rest.Controllers
                 }
             }
 
-            var pinAuthentication = AuthenticationContainer.GetComponent( typeof( Rock.Security.Authentication.PINAuthentication ).FullName );
-
-            // Don't allow PIN authentications.
-            var userLoginEntityType = EntityTypeCache.Get( userLogin.EntityTypeId.Value );
-            if ( userLoginEntityType != null && userLoginEntityType.Id == pinAuthentication.EntityType.Id )
-            {
-                errorMessage = "Account type is not supported.";
-                return false;
-            }
-
             var component = AuthenticationContainer.GetComponent( userLogin.EntityType.Name );
-
             if ( component == null || !component.IsActive )
             {
                 errorMessage = "Account type is inactive.";
                 return false;
             }
 
-            var result = component.Authenticate( userLogin, loginParameters.Password );
+            if ( component is Rock.Security.Authentication.PINAuthentication )
+            {
+                // Don't allow PIN authentications.
+                errorMessage = "Account type is not supported.";
+                return false;
+            }
 
-            errorMessage = !result ? "Invalid user name or password." : null;
+            bool isAuthenticated;
+            if ( isAuthenticatedFromToken )
+            {
+                isAuthenticated = true;
+            }
+            else
+            {
+                isAuthenticated = component.Authenticate( userLogin, loginParameters.Password );
+            }
 
-            return result;
+            errorMessage = !isAuthenticated ? "Invalid user name or password." : null;
+            userName = userLogin?.UserName;
+
+            return isAuthenticated;
         }
     }
 }

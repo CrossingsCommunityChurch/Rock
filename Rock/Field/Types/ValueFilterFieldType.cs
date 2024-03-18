@@ -17,8 +17,11 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+#if WEBFORMS
 using System.Web.UI;
 using System.Web.UI.WebControls;
+#endif
+using Rock.Attribute;
 using Rock.Web.UI.Controls;
 
 namespace Rock.Field.Types
@@ -27,6 +30,8 @@ namespace Rock.Field.Types
     /// Field used to save and display value filter
     /// </summary>
     [Serializable]
+    [RockPlatformSupport( Utility.RockPlatform.WebForms, Utility.RockPlatform.Obsidian )]
+    [Rock.SystemGuid.FieldTypeGuid( Rock.SystemGuid.FieldType.VALUE_FILTER )]
     public class ValueFilterFieldType : FieldType
     {
         #region Configuration
@@ -40,6 +45,171 @@ namespace Rock.Field.Types
         /// The comparison types
         /// </summary>
         public const string COMPARISON_TYPES = "comparisontypes";
+
+        /// <summary>
+        /// The comparison types to choose from
+        /// </summary>
+        public const string COMPARISON_TYPES_OPTIONS = "comparisontypesoptions";
+
+        /// <inheritdoc/>
+        public override Dictionary<string, string> GetPublicEditConfigurationProperties( Dictionary<string, string> privateConfigurationValues )
+        {
+            var configurationProperties = base.GetPublicEditConfigurationProperties( privateConfigurationValues );
+
+            configurationProperties[COMPARISON_TYPES_OPTIONS] = typeof( Model.ComparisonType ).ToEnumListItemBag().ToCamelCaseJson( false, true );
+
+            return configurationProperties;
+        }
+
+        /// <inheritdoc/>
+        public override Dictionary<string, string> GetPublicConfigurationValues( Dictionary<string, string> privateConfigurationValues, ConfigurationValueUsage usage, string value )
+        {
+            var configurationValues = base.GetPublicConfigurationValues( privateConfigurationValues, usage, value );
+
+            if ( usage != ConfigurationValueUsage.View )
+            {
+                Model.ComparisonType comparisonType;
+
+                if ( !configurationValues.ContainsKey( COMPARISON_TYPES ) )
+                {
+                    comparisonType = Reporting.ComparisonHelper.StringFilterComparisonTypes | Model.ComparisonType.RegularExpression;
+                }
+                else
+                {
+                    comparisonType = ( Model.ComparisonType ) configurationValues[COMPARISON_TYPES].AsInteger();
+                }
+
+                var values = comparisonType.GetFlags<Model.ComparisonType>().Cast<int>().ToList();
+                configurationValues[COMPARISON_TYPES] = values.ConvertAll( v => v.ToString() ).ToCamelCaseJson( false, true );
+            }
+
+            return configurationValues;
+        }
+
+        /// <inheritdoc/>
+        public override Dictionary<string, string> GetPrivateConfigurationValues( Dictionary<string, string> publicConfigurationValues )
+        {
+            var configurationValues = base.GetPrivateConfigurationValues( publicConfigurationValues );
+
+            if ( configurationValues.ContainsKey( COMPARISON_TYPES ) )
+            {
+                var comparisonTypes = configurationValues[COMPARISON_TYPES].FromJsonOrNull<List<Model.ComparisonType>>();
+
+                if ( comparisonTypes != null )
+                {
+                    Model.ComparisonType comparisonType = 0;
+
+                    foreach ( var value in comparisonTypes )
+                    {
+                        comparisonType |= value;
+                    }
+
+                    configurationValues[COMPARISON_TYPES] = ( ( int ) comparisonType ).ToString();
+                }
+            }
+
+            return configurationValues;
+        }
+
+        #endregion
+
+        #region Formatting
+
+        /// <inheritdoc/>
+        public override string GetTextValue( string privateValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            var filter = FilterExpression.FromJsonOrNull( privateValue );
+
+            try
+            {
+                return filter.ToString();
+            }
+            catch
+            {
+                return string.Empty;
+            }
+        }
+
+        #endregion
+
+        #region Edit Control
+
+        /// <inheritdoc/>
+        public override string GetPublicValue( string privateValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            return GetTextValue( privateValue, privateConfigurationValues );
+        }
+
+        /// <inheritdoc/>
+        public override string GetPublicEditValue( string privateValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            var filterExpression = FilterExpression.FromJsonOrNull( privateValue ) ?? new CompoundFilterExpression();
+            return filterExpression.ToCamelCaseJson( false, true );
+        }
+
+        /// <inheritdoc/>
+        public override string GetPrivateEditValue( string publicValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            if ( !string.IsNullOrWhiteSpace( publicValue ) )
+            {
+                var jObject = Newtonsoft.Json.Linq.JObject.Parse( publicValue );
+                var filterExpression = GetExpression( jObject );
+
+                return filterExpression.ToJson();
+            }
+
+            return string.Empty;
+        }
+
+        /// <summary>
+        /// Converts the JSON filter expression to a <see cref="FilterExpression"/> object.
+        /// </summary>
+        /// <param name="jObject">The JSON object</param>
+        /// <returns></returns>
+        private FilterExpression GetExpression( Newtonsoft.Json.Linq.JObject jObject )
+        {
+            if ( jObject["filters"] != null )
+            {
+                var compoundFilterExpression = new CompoundFilterExpression();
+
+                compoundFilterExpression.ExpressionType = ( Model.FilterExpressionType ) jObject.Value<int>( "expressionType" );
+                foreach ( var filter in jObject.Value<Newtonsoft.Json.Linq.JArray>( "filters" ) )
+                {
+                    compoundFilterExpression.Filters.Add( GetExpression( ( Newtonsoft.Json.Linq.JObject ) filter ) );
+                }
+
+                return compoundFilterExpression;
+            }
+            else
+            {
+                var comparisonFilterExpression = new ComparisonFilterExpression();
+
+                comparisonFilterExpression.Value = jObject.Value<string>( "value" );
+                comparisonFilterExpression.Comparison = ( Model.ComparisonType ) jObject.Value<int>( "comparison" );
+
+                return comparisonFilterExpression;
+            }
+        }
+
+        #endregion
+
+        #region Support Methods
+
+        /// <summary>
+        /// Gets the filter object that can be used to evaluate an object against the filter.
+        /// </summary>
+        /// <param name="configurationValues">The configuration values.</param>
+        /// <param name="value">The attribute value.</param>
+        /// <returns>A CompoundFilter object that can be used to evaluate the truth of the filter.</returns>
+        public static FilterExpression GetFilterExpression( Dictionary<string, ConfigurationValue> configurationValues, string value )
+        {
+            return FilterExpression.FromJsonOrNull( value );
+        }
+
+        #endregion
+
+        #region WebForms
+#if WEBFORMS
 
         /// <summary>
         /// Returns a list of the configuration keys
@@ -159,10 +329,6 @@ namespace Rock.Field.Types
             }
         }
 
-        #endregion
-
-        #region Formatting
-
         /// <summary>
         /// Returns the field's current value(s)
         /// </summary>
@@ -173,16 +339,7 @@ namespace Rock.Field.Types
         /// <returns></returns>
         public override string FormatValue( Control parentControl, string value, Dictionary<string, ConfigurationValue> configurationValues, bool condensed )
         {
-            var filter = GetFilterExpression( configurationValues, value );
-
-            try
-            {
-                return filter.ToString();
-            }
-            catch
-            {
-                return string.Empty;
-            }
+            return GetTextValue( value, configurationValues.ToDictionary( cv => cv.Key, cv => cv.Value.Value ) );
         }
 
         /// <summary>
@@ -229,10 +386,6 @@ namespace Rock.Field.Types
             // but keeping it here for backward compatibility.
             return System.Web.HttpUtility.HtmlEncode( FormatValue( parentControl, entityTypeId, entityId, value, configurationValues, condensed ) );
         }
-
-        #endregion
-
-        #region Edit Control
 
         /// <summary>
         /// Creates the control(s) necessary for prompting user for a new value
@@ -307,21 +460,7 @@ namespace Rock.Field.Types
             return tvf.Filter.ToJson();
         }
 
-        #endregion
-
-        #region Support Methods
-
-        /// <summary>
-        /// Gets the filter object that can be used to evaluate an object against the filter.
-        /// </summary>
-        /// <param name="configurationValues">The configuration values.</param>
-        /// <param name="value">The attribute value.</param>
-        /// <returns>A CompoundFilter object that can be used to evaluate the truth of the filter.</returns>
-        public static FilterExpression GetFilterExpression( Dictionary<string, ConfigurationValue> configurationValues, string value )
-        {
-            return FilterExpression.FromJsonOrNull( value );
-        }
-
+#endif
         #endregion
     }
 }

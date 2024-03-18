@@ -90,20 +90,6 @@ namespace Rock.Model
         }
 
         /// <summary>
-        /// Gets or sets a collection containing all the <see cref="Rock.Model.WorkflowActivity">WorkflowActivities</see> that are a part of this Workflow instance.
-        /// </summary>
-        /// <value>
-        /// A collection containing the <see cref="Rock.Model.WorkflowActivity">WorkflowActivities</see> that are a part of this Workflow instance.
-        /// </value>
-        [DataMember]
-        public virtual ICollection<WorkflowActivity> Activities
-        {
-            get { return _activities ?? (_activities = new Collection<WorkflowActivity>()); }
-            set { _activities = value; }
-        }
-        private ICollection<WorkflowActivity> _activities;
-
-        /// <summary>
         /// Gets an enumerable collection of the Active <see cref="Rock.Model.WorkflowActivity">WorkflowActivities</see> for this Workflow instance, ordered by their order value.
         /// </summary>
         /// <value>
@@ -207,29 +193,37 @@ namespace Rock.Model
         {
             AddLogEntry( "Workflow Processing..." );
 
-            DateTime processStartTime = RockDateTime.Now;
-
-            if ( Attributes == null )
+            using ( var diagnosticActivity = Observability.ObservabilityHelper.StartActivity( $"WORKFLOW {WorkflowTypeCache?.Name}" ) )
             {
-                this.LoadAttributes( rockContext );
+                diagnosticActivity?.AddTag( "rock.workflow.id", Id );
+                diagnosticActivity?.AddTag( "rock.workflow.name", Name );
+                diagnosticActivity?.AddTag( "rock.workflow.type.id", WorkflowTypeId );
+                diagnosticActivity?.AddTag( "rock.workflow.type.name", WorkflowTypeCache?.Name ?? string.Empty );
+
+                DateTime processStartTime = RockDateTime.Now;
+
+                if ( Attributes == null )
+                {
+                    this.LoadAttributes( rockContext );
+                }
+
+                SetInitiator();
+
+                while ( ProcessActivity( rockContext, processStartTime, entity, out errorMessages )
+                    && errorMessages.Count == 0 )
+                { }
+
+                this.LastProcessedDateTime = RockDateTime.Now;
+
+                AddLogEntry( "Workflow Processing Complete" );
+
+                if ( !this.HasActiveActivities )
+                {
+                    MarkComplete();
+                }
+
+                return errorMessages.Count == 0;
             }
-
-            SetInitiator();
-
-            while ( ProcessActivity( rockContext, processStartTime, entity, out errorMessages )
-                && errorMessages.Count == 0 )
-            { }
-
-            this.LastProcessedDateTime = RockDateTime.Now;
-
-            AddLogEntry( "Workflow Processing Complete" );
-
-            if ( !this.HasActiveActivities )
-            {
-                MarkComplete();
-            }
-
-            return errorMessages.Count == 0;
         }
 
         /// <summary>

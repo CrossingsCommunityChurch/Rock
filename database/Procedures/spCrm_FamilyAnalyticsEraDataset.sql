@@ -4,13 +4,12 @@
  		This stored procedure returns a data set used by the Rock eRA job to add/remove
 		people from being an eRA. It should not be modified as it will be updated in the
 		future to meet additional requirements.
-
 		The goal of the query is to return both those that meet the eRA requirements as well
 		as those that are marked as already being an eRA and the criteria to ensure that
 		they still should be an era.
 	</summary>
 	
-	<remarks>	
+	<remarks>
 		For eRA we only consider adults for the criteria.
 	</remarks>
 	<code>
@@ -38,6 +37,7 @@ BEGIN
     DECLARE @cFAMILY_GROUPTYPE_GUID UNIQUEIDENTIFIER = '790E3215-3B10-442B-AF69-616C0DCB998E'
     DECLARE @cADULT_ROLE_GUID UNIQUEIDENTIFIER = '2639F9A5-2AAE-4E48-A8C3-4FFE86681E42'
     DECLARE @cTRANSACTION_TYPE_CONTRIBUTION UNIQUEIDENTIFIER = '2D607262-52D6-4724-910D-5C6E8FB89ACC';
+	DECLARE @cATTRIBUTE_ERA_START_DATE_GUID UNIQUEIDENTIFIER = 'A106610C-A7A1-469E-4097-9DE6400FDFC2';
     -- --------- END CONFIGURATION --------------
     DECLARE @PersonRecordTypeValueId INT = (
             SELECT TOP 1 [Id]
@@ -48,6 +48,11 @@ BEGIN
             SELECT TOP 1 [Id]
             FROM [Attribute]
             WHERE [Guid] = @cATTRIBUTE_IS_ERA_GUID
+            )
+	DECLARE @EraStartDateAttributeId INT = (
+            SELECT TOP 1 [Id]
+            FROM [Attribute]
+            WHERE [Guid] = @cATTRIBUTE_ERA_START_DATE_GUID
             )
     DECLARE @FamilyGroupTypeId INT = (
             SELECT TOP 1 [Id]
@@ -73,15 +78,16 @@ BEGIN
     DECLARE @SundayExitAttendanceDurationShort DATETIME = DATEADD(DAY, (7 * @ExitAttendanceDurationShortWeeks * - 1), @SundayDateStart)
     DECLARE @SundayExitAttendanceDurationLong DATETIME = DATEADD(DAY, (7 * @ExitAttendanceDurationLongWeeks * - 1), @SundayDateStart)
     DECLARE @TempFinancialTransactionByDateAndGivingId TABLE (
-        DistinctCount INT
+    DistinctCount INT
         ,GivingId NVARCHAR(50)
         ,TransactionDateTime DATETIME
-       )
-
+        ,SundayDate Date
+        )
     INSERT INTO @TempFinancialTransactionByDateAndGivingId
     SELECT COUNT(DISTINCT (ft.[Id])) [DistinctCount]
         ,g1.GivingId
         ,ft.TransactionDateTime [TransactionDateTime]
+        ,SundayDate Date
     FROM [FinancialTransaction] ft
     INNER JOIN [PersonAlias] pa ON pa.[Id] = ft.[AuthorizedPersonAliasId]
     INNER JOIN [Person] g1 ON g1.[Id] = pa.[PersonId]
@@ -92,13 +98,12 @@ BEGIN
         AND ft.TransactionDateTime >= @SundayEntryGivingDurationLong
     GROUP BY g1.GivingId
         ,ft.TransactionDateTime
-
+        ,SundayDate
     DECLARE @TempAttendanceBySundayDateAndFamily TABLE (
         SundayDate DATE
         ,StartDateTime DATETIME
         ,FamilyId INT
         )
-
     INSERT INTO @TempAttendanceBySundayDateAndFamily
     SELECT O.SundayDate
         ,a.StartDateTime
@@ -114,90 +119,78 @@ BEGIN
         AND fg.[GroupTypeId] = @FamilyGroupTypeId
     WHERE a.[DidAttend] = 1
         AND a.StartDateTime >= @SundayExitAttendanceDurationLong
+        AND fgm.IsArchived = 0
+        AND fg.IsArchived = 0
     GROUP BY O.SundayDate
         ,StartDateTime
         ,fg.Id
-
 	DECLARE @TempEntryGiftCountDurationShort TABLE (
 			GivingId NVARCHAR(50) INDEX IX1 CLUSTERED
 			, DistinctCount INT
-		   )
-
+		    )
 	INSERT INTO @TempEntryGiftCountDurationShort
 	SELECT GivingId, SUM(ft.DistinctCount)
 	FROM @TempFinancialTransactionByDateAndGivingId ft
 	WHERE ft.TransactionDateTime >= @SundayEntryGivingDurationShort
-		AND ft.TransactionDateTime <= @SundayDateStart
+		AND ft.SundayDate <= @SundayDateStart
 	GROUP BY GivingId
-
 	DECLARE @TempExitGiftCountDuration TABLE (
 			GivingId NVARCHAR(50) INDEX IX2 CLUSTERED
 			, DistinctCount INT
-		   )
-
+		    )
 	INSERT INTO @TempExitGiftCountDuration
 	SELECT GivingId, ISNULL(SUM(ft.DistinctCount), 0)
 	FROM @TempFinancialTransactionByDateAndGivingId ft
 	WHERE ft.TransactionDateTime >= @SundayExitGivingDuration
-		AND ft.TransactionDateTime <= @SundayDateStart
+		AND ft.SundayDate <= @SundayDateStart
 	GROUP BY GivingId
-
 	DECLARE @TempEntryGiftCountDurationLong TABLE (
 			GivingId NVARCHAR(50) INDEX IX3 CLUSTERED
 			, DistinctCount INT
-		   )
-
+		    )
 	INSERT INTO @TempEntryGiftCountDurationLong
 	SELECT GivingId, ISNULL(SUM(ft.DistinctCount), 0) AS [EntryGiftCountDurationLong]
 					FROM @TempFinancialTransactionByDateAndGivingId ft
 					WHERE ft.TransactionDateTime >= @SundayEntryGivingDurationLong
-						AND ft.TransactionDateTime <= @SundayDateStart
+						AND ft.SundayDate <= @SundayDateStart
 	GROUP BY GivingId
-
 	DECLARE @TempExitAttendanceCountDurationShort TABLE (
 			FamilyId INT INDEX IX4 CLUSTERED
 			, DistinctCount INT
-		   )
-
+		    )
 	INSERT INTO @TempExitAttendanceCountDurationShort
 	SELECT FamilyId, COUNT(DISTINCT a.SundayDate) AS [ExitAttendanceCountDurationShort]
 					FROM @TempAttendanceBySundayDateAndFamily a
 					WHERE a.StartDateTime <= @SundayDateStart
 						AND a.StartDateTime >= @SundayExitAttendanceDurationShort
 	GROUP BY FamilyId
-
 	DECLARE @TempEntryAttendanceCountDuration TABLE (
 			FamilyId INT INDEX IX5 CLUSTERED
 			, DistinctCount INT
-		   )
-
+		    )
 	INSERT INTO @TempEntryAttendanceCountDuration
 	SELECT FamilyId, COUNT(DISTINCT a.SundayDate) AS [EntryAttendanceCountDuration]
 					FROM @TempAttendanceBySundayDateAndFamily a
 					WHERE a.StartDateTime <= @SundayDateStart
 						AND a.StartDateTime >= @SundayEntryAttendanceDuration
 	GROUP BY FamilyId
-
 	DECLARE @TempExitAttendanceCountDurationLong TABLE (
 			FamilyId INT INDEX IX6 CLUSTERED
 			, DistinctCount INT
-		   )
-
+		    )
 	INSERT INTO @TempExitAttendanceCountDurationLong
 	SELECT FamilyId, COUNT(DISTINCT a.SundayDate) AS [ExitAttendanceCountDurationLong]
 					FROM @TempAttendanceBySundayDateAndFamily a
 					WHERE a.StartDateTime <= @SundayDateStart
 						AND a.StartDateTime >= @SundayExitAttendanceDurationLong
 	GROUP BY FamilyId
-
 	DECLARE @TempPersonFamilyGroupIds TABLE (
 			Id INT,
 			GivingId NVARCHAR(50),
 			[IsEra] INT,
 			FamilyId INT,
 			INDEX IXR NONCLUSTERED(GivingId,[IsEra],FamilyId)
-		   )
-
+		    )
 	INSERT INTO @TempPersonFamilyGroupIds
 	SELECT p.[Id]
 		, p.[GivingId]
@@ -215,7 +208,39 @@ BEGIN
 	LEFT OUTER JOIN [AttributeValue] era ON era.[EntityId] = p.[Id]
 		AND era.[AttributeId] = @IsEraAttributeId
 	WHERE [RecordTypeValueId] = @PersonRecordTypeValueId -- person record type (not business)
-
+    AND gm.IsArchived = 0
+    AND g.IsArchived = 0
+	DECLARE @TempIsEraFamilyMembers TABLE (
+		PersonId INT,
+		[IsEra] INT,
+		FamilyId INT,
+		INDEX IXR NONCLUSTERED([IsEra],FamilyId)
+	    )
+	DECLARE @CreatedDateTime DATETIME = GETDATE()
+	DECLARE @StartDateValue NVARCHAR(MAX) = CONVERT(nvarchar(MAX), GETDATE(), 127)
+	INSERT INTO @TempIsEraFamilyMembers
+	SELECT p.Id,
+		Min(tgpgids.IsEra),
+		Min(p.PrimaryFamilyId)
+		FROM [Person] p
+		LEFT JOIN @TempPersonFamilyGroupIds tgpgids ON p.PrimaryFamilyId = tgpgids.FamilyId
+		WHERE tgpgids.IsEra = 1
+		GROUP BY  p.Id
+    
+    -- Insert missing IsEra Attribute --
+	MERGE [AttributeValue] AS TARGET
+	USING @TempIsEraFamilyMembers AS SOURCE
+	ON (TARGET.EntityId = SOURCE.PersonId AND TARGET.AttributeId = @IsEraAttributeId)
+	WHEN NOT MATCHED BY TARGET
+	THEN INSERT (EntityId, AttributeId, Value, IsSystem, Guid, CreatedDateTime, ValueAsBoolean, IsPersistedValueDirty) VALUES (SOURCE.PersonId, @IsEraAttributeId, 'True', 0, NEWID(), @CreatedDateTime, 1, 1)
+	WHEN MATCHED AND [Value] != 'True' THEN UPDATE SET Value = 'True', ValueAsBoolean = 1, IsPersistedValueDirty = 1;
+    -- Insert missing EraStartDate --
+	MERGE [AttributeValue] AS TARGET
+	USING @TempIsEraFamilyMembers AS SOURCE
+	ON (TARGET.EntityId = SOURCE.PersonId AND TARGET.AttributeId = @EraStartDateAttributeId)
+	WHEN NOT MATCHED BY TARGET
+	THEN INSERT (EntityId, AttributeId, Value, IsSystem, Guid, CreatedDateTime, ValueAsDateTime, IsPersistedValueDirty) VALUES (SOURCE.PersonId, @EraStartDateAttributeId, @StartDateValue, 0, NEWID(), @CreatedDateTime, @CreatedDateTime, 1)
+    WHEN MATCHED AND ([Value] is null or [Value] = '') THEN UPDATE SET Value = @StartDateValue, ValueAsDateTime = @CreatedDateTime, IsPersistedValueDirty = 1;
 	SELECT [FamilyId]
         ,MAX([EntryGiftCountDurationShort]) AS [EntryGiftCountDurationShort]
         ,MAX([EntryGiftCountDurationLong]) AS [EntryGiftCountDurationLong]

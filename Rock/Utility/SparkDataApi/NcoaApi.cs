@@ -38,8 +38,8 @@ namespace Rock.Utility.SparkDataApi
     /// </summary>
     public class NcoaApi
     {
-        private string NCOA_SERVER = "https://app.truencoa.com";
-        //private string NCOA_SERVER = "https://app.testing.truencoa.com";
+        private string NCOA_SERVER = "https://api.truencoa.com";
+        //private string NCOA_SERVER = "https://api.testing.truencoa.com";
         private int _batchsize = 150;
         private string _username;
         private string _password;
@@ -79,7 +79,7 @@ namespace Rock.Utility.SparkDataApi
             try
             {
                 // submit for exporting
-                var request = new RestRequest( $"api/files/{fileName}/index", Method.POST );
+                var request = new RestRequest( $"files/{fileName}/index", Method.POST );
                 request.AddParameter( "application/x-www-form-urlencoded", $"caption={Uri.EscapeDataString(companyName)}", ParameterType.RequestBody );
                 IRestResponse response = _client.Execute( request );
                 if ( response.StatusCode != HttpStatusCode.OK )
@@ -131,19 +131,11 @@ namespace Rock.Utility.SparkDataApi
                 for ( int i = 1; i <= addressArray.Length; i++ )
                 {
                     PersonAddressItem personAddressItem = addressArray[i - 1];
-                    data.AppendFormat( "{0}={1}&", "individual_id", $"{personAddressItem.PersonId}_{personAddressItem.PersonAliasId}_{personAddressItem.FamilyId}_{personAddressItem.LocationId}" );
-                    data.AppendFormat( "{0}={1}&", "individual_first_name", personAddressItem.FirstName );
-                    data.AppendFormat( "{0}={1}&", "individual_last_name", personAddressItem.LastName );
-                    data.AppendFormat( "{0}={1}&", "address_line_1", personAddressItem.Street1 );
-                    data.AppendFormat( "{0}={1}&", "address_line_2", personAddressItem.Street2 );
-                    data.AppendFormat( "{0}={1}&", "address_city_name", personAddressItem.City );
-                    data.AppendFormat( "{0}={1}&", "address_state_code", personAddressItem.State );
-                    data.AppendFormat( "{0}={1}&", "address_postal_code", personAddressItem.PostalCode );
-                    // data.AppendFormat( "{0}={1}&", "address_country_code", personAddressItem.Country );
+                    data.Append( personAddressItem.BuildUploadString() );
 
                     if ( i % _batchsize == 0 || i == addressArray.Length )
                     {
-                        var request = new RestRequest( $"api/files/{id}/records", Method.POST );
+                        var request = new RestRequest( $"files/{id}/records", Method.POST );
                         request.AddParameter( "application/x-www-form-urlencoded", data.ToString().TrimEnd( '&' ), ParameterType.RequestBody );
                         IRestResponse response = _client.Execute( request );
 
@@ -155,7 +147,7 @@ namespace Rock.Utility.SparkDataApi
 
                         if ( response.StatusCode != HttpStatusCode.OK )
                         {
-                            throw new Exception( $"Failed to upload addresses to NCOA. Status Code: {response.StatusCode}, Response: {response.Content.ToStringSafe()}" );
+                            throw new Exception( $"Failed to upload addresses to NCOA. Status Code: {response.StatusCode}, Response: {response.Content.ToStringSafe()}.  Please see NcoaException.log for details." );
                         }
 
                         data = new StringBuilder();
@@ -169,7 +161,7 @@ namespace Rock.Utility.SparkDataApi
 
             try
             {
-                var request = new RestRequest( $"api/files/{id}/index", Method.GET );
+                var request = new RestRequest( $"files/{id}/index", Method.GET );
                 IRestResponse response = _client.Execute( request );
                 if ( response.StatusCode != HttpStatusCode.OK )
                 {
@@ -206,7 +198,7 @@ namespace Rock.Utility.SparkDataApi
             try
             {
                 // submit for processing
-                var request = new RestRequest( $"api/files/{id}/index", Method.PATCH );
+                var request = new RestRequest( $"files/{id}/index", Method.PATCH );
                 request.AddParameter( "application/x-www-form-urlencoded", "status=submit", ParameterType.RequestBody );
                 IRestResponse response = _client.Execute( request );
                 if ( response.StatusCode != HttpStatusCode.OK )
@@ -234,7 +226,7 @@ namespace Rock.Utility.SparkDataApi
         {
             try
             {
-                var request = new RestRequest( $"api/files/{id}/index", Method.GET );
+                var request = new RestRequest( $"files/{id}/index", Method.GET );
                 IRestResponse response = _client.Execute( request );
                 if ( response.StatusCode != HttpStatusCode.OK )
                 {
@@ -278,7 +270,7 @@ namespace Rock.Utility.SparkDataApi
             try
             {
                 // submit for exporting
-                var request = new RestRequest( $"api/files/{id}/index", Method.PATCH );
+                var request = new RestRequest( $"files/{id}/index", Method.PATCH );
                 request.AddParameter( "application/x-www-form-urlencoded", "status=export", ParameterType.RequestBody );
                 IRestResponse response = _client.Execute( request );
                 if ( response.StatusCode != HttpStatusCode.OK )
@@ -316,7 +308,7 @@ namespace Rock.Utility.SparkDataApi
         {
             try
             {
-                var request = new RestRequest( $"api/files/{exportfileid}/index", Method.GET );
+                var request = new RestRequest( $"files/{exportfileid}/index", Method.GET );
                 IRestResponse response = _client.Execute( request );
                 if ( response.StatusCode != HttpStatusCode.OK )
                 {
@@ -362,7 +354,7 @@ namespace Rock.Utility.SparkDataApi
                 records = new List<NcoaReturnRecord>();
                 while ( !finished )
                 {
-                    var request = new RestRequest( $"api/files/{exportfileid}/records?start={start}&end={end}", Method.GET );
+                    var request = new RestRequest( $"files/{exportfileid}/records?start={start}&end={end}", Method.GET );
                     IRestResponse response = _client.Execute( request );
                     if ( response.StatusCode != HttpStatusCode.OK )
                     {

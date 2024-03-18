@@ -185,6 +185,12 @@ namespace Crossings.UniversalSearch
                                     sitePage.PageKeywords = metaKeynotes.Attributes["content"].Value;
                                 }
 
+                                HtmlNode metaContentType = htmlDoc.DocumentNode.SelectSingleNode( "//meta[@data-content-type='user-defined-type']" );
+                                if ( metaContentType != null && metaContentType.Attributes["content"] != null )
+                                {
+                                    sitePage.PageContentType = metaContentType.Attributes["content"].Value;
+                                }
+
                                 // Get a hash of the content and check it against a list of to see if page has already been indexed, if not then index it and add it to the list.
                                 long contentHash = sitePage.Content.MakeInt64HashCode();
 

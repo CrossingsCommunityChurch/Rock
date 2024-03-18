@@ -32,6 +32,7 @@ namespace RockWeb.Blocks.Steps
     [DisplayName( "Step Type List" )]
     [Category( "Steps" )]
     [Description( "Shows a list of all step types for a program." )]
+    [ContextAware( typeof( Campus ) )]
 
     #region Block Attributes
 
@@ -55,7 +56,8 @@ namespace RockWeb.Blocks.Steps
 
     #endregion Block Attributes
 
-    public partial class StepTypeList : RockBlock, ISecondaryBlock
+    [Rock.SystemGuid.BlockTypeGuid( "3EFB4302-9AB4-420F-A818-48B1B06AD109" )]
+    public partial class StepTypeList : ContextEntityBlock, ISecondaryBlock
     {
         #region Attribute Keys
 
@@ -106,6 +108,7 @@ namespace RockWeb.Blocks.Steps
             public const string Name = "Name";
             public const string AllowMultiple = "Allow Multiple";
             public const string SpansTime = "Spans Time";
+            public const string ActiveStatus = "Active Status";
         }
 
         #endregion Page Parameter Keys
@@ -321,7 +324,7 @@ namespace RockWeb.Blocks.Steps
             {
                 if ( _program != null )
                 {
-                    rFilter.UserPreferenceKeyPrefix = string.Format( "{0}-", _program.Id );
+                    rFilter.PreferenceKeyPrefix = string.Format( "{0}-", _program.Id );
                 }
 
                 this.BindFilter();
@@ -523,7 +526,7 @@ namespace RockWeb.Blocks.Steps
         /// </summary>
         private void ClearGridFilter()
         {
-            rFilter.DeleteUserPreferences();
+            rFilter.DeleteFilterPreferences();
 
             BindFilter();
         }
@@ -566,9 +569,10 @@ namespace RockWeb.Blocks.Steps
         /// </summary>
         private void BindFilter()
         {
-            txbNameFilter.Text = rFilter.GetUserPreference( FilterSettingName.Name );
-            ddlAllowMultipleFilter.SetValue( rFilter.GetUserPreference( FilterSettingName.AllowMultiple ) );
-            ddlHasDurationFilter.SetValue( rFilter.GetUserPreference( FilterSettingName.SpansTime ) );
+            txbNameFilter.Text = rFilter.GetFilterPreference( FilterSettingName.Name );
+            ddlAllowMultipleFilter.SetValue( rFilter.GetFilterPreference( FilterSettingName.AllowMultiple ) );
+            ddlHasDurationFilter.SetValue( rFilter.GetFilterPreference( FilterSettingName.SpansTime ) );
+            ddlActiveFilter.SetValue( rFilter.GetFilterPreference( FilterSettingName.ActiveStatus ) );
         }
 
         /// <summary>
@@ -576,9 +580,10 @@ namespace RockWeb.Blocks.Steps
         /// </summary>
         private void SaveFilterSettings()
         {
-            rFilter.SaveUserPreference( FilterSettingName.Name, txbNameFilter.Text );
-            rFilter.SaveUserPreference( FilterSettingName.AllowMultiple, ddlAllowMultipleFilter.SelectedValue );
-            rFilter.SaveUserPreference( FilterSettingName.SpansTime, ddlHasDurationFilter.SelectedValue );
+            rFilter.SetFilterPreference( FilterSettingName.Name, txbNameFilter.Text );
+            rFilter.SetFilterPreference( FilterSettingName.AllowMultiple, ddlAllowMultipleFilter.SelectedValue );
+            rFilter.SetFilterPreference( FilterSettingName.SpansTime, ddlHasDurationFilter.SelectedValue );
+            rFilter.SetFilterPreference( FilterSettingName.ActiveStatus, ddlActiveFilter.SelectedValue );
         }
 
         /// <summary>
@@ -599,6 +604,10 @@ namespace RockWeb.Blocks.Steps
             else if ( filterSettingName == FilterSettingName.SpansTime )
             {
                 return ddlHasDurationFilter.SelectedValue;
+            }
+            else if ( filterSettingName == FilterSettingName.ActiveStatus )
+            {
+                return ddlActiveFilter.SelectedValue;
             }
 
             return string.Empty;
@@ -628,7 +637,7 @@ namespace RockWeb.Blocks.Steps
             stepTypesQry = stepTypesQry.Where( x => x.StepProgramId == _program.Id );
 
             // Filter by: Name
-            var name = rFilter.GetUserPreference( FilterSettingName.Name ).ToStringSafe();
+            var name = rFilter.GetFilterPreference( FilterSettingName.Name ).ToStringSafe();
 
             if ( !string.IsNullOrWhiteSpace( name ) )
             {
@@ -636,7 +645,7 @@ namespace RockWeb.Blocks.Steps
             }
 
             // Filter by: Allow Multiple
-            var allowMultiple = rFilter.GetUserPreference( FilterSettingName.AllowMultiple ).AsBooleanOrNull();
+            var allowMultiple = rFilter.GetFilterPreference( FilterSettingName.AllowMultiple ).AsBooleanOrNull();
 
             if ( allowMultiple.HasValue )
             {
@@ -644,11 +653,24 @@ namespace RockWeb.Blocks.Steps
             }
 
             // Filter by: Has Duration
-            var hasDuration = rFilter.GetUserPreference( FilterSettingName.SpansTime ).AsBooleanOrNull();
+            var hasDuration = rFilter.GetFilterPreference( FilterSettingName.SpansTime ).AsBooleanOrNull();
 
             if ( hasDuration.HasValue )
             {
                 stepTypesQry = stepTypesQry.Where( a => a.HasEndDate == hasDuration.Value );
+            }
+
+            // Filter by: Active
+            var activeFilter = rFilter.GetFilterPreference( FilterSettingName.ActiveStatus ).ToUpperInvariant();
+
+            switch ( activeFilter )
+            {
+                case "ACTIVE":
+                    stepTypesQry = stepTypesQry.Where( a => a.IsActive );
+                    break;
+                case "INACTIVE":
+                    stepTypesQry = stepTypesQry.Where( a => !a.IsActive );
+                    break;
             }
 
             // Sort by: Order, Id.
@@ -659,6 +681,14 @@ namespace RockWeb.Blocks.Steps
 
             var startedStepsQry = stepService.Queryable();
             var completedStepsQry = stepService.Queryable().Where( x => x.StepStatus != null && x.StepStatus.IsCompleteStatus );
+
+            // Filter by CampusId
+            var campusContext = GetCampusContextOrNull();
+            if ( campusContext != null )
+            {
+                startedStepsQry = startedStepsQry.Where( s => s.CampusId == campusContext.Id );
+                completedStepsQry = completedStepsQry.Where( s => s.CampusId == campusContext.Id );
+            }
 
             var stepTypes = stepTypesQry.Select( x =>
                 new StepTypeListItemViewModel
@@ -676,6 +706,17 @@ namespace RockWeb.Blocks.Steps
             gStepType.DataSource = stepTypes;
 
             gStepType.DataBind();
+        }
+
+        /// <summary>
+        /// Gets the campus context, returns null if there is only no more than one active campus.
+        /// This is to prevent to filtering out of Steps that are associated with currently inactive
+        /// campuses or no campus at all.
+        /// </summary>
+        /// <returns></returns>
+        private Campus GetCampusContextOrNull()
+        {
+            return ( CampusCache.All( false ).Count > 1 ) ? ContextEntity<Campus>() : null;
         }
 
         #endregion Internal Methods

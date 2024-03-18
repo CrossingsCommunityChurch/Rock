@@ -78,44 +78,32 @@ namespace Rock.Tasks
                 // Launch workflow if configured
                 if ( alertType.WorkflowTypeId.HasValue )
                 {
-                    alert.LaunchWorkflow( alertType.WorkflowTypeId, string.Empty, null, null );
+                    var workflowAttributeValues = new Dictionary<string, string>();
+                    workflowAttributeValues.Add( nameof( FinancialTransactionAlert ), alert.Guid.ToString() );
+                    workflowAttributeValues.Add( nameof( FinancialTransactionAlertType ), alertType.Guid.ToString() );
+                    workflowAttributeValues.Add( "FinancialTransactionId", alert.FinancialTransaction.Id.ToStringSafe() );
+                    workflowAttributeValues.Add( nameof( Person ), person.Guid.ToString() );
+                    alert.LaunchWorkflow( alertType.WorkflowTypeId, string.Empty, workflowAttributeValues, alert.PersonAliasId );
                 }
 
                 // Add the person to a connection opportunity if configured
                 if ( alertType.ConnectionOpportunityId.HasValue )
                 {
-                    var connectionOpportunityService = new ConnectionOpportunityService( rockContext );
-                    var statuses = connectionOpportunityService.Queryable()
-                        .AsNoTracking()
-                        .Where( co =>
-                            co.Id == alertType.ConnectionOpportunityId )
-                        .SelectMany( co => co.ConnectionType.ConnectionStatuses )
-                        .Where( cs => cs.IsActive )
-                        .ToList()
-                        .OrderBy( cs => cs.Order );
+                    var connectionRequestService = new ConnectionRequestService( rockContext );
 
-                    var status = statuses.FirstOrDefault( cs => cs.IsDefault ) ?? statuses.FirstOrDefault();
-
-                    if ( status != null )
+                    int personAliasId = alert.PersonAliasId;
+                    var request = connectionRequestService.CreateConnectionRequestWithDefaultConnector( alertType.ConnectionOpportunityId.Value, personAliasId, alertType.CampusId, rockContext: rockContext );
+                    if ( alert.TransactionId.HasValue )
                     {
-                        var connectionRequestService = new ConnectionRequestService( rockContext );
-                        var request = new ConnectionRequest
-                        {
-                            ConnectionOpportunityId = alertType.ConnectionOpportunityId.Value,
-                            PersonAliasId = alert.PersonAliasId,
-                            ConnectionStatusId = status.Id
-                        };
-
-                        if ( alert.TransactionId.HasValue )
-                        {
-                            request.LoadAttributes();
-                            request.SetAttributeValue( "FinancialTransactionId", alert.TransactionId.Value.ToString() );
-                        }
-
-                        connectionRequestService.Add( request );
+                        request.LoadAttributes();
+                        request.SetAttributeValue( "FinancialTransactionId", alert.TransactionId.Value.ToString() );
                     }
-                }
 
+                    connectionRequestService.Add( request );
+                    rockContext.SaveChanges();
+                    request.SaveAttributeValues( rockContext );
+                }
+               
                 // Send a bus event if configured
                 if ( alertType.SendBusEvent )
                 {
@@ -134,6 +122,26 @@ namespace Rock.Tasks
                     if ( person != null && systemCommunication != null )
                     {
                         CommunicationHelper.SendMessage( person, ( int ) person.CommunicationPreference, systemCommunication, mergeObjects );
+                    }
+                }
+
+                // Send a communication to account followers if an Account Participant System Communication and Account is specified
+                // for this alert type
+                if ( alertType.AccountParticipantSystemCommunicationId.HasValue && alertType.FinancialAccountId.HasValue )
+                {
+                    var systemCommunicationService = new SystemCommunicationService( rockContext );
+                    var financialAccountService = new FinancialAccountService( rockContext );
+                    var accountParticipantSystemCommunication = systemCommunicationService.Get( alertType.AccountParticipantSystemCommunicationId.Value );
+                    if ( accountParticipantSystemCommunication != null )
+                    {
+                        var accountFollowers = financialAccountService
+                            .GetAccountParticipants( alertType.FinancialAccountId.Value, RelatedEntityPurposeKey.FinancialAccountGivingAlert )
+                            .Select( a => a.Person );
+
+                        foreach ( var accountFollower in accountFollowers )
+                        {
+                            CommunicationHelper.SendMessage( accountFollower, ( int ) accountFollower.CommunicationPreference, accountParticipantSystemCommunication, mergeObjects );
+                        }
                     }
                 }
 

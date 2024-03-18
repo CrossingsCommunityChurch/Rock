@@ -63,7 +63,7 @@
 
                     <div class="row">
                         <div class="col-md-6">
-                            <Rock:DataTextBox ID="tbIconCssClass" runat="server" SourceTypeName="Rock.Model.ConnectionType, Rock" PropertyName="IconCssClass" ValidateRequestMode="Disabled"/>
+                            <Rock:DataTextBox ID="tbIconCssClass" runat="server" SourceTypeName="Rock.Model.ConnectionType, Rock" PropertyName="IconCssClass" Label="Icon CSS Class" ValidateRequestMode="Disabled"/>
                             <Rock:NumberBox ID="nbDaysUntilRequestIdle" runat="server" SourceTypeName="Rock.Model.ConnectionType, Rock" PropertyName="DaysUntilRequestIdle" Label="Days Until Request Considered Idle" ValidateRequestMode="Disabled" NumberType="Integer" MinimumValue="0"/>
                             <Rock:PagePicker ID="ppConnectionRequestDetail" runat="server" Label="Connection Request Detail Page" Required="false" PromptForPageRoute="true" Help="Choose a page that should be used for viewing connection requests of this type. This is useful if you have different detail pages with different settings. A default page will be used if this is left blank." />
                         </div>
@@ -98,6 +98,24 @@
                                 Help="If enabled, connection request blocks will have an additional setting allowing security to be applied to individual requests. A special rule is also applied, which automatically allows an assigned connector to view or edit their requests when the connector doesn't have security to the connection opportunity or type. Enabling this setting will noticeably impact performance when there are a significant amount of requests." />
                         </div>
                     </div>
+
+                    <Rock:PanelWidget ID="wpConnectionTypeAttributes" runat="server" Title="Connection Type Attributes" CssClass="connection-type-attribute-panel">
+                        <div class="grid">
+                            <Rock:Grid ID="gConnectionTypeAttributes" runat="server" AllowPaging="false" DisplayType="Light" RowItemText="Connection Type Attribute">
+                                <Columns>
+                                    <Rock:ReorderField />
+                                    <Rock:RockBoundField DataField="Name" HeaderText="Name" />
+                                    <Rock:RockBoundField DataField="Description" HeaderText="Description" />
+                                    <Rock:BoolField DataField="IsRequired" HeaderText="Required" />
+                                    <Rock:SecurityField TitleField="Name" />
+                                    <Rock:EditField OnClick="gConnectionTypeAttributes_Edit" />
+                                    <Rock:DeleteField OnClick="gConnectionTypeAttributes_Delete" />
+                                </Columns>
+                            </Rock:Grid>
+                        </div>
+                        <Rock:AttributeValuesContainer ID="avcEditAttributes" runat="server" />
+                    </Rock:PanelWidget>
+
                     <Rock:PanelWidget ID="wpConnectionRequestAttributes" runat="server" Title="Connection Request Attributes" CssClass="connection-request-attribute-panel">
                         <Rock:NotificationBox ID="nbConnectionRequestAttributes" runat="server" NotificationBoxType="Info"
                             Text="Connection Request Attributes apply to all of the connection requests in every Opportunity of this type.  Each connection request will have their own value for these attributes" />
@@ -190,9 +208,15 @@
             </Content>
         </Rock:ModalDialog>
 
-        <Rock:ModalDialog ID="dlgAttribute" runat="server" Title="Connection Opportunity Attributes" OnSaveClick="dlgConnectionTypeAttribute_SaveClick" OnCancelScript="clearActiveDialog();" ValidationGroup="Attributes">
+        <Rock:ModalDialog ID="dlgAttribute" runat="server" Title="Connection Opportunity Attributes" OnSaveClick="dlgConnectionOpportunityAttribute_SaveClick" OnCancelScript="clearActiveDialog();" ValidationGroup="Attributes">
             <Content>
                 <Rock:AttributeEditor ID="edtAttributes" runat="server" ShowActions="false" ValidationGroup="Attributes" />
+            </Content>
+        </Rock:ModalDialog>
+
+        <Rock:ModalDialog ID="dlgConnectionTypeAttribute" runat="server" Title="Connection Type Attributes" OnSaveClick="dlgConnectionTypeAttribute_SaveClick" OnCancelScript="clearActiveDialog();" ValidationGroup="ConnectionTypeAttributes">
+            <Content>
+                <Rock:AttributeEditor ID="edtConnectionTypeAttributes" runat="server" ShowActions="false" ValidationGroup="ConnectionTypeAttributes" />
             </Content>
         </Rock:ModalDialog>
 
@@ -214,6 +238,7 @@
         <Rock:ModalDialog ID="dlgConnectionStatuses" runat="server" ScrollbarEnabled="false" SaveButtonText="Add" OnSaveClick="btnAddConnectionStatus_Click" Title="Create Status" ValidationGroup="ConnectionStatus">
             <Content>
                 <asp:HiddenField ID="hfConnectionTypeAddConnectionStatusGuid" runat="server" />
+                <Rock:NotificationBox ID="nbDuplicateConnectionStatus" runat="server" NotificationBoxType="Danger" Visible="false" />
                 <div class="row">
                     <div class="col-md-6">
                         <Rock:DataTextBox ID="tbConnectionStatusName" SourceTypeName="Rock.Model.ConnectionStatus, Rock" PropertyName="Name" Label="Name" runat="server" ValidationGroup="ConnectionStatus" />
@@ -244,12 +269,13 @@
                     <Rock:NotificationBox ID="nbMessage" NotificationBoxType="Info" runat="server" Text="Please save the new Status before adding any Status Automations." Visible="false" />
                     <Rock:RockControlWrapper ID="rcwStatusAutomationsView" runat="server">
                         <div class="grid">
-                            <Rock:Grid ID="gStatusAutomations" runat="server" AllowPaging="false" DisplayType="Light" ShowHeader="true" RowItemText="Status Automation">
+                            <Rock:Grid ID="gStatusAutomations" runat="server" AllowPaging="false" DisplayType="Light" ShowHeader="true" RowItemText="Status Automation" OnGridReorder="gStatusAutomations_GridReorder">
                                 <Columns>
+                                    <Rock:ReorderField />
                                     <Rock:RockBoundField DataField="AutomationName" HeaderText="Automation Name" />
-                                    <Rock:RockBoundField DataField="DataView.Name" HeaderText="Data View" />
-                                    <Rock:EnumField DataField="GroupRequirementsFilter" HeaderText="GroupRequirementsFilter" />
-                                    <Rock:RockBoundField DataField="DestinationStatus.Name" HeaderText="Move To" />
+                                    <Rock:RockBoundField DataField="DataViewName" HeaderText="Data View" />
+                                    <Rock:EnumField DataField="GroupRequirementsFilter" HeaderText="Group Requirements Filter" />
+                                    <Rock:RockBoundField DataField="DestinationStatusName" HeaderText="Move To" />
                                     <Rock:EditField OnClick="gStatusAutomations_Edit" />
                                     <Rock:DeleteField OnClick="gStatusAutomations_Delete" />
                                 </Columns>
@@ -308,6 +334,9 @@
                 </div>
 
                 <div class="row">
+                    <div class="col-md-12">
+                        <Rock:RockRadioButtonList ID="rblConnectionStatuses" runat="server" RepeatDirection="Horizontal" Label="Manual Trigger Status Filter" Help="Filters workflows to display based on the current status of the connection request." />
+                    </div>
                     <div class="col-md-6">
                         <Rock:RockDropDownList ID="ddlPrimaryQualifier" runat="server" Visible="false" ValidationGroup="ConnectionWorkflow" />
                         <Rock:RockDropDownList ID="ddlSecondaryQualifier" runat="server" Visible="false" ValidationGroup="ConnectionWorkflow" />

@@ -35,13 +35,21 @@ namespace Rock.Client
         public int Id { get; set; }
 
         /// <summary />
+        // Made Obsolete in Rock "1.16"
+        [Obsolete( "Use AdditionalSettingsJson instead.", false )]
         public string AdditionalSettings { get; set; }
+
+        /// <summary />
+        public string AdditionalSettingsJson { get; set; }
 
         /// <summary />
         public bool AllowIndexing { get; set; } = true;
 
         /// <summary />
         public string BodyCssClass { get; set; }
+
+        /// <summary />
+        public Rock.Client.Enums.Cms.BotGuardianLevel BotGuardianLevel { get; set; } = Rock.Client.Enums.BotGuardianLevel.Inherit;
 
         /// <summary />
         public bool BreadCrumbDisplayIcon { get; set; }
@@ -133,6 +141,12 @@ namespace Rock.Client
         public int? ParentPageId { get; set; }
 
         /// <summary />
+        public int? RateLimitPeriod { get; set; }
+
+        /// <summary />
+        public int? RateLimitRequestPerPeriod { get; set; }
+
+        /// <summary />
         public bool RequiresEncryption { get; set; }
 
         /// <summary>
@@ -168,9 +182,13 @@ namespace Rock.Client
         public void CopyPropertiesFrom( Page source )
         {
             this.Id = source.Id;
+            #pragma warning disable 612, 618
             this.AdditionalSettings = source.AdditionalSettings;
+            #pragma warning restore 612, 618
+            this.AdditionalSettingsJson = source.AdditionalSettingsJson;
             this.AllowIndexing = source.AllowIndexing;
             this.BodyCssClass = source.BodyCssClass;
+            this.BotGuardianLevel = source.BotGuardianLevel;
             this.BreadCrumbDisplayIcon = source.BreadCrumbDisplayIcon;
             this.BreadCrumbDisplayName = source.BreadCrumbDisplayName;
             this.BrowserTitle = source.BrowserTitle;
@@ -200,6 +218,8 @@ namespace Rock.Client
             this.PageDisplayTitle = source.PageDisplayTitle;
             this.PageTitle = source.PageTitle;
             this.ParentPageId = source.ParentPageId;
+            this.RateLimitPeriod = source.RateLimitPeriod;
+            this.RateLimitRequestPerPeriod = source.RateLimitRequestPerPeriod;
             this.RequiresEncryption = source.RequiresEncryption;
             this.CreatedDateTime = source.CreatedDateTime;
             this.ModifiedDateTime = source.ModifiedDateTime;

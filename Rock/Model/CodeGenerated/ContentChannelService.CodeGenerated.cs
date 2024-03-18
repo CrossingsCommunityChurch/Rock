@@ -23,10 +23,7 @@
 using System;
 using System.Linq;
 
-using Rock.Attribute;
 using Rock.Data;
-using Rock.ViewModel;
-using Rock.Web.Cache;
 
 namespace Rock.Model
 {
@@ -55,11 +52,7 @@ namespace Rock.Model
         {
             errorMessage = string.Empty;
 
-            if ( new Service<ContentChannelItem>( Context ).Queryable().Any( a => a.ContentChannelId == item.Id ) )
-            {
-                errorMessage = string.Format( "This {0} is assigned to a {1}.", ContentChannel.FriendlyTypeName, ContentChannelItem.FriendlyTypeName );
-                return false;
-            }
+            // ignoring ContentChannelItem,ContentChannelId
 
             if ( new Service<MediaFolder>( Context ).Queryable().Any( a => a.ContentChannelId == item.Id ) )
             {
@@ -69,61 +62,6 @@ namespace Rock.Model
             return true;
         }
     }
-
-    /// <summary>
-    /// ContentChannel View Model Helper
-    /// </summary>
-    [DefaultViewModelHelper( typeof( ContentChannel ) )]
-    public partial class ContentChannelViewModelHelper : ViewModelHelper<ContentChannel, Rock.ViewModel.ContentChannelViewModel>
-    {
-        /// <summary>
-        /// Converts the model to a view model.
-        /// </summary>
-        /// <param name="model">The entity.</param>
-        /// <param name="currentPerson">The current person.</param>
-        /// <param name="loadAttributes">if set to <c>true</c> [load attributes].</param>
-        /// <returns></returns>
-        public override Rock.ViewModel.ContentChannelViewModel CreateViewModel( ContentChannel model, Person currentPerson = null, bool loadAttributes = true )
-        {
-            if ( model == null )
-            {
-                return default;
-            }
-
-            var viewModel = new Rock.ViewModel.ContentChannelViewModel
-            {
-                Id = model.Id,
-                Guid = model.Guid,
-                ChannelUrl = model.ChannelUrl,
-                ChildItemsManuallyOrdered = model.ChildItemsManuallyOrdered,
-                ContentChannelTypeId = model.ContentChannelTypeId,
-                ContentControlType = ( int ) model.ContentControlType,
-                Description = model.Description,
-                EnableRss = model.EnableRss,
-                IconCssClass = model.IconCssClass,
-                IsIndexEnabled = model.IsIndexEnabled,
-                IsStructuredContent = model.IsStructuredContent,
-                IsTaggingEnabled = model.IsTaggingEnabled,
-                ItemsManuallyOrdered = model.ItemsManuallyOrdered,
-                ItemTagCategoryId = model.ItemTagCategoryId,
-                ItemUrl = model.ItemUrl,
-                Name = model.Name,
-                RequiresApproval = model.RequiresApproval,
-                RootImageDirectory = model.RootImageDirectory,
-                StructuredContentToolValueId = model.StructuredContentToolValueId,
-                TimeToLive = model.TimeToLive,
-                CreatedDateTime = model.CreatedDateTime,
-                ModifiedDateTime = model.ModifiedDateTime,
-                CreatedByPersonAliasId = model.CreatedByPersonAliasId,
-                ModifiedByPersonAliasId = model.ModifiedByPersonAliasId,
-            };
-
-            AddAttributesToViewModel( model, viewModel, currentPerson, loadAttributes );
-            ApplyAdditionalPropertiesAndSecurityToViewModel( model, viewModel, currentPerson, loadAttributes );
-            return viewModel;
-        }
-    }
-
 
     /// <summary>
     /// Generated Extension Methods
@@ -185,7 +123,9 @@ namespace Rock.Model
             target.ChildItemsManuallyOrdered = source.ChildItemsManuallyOrdered;
             target.ContentChannelTypeId = source.ContentChannelTypeId;
             target.ContentControlType = source.ContentControlType;
+            target.ContentLibraryConfigurationJson = source.ContentLibraryConfigurationJson;
             target.Description = source.Description;
+            target.EnablePersonalization = source.EnablePersonalization;
             target.EnableRss = source.EnableRss;
             target.ForeignGuid = source.ForeignGuid;
             target.ForeignKey = source.ForeignKey;
@@ -209,20 +149,5 @@ namespace Rock.Model
             target.ForeignId = source.ForeignId;
 
         }
-
-        /// <summary>
-        /// Creates a view model from this entity
-        /// </summary>
-        /// <param name="model">The entity.</param>
-        /// <param name="currentPerson" >The currentPerson.</param>
-        /// <param name="loadAttributes" >Load attributes?</param>
-        public static Rock.ViewModel.ContentChannelViewModel ToViewModel( this ContentChannel model, Person currentPerson = null, bool loadAttributes = false )
-        {
-            var helper = new ContentChannelViewModelHelper();
-            var viewModel = helper.CreateViewModel( model, currentPerson, loadAttributes );
-            return viewModel;
-        }
-
     }
-
 }

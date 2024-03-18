@@ -15,14 +15,17 @@
 // </copyright>
 //
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data.Entity;
 using System.Linq;
+using System.Reflection;
 using System.Web;
 using System.Web.UI;
 using System.Web.UI.WebControls;
 
 using Rock;
+using Rock.Blocks;
 using Rock.Data;
 using Rock.Model;
 using Rock.Security;
@@ -39,6 +42,7 @@ namespace RockWeb.Blocks.Administration
     [DisplayName( "Zone Blocks" )]
     [Category( "Administration" )]
     [Description( "Displays the blocks for a given zone." )]
+    [Rock.SystemGuid.BlockTypeGuid( "72CAAF77-A015-45F0-A549-F941B9AB4D75" )]
     public partial class ZoneBlocks : RockBlock
     {
         #region Fields
@@ -124,7 +128,7 @@ namespace RockWeb.Blocks.Administration
                 gPageBlocks.GridReorder += gPageBlocks_GridReorder;
                 gPageBlocks.GridRebind += gPageBlocks_GridRebind;
 
-                LoadBlockTypes( !Page.IsPostBack );
+                LoadBlockTypes( !Page.IsPostBack, _Page.Layout.Site.SiteType );
 
                 string script = string.Format(
                     @"Sys.Application.add_load(function () {{
@@ -186,7 +190,7 @@ namespace RockWeb.Blocks.Administration
                 liSite.RemoveCssClass( "active" );
                 divSite.RemoveCssClass( "active" );
             }
-            else if( hfOption.Value == "Layout" )
+            else if ( hfOption.Value == "Layout" )
             {
                 liPage.RemoveCssClass( "active" );
                 divPage.RemoveCssClass( "active" );
@@ -559,11 +563,11 @@ namespace RockWeb.Blocks.Administration
                 var parts = ddlBlockType.SelectedItem.Text.Split( new char[] { '>' } );
                 if ( parts.Length > 1 )
                 {
-                    tbBlockName.Text = parts[parts.Length - 1].Trim();
+                    tbBlockName.Text = parts[parts.Length - 1].Trim().Replace( " \U0001f389", string.Empty );
                 }
                 else
                 {
-                    tbBlockName.Text = ddlBlockType.SelectedItem.Text;
+                    tbBlockName.Text = ddlBlockType.SelectedItem.Text.Replace( " \U0001f389", string.Empty );
                 }
             }
         }
@@ -580,55 +584,112 @@ namespace RockWeb.Blocks.Administration
             {
                 BlockService blockService = new BlockService( rockContext );
 
-                gSiteBlocks.DataSource = blockService.GetBySiteAndZone( _Page.SiteId, _ZoneName )
+                var siteBlocks = blockService.GetBySiteAndZone( _Page.SiteId, _ZoneName )
                     .Select( b => new
                     {
                         b.Id,
                         b.Name,
+                        EntityTypeId = b.BlockType.EntityTypeId ?? 0,
                         BlockTypeName = b.BlockType.Name,
                         BlockTypePath = b.BlockType.Path,
                         BlockTypeCategory = b.BlockType.Category
                     } )
+                    .AsEnumerable();
+
+                gSiteBlocks.DataSource = siteBlocks.Select( b => new
+                    {
+                        b.Id,
+                        b.Name,
+                        BlockTypeName = AddIconIfObsidianBlock( b.EntityTypeId, b.BlockTypeName ),
+                        b.BlockTypePath,
+                        b.BlockTypeCategory
+                    } )
                     .ToList();
+
                 gSiteBlocks.DataBind();
 
-                gLayoutBlocks.DataSource = blockService.GetByLayoutAndZone( _Page.LayoutId, _ZoneName )
+                var layoutBlocks = blockService.GetByLayoutAndZone( _Page.LayoutId, _ZoneName )
                     .Select( b => new
                     {
                         b.Id,
                         b.Name,
+                        EntityTypeId = b.BlockType.EntityTypeId ?? 0,
                         BlockTypeName = b.BlockType.Name,
                         BlockTypePath = b.BlockType.Path,
                         BlockTypeCategory = b.BlockType.Category
                     } )
+                    .AsEnumerable();
+
+                gLayoutBlocks.DataSource = layoutBlocks.Select( b => new
+                    {
+                        b.Id,
+                        b.Name,
+                        BlockTypeName = AddIconIfObsidianBlock( b.EntityTypeId, b.BlockTypeName ),
+                        b.BlockTypePath,
+                        b.BlockTypeCategory
+                    } )
                     .ToList();
+
                 gLayoutBlocks.DataBind();
 
-                gPageBlocks.DataSource = blockService.GetByPageAndZone( _Page.Id, _ZoneName )
+                var pageBlocks = blockService.GetByPageAndZone( _Page.Id, _ZoneName )
                 .Select( b => new
                 {
                     b.Id,
                     b.Name,
+                    EntityTypeId = b.BlockType.EntityTypeId ?? 0,
                     BlockTypeName = b.BlockType.Name,
                     BlockTypePath = b.BlockType.Path,
                     BlockTypeCategory = b.BlockType.Category
                 } )
+                .AsEnumerable();
+
+                gPageBlocks.DataSource = pageBlocks.Select( b => new
+                {
+                    b.Id,
+                    b.Name,
+                    BlockTypeName = AddIconIfObsidianBlock( b.EntityTypeId, b.BlockTypeName ),
+                    b.BlockTypePath,
+                    b.BlockTypeCategory
+                } )
                 .ToList();
+
                 gPageBlocks.DataBind();
+            }
+        }
+
+        /// <summary>
+        /// Adds the "party popper" emoji to the block name if it is an Obsidian block type
+        /// </summary>
+        /// <param name="entityTypeId">The entity type identifier.</param>
+        /// <param name="name">The name.</param>
+        /// <returns></returns>
+        private string AddIconIfObsidianBlock( int entityTypeId, string name )
+        {
+            var entityType = EntityTypeCache.Get( entityTypeId )?.GetEntityType();
+            if ( entityType != null && typeof( IRockObsidianBlockType ).IsAssignableFrom( entityType ) )
+            {
+                return name + " \U0001f389";
+            }
+            else
+            {
+                return name;
             }
         }
 
         /// <summary>
         /// Loads the block types.
         /// </summary>
-        private void LoadBlockTypes( bool registerBlockTypes )
+        /// <param name="registerBlockTypes">If <c>true</c> then a search for unregistered blocks will be performed.</param>
+        /// <param name="siteType">The type of site the to use when filtering supported block types.</param>
+        private void LoadBlockTypes( bool registerBlockTypes, SiteType siteType )
         {
             if ( registerBlockTypes )
             {
                 // Add any unregistered blocks
                 try
                 {
-                    BlockTypeService.RegisterBlockTypes( Request.MapPath( "~" ), Page );
+                    BlockTypeService.RegisterBlockTypes( Request.MapPath( "~" ) );
                 }
                 catch ( Exception ex )
                 {
@@ -638,33 +699,34 @@ namespace RockWeb.Blocks.Administration
                 }
             }
 
-            // Get a list of BlockTypes that does not include Mobile block types.
-            var allExceptMobileBlockTypes = BlockTypeCache.All();
-            foreach ( var cachedBlockType in BlockTypeCache.All().Where( b => string.IsNullOrEmpty( b.Path ) ) )
+            // If the IsDebuggingEnabled happens to be true, show all the obsidian blocks. This is done for testing purposes.
+            // This flag needs to be removed once all the blocks are migrated to obsidian.
+            List<BlockTypeCache> blockTypesToDisplay = BlockTypeService.BlockTypesToDisplay( siteType, HttpContext.Current.IsDebuggingEnabled );
+
+            var blockTypes = blockTypesToDisplay.Select( b => new
             {
-                try
-                {
-                    var blockCompiledType = cachedBlockType.GetCompiledType();
-
-                    if ( typeof( Rock.Blocks.IRockMobileBlockType ).IsAssignableFrom( blockCompiledType ) )
-                    {
-                        allExceptMobileBlockTypes.Remove( cachedBlockType );
-                    }
-                }
-                catch ( Exception )
-                {
-                    // Intentionally ignored
-                }
-            }
-
-            var blockTypes = allExceptMobileBlockTypes.Select( b => new { b.Id, b.Name, b.Category, b.Description } ).ToList();
+                b.Id,
+                b.Name,
+                b.Category,
+                b.Description,
+                IsObsidian = typeof( IRockObsidianBlockType ).IsAssignableFrom( b.EntityType?.GetEntityType() )
+            } ).ToList();
 
             ddlBlockType.Items.Clear();
 
             // Add the categorized block types
             foreach ( var blockType in blockTypes.Where( b => b.Category != "" ).OrderBy( b => b.Category ).ThenBy( b => b.Name ) )
             {
-                var li = new ListItem( blockType.Name, blockType.Id.ToString() );
+                var blockTypeName = blockType.Name;
+
+                // Append the "party popper" emoji to the block type name if it
+                // is an Obsidian block type so we can differentiate during rollout.
+                if ( blockType.IsObsidian )
+                {
+                    blockTypeName += " \U0001f389";
+                }
+
+                var li = new ListItem( blockTypeName, blockType.Id.ToString() );
                 li.Attributes.Add( "optiongroup", blockType.Category );
                 li.Attributes.Add( "title", blockType.Description );
                 ddlBlockType.Items.Add( li );
@@ -673,7 +735,16 @@ namespace RockWeb.Blocks.Administration
             // Add the uncategorized block types
             foreach ( var blockType in blockTypes.Where( b => b.Category == null || b.Category == "" ).OrderBy( b => b.Name ) )
             {
-                var li = new ListItem( blockType.Name, blockType.Id.ToString() );
+                var blockTypeName = blockType.Name;
+
+                // Append the "party popper" emoji to the block type name if it
+                // is an Obsidian block type so we can differentiate during rollout.
+                if ( blockType.IsObsidian )
+                {
+                    blockTypeName += " \U0001f389";
+                }
+
+                var li = new ListItem( blockTypeName, blockType.Id.ToString() );
                 li.Attributes.Add( "optiongroup", "Other (not categorized)" );
                 li.Attributes.Add( "title", blockType.Description );
                 ddlBlockType.Items.Add( li );

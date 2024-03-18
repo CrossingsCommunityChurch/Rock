@@ -28,6 +28,7 @@ namespace Rock.Model
     [RockDomain( "Core" )]
     [Table( "AuthClient" )]
     [DataContract]
+    [Rock.SystemGuid.EntityTypeGuid( "CBD66C3A-959A-4A0B-926C-C3ADE43066B1")]
     public class AuthClient : Model<AuthClient>, IHasActiveFlag
     {
 
@@ -117,5 +118,16 @@ namespace Rock.Model
         [DataMember( IsRequired = true )]
         [Required]
         public string PostLogoutRedirectUri { get; set; }
+
+        /// <summary>
+        /// Gets or sets the scope approval expiration in days.
+        /// </summary>
+        /// <value>
+        /// The scope approval expiration in days.
+        /// </value>
+        [DataMember( IsRequired = true )]
+        [Required]
+        [Range( 0, int.MaxValue )]
+        public int ScopeApprovalExpiration { get; set; } = 365;
     }
 }

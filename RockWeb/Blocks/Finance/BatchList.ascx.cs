@@ -34,36 +34,37 @@ using Rock.Web.UI.Controls;
 
 namespace RockWeb.Blocks.Finance
 {
-    [DisplayName( "Batch List" )]
+    [DisplayName( "Batch List (Legacy)" )]
     [Category( "Finance" )]
     [Description( "Lists all financial batches and provides filtering by campus, status, etc." )]
     [LinkedPage( "Detail Page", order: 0 )]
     [BooleanField( "Show Accounting Code", "Should the accounting code column be displayed.", false, "", 1 )]
     [BooleanField( "Show Accounts Column", "Should the accounts column be displayed.", true, "", 2 )]
     [CodeEditorField( "Summary Lava Template", "The lava template for display the content for summary", CodeEditorMode.Lava, CodeEditorTheme.Rock, order: 3, defaultValue: @"
-         <div class='panel panel-block'>
-            <div class='panel-heading'>
-                <h1 class='panel-title'>Total Results</h1>
+         <div class=""panel panel-block"">
+            <div class=""panel-heading"">
+                <h1 class=""panel-title"">Total Results</h1>
             </div>
-            <div class='panel-body'>
+            <div class=""panel-body"">
                 {% assign totalAmount = 0 %}
                 {% for batchSummary in BatchSummary %}
-                <div class='row'>
-                    <div class='col-xs-8'>{{ batchSummary.FinancialAccount.Name }}</div>
-                    <div class='col-xs-4 text-right'>{{ batchSummary.TotalAmount | FormatAsCurrency }}</div>
+                <div class=""row"">
+                    <div class=""col-xs-8"">{{ batchSummary.FinancialAccount.Name }}</div>
+                    <div class=""col-xs-4 text-right"">{{ batchSummary.TotalAmount | FormatAsCurrency }}</div>
                 </div>
-                {% assign totalAmount = totalAmount | Plus: batchSummary.TotalAmount %}
+                {% assign totalAmount = totalAmount | Plus:batchSummary.TotalAmount %}
                 {% endfor %}
-                <div class='row'>
-                    <div class='col-xs-8'><b>Total: </div>
-                    <div class='col-xs-4 text-right'>
-                        {{ totalAmount | FormatAsCurrency }}
+                <div class=""row"">
+                    <div class=""col-xs-8""><b>Total:</b></div>
+                    <div class=""col-xs-4 text-right"">
+                        <b>{{ totalAmount | FormatAsCurrency }}</b>
                     </div>
                 </div>
             </div>
         </div>
 " )]
 
+    [Rock.SystemGuid.BlockTypeGuid( "AB345CE7-5DC6-41AF-BBDC-8D23D52AFE25" )]
     public partial class BatchList : RockBlock, IPostBackEventHandler, ICustomGridColumns
     {
         #region Constants
@@ -76,9 +77,7 @@ namespace RockWeb.Blocks.Finance
 
         private RockDropDownList ddlAction;
         public List<AttributeCache> AvailableAttributes { get; set; }
-
-        // Dictionaries to cache values for performance
-        private static Dictionary<int, FinancialAccount> _financialAccountLookup;
+        
 
         #endregion
 
@@ -146,7 +145,7 @@ namespace RockWeb.Blocks.Finance
         /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
         protected void gfBatchFilter_ClearFilterClick( object sender, EventArgs e )
         {
-            gfBatchFilter.DeleteUserPreferences();
+            gfBatchFilter.DeleteFilterPreferences();
             BindFilter();
         }
 
@@ -355,17 +354,17 @@ namespace RockWeb.Blocks.Finance
         /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
         protected void gfBatchFilter_ApplyFilterClick( object sender, EventArgs e )
         {
-            gfBatchFilter.SaveUserPreference( "Date Range", drpBatchDate.DelimitedValues );
-            gfBatchFilter.SaveUserPreference( "Title", tbTitle.Text );
+            gfBatchFilter.SetFilterPreference( "Date Range", drpBatchDate.DelimitedValues );
+            gfBatchFilter.SetFilterPreference( "Title", tbTitle.Text );
             if ( tbAccountingCode.Visible )
             {
-                gfBatchFilter.SaveUserPreference( "Accounting Code", tbAccountingCode.Text );
+                gfBatchFilter.SetFilterPreference( "Accounting Code", tbAccountingCode.Text );
             }
 
-            gfBatchFilter.SaveUserPreference( "Status", ddlStatus.SelectedValue );
-            gfBatchFilter.SaveUserPreference( "Campus", campCampus.SelectedValue );
-            gfBatchFilter.SaveUserPreference( "Contains Transaction Type", dvpTransactionType.SelectedValue );
-            gfBatchFilter.SaveUserPreference( "Contains Source Type", dvpSourceType.SelectedValue );
+            gfBatchFilter.SetFilterPreference( "Status", ddlStatus.SelectedValue );
+            gfBatchFilter.SetFilterPreference( "Campus", campCampus.SelectedValue );
+            gfBatchFilter.SetFilterPreference( "Contains Transaction Type", dvpTransactionType.SelectedValue );
+            gfBatchFilter.SetFilterPreference( "Contains Source Type", dvpSourceType.SelectedValue );
 
             if ( AvailableAttributes != null )
             {
@@ -377,7 +376,7 @@ namespace RockWeb.Blocks.Finance
                         try
                         {
                             var values = attribute.FieldType.Field.GetFilterValues( filterControl, attribute.QualifierValues, Rock.Reporting.FilterMode.SimpleFilter );
-                            gfBatchFilter.SaveUserPreference( "Attribute_" + attribute.Key, attribute.Name, attribute.FieldType.Field.GetFilterValues( filterControl, attribute.QualifierValues, Rock.Reporting.FilterMode.SimpleFilter ).ToJson() );
+                            gfBatchFilter.SetFilterPreference( "Attribute_" + attribute.Key, attribute.Name, attribute.FieldType.Field.GetFilterValues( filterControl, attribute.QualifierValues, Rock.Reporting.FilterMode.SimpleFilter ).ToJson() );
                         }
                         catch
                         {
@@ -461,10 +460,10 @@ namespace RockWeb.Blocks.Finance
                         e.Row.AddCssClass( "js-has-transactions" );
                     }
 
-                    // Hide delete button if the batch is closed.
+                    // Hide delete button if the batch is closed or if the batch is automated
                     var deleteField = gBatchList.Columns.OfType<DeleteField>().First();
                     var cell = ( e.Row.Cells[gBatchList.GetColumnIndex( deleteField )] as DataControlFieldCell ).Controls[0];
-                    if ( batchRow.Status == BatchStatus.Closed && cell != null )
+                    if ( ( batchRow.Status == BatchStatus.Closed || batchRow.IsAutomated ) && cell != null )
                     {
                         cell.Visible = false;
                     }
@@ -601,7 +600,7 @@ namespace RockWeb.Blocks.Finance
 
             if ( showAccountingCode )
             {
-                string accountingCode = gfBatchFilter.GetUserPreference( "Accounting Code" );
+                string accountingCode = gfBatchFilter.GetFilterPreference( "Accounting Code" );
                 tbAccountingCode.Text = !string.IsNullOrWhiteSpace( accountingCode ) ? accountingCode : string.Empty;
             }
 
@@ -618,18 +617,18 @@ namespace RockWeb.Blocks.Finance
         /// </summary>
         private void BindFilter()
         {
-            string titleFilter = gfBatchFilter.GetUserPreference( "Title" );
+            string titleFilter = gfBatchFilter.GetFilterPreference( "Title" );
             tbTitle.Text = !string.IsNullOrWhiteSpace( titleFilter ) ? titleFilter : string.Empty;
 
             if ( tbAccountingCode.Visible )
             {
-                string accountingCode = gfBatchFilter.GetUserPreference( "Accounting Code" );
+                string accountingCode = gfBatchFilter.GetFilterPreference( "Accounting Code" );
                 tbAccountingCode.Text = !string.IsNullOrWhiteSpace( accountingCode ) ? accountingCode : string.Empty;
             }
 
             ddlStatus.BindToEnum<BatchStatus>();
             ddlStatus.Items.Insert( 0, Rock.Constants.All.ListItem );
-            string statusFilter = gfBatchFilter.GetUserPreference( "Status" );
+            string statusFilter = gfBatchFilter.GetFilterPreference( "Status" );
             if ( string.IsNullOrWhiteSpace( statusFilter ) )
             {
                 statusFilter = BatchStatus.Open.ConvertToInt().ToString();
@@ -639,18 +638,18 @@ namespace RockWeb.Blocks.Finance
 
             var definedTypeTransactionTypes = DefinedTypeCache.Get( Rock.SystemGuid.DefinedType.FINANCIAL_TRANSACTION_TYPE.AsGuid() );
             dvpTransactionType.DefinedTypeId = definedTypeTransactionTypes.Id;
-            dvpTransactionType.SetValue( gfBatchFilter.GetUserPreference( "Contains Transaction Type" ) );
+            dvpTransactionType.SetValue( gfBatchFilter.GetFilterPreference( "Contains Transaction Type" ) );
 
             var campusi = CampusCache.All();
             campCampus.Campuses = campusi;
             campCampus.Visible = campusi.Any();
-            campCampus.SetValue( gfBatchFilter.GetUserPreference( "Campus" ) );
+            campCampus.SetValue( gfBatchFilter.GetFilterPreference( "Campus" ) );
 
-            drpBatchDate.DelimitedValues = gfBatchFilter.GetUserPreference( "Date Range" );
+            drpBatchDate.DelimitedValues = gfBatchFilter.GetFilterPreference( "Date Range" );
 
             var definedTypeSourceTypes = DefinedTypeCache.Get( Rock.SystemGuid.DefinedType.FINANCIAL_SOURCE_TYPE.AsGuid() );
             dvpSourceType.DefinedTypeId = definedTypeSourceTypes.Id;
-            dvpSourceType.SetValue( gfBatchFilter.GetUserPreference( "Contains Source Type" ) );
+            dvpSourceType.SetValue( gfBatchFilter.GetFilterPreference( "Contains Source Type" ) );
 
             BindAttributes();
             AddDynamicControls();
@@ -754,7 +753,6 @@ namespace RockWeb.Blocks.Finance
             try
             {
                 var rockContext = new RockContext();
-                _financialAccountLookup = new FinancialAccountService( rockContext ).Queryable().AsNoTracking().ToList().ToDictionary( k => k.Id, v => v );
 
                 var financialBatchQry = GetQuery( rockContext ).AsNoTracking();
 
@@ -771,6 +769,7 @@ namespace RockWeb.Blocks.Finance
                     Status = b.Status,
                     UnMatchedTxns = b.Transactions.Any( t => !t.AuthorizedPersonAliasId.HasValue ),
                     BatchNote = b.Note,
+                    IsAutomated = b.IsAutomated,
                     AccountSummaryList = b.Transactions
                         .SelectMany( t => t.TransactionDetails )
                         .GroupBy( d => d.AccountId )
@@ -829,7 +828,7 @@ namespace RockWeb.Blocks.Finance
                 .Where( b => b.BatchStartDateTime.HasValue );
 
             // filter by date
-            string dateRangeValue = gfBatchFilter.GetUserPreference( "Date Range" );
+            string dateRangeValue = gfBatchFilter.GetFilterPreference( "Date Range" );
             if ( !string.IsNullOrWhiteSpace( dateRangeValue ) )
             {
                 var drp = new DateRangePicker();
@@ -847,21 +846,21 @@ namespace RockWeb.Blocks.Finance
             }
 
             // filter by status
-            var status = gfBatchFilter.GetUserPreference( "Status" ).ConvertToEnumOrNull<BatchStatus>();
+            var status = gfBatchFilter.GetFilterPreference( "Status" ).ConvertToEnumOrNull<BatchStatus>();
             if ( status.HasValue )
             {
                 qry = qry.Where( b => b.Status == status );
             }
 
             // filter by batches that contain transactions of the specified transaction type
-            var transactionTypeValueId = gfBatchFilter.GetUserPreference( "Contains Transaction Type" ).AsIntegerOrNull();
+            var transactionTypeValueId = gfBatchFilter.GetFilterPreference( "Contains Transaction Type" ).AsIntegerOrNull();
             if ( transactionTypeValueId.HasValue )
             {
                 qry = qry.Where( a => a.Transactions.Any( t => t.TransactionTypeValueId == transactionTypeValueId.Value ) );
             }
 
             // filter by title
-            string title = gfBatchFilter.GetUserPreference( "Title" );
+            string title = gfBatchFilter.GetFilterPreference( "Title" );
             if ( !string.IsNullOrEmpty( title ) )
             {
                 qry = qry.Where( batch => batch.Name.Contains( title ) );
@@ -870,7 +869,7 @@ namespace RockWeb.Blocks.Finance
             // filter by accounting code
             if ( tbAccountingCode.Visible )
             {
-                string accountingCode = gfBatchFilter.GetUserPreference( "Accounting Code" );
+                string accountingCode = gfBatchFilter.GetFilterPreference( "Accounting Code" );
                 if ( !string.IsNullOrEmpty( accountingCode ) )
                 {
                     qry = qry.Where( batch => batch.AccountingSystemCode.Contains( accountingCode ) );
@@ -878,14 +877,14 @@ namespace RockWeb.Blocks.Finance
             }
 
             // filter by campus
-            var campus = CampusCache.Get( gfBatchFilter.GetUserPreference( "Campus" ).AsInteger() );
+            var campus = CampusCache.Get( gfBatchFilter.GetFilterPreference( "Campus" ).AsInteger() );
             if ( campus != null )
             {
                 qry = qry.Where( b => b.CampusId == campus.Id );
             }
 
             // filter by batches that contain transactions of the specified source type
-            var sourceTypeValueId = gfBatchFilter.GetUserPreference( "Contains Source Type" ).AsIntegerOrNull();
+            var sourceTypeValueId = gfBatchFilter.GetFilterPreference( "Contains Source Type" ).AsIntegerOrNull();
             if ( sourceTypeValueId.HasValue )
             {
                 qry = qry.Where( a => a.Transactions.Any( t => t.SourceTypeValueId == sourceTypeValueId.Value ) );
@@ -964,7 +963,7 @@ namespace RockWeb.Blocks.Finance
             {
                 get
                 {
-                    return _financialAccountLookup[this.AccountId].Order;
+                    return FinancialAccountCache.Get(this.AccountId).Order;
                 }
             }
 
@@ -972,7 +971,7 @@ namespace RockWeb.Blocks.Finance
             {
                 get
                 {
-                    return _financialAccountLookup[this.AccountId].Name;
+                    return FinancialAccountCache.Get( this.AccountId ).Name;
                 }
             }
 
@@ -1124,6 +1123,8 @@ namespace RockWeb.Blocks.Finance
                     return notes.ToString();
                 }
             }
+
+            public bool IsAutomated;
         }
 
         #endregion
@@ -1188,7 +1189,7 @@ namespace RockWeb.Blocks.Finance
                             phAttributeFilters.Controls.Add( wrapper );
                         }
 
-                        string savedValue = gfBatchFilter.GetUserPreference( "Attribute_" + attribute.Key );
+                        string savedValue = gfBatchFilter.GetFilterPreference( "Attribute_" + attribute.Key );
                         if ( !string.IsNullOrWhiteSpace( savedValue ) )
                         {
                             try

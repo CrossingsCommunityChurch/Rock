@@ -34,6 +34,7 @@ namespace RockWeb.Blocks.Crm
     [Category( "CRM" )]
     [Description( "Shows the details of a particular badge." )]
 
+    [Rock.SystemGuid.BlockTypeGuid( "A79336CD-2265-4E36-B915-CF49956FD689" )]
     public partial class BadgeDetail : RockBlock
     {
 
@@ -163,6 +164,10 @@ namespace RockWeb.Blocks.Crm
             badge.EntityTypeQualifierColumn = rtbQualifierColumn.Text;
             badge.EntityTypeQualifierValue = rtbQualifierValue.Text;
             badge.EntityTypeId = etpEntityType.SelectedEntityTypeId;
+            if ( etpEntityType.SelectedEntityTypeId == default( int ) )
+            {
+                badge.EntityTypeId = null;
+            }
 
             if ( !string.IsNullOrWhiteSpace( compBadgeType.SelectedValue ) )
             {

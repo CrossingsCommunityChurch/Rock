@@ -20,18 +20,75 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Converters;
 using Rock.Lava;
+using Rock.Lava.Fluid;
 using Rock.Tests.Shared;
 
 namespace Rock.Tests.UnitTests.Lava
 {
-
-
     [TestClass]
     public class CollectionFilterTests : LavaUnitTestBase
     {
         List<string> _TestNameList = new List<string>() { "Ted", "Alisha", "Cynthia", "Brian" };
         List<string> _TestOrderedList = new List<string>() { "Item 1", "Item 2", "Item 3", "Item 4", "Item 5" };
         List<string> _TestDuplicateStringList = new List<string>() { "Item 1", "Item 2 (duplicate)", "Item 2 (duplicate)", "Item 2 (duplicate)", "Item 3" };
+
+        [TestMethod]
+        public void Compact_DocumentationExample_ProducesExpectedOutput()
+        {
+            var template = @"
+{% assign fruits = '' | AddToArray:'apples' | AddToArray:nil | AddToArray:'oranges' | AddToArray:nil | AddToArray:'peaches' %}
+Whole Fruit: {{ fruits | Join:', ' }}
+{% assign squashedFruits = fruits | Compact %}
+Squashed Fruit: {{ squashedFruits | Join:', ' }}
+";
+            var expectedOutput = @"
+Whole Fruit: apples, , oranges, , peaches
+Squashed Fruit: apples, oranges, peaches
+";
+
+            TestHelper.AssertTemplateOutput( typeof( FluidEngine ), expectedOutput, template, ignoreWhitespace: true );
+        }
+
+        [TestMethod]
+        public void Compact_ForArrayWithNullValues_RemovesNullValues()
+        {
+            var names = new List<string>() { null, "Alisha", "Brian", null, "Cynthia" };
+            var mergeValues = new LavaDataDictionary { { "TestList", names } };
+
+            TestHelper.AssertTemplateOutput( typeof( FluidEngine ),
+                "Alisha,Brian,Cynthia",
+                "{{ TestList | Compact | Join:',' }}", mergeValues );
+        }
+
+        [TestMethod]
+        public void Concat_DocumentationExample_ProducesExpectedOutput()
+        {
+            var template = @"
+{% assign primaryColors = 'red, yellow, blue' | Split: ', ' %}
+{% assign secondaryColors = 'orange, green, violet' | Split: ', ' %}
+{% assign allColors = primaryColors | Concat: secondaryColors %}
+{{ allColors | Join:', ' }}
+";
+            var expectedOutput = @"red, yellow, blue, orange, green, violet";
+
+            TestHelper.AssertTemplateOutput( typeof( FluidEngine ), expectedOutput, template, ignoreWhitespace: true );
+        }
+
+        [TestMethod]
+        public void Concat_WithMultipleArrayInput_ProducesSingleArray()
+        {
+            var template = @"
+{% assign fruits = 'apples, oranges, peaches' | Split: ', ' %}
+{% assign vegetables = 'carrots, turnips, potatoes' | Split: ', ' %}
+{% assign everything = fruits | Concat: vegetables %}
+{% for item in everything %}
+{{ item }},
+{% endfor %}
+";
+            var expectedOutput = @"apples, oranges, peaches, carrots, turnips, potatoes,";
+
+            TestHelper.AssertTemplateOutput( typeof( FluidEngine ), expectedOutput, template, ignoreWhitespace: true );
+        }
 
         #region Filter Tests: Distinct
 
@@ -173,7 +230,49 @@ Total: {{ '3,5,7' | Split:',' | Sum }}
         }
 
         [TestMethod]
-        public void RemoveFromDictionary_AppliedToArrayOfIntegers_ReturnsCorrectSum()
+        public void AddToDictionary_AddExistingKey_ReplacesExistingValue()
+        {
+            var lavaTemplate = @"
+        {% assign dict = '' | AddToDictionary:'key1','value1' %}
+        {% assign dict = dict | AddToDictionary:'key1','value2' %}
+        {{ dict | ToJSON }}
+";
+
+            TestHelper.AssertTemplateOutput( @"{""key1"":""value2""}", lavaTemplate, LavaRenderParameters.Default, ignoreWhitespace: true );
+        }
+
+        [TestMethod]
+        public void AddToDictionary_DocumentationExample1_ProducesExpectedOutput()
+        {
+            var lavaTemplate = @"
+{% assign colors = '' | AddToDictionary:'success','green' | AddToDictionary:'warning','orange' | AddToDictionary:'error','red' %}
+<div style='color:{{ colors[""success""]}}'>
+    This request is approved.
+</div>
+<div style='color:{{ colors[""warning""]}}'>
+    This request is incomplete.
+</div>
+<div style='color:{{ colors[""error""]}}'>
+    This request is denied.
+</div>
+";
+            var expectedOutput = @"
+<div style='color:green'>
+    This request is approved.
+</div>
+<div style='color:orange'>
+    This request is incomplete.
+</div>
+<div style='color:red'>
+    This request is denied.
+</div>
+";
+
+            TestHelper.AssertTemplateOutput( expectedOutput, lavaTemplate, LavaRenderParameters.Default, ignoreWhitespace: true );
+        }
+
+        [TestMethod]
+        public void RemoveFromDictionary_RemoveExistingKey_ReturnsUpdatedDictionary()
         {
             var lavaTemplate = @"
 {% assign dict = '' | AddToDictionary:'key1','value2' | AddToDictionary:'key2','value2' | AddToDictionary:'key3','value3' %}
@@ -393,22 +492,74 @@ Total: {{ '3,5,7' | Split:',' | Sum }}
         /// Selecting an existing property from a collection returns a list of values.
         /// </summary>
         [TestMethod]
-        public void Select_ValidItemPropertyFromItemCollection_ReturnsValueCollection()
+        public void Select_ItemPropertyFromLavaDataDictionaryCollection_ReturnsValue()
         {
-            LavaDataDictionary mergeValues;
-
-            //if ( TestHelper.LavaEngine.EngineType == LavaEngineTypeSpecifier.RockLiquid )
-            //{
-            //    mergeValues = new LavaDataDictionary { { "People", TestHelper.GetTestPersonCollectionForDeckerRockLiquid() } };
-            //}
-            //else
-            //{
-                mergeValues = new LavaDataDictionary { { "People", TestHelper.GetTestPersonCollectionForDecker() } };
-            //}
+            // The Select filter should work correctly on any collection of objects that supports the
+            // ILavaDataDictionary interface. This includes objects that inherit from LavaDataObject,
+            // or are proxied using LavaDataObject.
+            var mergeValues = new LavaDataDictionary { { "People", TestHelper.GetTestPersonCollectionForDecker() } };
 
             TestHelper.AssertTemplateOutput( "Edward;Cindy;Noah;Alex;",
                 "{% assign names = People | Select:'FirstName' %}{% for name in names %}{{ name }};{% endfor %}",
                 mergeValues );
+        }
+
+        /// <summary>
+        /// Selecting a specific key-value pair from a collection of dictionaries returns a list of values.
+        /// </summary>
+        [TestMethod]
+        public void Select_KeyValueFromDictionaryCollection_ReturnsListOfValues()
+        {
+            // The Select filter should work correctly on any collection of objects that supports the
+            // IDictionary<string,object> interface.
+            var dictionary1 = new Dictionary<string, object>()
+            {
+                { "Key1", "Value1-1" },
+                { "Key2", "Value1-2" },
+                { "Key3", "Value1-3" },
+            };
+            var dictionary2 = new Dictionary<string, object>()
+            {
+                { "Key1", "Value2-1" },
+                { "Key2", "Value2-2" },
+                { "Key3", "Value2-3" },
+            };
+
+            var mergeValues = new LavaDataDictionary { { "Dictionaries", new List<Dictionary<string, object>> { dictionary1, dictionary2 } } };
+
+            TestHelper.AssertTemplateOutput( "Value1-2;Value2-2;",
+                "{% assign values = Dictionaries | Select:'Key2' %}{% for value in values %}{{ value }};{% endfor %}",
+                mergeValues );
+        }
+
+
+        /// <summary>
+        /// The Sort filter is case-sensitive, sorting alphabetically with uppercase before lowercase values.
+        /// </summary>
+        [TestMethod]
+        public void Sort_ForArrayTarget_IsCaseSensitive()
+        {
+            var unsortedNames = new List<string>() { "Ted", "brian", "Cynthia", "alisha" };
+            var mergeValues = new LavaDataDictionary { { "TestList", unsortedNames } };
+
+            TestHelper.AssertTemplateOutput( typeof( FluidEngine ),
+                "Cynthia,Ted,alisha,brian",
+                "{{ TestList | Sort | Join:',' }}", mergeValues );
+        }
+
+        /// <summary>
+        /// The SortNatural filter is case-insensitive, sorting alphabetically without regard to case.
+        /// </summary>
+        [TestMethod]
+        public void SortNatural_ForArrayTarget_IsCaseSensitive()
+        {
+            var unsortedNames = new List<string>() { "Ted", "brian", "Cynthia", "alisha" };
+            var mergeValues = new LavaDataDictionary { { "TestList", unsortedNames } };
+
+            TestHelper.AssertTemplateOutput( typeof( FluidEngine ),
+                "alisha,brian,Cynthia,Ted",
+                "{{ TestList | SortNatural | Join:',' }}", mergeValues );
+
         }
 
         /// <summary>

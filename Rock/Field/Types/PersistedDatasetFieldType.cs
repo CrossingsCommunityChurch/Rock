@@ -14,10 +14,17 @@
 // limitations under the License.
 // </copyright>
 //
+using System;
 using System.Collections.Generic;
 using System.Linq;
+#if WEBFORMS
 using System.Web.UI;
 using System.Web.UI.WebControls;
+#endif
+using Rock.Attribute;
+using Rock.Data;
+using Rock.Model;
+using Rock.ViewModels.Utility;
 using Rock.Web.Cache;
 using Rock.Web.UI.Controls;
 
@@ -26,9 +33,142 @@ namespace Rock.Field.Types
     /// <summary>
     /// Stored as PersistedDataset.Guid
     /// </summary>
-    public class PersistedDatasetFieldType : FieldType, ICachedEntitiesFieldType
+    [FieldTypeUsage( FieldTypeUsage.System )]
+    [RockPlatformSupport( Utility.RockPlatform.WebForms, Utility.RockPlatform.Obsidian )]
+    [Rock.SystemGuid.FieldTypeGuid( Rock.SystemGuid.FieldType.PERSISTED_DATASET )]
+    public class PersistedDatasetFieldType : FieldType, ICachedEntitiesFieldType, IEntityReferenceFieldType
     {
+        #region Configuration
+
+        private const string VALUES = "values";
+
+        #endregion
+
         #region Formatting
+
+        /// <summary>
+        /// Gets the text value.
+        /// </summary>
+        /// <param name="privateValue">The private value.</param>
+        /// <param name="privateConfigurationValues">The private configuration values.</param>
+        /// <returns>System.String.</returns>
+        /// <inheritdoc />
+        public override string GetTextValue( string privateValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            var persistedDatasetGuid = privateValue.AsGuidOrNull();
+            if ( persistedDatasetGuid.HasValue )
+            {
+                return PersistedDatasetCache.Get( persistedDatasetGuid.Value )?.Name ?? string.Empty;
+            }
+
+            return string.Empty;
+        }
+
+        #endregion
+
+        #region Edit Control
+
+        /// <inheritdoc />
+        public override string GetPublicValue( string privateValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            return GetTextValue( privateValue, privateConfigurationValues );
+        }
+
+        /// <inheritdoc />
+        public override string GetPublicEditValue( string privateValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            // Return saved guid value to the client.
+            return privateValue;
+        }
+
+        /// <inheritdoc />
+        public override Dictionary<string, string> GetPublicConfigurationValues( Dictionary<string, string> privateConfigurationValues, ConfigurationValueUsage usage, string value )
+        {
+            var configurationValues = base.GetPublicConfigurationValues( privateConfigurationValues, usage, value );
+
+            if ( usage != ConfigurationValueUsage.View && !configurationValues.ContainsKey( VALUES ) )
+            {
+                configurationValues[VALUES] = PersistedDatasetCache.All()
+                    .OrderBy( a => a.Name )
+                    .Select(p => new ListItemBag()
+                    {
+                        Text = p.Name,
+                        Value = p.Guid.ToString(),
+                    } )
+                    .ToCamelCaseJson( false, true );
+            }
+
+            return configurationValues;
+        }
+
+        /// <inheritdoc />
+        public override Dictionary<string, string> GetPrivateConfigurationValues( Dictionary<string, string> publicConfigurationValues )
+        {
+            var configurationValues = base.GetPrivateConfigurationValues( publicConfigurationValues );
+
+            configurationValues.Remove( VALUES );
+
+            return configurationValues;
+        }
+
+        /// <summary>
+        /// Gets the cached entities as a list.
+        /// </summary>
+        /// <param name="value">The value.</param>
+        /// <returns></returns>
+        public List<IEntityCache> GetCachedEntities( string value )
+        {
+            var result = new List<IEntityCache>();
+
+            List<PersistedDatasetCache> list = value.SplitDelimitedValues().AsGuidList().Select( g => PersistedDatasetCache.Get( g ) ).ToList();
+
+            result.AddRange( list );
+
+            return result;
+        }
+
+        #endregion
+
+        #region IEntityReferenceFieldType
+
+        /// <inheritdoc/>
+        List<ReferencedEntity> IEntityReferenceFieldType.GetReferencedEntities( string privateValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            Guid? guid = privateValue.AsGuidOrNull();
+
+            if ( !guid.HasValue )
+            {
+                return null;
+            }
+
+            var persistedDatasetCacheId = PersistedDatasetCache.GetId( guid.Value );
+
+            if ( !persistedDatasetCacheId.HasValue )
+            {
+                return null;
+            }
+
+            return new List<ReferencedEntity>
+            {
+                new ReferencedEntity( EntityTypeCache.GetId<PersistedDataset>().Value, persistedDatasetCacheId.Value )
+            };
+        }
+
+        /// <inheritdoc/>
+        List<ReferencedProperty> IEntityReferenceFieldType.GetReferencedProperties( Dictionary<string, string> privateConfigurationValues )
+        {
+            // This field type references the Name property of a PersistedDataset and
+            // should have its persisted values updated when changed.
+            return new List<ReferencedProperty>
+            {
+                new ReferencedProperty( EntityTypeCache.GetId<PersistedDataset>().Value, nameof( PersistedDataset.Name ) )
+            };
+        }
+
+        #endregion
+
+        #region WebForms
+#if WEBFORMS
 
         /// <summary>
         /// Returns the field's current value(s)
@@ -38,15 +178,11 @@ namespace Rock.Field.Types
         /// <param name="configurationValues">The configuration values.</param>
         /// <param name="condensed">Flag indicating if the value should be condensed (i.e. for use in a grid column)</param>
         /// <returns></returns>
-        public override string FormatValue( System.Web.UI.Control parentControl, string value, Dictionary<string, ConfigurationValue> configurationValues, bool condensed )
+        public override string FormatValue( Control parentControl, string value, Dictionary<string, ConfigurationValue> configurationValues, bool condensed )
         {
-            var persistedDatasetGuid = value.AsGuidOrNull();
-            if ( persistedDatasetGuid.HasValue )
-            {
-                return PersistedDatasetCache.Get( persistedDatasetGuid.Value )?.Name;
-            }
-
-            return null;
+            return !condensed
+               ? GetTextValue( value, configurationValues.ToDictionary( cv => cv.Key, cv => cv.Value.Value ) )
+               : GetCondensedTextValue( value, configurationValues.ToDictionary( cv => cv.Key, cv => cv.Value.Value ) );
         }
 
         /// <summary>
@@ -56,7 +192,7 @@ namespace Rock.Field.Types
         /// <param name="value">The value.</param>
         /// <param name="configurationValues">The configuration values.</param>
         /// <returns></returns>
-        public override object ValueAsFieldType( System.Web.UI.Control parentControl, string value, Dictionary<string, ConfigurationValue> configurationValues )
+        public override object ValueAsFieldType( Control parentControl, string value, Dictionary<string, ConfigurationValue> configurationValues )
         {
             var persistedDatasetGuid = value.AsGuidOrNull();
             if ( persistedDatasetGuid.HasValue )
@@ -74,7 +210,7 @@ namespace Rock.Field.Types
         /// <param name="value">The value.</param>
         /// <param name="configurationValues">The configuration values.</param>
         /// <returns></returns>
-        public override object SortValue( System.Web.UI.Control parentControl, string value, Dictionary<string, ConfigurationValue> configurationValues )
+        public override object SortValue( Control parentControl, string value, Dictionary<string, ConfigurationValue> configurationValues )
         {
             var persistedDatasetGuid = value.AsGuidOrNull();
             if ( persistedDatasetGuid.HasValue )
@@ -85,10 +221,6 @@ namespace Rock.Field.Types
             return null;
         }
 
-        #endregion
-
-        #region Edit Control
-
         /// <summary>
         /// Creates the control(s) necessary for prompting user for a new value
         /// </summary>
@@ -97,7 +229,7 @@ namespace Rock.Field.Types
         /// <returns>
         /// The control
         /// </returns>
-        public override System.Web.UI.Control EditControl( System.Collections.Generic.Dictionary<string, ConfigurationValue> configurationValues, string id )
+        public override Control EditControl( System.Collections.Generic.Dictionary<string, ConfigurationValue> configurationValues, string id )
         {
             var ddlPersistedDataset = new RockDropDownList { ID = id };
             ddlPersistedDataset.Items.Clear();
@@ -137,22 +269,7 @@ namespace Rock.Field.Types
             }
         }
 
-        /// <summary>
-        /// Gets the cached entities as a list.
-        /// </summary>
-        /// <param name="value">The value.</param>
-        /// <returns></returns>
-        public List<IEntityCache> GetCachedEntities( string value )
-        {
-            var result = new List<IEntityCache>();
-
-            List<PersistedDatasetCache> list = value.SplitDelimitedValues().AsGuidList().Select( g => PersistedDatasetCache.Get( g ) ).ToList();
-
-            result.AddRange( list );
-
-            return result;
-        }
-
+#endif
         #endregion
     }
 }

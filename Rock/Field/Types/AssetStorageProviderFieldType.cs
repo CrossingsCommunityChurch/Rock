@@ -16,114 +16,62 @@
 //
 using System;
 using System.Collections.Generic;
+#if WEBFORMS
 using System.Web.UI;
+#endif
 using System.Linq;
 
 using Rock.Data;
 using Rock.Model;
 using Rock.Web.UI.Controls;
+using Rock.Attribute;
+using Rock.Web.Cache;
+using Rock.Web.Cache.Entities;
+using Rock.ViewModels.Utility;
 
 namespace Rock.Field.Types
 {
-    class AssetStorageProviderFieldType : FieldType, IEntityFieldType
+    /// <summary>
+    /// Class AssetStorageProviderFieldType.
+    /// Implements the <see cref="Rock.Field.FieldType" />
+    /// Implements the <see cref="Rock.Field.IEntityFieldType" />
+    /// </summary>
+    /// <seealso cref="Rock.Field.FieldType" />
+    /// <seealso cref="Rock.Field.IEntityFieldType" />
+    [FieldTypeUsage( FieldTypeUsage.System )]
+    [RockPlatformSupport( Utility.RockPlatform.WebForms, Utility.RockPlatform.Obsidian )]
+    [Rock.SystemGuid.FieldTypeGuid( "1596F562-E8D0-4C5F-9A00-23B5594F17E2" )]
+    public class AssetStorageProviderFieldType : FieldType, IEntityFieldType, IEntityReferenceFieldType
     {
-        public override string FormatValue( Control parentControl, string value, Dictionary<string, ConfigurationValue> configurationValues, bool condensed )
+        /// <inheritdoc />
+        public override string GetTextValue( string privateValue, Dictionary<string, string> privateConfigurationValues )
         {
-            string formattedValue = string.Empty;
-
-            Guid? assetStorageProviderGuid = value.AsGuidOrNull();
+            Guid? assetStorageProviderGuid = privateValue.AsGuidOrNull();
             if ( assetStorageProviderGuid.HasValue )
             {
-                using ( var rockContext = new RockContext() )
+                var assetStorageProviderCache = AssetStorageProviderCache.Get( assetStorageProviderGuid.Value );
+                if ( assetStorageProviderCache != null )
                 {
-                    var assetStorageProvider = new AssetStorageProviderService( rockContext ).Get( assetStorageProviderGuid.Value );
-                    if ( assetStorageProvider != null )
-                    {
-                        formattedValue = assetStorageProvider.Name;
-                    }
+                    return assetStorageProviderCache.Name;
                 }
             }
 
-            return base.FormatValue( parentControl, formattedValue, null, condensed );
+            return string.Empty;
         }
 
-        public override Control EditControl( Dictionary<string, ConfigurationValue> configurationValues, string id )
+        /// <inheritdoc />
+        public override string GetPublicValue( string privateValue, Dictionary<string, string> privateConfigurationValues )
         {
-            return new AssetStorageProviderPicker { ID = id, ShowAll = false };
-        }
-
-        public override string GetEditValue( Control control, Dictionary<string, ConfigurationValue> configurationValues )
-        {
-            var picker = control as AssetStorageProviderPicker;
-            if ( picker != null )
-            {
-                int? itemId = picker.SelectedValue.AsIntegerOrNull();
-                Guid? itemGuid = null;
-                if ( itemId.HasValue )
-                {
-                    using ( var rockContext = new RockContext() )
-                    {
-                        itemGuid = new AssetStorageProviderService( rockContext ).Queryable().Where( a => a.Id == itemId.Value ).Select( a => ( Guid? ) a.Guid ).FirstOrDefault();
-                    }
-                }
-
-                return itemGuid?.ToString();
-            }
-
-            return null;
-        }
-
-        public override void SetEditValue( Control control, Dictionary<string, ConfigurationValue> configurationValues, string value )
-        {
-            var picker = control as AssetStorageProviderPicker;
-            if ( picker != null )
-            {
-                int? itemId = null;
-                Guid? itemGuid = value.AsGuidOrNull();
-                if ( itemGuid.HasValue )
-                {
-                    using ( var rockContext = new RockContext() )
-                    {
-                        itemId = new AssetStorageProviderService( rockContext ).Queryable().Where( a => a.Guid == itemGuid.Value ).Select( a => ( int? ) a.Id ).FirstOrDefault();
-                    }
-                }
-
-                picker.SetValue( itemId );
-            }
+            return GetTextValue( privateValue, privateConfigurationValues );
         }
 
         #region IEntityFieldType
-        /// <summary>
-        /// Gets the edit value as the IEntity.Id
-        /// </summary>
-        /// <param name="control">The control.</param>
-        /// <param name="configurationValues">The configuration values.</param>
-        /// <returns></returns>
-        public int? GetEditValueAsEntityId( Control control, Dictionary<string, ConfigurationValue> configurationValues )
-        {
-            var guid = GetEditValue( control, configurationValues ).AsGuid();
-            var item = new AssetStorageProviderService( new RockContext() ).Get( guid );
-            return item != null ? item.Id : ( int? ) null;
-        }
-
-        /// <summary>
-        /// Sets the edit value from IEntity.Id value
-        /// </summary>
-        /// <param name="control">The control.</param>
-        /// <param name="configurationValues">The configuration values.</param>
-        /// <param name="id">The identifier.</param>
-        public void SetEditValueFromEntityId( Control control, Dictionary<string, ConfigurationValue> configurationValues, int? id )
-        {
-            var item = new AssetStorageProviderService( new RockContext() ).Get( id ?? 0 );
-            var guidValue = item != null ? item.Guid.ToString() : string.Empty;
-            SetEditValue( control, configurationValues, guidValue );
-        }
 
         /// <summary>
         /// Gets the entity.
         /// </summary>
         /// <param name="value">The value.</param>
-        /// <returns></returns>
+        /// <returns>IEntity.</returns>
         public IEntity GetEntity( string value )
         {
             return GetEntity( value, null );
@@ -134,7 +82,7 @@ namespace Rock.Field.Types
         /// </summary>
         /// <param name="value">The value.</param>
         /// <param name="rockContext">The rock context.</param>
-        /// <returns></returns>
+        /// <returns>IEntity.</returns>
         public IEntity GetEntity( string value, RockContext rockContext )
         {
             var guid = value.AsGuidOrNull();
@@ -146,6 +94,176 @@ namespace Rock.Field.Types
 
             return null;
         }
+        #endregion
+
+        #region Edit Control
+
+        /// <inheritdoc/>
+        public override string GetPublicEditValue( string privateValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            return AssetStorageProviderCache.Get( privateValue.AsGuid() )
+                .ToListItemBag()
+                .ToCamelCaseJson( false, true );
+        }
+
+        /// <inheritdoc/>
+        public override string GetPrivateEditValue( string publicValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            return publicValue.FromJsonOrNull<ListItemBag>()?.Value ?? "";
+        }
+
+        #endregion Edit Control
+
+        #region IEntityReferenceFieldType
+
+        /// <summary>
+        /// Gets the referenced entities for the given raw value.
+        /// </summary>
+        /// <param name="privateValue">The private database value that will be associated with the entities.</param>
+        /// <param name="privateConfigurationValues">The private configuration values that describe the field type settings.</param>
+        /// <returns>
+        /// A list of <see cref="ReferencedEntity" /> objects that identify which entities this value depends on.
+        /// </returns>
+        List<ReferencedEntity> IEntityReferenceFieldType.GetReferencedEntities( string privateValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            var assetStorageProviderGuid = privateValue.AsGuidOrNull();
+
+            if ( !assetStorageProviderGuid.HasValue )
+            {
+                return null;
+            }
+
+            var assetStorageProviderId = AssetStorageProviderCache.GetId( assetStorageProviderGuid.Value );
+
+            if ( !assetStorageProviderId.HasValue )
+            {
+                return null;
+            }
+
+            return new List<ReferencedEntity>()
+            {
+                new ReferencedEntity( EntityTypeCache.GetId<AssetStorageProvider>().Value, assetStorageProviderId.Value )
+            };
+        }
+
+        /// <summary>
+        /// Gets property (database column) names that will trigger an update of
+        /// the persisted values when they change.
+        /// </summary>
+        /// <param name="privateConfigurationValues">The private configuration values that describe the field type settings.</param>
+        /// <returns>
+        /// A dictionary whose key is the entity type identifier and the values are a list of property names on that entity type to be monitored.
+        /// </returns>
+        List<ReferencedProperty> IEntityReferenceFieldType.GetReferencedProperties( Dictionary<string, string> privateConfigurationValues )
+        {
+            return new List<ReferencedProperty>
+            {
+                new ReferencedProperty( EntityTypeCache.GetId<AssetStorageProvider>().Value, nameof( AssetStorageProvider.Name ) )
+            };
+        }
+
+        #endregion
+
+        #region WebForms
+#if WEBFORMS
+
+        /// <summary>
+        /// Returns the field's current value(s)
+        /// </summary>
+        /// <param name="parentControl">The parent control.</param>
+        /// <param name="value">Information about the value</param>
+        /// <param name="configurationValues">The configuration values.</param>
+        /// <param name="condensed">Flag indicating if the value should be condensed (i.e. for use in a grid column)</param>
+        /// <returns>System.String.</returns>
+        public override string FormatValue( Control parentControl, string value, Dictionary<string, ConfigurationValue> configurationValues, bool condensed )
+        {
+            return !condensed
+                ? GetTextValue( value, configurationValues.ToDictionary( cv => cv.Key, cv => cv.Value.Value ) )
+                : GetCondensedTextValue( value, configurationValues.ToDictionary( cv => cv.Key, cv => cv.Value.Value ) );
+        }
+
+        /// <summary>
+        /// Creates the control(s) necessary for prompting user for a new value
+        /// </summary>
+        /// <param name="configurationValues">The configuration values.</param>
+        /// <param name="id">The id.</param>
+        /// <returns>The control</returns>
+        public override Control EditControl( Dictionary<string, ConfigurationValue> configurationValues, string id )
+        {
+            return new AssetStorageProviderPicker { ID = id, ShowAll = false };
+        }
+
+        /// <summary>
+        /// Reads new values entered by the user for the field
+        /// </summary>
+        /// <param name="control">Parent control that controls were added to in the CreateEditControl() method</param>
+        /// <param name="configurationValues">The configuration values.</param>
+        /// <returns>System.String.</returns>
+        public override string GetEditValue( Control control, Dictionary<string, ConfigurationValue> configurationValues )
+        {
+            var picker = control as AssetStorageProviderPicker;
+            if ( picker != null )
+            {
+                int? itemId = picker.SelectedValue.AsIntegerOrNull();
+                Guid? itemGuid = null;
+                if ( itemId.HasValue )
+                {
+                    itemGuid = AssetStorageProviderCache.GetGuid( itemId.Value );
+                }
+
+                return itemGuid?.ToString();
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Sets the value.
+        /// </summary>
+        /// <param name="control">The control.</param>
+        /// <param name="configurationValues">The configuration values.</param>
+        /// <param name="value">The value.</param>
+        public override void SetEditValue( Control control, Dictionary<string, ConfigurationValue> configurationValues, string value )
+        {
+            var picker = control as AssetStorageProviderPicker;
+            if ( picker != null )
+            {
+                int? itemId = null;
+                Guid? itemGuid = value.AsGuidOrNull();
+                if ( itemGuid.HasValue )
+                {
+                    itemId = AssetStorageProviderCache.GetId( itemGuid.Value );
+                }
+
+                picker.SetValue( itemId );
+            }
+        }
+
+        /// <summary>
+        /// Gets the edit value as the IEntity.Id
+        /// </summary>
+        /// <param name="control">The control.</param>
+        /// <param name="configurationValues">The configuration values.</param>
+        /// <returns>System.Nullable&lt;System.Int32&gt;.</returns>
+        public int? GetEditValueAsEntityId( Control control, Dictionary<string, ConfigurationValue> configurationValues )
+        {
+            var guid = GetEditValue( control, configurationValues ).AsGuid();
+            return AssetStorageProviderCache.GetId( guid );
+        }
+
+        /// <summary>
+        /// Sets the edit value from IEntity.Id value
+        /// </summary>
+        /// <param name="control">The control.</param>
+        /// <param name="configurationValues">The configuration values.</param>
+        /// <param name="id">The identifier.</param>
+        public void SetEditValueFromEntityId( Control control, Dictionary<string, ConfigurationValue> configurationValues, int? id )
+        {
+            var guidValue = AssetStorageProviderCache.GetGuid( id ?? 0 )?.ToString() ?? string.Empty;
+            SetEditValue( control, configurationValues, guidValue );
+        }
+
+#endif
         #endregion
     }
 }

@@ -14,12 +14,13 @@
 // limitations under the License.
 // </copyright>
 //
-using Rock.Data;
-using Rock.Utility;
 using System;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using System.Runtime.Serialization;
+using Rock.Data;
+using Rock.Enums.Crm;
+using Rock.Utility;
 
 namespace Rock.Model
 {
@@ -31,7 +32,7 @@ namespace Rock.Model
     [Table( "AnalyticsSourceDate" )]
     [DataContract]
     [HideFromReporting]
-    [CodeGenExclude( CodeGenFeature.ViewModelFile )]
+    [IncludeForModelMap]
     public partial class AnalyticsSourceDate
     {
         #region Entity Properties
@@ -218,10 +219,21 @@ namespace Rock.Model
         /// </value>
         [DataMember]
         [MaxLength( 450 )]
+        public string CalendarMonthNameAbbreviated { get; set; }
+
+        /// <summary>
+        /// Gets or sets the calendar in month name abbreviated. Format: "MMM"
+        /// </summary>
+        /// <value>
+        /// The calendar in month name abbreviated.
+        /// </value>
+        [RockObsolete("1.13")]
+        [Obsolete("Use CalendarMonthNameAbbreviated instead", true)]
+        [DatabaseGenerated(DatabaseGeneratedOption.Computed)]
         public string CalendarMonthNameAbbrevated { get; set; }
 
         /// <summary>
-        /// Gets or sets the calendar year month. Format: "yyyyMM" 
+        /// Gets or sets the calendar year month. Format: "yyyyMM"
         /// </summary>
         /// <value>
         /// The calendar year month.
@@ -305,6 +317,17 @@ namespace Rock.Model
         /// </value>
         [DataMember]
         [MaxLength( 450 )]
+        public string FiscalMonthAbbreviated { get; set; }
+
+        /// <summary>
+        /// Gets or sets the fiscal month abbreviated.
+        /// </summary>
+        /// <value>
+        /// The fiscal month abbreviated.
+        /// </value>
+        [RockObsolete("1.13")]
+        [Obsolete("Use FiscalMonthAbbreviated instead", true)]
+        [DatabaseGenerated(DatabaseGeneratedOption.Computed)]
         public string FiscalMonthAbbrevated { get; set; }
 
         /// <summary>
@@ -317,7 +340,7 @@ namespace Rock.Model
         public int FiscalMonthNumberInYear { get; set; }
 
         /// <summary>
-        /// Gets or sets the name of the fiscal month year 
+        /// Gets or sets the name of the fiscal month year
         /// </summary>
         /// <value>
         /// The fiscal month year.
@@ -418,6 +441,53 @@ namespace Rock.Model
         /// </value>
         [DataMember]
         public bool ChristmasWeekIndicator { get; set; }
+
+        /// <summary>
+        /// Gets or sets the week of year.
+        /// </summary>
+        /// <value>The week of year.</value>
+        [DataMember]
+        public int WeekOfYear { get; set; }
+
+        /// <summary>
+        /// Gets or sets the week counter.
+        /// </summary>
+        /// <value>The week counter.</value>
+        [DataMember]
+        public int WeekCounter { get; set; }
+
+        /// <summary>
+        /// Gets or sets a value indicating whether the containing year is a leap year.
+        /// </summary>
+        /// <value>
+        ///   <c>true</c> if the year is a leap year; otherwise, <c>false</c>.</value>
+        [DataMember]
+        public bool LeapYearIndicator { get; set; }
+
+        /// <summary>
+        /// Gets or sets the sunday date year.
+        /// </summary>
+        /// <value>The sunday date year.</value>
+        [DataMember]
+        public int SundayDateYear { get; set; }
+
+        /// <summary>
+        /// Gets or sets the age.
+        /// </summary>
+        /// <value>
+        /// The age.
+        /// </value>
+        [DataMember]
+        public int? Age { get; set; }
+
+        /// <summary>
+        /// Gets or sets the age bracket.
+        /// </summary>
+        /// <value>
+        /// The age bracket.
+        /// </value>
+        [DataMember]
+        public AgeBracket? AgeBracket { get; set; }
 
         #endregion Entity Properties
 

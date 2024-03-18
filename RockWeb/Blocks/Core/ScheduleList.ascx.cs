@@ -48,6 +48,7 @@ namespace RockWeb.Blocks.Administration
         Order = 1
         )]
 
+    [Rock.SystemGuid.BlockTypeGuid( "C1B934D1-2139-471E-B2B8-B22FF4499B2F" )]
     public partial class ScheduleList : RockBlock, ICustomGridColumns, ISecondaryBlock
     {
         private static class AttributeKey
@@ -195,7 +196,7 @@ namespace RockWeb.Blocks.Administration
         /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
         private void fSchedules_ClearFilterClick( object sender, EventArgs e )
         {
-            fSchedules.DeleteUserPreferences();
+            fSchedules.DeleteFilterPreferences();
             BindFilter();
         }
 
@@ -206,8 +207,8 @@ namespace RockWeb.Blocks.Administration
         /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
         private void fSchedules_ApplyFilterClick( object sender, EventArgs e )
         {
-            fSchedules.SaveUserPreference( GridUserPreferenceKey.Category, cpCategoryFilter.SelectedValue );
-            fSchedules.SaveUserPreference( GridUserPreferenceKey.ActiveStatus, ddlActiveFilter.SelectedValue );
+            fSchedules.SetFilterPreference( GridUserPreferenceKey.Category, cpCategoryFilter.SelectedValue );
+            fSchedules.SetFilterPreference( GridUserPreferenceKey.ActiveStatus, ddlActiveFilter.SelectedValue );
 
             BindGrid();
         }
@@ -218,9 +219,9 @@ namespace RockWeb.Blocks.Administration
         private void BindFilter()
         {
             cpCategoryFilter.EntityTypeId = EntityTypeCache.GetId<Rock.Model.Schedule>() ?? 0;
-            cpCategoryFilter.SetValue( fSchedules.GetUserPreference( GridUserPreferenceKey.Category ).AsIntegerOrNull() );
+            cpCategoryFilter.SetValue( fSchedules.GetFilterPreference( GridUserPreferenceKey.Category ).AsIntegerOrNull() );
             cpCategoryFilter.Visible = !this.GetAttributeValue( AttributeKey.FilterCategoryFromQueryString ).AsBoolean();
-            var itemActiveStatus = fSchedules.GetUserPreference( GridUserPreferenceKey.ActiveStatus );
+            var itemActiveStatus = fSchedules.GetFilterPreference( GridUserPreferenceKey.ActiveStatus );
             ddlActiveFilter.SetValue( itemActiveStatus );
         }
 
@@ -406,7 +407,7 @@ namespace RockWeb.Blocks.Administration
             }
             else
             {
-                categoryId = fSchedules.GetUserPreference( GridUserPreferenceKey.Category ).AsIntegerOrNull();
+                categoryId = fSchedules.GetFilterPreference( GridUserPreferenceKey.Category ).AsIntegerOrNull();
             }
 
             if ( categoryId.HasValue )
@@ -414,7 +415,7 @@ namespace RockWeb.Blocks.Administration
                 scheduleQuery = scheduleQuery.Where( a => a.CategoryId == categoryId.Value );
             }
 
-            string activeFilterValue = fSchedules.GetUserPreference( GridUserPreferenceKey.ActiveStatus );
+            string activeFilterValue = fSchedules.GetFilterPreference( GridUserPreferenceKey.ActiveStatus );
             if ( !string.IsNullOrWhiteSpace( activeFilterValue ) )
             {
                 if ( activeFilterValue != "all" )

@@ -16,18 +16,28 @@
 //
 using System;
 using System.Collections.Generic;
+#if WEBFORMS
 using System.Web.UI;
-
+#endif
+using Rock.Attribute;
 using Rock.Web.UI.Controls;
 
 namespace Rock.Field.Types
 {
+
     /// <summary>
     /// Field Type used for Volume / Page / Entry that is useful for sacraments or steps (<see cref="Rock.Model.Step"/>)
     /// </summary>
     /// <seealso cref="Rock.Field.FieldType" />
+    [FieldTypeUsage( FieldTypeUsage.System )]
+    [RockPlatformSupport( Utility.RockPlatform.WebForms, Utility.RockPlatform.Obsidian )]
+    [Rock.SystemGuid.FieldTypeGuid( Rock.SystemGuid.FieldType.REGISTRY_ENTRY )]
     public class RegistryEntryFieldType : FieldType
     {
+
+        #region WebForms
+#if WEBFORMS
+
         /// <summary>
         /// Creates the control(s) necessary for prompting user for a new value
         /// </summary>
@@ -54,7 +64,7 @@ namespace Rock.Field.Types
         {
             if ( control != null && control is RegistryEntry )
             {
-                return ( (RegistryEntry)control ).Text;
+                return ( ( RegistryEntry ) control ).Text;
             }
 
             return null;
@@ -70,7 +80,7 @@ namespace Rock.Field.Types
         {
             if ( control != null && control is RegistryEntry )
             {
-                ( (RegistryEntry)control ).Text = value;
+                ( ( RegistryEntry ) control ).Text = value;
             }
         }
 
@@ -99,6 +109,9 @@ namespace Rock.Field.Types
             return false;
         }
 
+        #endregion
+
+#endif
         #endregion
     }
 }

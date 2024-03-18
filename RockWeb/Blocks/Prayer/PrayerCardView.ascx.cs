@@ -124,7 +124,7 @@ namespace RockWeb.Blocks.Prayer
         "Prayed Workflow",
         AllowMultiple = false,
         Key = AttributeKey.PrayedWorkflow,
-        Description = "The workflow type to launch when someone presses the Pray button. Prayer Request will be passed to the workflow as a generic \"Entity\" field type. Additionally if the workflow type has any of the following attribute keys defined, those attribute values will also be set: PrayerOfferedByPersonId.",
+        Description = "The workflow type to launch when someone presses the Pray button. Prayer Request will be passed to the workflow as a generic \"Entity\" field type. Additionally if the workflow type has any of the following attribute keys defined, those attribute values will also be set: PrayerOfferedByPersonAliasGuid, PrayerOfferedByPerson.",
         IsRequired = false,
         Order = 11 )]
     [WorkflowTypeField(
@@ -142,6 +142,7 @@ namespace RockWeb.Blocks.Prayer
         Key = AttributeKey.LoadLastPrayedCollection )]
     
     #endregion Block Attributes
+    [Rock.SystemGuid.BlockTypeGuid( "1FEE129E-E46A-4805-AF5A-6F98E1DA7A16" )]
     public partial class PrayerCardView : RockBlock
     {
         #region Constants
@@ -197,6 +198,7 @@ function ReviewFlag(elem) {
         {
             public const string CampusId = "CampusId";
             public const string CategoryId = "CategoryId";
+            public const string GroupGuid = "GroupGuid";
         }
 
         private static class AttributeKey
@@ -221,7 +223,7 @@ function ReviewFlag(elem) {
 
         #region Fields
 
-        private const string CAMPUS_SETTING = "PrayerCardView_SelectedCampus";
+        private const string CAMPUS_SETTING = "selected-campus";
 
         #endregion
 
@@ -281,7 +283,11 @@ function ReviewFlag(elem) {
         /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
         protected void cpCampus_SelectedIndexChanged( object sender, EventArgs e )
         {
-            SetUserPreference( CAMPUS_SETTING, cpCampus.SelectedCampusId.ToString() );
+            var preferences = GetBlockPersonPreferences();
+
+            preferences.SetValue( CAMPUS_SETTING, cpCampus.SelectedCampusId.ToString() );
+            preferences.Save();
+
             LoadContent();
             upPrayer.Update();
         }
@@ -418,7 +424,9 @@ function ReviewFlag(elem) {
             cpCampus.Visible = isCampusVisible;
             if ( isCampusVisible )
             {
-                cpCampus.SelectedCampusId = GetUserPreference( CAMPUS_SETTING ).AsIntegerOrNull();
+                var preferences = GetBlockPersonPreferences();
+
+                cpCampus.SelectedCampusId = preferences.GetValue( CAMPUS_SETTING ).AsIntegerOrNull();
             }
         }
 
@@ -475,12 +483,16 @@ function ReviewFlag(elem) {
                 }
             }
 
+            var groupGuidQryString = PageParameter( PageParameterKey.GroupGuid ).AsGuidOrNull();
+
             IEnumerable<PrayerRequest> qryPrayerRequests = prayerRequestService.GetPrayerRequests( new PrayerRequestQueryOptions
             {
                 IncludeEmptyCampus = true,
-                IncludeUnapproved = !GetAttributeValue( AttributeKey.PublicOnly ).AsBoolean(),
+                IncludeNonPublic = !GetAttributeValue( AttributeKey.PublicOnly ).AsBoolean(),
                 Campuses = campusGuids,
-                Categories = categoryGuid.HasValue ? new List<Guid> { categoryGuid.Value } : null
+                Categories = categoryGuid.HasValue ? new List<Guid> { categoryGuid.Value } : null,
+                GroupGuids = groupGuidQryString.HasValue ? new List<Guid> { groupGuidQryString.Value } : null,
+                IncludeGroupRequests = !groupGuidQryString.HasValue
             } );
 
             // Order by how the block has been configured.

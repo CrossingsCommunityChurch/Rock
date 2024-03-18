@@ -22,7 +22,7 @@ using System.Web.UI.WebControls;
 
 using Rock.Model;
 using Rock.Reporting;
-using Rock.ViewModel.NonEntities;
+using Rock.ViewModels.Utility;
 using Rock.Web.UI.Controls;
 
 namespace Rock.Field.Types
@@ -51,19 +51,19 @@ namespace Rock.Field.Types
         }
 
         /// <inheritdoc/>
-        public override Dictionary<string, string> GetClientConfigurationValues( Dictionary<string, ConfigurationValue> configurationValues )
+        public override Dictionary<string, string> GetPublicConfigurationValues( Dictionary<string, string> privateConfigurationValues, ConfigurationValueUsage usage, string privateValue )
         {
-            var clientValues = base.GetClientConfigurationValues( configurationValues );
+            var clientValues = base.GetPublicConfigurationValues( privateConfigurationValues, usage, privateValue );
 
-            var repeatColumns = configurationValues.GetValueOrNull( REPEAT_COLUMNS )?.AsIntegerOrNull() ?? 0;
+            var repeatColumns = privateConfigurationValues.GetValueOrNull( REPEAT_COLUMNS )?.AsIntegerOrNull() ?? 0;
 
             if ( repeatColumns == 0 )
             {
-                repeatColumns = 4;
+                clientValues[REPEAT_COLUMNS] = "4";
             }
 
-            var values = GetListSource( configurationValues )
-                    .Select( kvp => new ListItemViewModel
+            var values = GetListSource( privateConfigurationValues.ToDictionary( k => k.Key, k => new ConfigurationValue( k.Value ) ) )
+                    .Select( kvp => new ListItemBag
                     {
                         Value = kvp.Key,
                         Text = kvp.Value
@@ -144,7 +144,7 @@ namespace Rock.Field.Types
 
             if ( controls != null && controls.Count >= 2 && configurationValues != null )
             {
-                var cbEnhanced = controls[1] as RockCheckBox;
+                var cbEnhanced = controls[0] as RockCheckBox;
                 var tbRepeatColumns = controls[1] as NumberBox;
 
                 cbEnhanced.Checked = configurationValues.ContainsKey( ENHANCED_SELECTION_KEY ) ? configurationValues[ENHANCED_SELECTION_KEY].Value.AsBoolean() : cbEnhanced.Checked;
@@ -158,16 +158,16 @@ namespace Rock.Field.Types
         #region Formatting
 
         /// <inheritdoc/>
-        public override string GetTextValue( string value, Dictionary<string, ConfigurationValue> configurationValues )
+        public override string GetTextValue( string privateValue, Dictionary<string, string> privateConfigurationValues )
         {
-            if ( value == null )
+            if ( privateValue == null )
             {
                 return string.Empty;
             }
 
-            var valueGuidList = value.Split( new char[] { ',' }, StringSplitOptions.RemoveEmptyEntries ).AsGuidList();
+            var valueGuidList = privateValue.Split( new char[] { ',' }, StringSplitOptions.RemoveEmptyEntries ).AsGuidList();
 
-            return GetListSource( configurationValues )
+            return GetListSource( privateConfigurationValues.ToDictionary( k => k.Key, k => new ConfigurationValue( k.Value ) ) )
                 .Where( a => valueGuidList.Contains( a.Key.AsGuid() ) )
                 .Select( s => s.Value )
                 .ToList()
@@ -184,7 +184,7 @@ namespace Rock.Field.Types
         /// <returns></returns>
         public override string FormatValue( System.Web.UI.Control parentControl, string value, Dictionary<string, ConfigurationValue> configurationValues, bool condensed )
         {
-            return GetTextValue( value, configurationValues );
+            return GetTextValue( value, configurationValues.ToDictionary( k => k.Key, k => k.Value.Value ) );
         }
 
         #endregion

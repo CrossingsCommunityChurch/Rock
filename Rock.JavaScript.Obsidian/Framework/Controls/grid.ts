@@ -1,4 +1,4 @@
-﻿// <copyright>
+// <copyright>
 // Copyright by the Spark Development Network
 //
 // Licensed under the Rock Community License (the "License");
@@ -14,255 +14,147 @@
 // limitations under the License.
 // </copyright>
 //
-import { defineComponent, PropType } from "vue";
-import JavaScriptAnchor from "../Elements/javaScriptAnchor";
 
-export type FilterOptions = {
-    take: number;
-    skip: number;
+import Grid from "./Grid/grid.partial.obs";
+
+import AttributeColumns from "./Grid/Columns/attributeColumns.partial";
+import BooleanColumn from "./Grid/Columns/booleanColumn.partial";
+import Column from "./Grid/Columns/column.partial";
+import CurrencyColumn from "./Grid/Columns/currencyColumn.partial";
+import DateColumn from "./Grid/Columns/dateColumn.partial";
+import DateTimeColumn from "./Grid/Columns/dateTimeColumn.partial";
+import DeleteColumn from "./Grid/Columns/deleteColumn.partial";
+import EditColumn from "./Grid/Columns/editColumn.partial";
+import RockFieldColumn from "./Grid/Columns/rockFieldColumn.partial";
+import LabelColumn from "./Grid/Columns/labelColumn.partial";
+import NumberBadgeColumn from "./Grid/Columns/numberBadgeColumn.partial";
+import NumberColumn from "./Grid/Columns/numberColumn.partial";
+import PersonColumn from "./Grid/Columns/personColumn.partial";
+import ReorderColumn from "./Grid/Columns/reorderColumn.partial";
+import SecurityColumn from "./Grid/Columns/securityColumn.partial";
+import SelectColumn from "./Grid/Columns/selectColumn.partial";
+import TextColumn from "./Grid/Columns/textColumn.partial";
+import CopyColumn from "./Grid/Columns/copyColumn.partial";
+import ButtonColumn from "./Grid/Columns/buttonColumn.partial";
+
+import BooleanCell from "./Grid/Cells/booleanCell.partial.obs";
+import CurrencyCell from "./Grid/Cells/currencyCell.partial.obs";
+import DateCell from "./Grid/Cells/dateCell.partial.obs";
+import DateTimeCell from "./Grid/Cells/dateTimeCell.partial.obs";
+import DeleteCell from "./Grid/Cells/deleteCell.partial.obs";
+import EditCell from "./Grid/Cells/editCell.partial.obs";
+import RockFieldCell from "./Grid/Cells/rockFieldCell.partial.obs";
+import LabelCell from "./Grid/Cells/labelCell.partial.obs";
+import NumberBadgeCell from "./Grid/Cells/numberBadgeCell.partial.obs";
+import NumberCell from "./Grid/Cells/numberCell.partial.obs";
+import PersonCell from "./Grid/Cells/personCell.partial.obs";
+import ReorderCell from "./Grid/Cells/reorderCell.partial.obs";
+import SecurityCell from "./Grid/Cells/securityCell.partial.obs";
+import SelectCell from "./Grid/Cells/selectCell.partial.obs";
+import SelectHeaderCell from "./Grid/Cells/selectHeaderCell.partial.obs";
+import TextCell from "./Grid/Cells/textCell.partial";
+import CopyCell from "./Grid/Cells/copyCell.partial.obs";
+import ButtonCell from "./Grid/Cells/buttonCell.partial.obs";
+
+import BooleanFilter from "./Grid/Filters/booleanFilter.partial.obs";
+import DateFilter from "./Grid/Filters/dateFilter.partial.obs";
+import NumberFilter from "./Grid/Filters/numberFilter.partial.obs";
+import PickExistingFilter from "./Grid/Filters/pickExistingFilter.partial.obs";
+import TextFilter from "./Grid/Filters/textFilter.partial.obs";
+
+import { booleanFilterMatches, dateFilterMatches, numberFilterMatches, pickExistingFilterMatches, textFilterMatches } from "@Obsidian/Core/Controls/grid";
+import { ColumnFilter } from "@Obsidian/Types/Controls/grid";
+
+// Export main Grid component.
+export default Grid;
+
+// Export column components.
+export {
+    AttributeColumns,
+    BooleanColumn,
+    Column,
+    CurrencyColumn,
+    DateColumn,
+    DateTimeColumn,
+    DeleteColumn,
+    EditColumn,
+    RockFieldColumn,
+    LabelColumn,
+    NumberBadgeColumn,
+    NumberColumn,
+    PersonColumn,
+    ReorderColumn,
+    SecurityColumn,
+    SelectColumn,
+    TextColumn,
+    CopyColumn,
+    ButtonColumn
 };
 
-export enum SortDirection {
-    Ascending = 0,
-    Descending = 1
-}
-
-export type SortProperty = {
-    property: string;
-    direction: SortDirection;
+// Export cell components.
+export {
+    BooleanCell,
+    CurrencyCell,
+    DateCell,
+    DateTimeCell,
+    DeleteCell,
+    EditCell,
+    RockFieldCell,
+    LabelCell,
+    NumberBadgeCell,
+    NumberCell,
+    PersonCell,
+    ReorderCell,
+    SecurityCell,
+    SelectCell,
+    SelectHeaderCell,
+    TextCell,
+    CopyCell,
+    ButtonCell
 };
 
-export type GridContext = {
-    selectedRowIds: Record<string, boolean>;
-    selectAllRows: boolean;
-    sortProperty: SortProperty | null;
+// Export filter components.
+export {
+    DateFilter,
+    NumberFilter,
+    PickExistingFilter,
+    TextFilter
 };
 
-export type RowData = Record<string, unknown>;
-export type RowId = string;
+/** A column filter that can be used with boolean values. */
+export const booleanValueFilter: ColumnFilter = {
+    component: BooleanFilter,
 
-export type RowContext = {
-    rowData: RowData;
-    isHeader: boolean;
-    rowId: RowId;
+    matches: booleanFilterMatches
 };
 
-export function getRowId ( rowData: RowData, rowIdKey: string ): RowId {
-    return `${rowData[ rowIdKey ]}`;
-}
+/** A column filter that can be used with date values. */
+export const dateValueFilter: ColumnFilter = {
+    component: DateFilter,
 
-export default defineComponent( {
-    name: "Grid",
-    components: {
-        JavaScriptAnchor
-    },
-    props: {
-        gridData: {
-            type: Array as PropType<RowData[]>,
-            required: true
-        },
-        rowIdKey: {
-            type: String as PropType<string>,
-            required: true
-        },
-        sortProperty: {
-            type: Object as PropType<SortProperty | null>,
-            default: null
-        },
-        pageSize: {
-            type: Number as PropType<number>,
-            default: 50
-        },
-        currentPageIndex: {
-            type: Number as PropType<number>,
-            default: 1
-        },
-        rowItemText: {
-            type: String as PropType<string>,
-            default: "Entity"
-        },
-        rowCountOverride: {
-            type: Number as PropType<number>,
-            default: 0
-        }
-    },
-    data () {
-        return {
-            gridContext: {
-                selectedRowIds: {},
-                selectAllRows: false,
-                sortProperty: this.sortProperty
-            } as GridContext
-        };
-    },
-    computed: {
-        /** The number of rows in the dataset */
-        rowCount (): number {
-            if ( this.rowCountOverride ) {
-                return this.rowCountOverride;
-            }
+    matches: dateFilterMatches
+};
 
-            return this.gridData.length;
-        },
+/** A column filter that can be used with numeric values. */
+export const numberValueFilter: ColumnFilter = {
+    component: NumberFilter,
 
-        /** How many pages are needed to display all of the rows */
-        pageCount (): number {
-            return Math.ceil( this.rowCount / this.pageSize );
-        },
+    matches: numberFilterMatches
+};
 
-        currentPageSet (): number[] {
-            const pagesPerSet = 10;
-            const firstNumber = Math.floor( this.currentPageIndex / pagesPerSet ) * pagesPerSet + 1;
-            const set: number[] = [];
+/** A column filter that performs simple substring matching. */
+export const textValueFilter: ColumnFilter = {
+    component: TextFilter,
 
-            for ( let i = 0; i < pagesPerSet; i++ ) {
-                const pageIndex = firstNumber + i;
+    matches: textFilterMatches
+};
 
-                if ( pageIndex <= this.pageCount ) {
-                    set.push( pageIndex );
-                }
-            }
+/**
+ * A column filter that can displays unique value and let's the individual
+ * pick one or more values to use in filtering.
+ */
+export const pickExistingValueFilter: ColumnFilter = {
+    component: PickExistingFilter,
 
-            return set;
-        }
-    },
-    watch: {
-        gridData () {
-            this.gridContext.selectedRowIds = {};
-
-            for ( const rowData of this.gridData ) {
-                const rowId = getRowId( rowData, this.rowIdKey );
-                this.gridContext.selectedRowIds[ rowId ] = false;
-            }
-        },
-        "gridContext.sortProperty": {
-            deep: true,
-            handler () {
-                this.$emit( "update:sortProperty", this.gridContext.sortProperty );
-            }
-        },
-    },
-    methods: {
-        getRowId,
-
-        getRowContext ( rowData: RowData, isHeader: boolean ): RowContext {
-            const rowId = getRowId( rowData, this.rowIdKey );
-
-            return {
-                rowData,
-                isHeader,
-                rowId
-            };
-        },
-
-        /**
-         * Set the number of rows per page
-         * @param pageSize
-         */
-        setPageSize ( pageSize: number ) {
-            this.$emit( "update:pageSize", pageSize );
-        },
-
-        /**
-         * Set the current page index
-         * @param pageIndex
-         */
-        setPageIndex ( pageIndex: number ) {
-            this.$emit( "update:currentPageIndex", pageIndex );
-        },
-
-        /** Go to the previous page set */
-        goToPreviousPageSet () {
-            const lowestPageInCurrentSet = this.currentPageSet[ 0 ] || 0;
-
-            if ( lowestPageInCurrentSet <= 1 ) {
-                return;
-            }
-
-            this.setPageIndex( lowestPageInCurrentSet - 1 );
-        },
-
-        /** Go to the next page set */
-        goToNextPageSet () {
-            const lastIndex = this.currentPageSet.length - 1;
-            const highestPageInCurrentSet = this.currentPageSet[ lastIndex ] || 0;
-
-            if ( highestPageInCurrentSet <= 1 ) {
-                return;
-            }
-
-            if ( highestPageInCurrentSet >= this.pageCount ) {
-                return;
-            }
-
-            this.setPageIndex( highestPageInCurrentSet + 1 );
-        }
-    },
-    provide () {
-        return {
-            gridContext: this.gridContext
-        };
-    },
-    template: `
-<div class="table-responsive">
-    <table class="grid-table table table-bordered table-striped table-hover">
-        <thead>
-            <slot :rowData="null" :isHeader="true" :rowId="null" />
-        </thead>
-        <tbody>
-            <template v-if="!gridData.length">
-                <tr data-original-title="" title="">
-                    <td colspan="28">
-                        <span class="table-empty">
-                            No {{rowItemText}}s Found
-                        </span>
-                    </td>
-                </tr>
-            </template>
-            <template v-else v-for="rowData in gridData" :key="getRowId(rowData, rowIdKey)" >
-                <slot v-bind="getRowContext(rowData, false, )" />
-            </template>
-        </tbody>
-        <tfoot>
-            <tr>
-                <td class="grid-paging" colspan="6">
-                    <ul class="grid-pagesize pagination pagination-sm">
-                        <li :class="pageSize === 50 ? 'active' : ''">
-                            <JavaScriptAnchor @click="setPageSize(50)">50</JavaScriptAnchor>
-                        </li>
-                        <li :class="pageSize === 500 ? 'active' : ''">
-                            <JavaScriptAnchor @click="setPageSize(500)">500</JavaScriptAnchor>
-                        </li>
-                        <li :class="pageSize === 5000 ? 'active' : ''">
-                            <JavaScriptAnchor @click="setPageSize(5000)">5000</JavaScriptAnchor>
-                        </li>
-                    </ul>
-                    <div class="grid-itemcount">{{rowCount}} {{rowItemText}}</div>
-                    <ul v-if="pageCount > 1" class="grid-pager pagination pagination-sm">
-                        <li class="prev disabled">
-                            <JavaScriptAnchor @click="goToPreviousPageSet" class="aspNetDisabled">«</JavaScriptAnchor>
-                        </li>
-                        <li v-for="pageIndex in currentPageSet" :key="pageIndex" :class="pageIndex === currentPageIndex ? 'active' : ''">
-                            <JavaScriptAnchor @click="setPageIndex(pageIndex)">{{pageIndex}}</JavaScriptAnchor>
-                        </li>
-                        <li class="next disabled">
-                            <JavaScriptAnchor @click="goToNextPageSet" class="aspNetDisabled">»</JavaScriptAnchor>
-                        </li>
-                    </ul>
-                </td>
-            </tr>
-            <tr>
-                <td class="grid-actions" colspan="6">
-                    <JavaScriptAnchor title="Communicate" class="btn btn-grid-action btn-communicate btn-default btn-sm"><i class="fa fa-comment fa-fw"></i></JavaScriptAnchor>
-                    <JavaScriptAnchor title="Merge Person Records" class="btn btn-grid-action btn-merge btn-default btn-sm"><i class="fa fa-users fa-fw"></i></JavaScriptAnchor>
-                    <JavaScriptAnchor title="Bulk Update" class="btn btn-grid-action btn-bulk-update btn-default btn-sm"><i class="fa fa-truck fa-fw"></i></JavaScriptAnchor>
-                    <JavaScriptAnchor title="Launch Workflow" class="btn-grid-action btn-launch-workflow btn btn-default btn-sm"><i class="fa fa-cog fa-fw"></i></JavaScriptAnchor>
-                    <JavaScriptAnchor title="Export to Excel" class="btn btn-grid-action btn-excelexport btn-default btn-sm"><i class="fa fa-table fa-fw"></i></JavaScriptAnchor>
-                    <JavaScriptAnchor title="Merge Records into Merge Template" class="btn btn-grid-action btn-merge-template btn-default btn-sm"><i class="fa fa-files-o fa-fw"></i></JavaScriptAnchor>
-                    <JavaScriptAnchor accesskey="n" title="Alt+N" class="btn btn-grid-action btn-add btn-default btn-sm"><i class="fa fa-plus-circle fa-fw"></i></JavaScriptAnchor>
-                </td>
-            </tr>
-        </tfoot>
-    </table>
-</div>`
-} );
+    matches: pickExistingFilterMatches
+};

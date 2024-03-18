@@ -16,8 +16,14 @@
 //
 using System;
 using System.Collections.Generic;
+using System.Linq;
+#if WEBFORMS
 using System.Web.UI;
-
+#endif
+using Rock.Attribute;
+using Rock.Data;
+using Rock.Model;
+using Rock.ViewModels.Utility;
 using Rock.Web.Cache;
 using Rock.Web.UI.Controls;
 
@@ -26,9 +32,10 @@ namespace Rock.Field.Types
     /// <summary>
     /// Field Type to select a template to use in a block
     /// </summary>
-    public class BlockTemplateFieldType : FieldType
+    [RockPlatformSupport( Utility.RockPlatform.WebForms, Utility.RockPlatform.Obsidian )]
+    [Rock.SystemGuid.FieldTypeGuid( Rock.SystemGuid.FieldType.BLOCK_TEMPLATE )]
+    public class BlockTemplateFieldType : FieldType, IEntityReferenceFieldType
     {
-
         #region Configuration
 
         /// <summary>
@@ -37,6 +44,210 @@ namespace Rock.Field.Types
         public static readonly string TEMPLATE_BLOCK_KEY = "templateblock";
 
         private static readonly Guid _CustomGuid = new Guid( "ffffffff-ffff-ffff-ffff-ffffffffffff" );
+
+        /// <inheritdoc />
+        public override Dictionary<string, string> GetPublicConfigurationValues( Dictionary<string, string> privateConfigurationValues, ConfigurationValueUsage usage, string value )
+        {
+            var configurationValues = base.GetPublicConfigurationValues( privateConfigurationValues, usage, value );
+
+            if ( usage != ConfigurationValueUsage.View && configurationValues.TryGetValue( TEMPLATE_BLOCK_KEY, out string templateBlockGuidString ) && Guid.TryParse( templateBlockGuidString, out Guid templateBlockGuid ) )
+            {
+                var definedValue = DefinedValueCache.Get( templateBlockGuid );
+
+                if ( definedValue != null )
+                {
+                    configurationValues[TEMPLATE_BLOCK_KEY] = definedValue.ToListItemBag().ToCamelCaseJson( false, true );
+                }
+            }
+
+            return configurationValues;
+        }
+
+        /// <inheritdoc />
+        public override Dictionary<string, string> GetPrivateConfigurationValues( Dictionary<string, string> publicConfigurationValues )
+        {
+            var configurationValues = base.GetPrivateConfigurationValues( publicConfigurationValues );
+
+            if ( configurationValues.TryGetValue( TEMPLATE_BLOCK_KEY, out string templateBlockJsonString ) )
+            {
+                var jsonValue = templateBlockJsonString.FromJsonOrNull<ListItemBag>();
+
+                if ( jsonValue != null )
+                {
+                    configurationValues[TEMPLATE_BLOCK_KEY] = jsonValue.Value;
+                }
+            }
+
+            return configurationValues;
+        }
+
+        #endregion
+
+        #region Formatting
+
+        /// <inheritdoc/>
+        public override string GetTextValue( string privateValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            if ( TryGetValueParts( privateValue, out Guid? templateGuid, out string templateValue ) )
+            {
+                if ( templateGuid.HasValue )
+                {
+                    if ( templateGuid.Value == _CustomGuid )
+                    {
+                        return "Template: Custom";
+                    }
+                    else
+                    {
+                        var definedValue = DefinedValueCache.Get( templateGuid.Value );
+                        if ( definedValue != null )
+                        {
+                            return "Template: " + definedValue.Value;
+                        }
+                    }
+                }
+            }
+
+            return string.Empty;
+        }
+
+        private bool TryGetValueParts( string privateValue, out Guid? templateGuid, out string templateValue )
+        {
+            string[] parts = ( privateValue ?? string.Empty ).Split( new char[] { '|' }, StringSplitOptions.RemoveEmptyEntries );
+            if ( parts.Length > 0 )
+            {
+                templateGuid = parts[0].AsGuidOrNull();
+                templateValue = parts.Length > 1 ? parts[1] : null;
+            }
+            else
+            {
+                templateGuid = null;
+                templateValue = null;
+            }
+
+            return templateGuid.HasValue || !string.IsNullOrWhiteSpace( templateValue );
+        }
+
+        #endregion
+
+        #region Edit Control
+
+        /// <inheritdoc />
+        public override string GetPublicValue( string privateValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            return GetTextValue( privateValue, privateConfigurationValues );
+        }
+
+        /// <inheritdoc />
+        public override string GetPublicEditValue( string privateValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            string[] parts = ( privateValue ?? string.Empty ).Split( new[] { '|' }, 2 );
+            if ( parts.Length >= 1 )
+            {
+                var templateGuid = parts[0];
+                if ( templateGuid == _CustomGuid.ToString() )
+                {
+                    templateGuid = Guid.Empty.ToString();
+                    if ( parts.Length >= 2 )
+                    {
+                        return $"{templateGuid}|{parts[1]}";
+                    }
+                }
+                else
+                {
+                    return $"{templateGuid}|";
+                }
+            }
+
+            return string.Empty;
+        }
+
+        /// <inheritdoc />
+        public override string GetPrivateEditValue( string publicValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            string[] parts = ( publicValue ?? string.Empty ).Split( new[] { '|' }, 2 );
+            if ( parts.Length >= 1 )
+            {
+                var templateGuid = parts[0];
+                if ( templateGuid == Guid.Empty.ToString() )
+                {
+                    templateGuid = _CustomGuid.ToString();
+                    if ( parts.Length >= 2 )
+                    {
+                        return $"{templateGuid}|{parts[1]}";
+                    }
+                }
+                else
+                {
+                    return $"{templateGuid}|";
+                }
+            }
+
+            return string.Empty;
+        }
+
+        #endregion
+
+        #region IEntityReferenceFieldType
+
+        /// <inheritdoc/>
+        List<ReferencedEntity> IEntityReferenceFieldType.GetReferencedEntities( string privateValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            if ( TryGetValueParts( privateValue, out Guid? templateGuid, out string templateValue ) )
+            {
+                if ( templateGuid.HasValue && !templateGuid.Value.IsEmpty() )
+                {
+                    var definedValue = DefinedValueCache.Get( templateGuid.Value );
+
+                    if ( definedValue != null )
+                    {
+                        return new List<ReferencedEntity>
+                        {
+                            new ReferencedEntity( EntityTypeCache.GetId<DefinedValue>().Value, definedValue.Id )
+                        };
+                    }
+                }
+            }
+
+            return null;
+        }
+
+        /// <inheritdoc/>
+        List<ReferencedProperty> IEntityReferenceFieldType.GetReferencedProperties( Dictionary<string, string> privateConfigurationValues )
+        {
+            return new List<ReferencedProperty>
+            {
+                new ReferencedProperty( EntityTypeCache.GetId<DefinedValue>().Value, nameof( DefinedValue.Value ) )
+            };
+        }
+
+        #endregion
+
+        /// <summary>
+        /// Gets the template value from either the pre-defined template or the custom template content.
+        /// </summary>
+        /// <param name="value">The value.</param>
+        /// <returns>The content of the selected template.</returns>
+        public static string GetTemplateContent( string value )
+        {
+            var values = value.Split( new[] { '|' }, 2 );
+
+            if ( values.Length >= 1 )
+            {
+                if ( values[0].AsGuid() == _CustomGuid && values.Length >= 2 )
+                {
+                    return values[1];
+                }
+                else
+                {
+                    return DefinedValueCache.Get( values[0].AsGuid() )?.Description ?? string.Empty;
+                }
+            }
+
+            return string.Empty;
+        }
+
+        #region WebForms
+#if WEBFORMS
 
         /// <summary>
         /// Returns a list of the configuration keys
@@ -66,7 +277,7 @@ namespace Rock.Field.Types
             var definedType = DefinedTypeCache.Get( Rock.SystemGuid.DefinedType.TEMPLATE_BLOCK.AsGuid() );
             dvpTemplateBlock.DefinedTypeId = definedType?.Id;
             dvpTemplateBlock.Label = "Template Block";
-            dvpTemplateBlock.Help = "An optional setting to select template block from..";
+            dvpTemplateBlock.Help = "An optional setting to select template block from.";
 
             return controls;
         }
@@ -124,10 +335,6 @@ namespace Rock.Field.Types
             }
         }
 
-        #endregion
-
-        #region Formatting
-
         /// <summary>
         /// Returns the field's current value(s)
         /// </summary>
@@ -138,44 +345,10 @@ namespace Rock.Field.Types
         /// <returns></returns>
         public override string FormatValue( Control parentControl, string value, Dictionary<string, ConfigurationValue> configurationValues, bool condensed )
         {
-            string formattedValue = string.Empty;
-
-            Guid? templateGuid = null;
-            string templateValue = string.Empty;
-
-            string[] parts = ( value ?? string.Empty ).Split( new char[] { '|' }, StringSplitOptions.RemoveEmptyEntries );
-            if ( parts.Length > 0 )
-            {
-                templateGuid = parts[0].AsGuidOrNull();
-                if ( parts.Length > 1 )
-                {
-                    templateValue = parts[1];
-                }
-            }
-
-
-            if ( templateGuid.HasValue )
-            {
-                if ( templateGuid.Value == _CustomGuid )
-                {
-                    formattedValue = "Template: Custom";
-                }
-                else
-                {
-                    var definedValue = DefinedValueCache.Get( templateGuid.Value );
-                    if ( definedValue != null )
-                    {
-                        formattedValue = "Template: " + definedValue.Value;
-                    }
-                }
-            }
-
-            return base.FormatValue( parentControl, formattedValue, null, condensed );
+            return !condensed
+                ? GetTextValue( value, configurationValues.ToDictionary( cv => cv.Key, cv => cv.Value.Value ) )
+                : GetCondensedTextValue( value, configurationValues.ToDictionary( cv => cv.Key, cv => cv.Value.Value ) );
         }
-
-        #endregion
-
-        #region Edit Control
 
         /// <summary>
         /// Creates the control(s) necessary for prompting user for a new value
@@ -264,30 +437,7 @@ namespace Rock.Field.Types
             }
         }
 
+#endif
         #endregion
-
-        /// <summary>
-        /// Gets the template value from either the pre-defined template or the custom template content.
-        /// </summary>
-        /// <param name="value">The value.</param>
-        /// <returns>The content of the selected template.</returns>
-        public static string GetTemplateContent( string value )
-        {
-            var values = value.Split( new[] { '|' }, 2 );
-
-            if ( values.Length >= 1 )
-            {
-                if ( values[0].AsGuid() == _CustomGuid && values.Length >= 2 )
-                {
-                    return values[1];
-                }
-                else
-                {
-                    return DefinedValueCache.Get( values[0].AsGuid() )?.Description ?? string.Empty;
-                }
-            }
-
-            return string.Empty;
-        }
     }
 }

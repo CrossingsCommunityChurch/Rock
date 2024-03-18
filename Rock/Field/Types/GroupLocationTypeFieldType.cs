@@ -18,10 +18,14 @@ using System;
 using System.Collections.Generic;
 using System.Data.Entity;
 using System.Linq;
+#if WEBFORMS
 using System.Web.UI;
 using System.Web.UI.WebControls;
-
+#endif
+using Rock.Attribute;
 using Rock.Data;
+using Rock.Model;
+using Rock.ViewModels.Utility;
 using Rock.Web.Cache;
 using Rock.Web.UI.Controls;
 
@@ -32,12 +36,185 @@ namespace Rock.Field.Types
     /// Stored as GroupLocationTypeValue.Guid.
     /// </summary>
     [Serializable]
-    public class GroupLocationTypeFieldType : FieldType
+    [RockPlatformSupport( Utility.RockPlatform.WebForms, Utility.RockPlatform.Obsidian )]
+    [Rock.SystemGuid.FieldTypeGuid( Rock.SystemGuid.FieldType.GROUP_LOCATION_TYPE )]
+    public class GroupLocationTypeFieldType : FieldType, IEntityReferenceFieldType
     {
 
         #region Configuration
 
         private const string GROUP_TYPE_KEY = "groupTypeGuid";
+        private const string GROUP_TYPE_LOCATIONS_KEY = "groupTypeLocations";
+
+        #endregion
+
+        #region Formatting
+
+        /// <inheritdoc/>
+        public override string GetTextValue( string privateValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            string formattedValue = string.Empty;
+
+            var definedValueGuid = privateValue.AsGuidOrNull();
+            if ( definedValueGuid.HasValue )
+            {
+                var definedValue = DefinedValueCache.Get( definedValueGuid.Value );
+                if ( definedValue != null )
+                {
+                    formattedValue = definedValue.Value;
+                }
+            }
+            return formattedValue;
+        }
+
+        #endregion
+
+        #region Edit Control
+
+        /// <inheritdoc/>
+        public override string GetPublicValue( string privateValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            return GetTextValue( privateValue, privateConfigurationValues );
+        }
+
+        /// <inheritdoc/>
+        public override string GetPrivateEditValue( string publicValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            var locationTypeValue = publicValue.FromJsonOrNull<ListItemBag>();
+
+            if ( locationTypeValue != null )
+            {
+                return locationTypeValue.Value;
+            }
+
+            return base.GetPrivateEditValue( publicValue, privateConfigurationValues );
+        }
+
+        /// <inheritdoc/>
+        public override string GetPublicEditValue( string privateValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            if ( !string.IsNullOrWhiteSpace( privateValue ) )
+            {
+                return new ListItemBag()
+                {
+                    Text = DefinedValueCache.Get( privateValue )?.Value,
+                    Value = privateValue
+                }.ToCamelCaseJson( false, true );
+            }
+
+            return base.GetPublicEditValue( privateValue, privateConfigurationValues );
+        }
+
+        /// <inheritdoc/>
+        public override Dictionary<string, string> GetPrivateConfigurationValues( Dictionary<string, string> publicConfigurationValues )
+        {
+            var privateConfigurationValues = base.GetPrivateConfigurationValues( publicConfigurationValues );
+
+            if ( publicConfigurationValues.ContainsKey( GROUP_TYPE_KEY ) )
+            {
+                var groupTypeValue= publicConfigurationValues[GROUP_TYPE_KEY].FromJsonOrNull<ListItemBag>();
+                if ( groupTypeValue != null )
+                {
+                    privateConfigurationValues[GROUP_TYPE_KEY] = groupTypeValue.Value;
+                }
+            }
+
+            privateConfigurationValues.Remove( GROUP_TYPE_LOCATIONS_KEY );
+
+            return privateConfigurationValues;
+        }
+
+        /// <inheritdoc/>
+        public override Dictionary<string, string> GetPublicConfigurationValues( Dictionary<string, string> privateConfigurationValues, ConfigurationValueUsage usage, string value )
+        {
+            var publicConfigurationValues = base.GetPublicConfigurationValues( privateConfigurationValues, usage, value );
+            var groupTypes = new List<GroupTypeCache>();
+
+            if ( usage != ConfigurationValueUsage.View )
+            {
+                if ( publicConfigurationValues.ContainsKey( GROUP_TYPE_KEY ) )
+                {
+                    var groupTypeValue = publicConfigurationValues[GROUP_TYPE_KEY];
+                    if ( Guid.TryParse( groupTypeValue, out Guid groupTypeGuid ) )
+                    {
+                        var groupType = GroupTypeCache.Get( groupTypeGuid );
+                        publicConfigurationValues[GROUP_TYPE_KEY] = new ListItemBag()
+                        {
+                            Text = groupType?.Name,
+                            Value = groupTypeValue
+                        }.ToCamelCaseJson( false, true );
+
+                        // If in Edit mode add GroupType if any so we get its locations.
+                        if ( usage == ConfigurationValueUsage.Edit && groupType != null )
+                        {
+                            groupTypes.Add( groupType );
+                        }
+                    }
+                }
+
+                // If in Configure mode get all GroupTypes so we can get their locations
+                if ( usage == ConfigurationValueUsage.Configure )
+                {
+                    groupTypes = GroupTypeCache.All();
+                }
+
+                var locationTypes = new Dictionary<string, string>();
+                foreach ( var groupType in groupTypes )
+                {
+                    var locationTypeValues = groupType.LocationTypeValues.ConvertAll( g => new ListItemBag() { Text = g.Value, Value = g.Guid.ToString() } );
+                    locationTypes.Add( groupType.Guid.ToString(), locationTypeValues.ToCamelCaseJson( false, true ) );
+                }
+
+                publicConfigurationValues.Add( GROUP_TYPE_LOCATIONS_KEY, locationTypes.ToCamelCaseJson( false, true ) );
+            }
+
+            return publicConfigurationValues;
+        }
+
+        #endregion
+
+        #region IEntityReferenceFieldType
+
+        /// <inheritdoc/>
+        List<ReferencedEntity> IEntityReferenceFieldType.GetReferencedEntities( string privateValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            Guid? guid = privateValue.AsGuidOrNull();
+
+            if ( !guid.HasValue )
+            {
+                return null;
+            }
+
+            using ( var rockContext = new RockContext() )
+            {
+                var definedValueId = new DefinedValueService( rockContext ).GetId( guid.Value );
+
+                if ( !definedValueId.HasValue )
+                {
+                    return null;
+                }
+
+                return new List<ReferencedEntity>
+                {
+                    new ReferencedEntity( EntityTypeCache.GetId<DefinedValue>().Value, definedValueId.Value )
+                };
+            }
+        }
+
+        /// <inheritdoc/>
+        List<ReferencedProperty> IEntityReferenceFieldType.GetReferencedProperties( Dictionary<string, string> privateConfigurationValues )
+        {
+            // This field type references the Name property of a Defined Value and
+            // should have its persisted values updated when changed.
+            return new List<ReferencedProperty>
+            {
+                new ReferencedProperty( EntityTypeCache.GetId<DefinedValue>().Value, nameof( DefinedValue.Value ) )
+            };
+        }
+        #endregion
+
+        #region WebForms
+#if WEBFORMS
 
         /// <summary>
         /// Returns a list of the configuration keys
@@ -116,10 +293,6 @@ namespace Rock.Field.Types
             }
         }
 
-        #endregion
-
-        #region Formatting
-
         /// <summary>
         /// Returns the field's current value
         /// </summary>
@@ -130,24 +303,10 @@ namespace Rock.Field.Types
         /// <returns></returns>
         public override string FormatValue( Control parentControl, string value, Dictionary<string, ConfigurationValue> configurationValues, bool condensed )
         {
-            string formattedValue = string.Empty;
-
-            var definedValueGuid = value.AsGuidOrNull();
-            if ( definedValueGuid.HasValue )
-            {
-                var definedValue = DefinedValueCache.Get( definedValueGuid.Value );
-                if ( definedValue != null )
-                {
-                    formattedValue = definedValue.Value;
-                }
-            }
-
-            return base.FormatValue( parentControl, formattedValue, null, condensed );
+            return !condensed
+                ? GetTextValue( value, configurationValues.ToDictionary( cv => cv.Key, cv => cv.Value.Value ) )
+                : GetCondensedTextValue( value, configurationValues.ToDictionary( cv => cv.Key, cv => cv.Value.Value ) );
         }
-
-        #endregion
-
-        #region Edit Control
 
         /// <summary>
         /// Creates the control(s) necessary for prompting user for a new value
@@ -234,6 +393,7 @@ namespace Rock.Field.Types
             }
         }
 
+#endif
         #endregion
     }
 }

@@ -23,10 +23,7 @@
 using System;
 using System.Linq;
 
-using Rock.Attribute;
 using Rock.Data;
-using Rock.ViewModel;
-using Rock.Web.Cache;
 
 namespace Rock.Model
 {
@@ -57,46 +54,6 @@ namespace Rock.Model
             return true;
         }
     }
-
-    /// <summary>
-    /// GroupMemberAssignment View Model Helper
-    /// </summary>
-    [DefaultViewModelHelper( typeof( GroupMemberAssignment ) )]
-    public partial class GroupMemberAssignmentViewModelHelper : ViewModelHelper<GroupMemberAssignment, Rock.ViewModel.GroupMemberAssignmentViewModel>
-    {
-        /// <summary>
-        /// Converts the model to a view model.
-        /// </summary>
-        /// <param name="model">The entity.</param>
-        /// <param name="currentPerson">The current person.</param>
-        /// <param name="loadAttributes">if set to <c>true</c> [load attributes].</param>
-        /// <returns></returns>
-        public override Rock.ViewModel.GroupMemberAssignmentViewModel CreateViewModel( GroupMemberAssignment model, Person currentPerson = null, bool loadAttributes = true )
-        {
-            if ( model == null )
-            {
-                return default;
-            }
-
-            var viewModel = new Rock.ViewModel.GroupMemberAssignmentViewModel
-            {
-                Id = model.Id,
-                Guid = model.Guid,
-                GroupMemberId = model.GroupMemberId,
-                LocationId = model.LocationId,
-                ScheduleId = model.ScheduleId,
-                CreatedDateTime = model.CreatedDateTime,
-                ModifiedDateTime = model.ModifiedDateTime,
-                CreatedByPersonAliasId = model.CreatedByPersonAliasId,
-                ModifiedByPersonAliasId = model.ModifiedByPersonAliasId,
-            };
-
-            AddAttributesToViewModel( model, viewModel, currentPerson, loadAttributes );
-            ApplyAdditionalPropertiesAndSecurityToViewModel( model, viewModel, currentPerson, loadAttributes );
-            return viewModel;
-        }
-    }
-
 
     /// <summary>
     /// Generated Extension Methods
@@ -154,9 +111,12 @@ namespace Rock.Model
         public static void CopyPropertiesFrom( this GroupMemberAssignment target, GroupMemberAssignment source )
         {
             target.Id = source.Id;
+            target.ConfirmationSentDateTime = source.ConfirmationSentDateTime;
             target.ForeignGuid = source.ForeignGuid;
             target.ForeignKey = source.ForeignKey;
+            target.GroupId = source.GroupId;
             target.GroupMemberId = source.GroupMemberId;
+            target.LastReminderSentDateTime = source.LastReminderSentDateTime;
             target.LocationId = source.LocationId;
             target.ScheduleId = source.ScheduleId;
             target.CreatedDateTime = source.CreatedDateTime;
@@ -167,20 +127,5 @@ namespace Rock.Model
             target.ForeignId = source.ForeignId;
 
         }
-
-        /// <summary>
-        /// Creates a view model from this entity
-        /// </summary>
-        /// <param name="model">The entity.</param>
-        /// <param name="currentPerson" >The currentPerson.</param>
-        /// <param name="loadAttributes" >Load attributes?</param>
-        public static Rock.ViewModel.GroupMemberAssignmentViewModel ToViewModel( this GroupMemberAssignment model, Person currentPerson = null, bool loadAttributes = false )
-        {
-            var helper = new GroupMemberAssignmentViewModelHelper();
-            var viewModel = helper.CreateViewModel( model, currentPerson, loadAttributes );
-            return viewModel;
-        }
-
     }
-
 }

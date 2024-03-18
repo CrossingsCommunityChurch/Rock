@@ -18,10 +18,14 @@ using System;
 using System.Collections.Generic;
 using System.Data.Entity;
 using System.Linq;
+#if WEBFORMS
 using System.Web.UI;
-
+#endif
+using Rock.Attribute;
 using Rock.Data;
 using Rock.Model;
+using Rock.ViewModels.Utility;
+using Rock.Web.Cache;
 using Rock.Web.UI.Controls;
 
 namespace Rock.Field.Types
@@ -29,20 +33,14 @@ namespace Rock.Field.Types
     /// <summary>
     /// Field Type to select a single (or null) registration template
     /// </summary>
-    public class RegistrationTemplateFieldType : FieldType, IEntityFieldType
+    [RockPlatformSupport( Utility.RockPlatform.WebForms, Utility.RockPlatform.Obsidian )]
+    [Rock.SystemGuid.FieldTypeGuid( Rock.SystemGuid.FieldType.REGISTRATION_TEMPLATE )]
+    public class RegistrationTemplateFieldType : FieldType, IEntityFieldType, IEntityReferenceFieldType
     {
-
         #region Formatting
 
-        /// <summary>
-        /// Returns the field's current value(s)
-        /// </summary>
-        /// <param name="parentControl">The parent control.</param>
-        /// <param name="value">Information about the value</param>
-        /// <param name="configurationValues">The configuration values.</param>
-        /// <param name="condensed">Flag indicating if the value should be condensed (i.e. for use in a grid column)</param>
-        /// <returns></returns>
-        public override string FormatValue( Control parentControl, string value, Dictionary<string, ConfigurationValue> configurationValues, bool condensed )
+        /// <inheritdoc/>
+        public override string GetTextValue( string value, Dictionary<string, string> privateConfigurationValues )
         {
             string formattedValue = string.Empty;
 
@@ -58,109 +56,54 @@ namespace Rock.Field.Types
                     }
                 }
             }
-
-            return base.FormatValue( parentControl, formattedValue, configurationValues, condensed );
+            return formattedValue;
         }
 
         #endregion
 
         #region Edit Control
 
-        /// <summary>
-        /// Creates the control(s) necessary for prompting user for a new value
-        /// </summary>
-        /// <param name="configurationValues">The configuration values.</param>
-        /// <param name="id"></param>
-        /// <returns>
-        /// The control
-        /// </returns>
-        public override System.Web.UI.Control EditControl( Dictionary<string, ConfigurationValue> configurationValues, string id )
+        /// <inheritdoc />
+        public override string GetPublicValue( string privateValue, Dictionary<string, string> privateConfigurationValues )
         {
-            RegistrationTemplatePicker editControl = new RegistrationTemplatePicker { ID = id };
-
-            return editControl;
+            return GetTextValue( privateValue, privateConfigurationValues );
         }
 
-        /// <summary>
-        /// Reads new values entered by the user for the field ( as Guid )
-        /// </summary>
-        /// <param name="control">Parent control that controls were added to in the CreateEditControl() method</param>
-        /// <param name="configurationValues">The configuration values.</param>
-        /// <returns></returns>
-        public override string GetEditValue( System.Web.UI.Control control, Dictionary<string, ConfigurationValue> configurationValues )
+        /// <inheritdoc />
+        public override string GetPublicEditValue( string privateValue, Dictionary<string, string> privateConfigurationValues )
         {
-            var picker = control as RegistrationTemplatePicker;
-            if ( picker != null )
-            {
-                int? itemId = picker.SelectedValueAsId();
-                Guid? itemGuid = null;
-                if ( itemId.HasValue )
-                {
-                    using ( var rockContext = new RockContext() )
-                    {
-                        itemGuid = new RegistrationTemplateService( rockContext ).Queryable().AsNoTracking().Where( a => a.Id == itemId.Value ).Select( a => ( Guid? ) a.Guid ).FirstOrDefault();
-                    }
-                }
+            var guid = privateValue.AsGuidOrNull();
 
-                return itemGuid?.ToString() ?? string.Empty;
+            if ( guid.HasValue )
+            {
+                var registrationTemplateService = new RegistrationTemplateService(new RockContext());
+                var registrationTemplate = registrationTemplateService.Get( guid.Value );
+
+                if ( registrationTemplate != null )
+                {
+                    return registrationTemplate.ToListItemBag().ToCamelCaseJson( false, true );
+                }
             }
 
-            return null;
+            return base.GetPublicEditValue( privateValue, privateConfigurationValues );
         }
 
-        /// <summary>
-        /// Sets the value. ( as Guid )
-        /// </summary>
-        /// <param name="control">The control.</param>
-        /// <param name="configurationValues">The configuration values.</param>
-        /// <param name="value">The value.</param>
-        public override void SetEditValue( System.Web.UI.Control control, Dictionary<string, ConfigurationValue> configurationValues, string value )
+        /// <inheritdoc />
+        public override string GetPrivateEditValue( string publicValue, Dictionary<string, string> privateConfigurationValues )
         {
-            var picker = control as RegistrationTemplatePicker;
-            if ( picker != null )
-            {
-                int? itemId = null;
-                Guid? itemGuid = value.AsGuidOrNull();
-                if ( itemGuid.HasValue )
-                {
-                    using ( var rockContext = new RockContext() )
-                    {
-                        itemId = new RegistrationTemplateService( rockContext ).Queryable().Where( a => a.Guid == itemGuid.Value ).Select( a => ( int? ) a.Id ).FirstOrDefault();
-                    }
-                }
+            var jsonValue = publicValue.FromJsonOrNull<ListItemBag>();
 
-                picker.SetValue( itemId );
+            if ( jsonValue != null )
+            {
+                return jsonValue.Value;
             }
+
+            return base.GetPrivateEditValue( publicValue, privateConfigurationValues );
         }
 
         #endregion
 
         #region IEntityFieldType
-        /// <summary>
-        /// Gets the edit value as the IEntity.Id
-        /// </summary>
-        /// <param name="control">The control.</param>
-        /// <param name="configurationValues">The configuration values.</param>
-        /// <returns></returns>
-        public int? GetEditValueAsEntityId( Control control, Dictionary<string, ConfigurationValue> configurationValues )
-        {
-            var guid = GetEditValue( control, configurationValues ).AsGuid();
-            var item = new RegistrationTemplateService( new RockContext() ).Get( guid );
-            return item != null ? item.Id : ( int? ) null;
-        }
-
-        /// <summary>
-        /// Sets the edit value from IEntity.Id value
-        /// </summary>
-        /// <param name="control">The control.</param>
-        /// <param name="configurationValues">The configuration values.</param>
-        /// <param name="id">The identifier.</param>
-        public void SetEditValueFromEntityId( Control control, Dictionary<string, ConfigurationValue> configurationValues, int? id )
-        {
-            var item = new RegistrationTemplateService( new RockContext() ).Get( id ?? 0 );
-            var guidValue = item != null ? item.Guid.ToString() : string.Empty;
-            SetEditValue( control, configurationValues, guidValue );
-        }
 
         /// <summary>
         /// Gets the entity.
@@ -189,6 +132,161 @@ namespace Rock.Field.Types
 
             return null;
         }
+        #endregion
+
+        #region IEntityReferenceFieldType
+
+        /// <inheritdoc/>
+        List<ReferencedEntity> IEntityReferenceFieldType.GetReferencedEntities( string privateValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            Guid? guid = privateValue.AsGuidOrNull();
+
+            if ( !guid.HasValue )
+            {
+                return null;
+            }
+
+            using ( var rockContext = new RockContext() )
+            {
+                var registrationTemplateId = new RegistrationTemplateService( rockContext ).GetId( guid.Value );
+
+                if ( !registrationTemplateId.HasValue )
+                {
+                    return null;
+                }
+
+                return new List<ReferencedEntity>
+                {
+                    new ReferencedEntity( EntityTypeCache.GetId<RegistrationTemplate>().Value, registrationTemplateId.Value )
+                };
+            }
+        }
+
+        /// <inheritdoc/>
+        List<ReferencedProperty> IEntityReferenceFieldType.GetReferencedProperties( Dictionary<string, string> privateConfigurationValues )
+        {
+            // This field type references the Name property of a Registration Template and
+            // should have its persisted values updated when changed.
+            return new List<ReferencedProperty>
+            {
+                new ReferencedProperty( EntityTypeCache.GetId<RegistrationTemplate>().Value, nameof( RegistrationTemplate.Name ) )
+            };
+        }
+
+        #endregion
+
+        #region WebForms
+#if WEBFORMS
+
+        /// <summary>
+        /// Returns the field's current value(s)
+        /// </summary>
+        /// <param name="parentControl">The parent control.</param>
+        /// <param name="value">Information about the value</param>
+        /// <param name="configurationValues">The configuration values.</param>
+        /// <param name="condensed">Flag indicating if the value should be condensed (i.e. for use in a grid column)</param>
+        /// <returns></returns>
+        public override string FormatValue( Control parentControl, string value, Dictionary<string, ConfigurationValue> configurationValues, bool condensed )
+        {
+            return !condensed
+                ? GetTextValue( value, configurationValues.ToDictionary( cv => cv.Key, cv => cv.Value.Value ) )
+                : GetCondensedTextValue( value, configurationValues.ToDictionary( cv => cv.Key, cv => cv.Value.Value ) );
+        }
+
+        /// <summary>
+        /// Creates the control(s) necessary for prompting user for a new value
+        /// </summary>
+        /// <param name="configurationValues">The configuration values.</param>
+        /// <param name="id"></param>
+        /// <returns>
+        /// The control
+        /// </returns>
+        public override Control EditControl( Dictionary<string, ConfigurationValue> configurationValues, string id )
+        {
+            RegistrationTemplatePicker editControl = new RegistrationTemplatePicker { ID = id };
+
+            return editControl;
+        }
+
+        /// <summary>
+        /// Reads new values entered by the user for the field ( as Guid )
+        /// </summary>
+        /// <param name="control">Parent control that controls were added to in the CreateEditControl() method</param>
+        /// <param name="configurationValues">The configuration values.</param>
+        /// <returns></returns>
+        public override string GetEditValue( Control control, Dictionary<string, ConfigurationValue> configurationValues )
+        {
+            var picker = control as RegistrationTemplatePicker;
+            if ( picker != null )
+            {
+                int? itemId = picker.SelectedValueAsId();
+                Guid? itemGuid = null;
+                if ( itemId.HasValue )
+                {
+                    using ( var rockContext = new RockContext() )
+                    {
+                        itemGuid = new RegistrationTemplateService( rockContext ).Queryable().AsNoTracking().Where( a => a.Id == itemId.Value ).Select( a => ( Guid? ) a.Guid ).FirstOrDefault();
+                    }
+                }
+
+                return itemGuid?.ToString() ?? string.Empty;
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Sets the value. ( as Guid )
+        /// </summary>
+        /// <param name="control">The control.</param>
+        /// <param name="configurationValues">The configuration values.</param>
+        /// <param name="value">The value.</param>
+        public override void SetEditValue( Control control, Dictionary<string, ConfigurationValue> configurationValues, string value )
+        {
+            var picker = control as RegistrationTemplatePicker;
+            if ( picker != null )
+            {
+                int? itemId = null;
+                Guid? itemGuid = value.AsGuidOrNull();
+                if ( itemGuid.HasValue )
+                {
+                    using ( var rockContext = new RockContext() )
+                    {
+                        itemId = new RegistrationTemplateService( rockContext ).Queryable().Where( a => a.Guid == itemGuid.Value ).Select( a => ( int? ) a.Id ).FirstOrDefault();
+                    }
+                }
+
+                picker.SetValue( itemId );
+            }
+        }
+
+        /// <summary>
+        /// Gets the edit value as the IEntity.Id
+        /// </summary>
+        /// <param name="control">The control.</param>
+        /// <param name="configurationValues">The configuration values.</param>
+        /// <returns></returns>
+        public int? GetEditValueAsEntityId( Control control, Dictionary<string, ConfigurationValue> configurationValues )
+        {
+            var guid = GetEditValue( control, configurationValues ).AsGuid();
+            var item = new RegistrationTemplateService( new RockContext() ).Get( guid );
+            return item != null ? item.Id : ( int? ) null;
+        }
+
+        /// <summary>
+        /// Sets the edit value from IEntity.Id value
+        /// </summary>
+        /// <param name="control">The control.</param>
+        /// <param name="configurationValues">The configuration values.</param>
+        /// <param name="id">The identifier.</param>
+        public void SetEditValueFromEntityId( Control control, Dictionary<string, ConfigurationValue> configurationValues, int? id )
+        {
+            var item = new RegistrationTemplateService( new RockContext() ).Get( id ?? 0 );
+            var guidValue = item != null ? item.Guid.ToString() : string.Empty;
+            SetEditValue( control, configurationValues, guidValue );
+        }
+
+#endif
         #endregion
     }
 }

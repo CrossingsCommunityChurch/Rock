@@ -37,8 +37,12 @@
 
             <div class="page-title-inject d-flex flex-wrap justify-content-between align-items-center">
                 <div class="my-2">
-                    <Rock:LocationPicker ID="lpLocation" runat="server" LabelName="Select a Location" AllowedPickerModes="Named" CssClass="picker-lg" OnSelectLocation="lpLocation_SelectLocation" IncludeInactiveNamedLocations="true" />
+                    <Rock:LocationPicker ID="lpLocation" runat="server" LabelName="Select a Location" AllowedPickerModes="Named" CssClass="picker-lg picker-location" OnSelectLocation="lpLocation_SelectLocation" IncludeInactiveNamedLocations="true" />
                 </div>
+                <div class="my-2">
+                    <Rock:SchedulePicker ID="spSchedule" runat="server" LabelName="Select a Schedule"  CssClass="picker-lg picker-schedule" DefaultText="All Schedules" OnSelectItem="spSchedule_SelectItem" AllowInactiveSelection="true" />
+                </div>
+                <div class="d-block d-md-none w-100"></div>
                 <asp:Panel ID="pnlSubPageNav" runat="server" CssClass="d-print-none my-2">
                     <Rock:PageNavButtons ID="pbSubPages" runat="server" IncludeCurrentQueryString="true" />
                 </asp:Panel>
@@ -69,17 +73,19 @@
                 </div>
                 <div class="panel-body">
                     <div class="grid grid-panel">
-                        <Rock:Grid ID="gAttendees" runat="server" DisplayType="Light" UseFullStylesForLightGrid="true" OnRowDataBound="gAttendees_RowDataBound" OnRowSelected="gAttendees_RowSelected" DataKeyNames="PersonGuid,AttendanceIds" ShowActionRow="false">
+                        <Rock:Grid ID="gAttendees" runat="server" DisplayType="Light" UseFullStylesForLightGrid="true" OnRowDataBound="gAttendees_RowDataBound" OnRowSelected="gAttendees_RowSelected" DataKeyNames="PersonGuid,AttendanceIds" AllowSorting="true" ShowActionRow="false">
                             <Columns>
                                 <Rock:RockLiteralField ID="lPhoto" ItemStyle-CssClass="avatar-column" ColumnPriority="TabletSmall" />
                                 <Rock:RockLiteralField ID="lMobileIcon" HeaderStyle-CssClass="d-table-cell d-sm-none d-print-none" ItemStyle-CssClass="mobile-icon d-table-cell d-sm-none d-print-none py-0 align-middle" />
-                                <Rock:RockLiteralField ID="lName" HeaderText="Name" HeaderStyle-CssClass="print-first-col" ItemStyle-CssClass="name js-name align-middle print-first-col" />
+                                <Rock:RockLiteralField ID="lName" HeaderText="Name" HeaderStyle-CssClass="print-first-col" ItemStyle-CssClass="name js-name align-middle print-first-col" SortExpression="NickName,LastName,PersonGuid" />
                                 <Rock:RockLiteralField ID="lBadges" HeaderStyle-CssClass="d-none d-sm-table-cell d-print-none" ItemStyle-CssClass="badges d-none d-sm-table-cell d-print-none align-middle" />
-                                <Rock:RockLiteralField ID="lGroupNameAndPath" HeaderText="Group" Visible="false" />
-                                <Rock:RockBoundField DataField="Tag" HeaderText="Tag" HeaderStyle-CssClass="d-none d-sm-table-cell" ItemStyle-CssClass="tag d-none d-sm-table-cell align-middle" />
-                                <Rock:RockBoundField DataField="ServiceTimes" HeaderText="Service Times" HeaderStyle-CssClass="d-none d-sm-table-cell" ItemStyle-CssClass="service-times d-none d-sm-table-cell align-middle" />
+                                <Rock:RockLiteralField ID="lGroupNameAndPath" HeaderText="Group" Visible="false" SortExpression="GroupName,NickName,LastName,PersonGuid" />
+                                <Rock:RockBoundField DataField="Tag" HeaderText="Tag" HeaderStyle-CssClass="d-none d-sm-table-cell" ItemStyle-CssClass="tag d-none d-sm-table-cell align-middle" SortExpression="Tag" />
+                                <Rock:RockBoundField DataField="ServiceTimes" HeaderText="Service Times" HeaderStyle-CssClass="d-none d-sm-table-cell" ItemStyle-CssClass="service-times d-none d-sm-table-cell align-middle" SortExpression="ServiceTimesScheduleOrder" />
                                 <Rock:RockLiteralField ID="lMobileTagAndSchedules" HeaderText="Tag" HeaderStyle-CssClass="d-sm-none" ItemStyle-CssClass="tags-and-schedules d-table-cell d-sm-none" />
-                                <Rock:RockLiteralField ID="lElapsedCheckInTime" HeaderText="Check-in Time" HeaderStyle-HorizontalAlign="Right" ItemStyle-CssClass="check-in-time align-middle" ItemStyle-HorizontalAlign="Right" ColumnPriority="TabletSmall" />
+                                <Rock:RockLiteralField ID="lElapsedCheckInTime" HeaderText="Check-in Time" HeaderStyle-HorizontalAlign="Right" ItemStyle-CssClass="check-in-time align-middle" ItemStyle-HorizontalAlign="Right" ColumnPriority="TabletSmall" SortExpression="CheckInTime" />
+                                <Rock:RockLiteralField ID="lElapsedPresentTime" HeaderText="Present Time" HeaderStyle-HorizontalAlign="Right" ItemStyle-CssClass="check-in-time align-middle" ItemStyle-HorizontalAlign="Right" ColumnPriority="TabletSmall" SortExpression="PresentDateTime" />
+                                <Rock:RockLiteralField ID="lElapsedCheckedOutTime" HeaderText="Checked-out Time" HeaderStyle-HorizontalAlign="Right" ItemStyle-CssClass="check-in-time align-middle" ItemStyle-HorizontalAlign="Right" ColumnPriority="TabletSmall" SortExpression="CheckOutTime" />
                                 <Rock:RockLiteralField ID="lStatusTag" HeaderStyle-CssClass="d-none d-sm-table-cell print-last-col" ItemStyle-CssClass="status-tag d-none d-sm-table-cell align-middle print-last-col" ItemStyle-HorizontalAlign="Right" ColumnPriority="TabletSmall" />
 
                                 <Rock:LinkButtonField ID="btnCancel" ItemStyle-CssClass="grid-columnaction d-print-none" CssClass="btn btn-danger btn-square js-cancel-checkin" Text="<i class='fa fa-times'></i>" ToolTip="Cancel" OnClick="btnCancel_Click" OnDataBound="btnCancel_DataBound" />

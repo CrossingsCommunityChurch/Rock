@@ -28,6 +28,7 @@ namespace Rock.Communication.SmsActions
     [Description( "Processes a message with the SMS Conversations system." )]
     [Export( typeof( SmsActionComponent ) )]
     [ExportMetadata( "ComponentName", "SMS Conversations" )]
+    [Rock.SystemGuid.EntityTypeGuid( Rock.SystemGuid.EntityType.SMS_ACTION_CONVERSATION )]
     public class SmsActionConversations : SmsActionComponent
     {
         #region Properties
@@ -93,7 +94,14 @@ namespace Rock.Communication.SmsActions
         /// <returns>An SmsMessage that will be sent as the response or null if no response should be sent.</returns>
         public override SmsMessage ProcessMessage( SmsActionCache action, SmsMessage message, out string errorMessage )
         {
-            new Rock.Communication.Medium.Sms().ProcessResponse( message.ToNumber, message.FromNumber, message.Message, message.Attachments, out errorMessage );
+            var medium = CommunicationServicesHost.GetCommunicationMediumSms();
+            if ( medium == null )
+            {
+                errorMessage = "SMS Medium not available.";
+                return null;
+            }
+
+            medium.ProcessResponse( message.ToNumber, message.FromNumber, message.Message, message.Attachments, out errorMessage );
             return null;
         }
 

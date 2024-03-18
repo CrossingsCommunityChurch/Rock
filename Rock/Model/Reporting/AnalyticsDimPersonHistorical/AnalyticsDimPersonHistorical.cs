@@ -28,7 +28,7 @@ namespace Rock.Model
     [RockDomain( "Reporting" )]
     [Table( "AnalyticsDimPersonHistorical" )]
     [DataContract]
-    [CodeGenExclude( CodeGenFeature.ViewModelFile )]
+    [Rock.SystemGuid.EntityTypeGuid( "050AAA2B-43EA-4952-936C-70638D3BCC0D")]
     public class AnalyticsDimPersonHistorical : AnalyticsDimPersonBase<AnalyticsDimPersonHistorical>
     {
         // intentionally blank. See AnalyticsDimPersonBase, etc for the fields

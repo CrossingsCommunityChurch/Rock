@@ -45,6 +45,7 @@ namespace RockWeb.Blocks.RSVP
         DefaultValue = Rock.SystemGuid.DefinedType.GROUP_RSVP_DECLINE_REASON,
         Order = 0 )]
 
+    [Rock.SystemGuid.BlockTypeGuid( Rock.SystemGuid.BlockType.RSVP_DETAIL )]
     public partial class RSVPDetail : RockBlock
     {
         #region Keys
@@ -347,7 +348,7 @@ namespace RockWeb.Blocks.RSVP
         /// <param name="e">The <see cref="EventArgs" /> instance containing the event data.</param>
         protected void rFilter_ApplyFilterClick( object sender, EventArgs e )
         {
-            rFilter.SaveUserPreference( UserPreferenceKey.Status, cblStatus.SelectedValues.AsDelimited( ";" ) );
+            rFilter.SetFilterPreference( UserPreferenceKey.Status, cblStatus.SelectedValues.AsDelimited( ";" ) );
             BindAttendeeGridAndChart();
         }
 
@@ -358,7 +359,7 @@ namespace RockWeb.Blocks.RSVP
         /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
         protected void rFilter_ClearFilterClick( object sender, EventArgs e )
         {
-            rFilter.DeleteUserPreferences();
+            rFilter.DeleteFilterPreferences();
             BindFilter();
         }
 
@@ -1133,7 +1134,7 @@ var dnutChart = new Chart(dnutCtx, {{
             cblDeclineReason.DataSource = _availableDeclineReasons.Where( a => a.Id != default( int ) ).ToList();
             cblDeclineReason.DataBind();
 
-            string statusValue = rFilter.GetUserPreference( UserPreferenceKey.Status );
+            string statusValue = rFilter.GetFilterPreference( UserPreferenceKey.Status );
             if ( !string.IsNullOrWhiteSpace( statusValue ) )
             {
                 cblStatus.SetValues( statusValue.Split( ';' ).ToList() );

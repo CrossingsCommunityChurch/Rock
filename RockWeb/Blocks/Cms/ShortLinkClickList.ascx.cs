@@ -38,6 +38,7 @@ namespace RockWeb.Blocks.Cms
     [DisplayName("Short Link Click List")]
     [Category("CMS")]
     [Description("Lists clicks for a particular short link.")]
+    [Rock.SystemGuid.BlockTypeGuid( "1D7B8095-9E5B-4A9A-A519-69E1746140DD" )]
     public partial class ShortLinkClickList : RockBlock, ISecondaryBlock, ICustomGridColumns
     {
         #region Control Methods
@@ -98,14 +99,29 @@ namespace RockWeb.Blocks.Cms
 
             using ( var rockContext = new RockContext() )
             {
+                rockContext.Database.CommandTimeout = 180;
                 var dv = DefinedValueCache.Get( Rock.SystemGuid.DefinedValue.INTERACTIONCHANNELTYPE_URLSHORTENER );
                 if ( dv != null )
                 {
                     var qry = new InteractionService( rockContext )
                         .Queryable().AsNoTracking()
+                        // eagerly load the required entities to avoid multiple calls to the database
+                        .Include( i => i.InteractionSession.DeviceType )
+                        .Include( i => i.PersonAlias.Person )
                         .Where( i =>
                             i.InteractionComponent.InteractionChannel.ChannelTypeMediumValueId == dv.Id &&
-                            i.InteractionComponent.EntityId == shortLinkId );
+                            i.InteractionComponent.EntityId == shortLinkId )
+                        // filter out only the required data from the entity
+                        .Select( i => new
+                        {
+                            i.Id,
+                            i.InteractionDateTime,
+                            i.PersonAlias.Person,
+                            i.InteractionSession.DeviceType.Application,
+                            i.InteractionSession.DeviceType.OperatingSystem,
+                            i.InteractionSession.DeviceType.ClientType,
+                            i.Source
+                        } );
 
                     SortProperty sortProperty = gShortLinkClicks.SortProperty;
                     if ( sortProperty != null )

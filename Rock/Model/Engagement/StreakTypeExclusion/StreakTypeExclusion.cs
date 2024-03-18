@@ -22,6 +22,7 @@ using System.Data.Entity.ModelConfiguration;
 using System.Runtime.Serialization;
 using Rock.Data;
 using Rock.Tasks;
+using Rock.Utility;
 using Rock.Web.Cache;
 
 namespace Rock.Model
@@ -32,6 +33,7 @@ namespace Rock.Model
     [RockDomain( "Engagement" )]
     [Table( "StreakTypeExclusion" )]
     [DataContract]
+    [Rock.SystemGuid.EntityTypeGuid( "1F00C782-F8A2-4CFA-B7DF-E5B3B6D36069")]
     public partial class StreakTypeExclusion : Model<StreakTypeExclusion>, ICacheable
     {
         #region Entity Properties

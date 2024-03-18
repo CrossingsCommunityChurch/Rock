@@ -14,8 +14,13 @@
 // limitations under the License.
 // </copyright>
 //
+
 using System.ComponentModel.DataAnnotations.Schema;
 using System.Runtime.Serialization;
+
+using Rock.Data;
+using Rock.Lava;
+using Rock.Web.Cache;
 
 namespace Rock.Model
 {
@@ -27,8 +32,9 @@ namespace Rock.Model
         /// <value>
         /// A <see cref="System.String"/> representing the encrypted confirmation code.
         /// </value>
-        [DataMember]
+        [HideFromReporting]
         [NotMapped]
+        [LavaVisible]
         public virtual string ConfirmationCode
         {
             get
@@ -53,8 +59,9 @@ namespace Rock.Model
         /// <value>
         /// A <see cref="System.String"/> representing a URL encoded and encrypted confirmation code.
         /// </value>
-        [DataMember]
+        [HideFromReporting]
         [NotMapped]
+        [LavaVisible]
         public virtual string ConfirmationCodeEncoded
         {
             get
@@ -62,6 +69,20 @@ namespace Rock.Model
                 return System.Net.WebUtility.UrlEncode( ConfirmationCode );
             }
             private set { }
+        }
+
+        /// <summary>
+        /// Returns a boolean indicating if this is a passwordless user.
+        /// </summary>
+        [HideFromReporting]
+        [NotMapped]
+        [LavaVisible]
+        public virtual bool IsPasswordless
+        {
+            get
+            {
+                return EntityTypeId == EntityTypeCache.Get( SystemGuid.EntityType.AUTHENTICATION_PASSWORDLESS ).Id;
+            }
         }
 
         /// <summary>

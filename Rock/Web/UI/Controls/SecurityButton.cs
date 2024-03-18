@@ -77,7 +77,40 @@ namespace Rock.Web.UI.Controls
         /// <param name="writer">The <see cref="T:System.Web.UI.HtmlTextWriter" /> object that receives the control content.</param>
         public override void RenderControl( HtmlTextWriter writer )
         {
-            string url = this.Page.ResolveUrl( string.Format( "~/Secure/{0}/{1}?t={2}&pb=&sb=Done", EntityTypeId, EntityId, HttpUtility.UrlEncode( Title.EscapeQuotes() ) ) );
+            var title = Title;
+            var titleUpper = title.ToUpper();
+            const string SECURE_UPPER = "SECURE";
+            const string SECURE_TITLE = "Secure";
+
+            // If the control is specifying "Secure some title" ex. "Secure Person"
+            if ( titleUpper.StartsWith( SECURE_UPPER ) )
+            {
+                // The information after "Secure" ex. "Secure Person" would be just "Person" in the substring
+                var titleSubString = title.SubstringSafe( 6 ).Trim();
+
+                // If there is a Title substring part and the controls Title property does not start with "Secure " <-- with a space
+                if ( !titleSubString.IsNullOrWhiteSpace() && !titleUpper.StartsWith( $"{SECURE_UPPER} " ) )
+                {
+                    title = $"{SECURE_TITLE} {titleSubString}";
+                }
+            }
+            // Otherwise show the title as "Secure " plus the controls Title property ex. "Secure Person"
+            else
+            {
+                title = $"{SECURE_TITLE} {title}";
+            }
+
+            /*
+             * 01/26/2024 - KA
+             * Any existing ampersand is 'encoded' before calling HttpUtility.UrlEncode because Asp.Net's
+             * HttpRequestBase decodes the url and interprets the encoded '&' as a query parameter delimiter
+             * which results in null values when parsing to the QueryString parameter on HttpRequestBase.
+             * However in this scenario the '&' has to be included as the value for the 't' key.
+             * See https://stackoverflow.com/questions/3667902/c-sharp-asp-net-httpwebrequest-automatically-decodes-ampersand-values-from-q.
+             *
+            */
+            title = title.Replace( "&", "%26" );
+            string url = this.Page.ResolveUrl( string.Format( "~/Secure/{0}/{1}?t={2}&pb=&sb=Done", EntityTypeId, EntityId, HttpUtility.UrlEncode( title.EscapeQuotes() ) ) );
             this.HRef = "javascript: Rock.controls.modal.show($(this), '" + url + "')";
 
             base.RenderControl( writer );

@@ -199,7 +199,7 @@
                                     <h1 class="text-center">Popular Links</h1>
 
                                     <div class="row hidden-xs">
-                                        <div class="col-sm-10"><strong>Url</strong></div>
+                                        <div class="col-sm-10"><strong>URL</strong></div>
                                         <div class="col-sm-1"><strong>Uniques</strong></div>
                                         <div id="pnlCTRHeader" runat="server" class="col-sm-1"><strong>CTR</strong></div>
                                     </div>
@@ -328,6 +328,7 @@
                                         <asp:ListItem Text="Not Clicked" />
                                     </Rock:RockCheckBoxList>
                                     <Rock:RockTextBox ID="txbDeliveryStatusNote" runat="server" Label="Delivery Note" />
+                                    <Rock:CampusesPicker ID="cpCampuses" runat="server" Label="Campus" IncludeInactive="true" ForceVisible="true" />
                                 </Rock:GridFilter>
                                 <Rock:Grid ID="gRecipients" runat="server" EmptyDataText="No Recipients Found" AllowSorting="true">
                                     <Columns>

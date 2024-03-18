@@ -192,7 +192,7 @@ namespace Rock.Web.UI.Controls
         /// <param name="writer">The <see cref="T:System.Web.UI.HtmlTextWriter" /> object that receives the control content.</param>
         public override void RenderControl( HtmlTextWriter writer )
         {
-            if (EnableJavascript)
+            if ( EnableJavascript )
             {
                 RegisterJavascript();
             }
@@ -210,18 +210,19 @@ namespace Rock.Web.UI.Controls
 
             // Get current date format and make sure it has double-lower-case month and day designators for the js date picker to use
             var dateFormat = System.Threading.Thread.CurrentThread.CurrentUICulture.DateTimeFormat.ShortDatePattern;
-            dateFormat = dateFormat.Replace( "M", "m" ).Replace( "m", "mm" ).Replace( "mmmm", "mm" );
-            dateFormat = dateFormat.Replace( "d", "dd" ).Replace( "dddd", "dd" );
+            var jsDateFormat = dateFormat.Replace( "M", "m" ).Replace( "m", "mm" ).Replace( "mmmm", "mm" );
+            jsDateFormat = jsDateFormat.Replace( "d", "dd" ).Replace( "dddd", "dd" );
 
-            var endDateParam = ( this.AllowFutureDateSelection ) ? "" : "endDate: '" + RockDateTime.Today.ToString( "o" ) + "',";
-            var startDateParam = ( this.AllowPastDateSelection ) ? "" : "startDate: '" + RockDateTime.Today.ToString( "o" ) + "',";
+            // StartDate and EndDate are optional, and must match the format of the dateFormat (which is the format of the input)
+            var endDateParam = ( this.AllowFutureDateSelection ) ? "" : "endDate: '" + RockDateTime.Today.ToString( dateFormat ) + "',";
+            var startDateParam = ( this.AllowPastDateSelection ) ? "" : "startDate: '" + RockDateTime.Today.ToString( dateFormat ) + "',";
 
             var script = $@"Rock.controls.datePicker.initialize(
                 {{
                     id: '{this.ClientID}',
                     startView: {this.StartView.ConvertToInt()},
                     showOnFocus: {this.ShowOnFocus.ToString().ToLower()},
-                    format: '{dateFormat}',
+                    format: '{jsDateFormat}',
                     todayHighlight: {this.HighlightToday.ToString().ToLower()},
                     forceParse: {this.ForceParse.ToString().ToLower()},
                     postbackScript: '{postBackScript}',
@@ -330,7 +331,7 @@ namespace Rock.Web.UI.Controls
         }
 
         /// <summary>
-        /// Gets the selected date.
+        /// Gets or sets the selected date.
         /// </summary>
         /// <value>
         /// The selected date.
@@ -348,7 +349,7 @@ namespace Rock.Web.UI.Controls
                     }
                     else
                     {
-                        if ( !(this.DisplayCurrentOption && this.IsCurrentDateOffset) )
+                        if ( !( this.DisplayCurrentOption && this.IsCurrentDateOffset ) )
                         {
                             ShowErrorMessage( Rock.Constants.WarningMessage.DateTimeFormatInvalid( this.PropertyName ) );
                         }
@@ -411,7 +412,7 @@ namespace Rock.Web.UI.Controls
         /// <param name="writer">The writer.</param>
         public override void RenderBaseControl( HtmlTextWriter writer )
         {
-            if ( DisplayCurrentOption)
+            if ( DisplayCurrentOption )
             {
                 writer.AddAttribute( HtmlTextWriterAttribute.Class, "form-control-group js-date-picker-container" );
                 writer.RenderBeginTag( HtmlTextWriterTag.Div );
@@ -419,7 +420,7 @@ namespace Rock.Web.UI.Controls
                 writer.AddAttribute( HtmlTextWriterAttribute.Class, "form-row" );
                 writer.RenderBeginTag( HtmlTextWriterTag.Div );
 
-                if (IsCurrentDateOffset)
+                if ( IsCurrentDateOffset )
                 {
                     // set this.Attributes["disabled"] instead of this.Enabled so that our child controls don't get disabled
                     this.Attributes["disabled"] = "true";
@@ -460,7 +461,7 @@ namespace Rock.Web.UI.Controls
         /// <param name="eventArgument">A <see cref="T:System.String" /> that represents an optional event argument to be passed to the event handler.</param>
         public void RaisePostBackEvent( string eventArgument )
         {
-            if ( eventArgument == "SelectDate")
+            if ( eventArgument == "SelectDate" )
             {
                 EnsureChildControls();
                 SelectDate?.Invoke( this, new EventArgs() );

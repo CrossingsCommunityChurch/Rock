@@ -44,8 +44,13 @@ namespace Rock.Utility.Settings
             _serviceInstance = new RockInstanceConfigurationService();
 
             var connectionString = System.Configuration.ConfigurationManager.ConnectionStrings["RockContext"];
-
             _serviceInstance.Database.SetConnectionString( connectionString.ToStringSafe() );
+
+            connectionString = System.Configuration.ConfigurationManager.ConnectionStrings["RockContextReadOnly"];
+            _serviceInstance.Database.SetReadOnlyConnectionString( connectionString?.ConnectionString );
+
+            connectionString = System.Configuration.ConfigurationManager.ConnectionStrings["RockContextAnalytics"];
+            _serviceInstance.Database.SetAnalyticsConnectionString( connectionString?.ConnectionString );
         }
 
         /// <summary>
@@ -143,7 +148,21 @@ namespace Rock.Utility.Settings
         }
 
         /// <summary>
-        /// Gets a value indicating whether this instance is clustered.
+        /// Gets a flag indicating if the database is currently available.
+        /// </summary>
+        public static bool DatabaseIsAvailable { get; private set; } = false;
+
+        /// <summary>
+        /// Sets a flag indicating if a database connection is available.
+        /// </summary>
+        /// <param name="isAvailable"></param>
+        public static void SetDatabaseIsAvailable( bool isAvailable )
+        {
+            DatabaseIsAvailable = isAvailable;
+        }
+
+        /// <summary>
+        /// Gets a value indicating whether this instance is clustered using RockWebFarm or Redis.
         /// </summary>
         /// <value>
         ///   <c>true</c> if this instance is clustered; otherwise, <c>false</c>.

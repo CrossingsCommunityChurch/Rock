@@ -15,8 +15,10 @@
 // </copyright>
 //
 using System.Collections.Generic;
+#if WEBFORMS
 using System.Web.UI;
-
+#endif
+using Rock.Attribute;
 using Rock.Data;
 using Rock.Model;
 
@@ -25,9 +27,48 @@ namespace Rock.Field.Types
     /// <summary>
     /// Lava Field Type.  Stored as text
     /// </summary>
+    [RockPlatformSupport( Utility.RockPlatform.WebForms, Utility.RockPlatform.Obsidian )]
+    [Rock.SystemGuid.FieldTypeGuid( Rock.SystemGuid.FieldType.LAVA )]
     public class LavaFieldType : CodeEditorFieldType
     {
         #region Formatting
+
+        /// <inheritdoc/>
+        public override string GetTextValue( string privateValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            string newValue = privateValue;
+
+            if ( privateValue.IsLavaTemplate() )
+            {
+                var mergeFields = Rock.Lava.LavaHelper.GetCommonMergeFields( null );
+                newValue = privateValue.ResolveMergeFields( mergeFields ).Trim();
+            }
+
+            return newValue;
+        }
+
+        /// <inheritdoc/>
+        public override string GetHtmlValue( string privateValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            // Default method tries to HTML encode which we don't want to do.
+            return GetTextValue( privateValue, privateConfigurationValues );
+        }
+
+        #endregion
+
+        #region Persistence
+
+        /// <inheritdoc/>
+        public override bool IsPersistedValueSupported( Dictionary<string, string> privateConfigurationValues )
+        {
+            // Lava could cause a different result with each render.
+            return false;
+        }
+
+        #endregion
+
+        #region WebForms
+#if WEBFORMS
 
         /// <summary>
         /// Formats the value.
@@ -43,7 +84,7 @@ namespace Rock.Field.Types
         {
             string newValue = value;
 
-            if ( value.HasMergeFields() )
+            if ( value.IsLavaTemplate() )
             {
                 var mergeFields = Rock.Lava.LavaHelper.GetCommonMergeFields( null );
                 if ( entityTypeId.HasValue && entityId.HasValue )
@@ -90,6 +131,7 @@ namespace Rock.Field.Types
             return FormatValue( parentControl, value, configurationValues, condensed );
         }
 
+#endif
         #endregion
     }
 }

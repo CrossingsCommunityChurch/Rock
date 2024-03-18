@@ -22,6 +22,7 @@ using System.Web.UI;
 using System.Web.UI.WebControls;
 
 using Rock.Data;
+using Rock.Lava;
 using Rock.Model;
 using Rock.Utility;
 using Rock.Web.Cache;
@@ -125,6 +126,32 @@ namespace Rock.Web.UI.Controls
         }
 
         /// <summary>
+        /// The Lava Template to use as the amount input label for each account.
+        /// Default is Account.PublicName.
+        /// </summary>
+        /// <value>The account header template.</value>
+        public string AccountHeaderTemplate
+        {
+            get => ViewState["AccountHeaderTemplate"] as string;
+            set => ViewState["AccountHeaderTemplate"] = value;
+        }
+
+        /// <summary>
+        /// If enabled, the <seealso cref="SelectedAccountIds"/> will be determined as follows:
+        /// <list type="number">
+        ///   <item>If the selected account is not associated with a campus, the Selected Account will be the first matching active child account that is associated with the selected campus.</item>
+        ///   <item>If the selected account is not associated with a campus, but there are no active child accounts for the selected campus, the parent account (the one the user sees) will be returned.</item>
+        ///   <item>If the selected account is associated with a campus, that account will be returned regardless of campus selection (and it won't use the child account logic)</item>
+        /// </list>
+        /// Default is true.
+        /// </summary>
+        public bool UseAccountCampusMappingLogic
+        {
+            get => ViewState["UseAccountCampusMappingLogic"] as bool? ?? true;
+            set => ViewState["UseAccountCampusMappingLogic"] = value;
+        }
+
+        /// <summary>
         /// Gets or sets the amount entry mode (Defaults to <seealso cref="AccountAmountEntryMode.SingleAccount"/> )
         /// </summary>
         /// <value>
@@ -156,61 +183,22 @@ namespace Rock.Web.UI.Controls
         }
 
         /// <summary>
-        /// Gets the financial accounts lookup.
+        /// If enabled the Accounts will be ordered by the index of <see cref="SelectableAccountIds"/>,
+        /// that is they will be rendered in the order in which the Account Ids were added to the <see cref="SelectableAccountIds"/>
         /// </summary>
-        /// <value>
-        /// The financial accounts lookup.
-        /// </value>
-        private Dictionary<int, FinancialAccountInfo> FinancialAccountsLookup
+        public bool OrderBySelectableAccountsIndex
         {
-            get
-            {
-                if ( _financialAccountsCache == null )
-                {
-                    using ( var rockContext = new RockContext() )
-                    {
-                        _financialAccountsCache = new FinancialAccountService( rockContext ).Queryable().AsNoTracking()
-                            .Select( a => new
-                            {
-                                a.Id,
-                                a.ParentAccountId,
-                                a.CampusId,
-                                a.IsActive,
-                                a.StartDate,
-                                a.EndDate
-                            } )
-                            .ToDictionary(
-                                k => k.Id,
-                                v => new FinancialAccountInfo
-                                {
-                                    Id = v.Id,
-                                    ParentAccountId = v.ParentAccountId,
-                                    CampusId = v.CampusId,
-                                    IsActive = v.IsActive,
-                                    StartDate = v.StartDate,
-                                    EndDate = v.EndDate
-                                } );
+            get => ViewState["OrderBySelectableAccountsIndex"] as bool? ?? false;
+            set => ViewState["OrderBySelectableAccountsIndex"] = value;
+        }
 
-                        foreach ( var account in _financialAccountsCache.Values )
-                        {
-                            account.ActiveChildAccounts = _financialAccountsCache.Values
-                                .Where( a =>
-                                    a.ParentAccountId == account.Id
-                                    && a.IsActive
-                                    && ( a.StartDate == null || a.StartDate <= RockDateTime.Today )
-                                    && ( a.EndDate == null || a.EndDate >= RockDateTime.Today )
-                                )
-                                .ToList();
-                            if ( account.ParentAccountId.HasValue )
-                            {
-                                account.ParentAccount = _financialAccountsCache.GetValueOrNull( account.ParentAccountId.Value );
-                            }
-                        }
-                    }
-                }
-
-                return _financialAccountsCache;
-            }
+        /// <summary>
+        /// If enabled private accounts in the  <see cref="SelectableAccountIds"/> will be rendered.
+        /// </summary>
+        public bool AllowPrivateSelectableAccounts
+        {
+            get => ViewState["AllowPrivateAccounts"] as bool? ?? false;
+            set => ViewState["AllowPrivateAccounts"] = value;
         }
 
         /// <summary>
@@ -254,6 +242,7 @@ namespace Rock.Web.UI.Controls
             public bool ReadOnly { get; set; } = false;
         }
 
+        /*
         /// <summary>
         /// The financial accounts cache
         /// </summary>
@@ -285,17 +274,20 @@ namespace Rock.Web.UI.Controls
                 return Id.ToString();
             }
         }
+        */
 
         /// <summary>
         /// Gets or sets the selected account ids (including the ones where an amount is not specified)
-        /// Note: This has special logic. The account(s) that the user selects <seealso cref="SelectedAccountIds"/> will be determined as follows:
-        ///   1) If the selected account is not associated with a campus, the Selected Account will be the first matching active child account that is associated with the selected campus.
-        ///   2) If the selected account is not associated with a campus, but there are no active child accounts for the selected campus, the parent account (the one the user sees) will be returned.
-        ///   3) If the selected account is associated with a campus, that account will be returned regardless of campus selection (and it won't use the child account logic)
+        /// <para>
+        /// <b>NOTE</b>: This has special logic if <see cref="UseAccountCampusMappingLogic"/> is enabled.
+        /// </para>
+        /// If so, the account(s) that the user selects <seealso cref="SelectedAccountIds"/> will be determined as follows:
+        /// <list type="number">
+        ///   <item>If the selected account is not associated with a campus, the Selected Account will be the first matching active child account that is associated with the selected campus.</item>
+        ///   <item>If the selected account is not associated with a campus, but there are no active child accounts for the selected campus, the parent account (the one the user sees) will be returned.</item>
+        ///   <item>If the selected account is associated with a campus, that account will be returned regardless of campus selection (and it won't use the child account logic)</item>
+        /// </list>
         /// </summary>
-        /// <value>
-        /// The selected account ids.
-        /// </value>
         public int[] SelectedAccountIds
         {
             get
@@ -307,7 +299,7 @@ namespace Rock.Web.UI.Controls
                     if ( campusId.HasValue )
                     {
                         HashSet<int> selectedAccountIds = new HashSet<int>();
-                        foreach ( var displayedAccount in this.SelectableAccountIds.Select( a => FinancialAccountsLookup[a] ).ToList() )
+                        foreach ( var displayedAccount in this.SelectableAccountIds.Select( a => FinancialAccountCache.Get( a ) ).ToList() )
                         {
                             var returnedAccountId = GetBestMatchingAccountIdForCampusFromDisplayedAccount( campusId.Value, displayedAccount );
                             selectedAccountIds.Add( returnedAccountId );
@@ -325,7 +317,7 @@ namespace Rock.Web.UI.Controls
                     int? displayedAccountId = _ddlAccountSingle.SelectedValueAsId();
                     if ( displayedAccountId.HasValue )
                     {
-                        var displayedAccount = FinancialAccountsLookup[displayedAccountId.Value];
+                        var displayedAccount = FinancialAccountCache.Get( displayedAccountId.Value );
                         int selectedAccountId;
                         if ( campusId.HasValue )
                         {
@@ -414,10 +406,10 @@ namespace Rock.Web.UI.Controls
         /// <param name="selectedAccountId">The selected account identifier.</param>
         private void SetCampusAndDisplayedAccountFromSelectedAccount( int? selectedAccountId )
         {
-            FinancialAccountInfo selectedAccount;
+            FinancialAccountCache selectedAccount;
             if ( selectedAccountId.HasValue )
             {
-                selectedAccount = this.FinancialAccountsLookup.GetValueOrNull( selectedAccountId.Value );
+                selectedAccount = FinancialAccountCache.Get( selectedAccountId.Value );
             }
             else
             {
@@ -425,7 +417,7 @@ namespace Rock.Web.UI.Controls
             }
 
             int? campusId = selectedAccount?.CampusId;
-            FinancialAccountInfo displayedAccount = GetDisplayedAccountFromSelectedAccount( selectedAccount );
+            var displayedAccount = GetDisplayedAccountFromSelectedAccount( selectedAccount );
 
             this.CampusId = campusId;
 
@@ -438,15 +430,22 @@ namespace Rock.Web.UI.Controls
         }
 
         /// <summary>
-        /// Gets the displayed account from selected account.
+        /// Gets the displayed account from selected account based on the <seealso cref="UseAccountCampusMappingLogic"/>
+        /// setting.
+        /// <para>See special logic on <seealso cref="SelectedAccountIds"/></para>
         /// </summary>
         /// <param name="selectedAccount">The selected account.</param>
         /// <returns></returns>
-        private FinancialAccountInfo GetDisplayedAccountFromSelectedAccount( FinancialAccountInfo selectedAccount )
+        private FinancialAccountCache GetDisplayedAccountFromSelectedAccount( FinancialAccountCache selectedAccount )
         {
+            if ( !UseAccountCampusMappingLogic )
+            {
+                return selectedAccount;
+            }
+
             int? selectedAccountId = selectedAccount?.Id;
 
-            FinancialAccountInfo displayedAccount;
+            FinancialAccountCache displayedAccount;
             if ( selectedAccountId.HasValue && this.SelectableAccountIds.Contains( selectedAccountId.Value ) )
             {
                 // if the selected account is one of the selectable accounts (displayed accounts) set the displayed account to the selected account (instead of displaying the parent account)
@@ -468,13 +467,19 @@ namespace Rock.Web.UI.Controls
         }
 
         /// <summary>
-        /// Gets the best matching AccountId for selected campus from the displayed account (see logic on <seealso cref="SelectedAccountIds"/>
+        /// Gets the best matching AccountId for selected campus from the displayed account.
+        /// <para>See special logic on <seealso cref="SelectedAccountIds"/></para>
         /// </summary>
         /// <param name="campusId">The campus identifier.</param>
         /// <param name="displayedAccount">The displayed account.</param>
         /// <returns></returns>
-        private int GetBestMatchingAccountIdForCampusFromDisplayedAccount( int campusId, FinancialAccountInfo displayedAccount )
+        private int GetBestMatchingAccountIdForCampusFromDisplayedAccount( int campusId, FinancialAccountCache displayedAccount )
         {
+            if ( !UseAccountCampusMappingLogic )
+            {
+                return displayedAccount.Id;
+            }
+
             if ( displayedAccount.CampusId.HasValue && displayedAccount.CampusId == campusId )
             {
                 // displayed account is directly associated with selected campusId, so return it
@@ -483,7 +488,7 @@ namespace Rock.Web.UI.Controls
             else
             {
                 // displayed account doesn't have a campus (or belongs to another campus). Find first active matching child account
-                var firstMatchingChildAccount = displayedAccount.ActiveChildAccounts.FirstOrDefault( a => a.CampusId.HasValue && a.CampusId == campusId );
+                var firstMatchingChildAccount = displayedAccount.ChildAccounts.Where(a => a.IsActive).FirstOrDefault( a => a.CampusId.HasValue && a.CampusId == campusId );
                 if ( firstMatchingChildAccount != null )
                 {
                     // one of the child accounts is associated with the campus so, return the child account
@@ -542,7 +547,7 @@ namespace Rock.Web.UI.Controls
         /// </summary>
         private void SetCampusVisibility()
         {
-            bool showCampusPicker = ( knownCampusId == null ) || this.AskForCampusIfKnown;
+            bool showCampusPicker = ( ( knownCampusId == null ) || this.AskForCampusIfKnown ) && GetCampusList().Count > 1;
 
             _ddlMultiAccountCampus.Visible = showCampusPicker;
             _ddlSingleAccountCampus.Visible = showCampusPicker;
@@ -689,6 +694,43 @@ namespace Rock.Web.UI.Controls
         {
             _ddlSingleAccountCampus.Items.Clear();
             _ddlMultiAccountCampus.Items.Clear();
+            var campusList = GetCampusList();
+
+            _ddlSingleAccountCampus.Items.Add( new ListItem() );
+            _ddlMultiAccountCampus.Items.Add( new ListItem() );
+
+            foreach ( var campus in campusList.OrderBy( a => a.Order ) )
+            {
+                _ddlSingleAccountCampus.Items.Add( new ListItem( campus.Name, campus.Id.ToString() ) );
+                _ddlMultiAccountCampus.Items.Add( new ListItem( campus.Name, campus.Id.ToString() ) );
+            }
+
+            if ( CampusCache.All( this.IncludeInactiveCampuses ).Count == 1 )
+            {
+                _ddlSingleAccountCampus.Visible = false;
+                _ddlMultiAccountCampus.Visible = false;
+            }
+
+            if ( campusList.Count == 1 && !this.CampusId.HasValue )
+            {
+                // If we have just one campus after filtering and out CampusId is null, set the only Campus
+                // as the CampusId.
+                this.CampusId = campusList[0].Id;
+            }
+
+            // This will select the value in both campus ddls
+            if ( knownCampusId.HasValue )
+            {
+                this.CampusId = knownCampusId;
+            }
+        }
+
+        /// <summary>
+        /// Gets the campus list after filtering based on the selected Campus Types and Statuses.
+        /// </summary>
+        /// <returns></returns>
+        private List<CampusCache> GetCampusList()
+        {
             var campusList = CampusCache.All( this.IncludeInactiveCampuses );
 
             if ( IncludedCampusTypeIds?.Any() == true )
@@ -701,17 +743,7 @@ namespace Rock.Web.UI.Controls
                 campusList = campusList.Where( a => a.CampusStatusValueId.HasValue && IncludedCampusStatusIds.Contains( a.CampusStatusValueId.Value ) ).ToList();
             }
 
-            foreach ( var campus in campusList.OrderBy( a => a.Order ) )
-            {
-                _ddlSingleAccountCampus.Items.Add( new ListItem( campus.Name, campus.Id.ToString() ) );
-                _ddlMultiAccountCampus.Items.Add( new ListItem( campus.Name, campus.Id.ToString() ) );
-            }
-
-            if ( CampusCache.All().Count == 1 )
-            {
-                _ddlSingleAccountCampus.Visible = false;
-                _ddlMultiAccountCampus.Visible = false;
-            }
+            return campusList;
         }
 
         /// <summary>
@@ -737,19 +769,36 @@ namespace Rock.Web.UI.Controls
             // limit to active, public accounts, and don't include ones that aren't within the date range
             accountsQry = accountsQry.Where( f =>
                     f.IsActive &&
-                    f.IsPublic.HasValue &&
-                    f.IsPublic.Value &&
                     ( f.StartDate == null || f.StartDate <= RockDateTime.Today ) &&
-                    ( f.EndDate == null || f.EndDate >= RockDateTime.Today ) )
-                .OrderBy( f => f.Order );
+                    ( f.EndDate == null || f.EndDate >= RockDateTime.Today ) );
 
-            var accountsList = accountsQry.AsNoTracking().ToList();
+            // Only allow Private accounts from the provided selectableAccountIds.
+            if ( !AllowPrivateSelectableAccounts || !selectableAccountIds.Any() )
+            {
+                accountsQry = accountsQry.Where( f => f.IsPublic == true );
+            }
+
+            var accountsList = accountsQry.OrderBy( f => f.Order ).AsNoTracking().ToList();
 
             _ddlAccountSingle.Items.Clear();
 
+            string accountHeaderTemplate = AccountHeaderTemplate;
+            if ( accountHeaderTemplate.IsNullOrWhiteSpace() )
+            {
+                accountHeaderTemplate = "{{ Account.PublicName }}";
+            }
+
+            if ( OrderBySelectableAccountsIndex )
+            {
+                accountsList = accountsList.OrderBy( x => selectableAccountIds.IndexOf( x.Id ) ).ToList();
+            }
+
             foreach ( var account in accountsList )
             {
-                _ddlAccountSingle.Items.Add( new ListItem( account.PublicName, account.Id.ToString() ) );
+                var mergeFields = LavaHelper.GetCommonMergeFields( null, null, new CommonMergeFieldsOptions() );
+                mergeFields.Add( "Account", account );
+                var accountAmountLabel = accountHeaderTemplate.ResolveMergeFields( mergeFields );
+                _ddlAccountSingle.Items.Add( new ListItem( accountAmountLabel, account.Id.ToString() ) );
             }
 
             _ddlAccountSingle.SetValue( accountsList.FirstOrDefault() );
@@ -775,6 +824,7 @@ namespace Rock.Web.UI.Controls
                 EnsureChildControls();
 
                 var resultAccountAmounts = new List<AccountIdAmount>();
+                var selectedCampusId = this.CampusId ?? 0;
 
                 if ( AmountEntryMode == AccountAmountEntryMode.MultipleAccounts )
                 {
@@ -782,8 +832,8 @@ namespace Rock.Web.UI.Controls
                     {
                         var hfAccountAmountMultiAccountId = item.FindControl( RepeaterControlIds.ID_hfAccountAmountMultiAccountId ) as HiddenField;
                         var displayedAccountId = hfAccountAmountMultiAccountId.Value.AsInteger();
-                        var displayedAccount = FinancialAccountsLookup.GetValueOrNull( displayedAccountId );
-                        var returnedAccountId = this.GetBestMatchingAccountIdForCampusFromDisplayedAccount( _ddlMultiAccountCampus.SelectedValue.AsInteger(), displayedAccount );
+                        var displayedAccount = FinancialAccountCache.Get ( displayedAccountId );
+                        var returnedAccountId = this.GetBestMatchingAccountIdForCampusFromDisplayedAccount( selectedCampusId, displayedAccount );
                         var cbAccountAmountMulti = item.FindControl( RepeaterControlIds.ID_cbAccountAmountMulti ) as CurrencyBox;
                         resultAccountAmounts.Add( new AccountIdAmount( returnedAccountId, cbAccountAmountMulti.Value ) );
                     }
@@ -791,8 +841,8 @@ namespace Rock.Web.UI.Controls
                 else
                 {
                     var displayedAccountId = _ddlAccountSingle.SelectedValue.AsInteger();
-                    var displayedAccount = FinancialAccountsLookup.GetValueOrNull( displayedAccountId );
-                    var returnedAccountId = this.GetBestMatchingAccountIdForCampusFromDisplayedAccount( _ddlMultiAccountCampus.SelectedValue.AsInteger(), displayedAccount );
+                    var displayedAccount = FinancialAccountCache.Get( displayedAccountId );
+                    var returnedAccountId = this.GetBestMatchingAccountIdForCampusFromDisplayedAccount( selectedCampusId, displayedAccount );
 
                     resultAccountAmounts.Add( new AccountIdAmount( returnedAccountId, _cbAmountAccountSingle.Value ) );
                 }
@@ -810,7 +860,7 @@ namespace Rock.Web.UI.Controls
                     foreach ( var selectedAccountAmount in value )
                     {
                         // get the best matching accountId for the specified selectedAccountId
-                        var displayedAccountId = GetDisplayedAccountFromSelectedAccount( FinancialAccountsLookup.GetValueOrNull( selectedAccountAmount.AccountId ) )?.Id;
+                        var displayedAccountId = GetDisplayedAccountFromSelectedAccount( FinancialAccountCache.Get( selectedAccountAmount.AccountId ) )?.Id;
                         decimal? selectedAmount = selectedAccountAmount.Amount;
 
                         // find the repeater item for the displayedAccountId then set the displayed amount for that account
@@ -838,7 +888,7 @@ namespace Rock.Web.UI.Controls
                         return;
                     }
 
-                    var displayedAccountId = GetDisplayedAccountFromSelectedAccount( FinancialAccountsLookup.GetValueOrNull( selectedAccountAmount.AccountId ) )?.Id;
+                    var displayedAccountId = GetDisplayedAccountFromSelectedAccount( FinancialAccountCache.Get( selectedAccountAmount.AccountId ) )?.Id;
                     _ddlAccountSingle.SetValue( displayedAccountId );
                     _cbAmountAccountSingle.Value = selectedAccountAmount.Amount;
                     _cbAmountAccountSingle.ReadOnly = selectedAccountAmount.ReadOnly;
@@ -875,12 +925,12 @@ namespace Rock.Web.UI.Controls
 
             Controls.Add( _pnlAccountAmountEntrySingle );
 
-            // Special big entry for entering a single dollar amount
             _cbAmountAccountSingle = new CurrencyBox();
             _cbAmountAccountSingle.ID = "_cbAmountAccountSingle";
-            _cbAmountAccountSingle.CssClass = "js-amount-input";
-            _cbAmountAccountSingle.Attributes["min"] = "0";
-            _cbAmountAccountSingle.Attributes["max"] = int.MaxValue.ToString();
+            _cbAmountAccountSingle.CssClass = "js-amount-input amount-input";
+            _cbAmountAccountSingle.NumberType = ValidationDataType.Currency;
+            _cbAmountAccountSingle.MaximumValue = int.MaxValue.ToString();
+            _cbAmountAccountSingle.MinimumValue = "0";
             _cbAmountAccountSingle.CurrencyCodeDefinedValueId = CurrencyCodeDefinedValueId;
 
             // set max length to prevent input from accepting more than $99,999,999.99 (99 million dollars), this will help prevent an Int32 overflow if amount is stored in cents
@@ -980,7 +1030,7 @@ namespace Rock.Web.UI.Controls
                 // set max length to prevent input from accepting more than $99,999,999.99 (99 million dollars), this will help prevent an Int32 overflow if amount is stored in cents
                 // However, browsers don't seem to enforce this, and we really want to limit to int.MaxValue so we'll also check in validation
                 currencyBox.Attributes["maxlength"] = "14";
-                itemTemplateControl.Controls.Add( currencyBox  );
+                itemTemplateControl.Controls.Add( currencyBox );
 
                 container.Controls.Add( itemTemplateControl );
             }
@@ -1004,7 +1054,18 @@ namespace Rock.Web.UI.Controls
             nbAccountAmountMulti.CurrencyCodeDefinedValueId = CurrencyCodeDefinedValueId;
 
             hfAccountAmountMultiAccountId.Value = financialAccount.Id.ToString();
-            nbAccountAmountMulti.Label = financialAccount.PublicName;
+
+            string accountHeaderTemplate = AccountHeaderTemplate;
+            if ( accountHeaderTemplate.IsNullOrWhiteSpace() )
+            {
+                accountHeaderTemplate = "{{ Account.PublicName }}";
+            }
+
+            var mergeFields = LavaHelper.GetCommonMergeFields( null, null, new CommonMergeFieldsOptions() );
+            mergeFields.Add( "Account", financialAccount );
+            var accountAmountLabel = accountHeaderTemplate.ResolveMergeFields( mergeFields );
+
+            nbAccountAmountMulti.Label = accountAmountLabel;
         }
 
         #region Events

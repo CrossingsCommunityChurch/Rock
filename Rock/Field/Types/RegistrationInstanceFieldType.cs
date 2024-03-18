@@ -18,10 +18,14 @@ using System;
 using System.Collections.Generic;
 using System.Data.Entity;
 using System.Linq;
+#if WEBFORMS
 using System.Web.UI;
-
+#endif
+using Rock.Attribute;
 using Rock.Data;
 using Rock.Model;
+using Rock.ViewModels.Utility;
+using Rock.Web.Cache;
 using Rock.Web.UI.Controls;
 
 namespace Rock.Field.Types
@@ -29,15 +33,212 @@ namespace Rock.Field.Types
     /// <summary>
     /// Field Type to select a single (or null) registration instance filtered by a selected registration template
     /// </summary>
-    public class RegistrationInstanceFieldType : FieldType, IEntityFieldType
+    [FieldTypeUsage( FieldTypeUsage.System )]
+    [RockPlatformSupport( Utility.RockPlatform.WebForms, Utility.RockPlatform.Obsidian )]
+    [Rock.SystemGuid.FieldTypeGuid( Rock.SystemGuid.FieldType.REGISTRATION_INSTANCE )]
+    public class RegistrationInstanceFieldType : FieldType, IEntityFieldType, IEntityReferenceFieldType
     {
-
         #region Configuration
 
         /// <summary>
         /// Configuration Key for Registration Template
         /// </summary>
         public static readonly string REGISTRATION_TEMPLATE_KEY = "registrationtemplate";
+
+        #endregion
+
+        #region Formatting
+
+        /// <inheritdoc/>
+        public override string GetTextValue( string value, Dictionary<string, string> configurationValues )
+        {
+            string formattedValue = string.Empty;
+
+            Guid guid = Guid.Empty;
+            if ( Guid.TryParse( value, out guid ) )
+            {
+                using ( var rockContext = new RockContext() )
+                {
+                    var registrationInstance = new RegistrationInstanceService( rockContext ).GetNoTracking( guid );
+                    if ( registrationInstance != null )
+                    {
+                        formattedValue = registrationInstance.Name;
+                    }
+                }
+            }
+            return formattedValue;
+        }
+
+        #endregion
+
+        #region Edit Control
+
+        /// <inheritdoc />
+        public override string GetPublicValue( string privateValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            return GetTextValue( privateValue, privateConfigurationValues );
+        }
+
+        /// <inheritdoc />
+        public override string GetPublicEditValue( string privateValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            var guid = privateValue.AsGuidOrNull();
+
+            if ( guid.HasValue )
+            {
+                using ( var rockContext = new RockContext() )
+                {
+                    var registrationTemplate = new RegistrationInstanceService( rockContext ).GetSelect( guid.Value, r => new ListItemBag()
+                    {
+                        Text = r.Name,
+                        Value = r.Guid.ToString()
+                    } );
+
+                    return registrationTemplate.ToCamelCaseJson( false, true );
+                }
+            }
+
+            return base.GetPublicEditValue( privateValue, privateConfigurationValues );
+        }
+
+        /// <inheritdoc />
+        public override string GetPrivateEditValue( string publicValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            var jsonValue = publicValue.FromJsonOrNull<ListItemBag>();
+
+            if ( jsonValue != null )
+            {
+                return jsonValue.Value;
+            }
+
+            return base.GetPrivateEditValue( publicValue, privateConfigurationValues );
+        }
+
+        /// <inheritdoc />
+        public override Dictionary<string, string> GetPublicConfigurationValues( Dictionary<string, string> privateConfigurationValues, ConfigurationValueUsage usage, string value )
+        {
+            var configurationValues = base.GetPublicConfigurationValues( privateConfigurationValues, usage, value );
+
+            if ( usage != ConfigurationValueUsage.View && configurationValues.ContainsKey( REGISTRATION_TEMPLATE_KEY ) )
+            {
+                var id = configurationValues[REGISTRATION_TEMPLATE_KEY].AsIntegerOrNull();
+                if ( id.HasValue )
+                {
+                    using ( var rockContext = new RockContext() )
+                    {
+                        var registrationTemplate = new RegistrationTemplateService( rockContext ).GetSelect( id.Value, r => new ListItemBag()
+                        {
+                            Text = r.Name,
+                            Value = r.Guid.ToString()
+                        } );
+
+                        configurationValues[REGISTRATION_TEMPLATE_KEY] = registrationTemplate.ToCamelCaseJson( false, true );
+                    }
+                }
+            }
+
+            return configurationValues;
+        }
+
+        /// <inheritdoc />
+        public override Dictionary<string, string> GetPrivateConfigurationValues( Dictionary<string, string> publicConfigurationValues )
+        {
+            var configurationValues = base.GetPrivateConfigurationValues( publicConfigurationValues );
+
+            if ( configurationValues.ContainsKey( REGISTRATION_TEMPLATE_KEY ) )
+            {
+                var jsonValue = configurationValues[REGISTRATION_TEMPLATE_KEY].FromJsonOrNull<ListItemBag>();
+                if ( jsonValue != null && Guid.TryParse( jsonValue.Value, out Guid guid ) )
+                {
+                    using ( var rockContext = new RockContext() )
+                    {
+                        var registrationTemplate = new RegistrationTemplateService( rockContext ).GetId( guid );
+                        configurationValues[REGISTRATION_TEMPLATE_KEY] = registrationTemplate.ToString();
+                    }
+                }
+            }
+
+            return configurationValues;
+        }
+
+        #endregion
+
+        #region Entity Methods
+
+        /// <summary>
+        /// Gets the entity.
+        /// </summary>
+        /// <param name="value">The value.</param>
+        /// <returns></returns>
+        public IEntity GetEntity( string value )
+        {
+            return GetEntity( value, null );
+        }
+
+        /// <summary>
+        /// Gets the entity.
+        /// </summary>
+        /// <param name="value">The value.</param>
+        /// <param name="rockContext">The rock context.</param>
+        /// <returns></returns>
+        public IEntity GetEntity( string value, RockContext rockContext )
+        {
+            Guid? guid = value.AsGuidOrNull();
+            if ( guid.HasValue )
+            {
+                rockContext = rockContext ?? new RockContext();
+                return new RegistrationInstanceService( rockContext ).Get( guid.Value );
+            }
+
+            return null;
+        }
+
+        #endregion
+
+        #region IEntityReferenceFieldType
+
+        /// <inheritdoc/>
+        List<ReferencedEntity> IEntityReferenceFieldType.GetReferencedEntities( string privateValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            Guid? guid = privateValue.AsGuidOrNull();
+
+            if ( !guid.HasValue )
+            {
+                return null;
+            }
+
+            using ( var rockContext = new RockContext() )
+            {
+                var registrationInstanceId = new RegistrationInstanceService( rockContext ).GetId( guid.Value );
+
+                if ( !registrationInstanceId.HasValue )
+                {
+                    return null;
+                }
+
+                return new List<ReferencedEntity>
+                {
+                    new ReferencedEntity( EntityTypeCache.GetId<RegistrationInstance>().Value, registrationInstanceId.Value )
+                };
+            }
+        }
+
+        /// <inheritdoc/>
+        List<ReferencedProperty> IEntityReferenceFieldType.GetReferencedProperties( Dictionary<string, string> privateConfigurationValues )
+        {
+            // This field type references the Name property of a Registration Instance and
+            // should have its persisted values updated when changed.
+            return new List<ReferencedProperty>
+            {
+                new ReferencedProperty( EntityTypeCache.GetId<RegistrationInstance>().Value, nameof( RegistrationInstance.Name ) )
+            };
+        }
+
+        #endregion
+
+        #region WebForms
+#if WEBFORMS
+
 
         /// <summary>
         /// Returns a list of the configuration keys
@@ -106,10 +307,6 @@ namespace Rock.Field.Types
             }
         }
 
-        #endregion
-
-        #region Formatting
-
         /// <summary>
         /// Returns the field's current value(s)
         /// </summary>
@@ -120,27 +317,10 @@ namespace Rock.Field.Types
         /// <returns></returns>
         public override string FormatValue( Control parentControl, string value, Dictionary<string, ConfigurationValue> configurationValues, bool condensed )
         {
-            string formattedValue = string.Empty;
-
-            Guid guid = Guid.Empty;
-            if ( Guid.TryParse( value, out guid ) )
-            {
-                using ( var rockContext = new RockContext() )
-                {
-                    var registrationInstance = new RegistrationInstanceService( rockContext ).GetNoTracking( guid );
-                    if ( registrationInstance != null )
-                    {
-                        formattedValue = registrationInstance.Name;
-                    }
-                }
-            }
-
-            return base.FormatValue( parentControl, formattedValue, null, condensed );
+            return !condensed
+                ? GetTextValue( value, configurationValues.ToDictionary( cv => cv.Key, cv => cv.Value.Value ) )
+                : GetCondensedTextValue( value, configurationValues.ToDictionary( cv => cv.Key, cv => cv.Value.Value ) );
         }
-
-        #endregion
-
-        #region Edit Control
 
         /// <summary>
         /// Creates the control(s) necessary for prompting user for a new value
@@ -218,9 +398,6 @@ namespace Rock.Field.Types
             }
         }
 
-        #endregion
-        #region Entity Methods
-
         /// <summary>
         /// Gets the edit value as the IEntity.Id
         /// </summary>
@@ -247,34 +424,7 @@ namespace Rock.Field.Types
             SetEditValue( control, configurationValues, guidValue );
         }
 
-        /// <summary>
-        /// Gets the entity.
-        /// </summary>
-        /// <param name="value">The value.</param>
-        /// <returns></returns>
-        public IEntity GetEntity( string value )
-        {
-            return GetEntity( value, null );
-        }
-
-        /// <summary>
-        /// Gets the entity.
-        /// </summary>
-        /// <param name="value">The value.</param>
-        /// <param name="rockContext">The rock context.</param>
-        /// <returns></returns>
-        public IEntity GetEntity( string value, RockContext rockContext )
-        {
-            Guid? guid = value.AsGuidOrNull();
-            if ( guid.HasValue )
-            {
-                rockContext = rockContext ?? new RockContext();
-                return new RegistrationInstanceService( rockContext ).Get( guid.Value );
-            }
-
-            return null;
-        }
-
+#endif
         #endregion
     }
 }

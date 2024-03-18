@@ -21,6 +21,7 @@ using System.Linq;
 using System.Runtime.Serialization;
 
 using Rock.Data;
+using Rock.Enums.Group;
 using Rock.Model;
 
 namespace Rock.Web.Cache
@@ -310,6 +311,23 @@ namespace Rock.Web.Cache
         public int? GroupTypePurposeValueId { get; private set; }
 
         /// <summary>
+        /// Gets or sets a value indicating whether this instance is capacity required.
+        /// </summary>
+        /// <value><c>true</c> if this instance is capacity required; otherwise, <c>false</c>.</value>
+        [DataMember]
+        public bool IsCapacityRequired { get; set; }
+
+
+        /// <summary>
+        /// Gets or sets a value indicating whether [groups require campus].
+        /// </summary>
+        /// <value>
+        ///   <c>true</c> if [groups require campus]; otherwise, <c>false</c>.
+        /// </value>
+        [DataMember]
+        public bool GroupsRequireCampus { get; private set; }
+
+        /// <summary>
         /// Gets the group type purpose value.
         /// </summary>
         /// <value>
@@ -353,6 +371,18 @@ namespace Rock.Web.Cache
         /// <returns></returns>
         private GroupTypeCache GetParentPurposeGroupType( GroupTypeCache groupType, Guid purposeGuid )
         {
+            return GetParentPurposeGroupType( groupType, purposeGuid, groupType );
+        }
+
+        /// <summary>
+        /// Gets the type of the parent purpose group.
+        /// </summary>
+        /// <param name="groupType">Type of the group.</param>
+        /// <param name="purposeGuid">The purpose unique identifier.</param>
+        /// <param name="startingGroup">Starting group is used to avoid circular references.</param>
+        /// <returns></returns>
+        private GroupTypeCache GetParentPurposeGroupType( GroupTypeCache groupType, Guid purposeGuid, GroupTypeCache startingGroup )
+        {
             if ( groupType != null &&
                 groupType.GroupTypePurposeValue != null &&
                 groupType.GroupTypePurposeValue.Guid.Equals( purposeGuid ) )
@@ -363,12 +393,14 @@ namespace Rock.Web.Cache
             foreach ( var parentGroupType in groupType.ParentGroupTypes )
             {
                 // skip if parent group type and current group type are the same (a situation that should not be possible) to prevent stack overflow
-                if ( groupType.Id == parentGroupType.Id )
+                if ( groupType.Id == parentGroupType.Id ||
+                    // also skip if the parent group type and starting group type are the same as this is a circular reference and can cause a stack overflow
+                     startingGroup.Id == parentGroupType.Id )
                 {
                     continue;
                 }
 
-                var testGroupType = GetParentPurposeGroupType( parentGroupType, purposeGuid );
+                var testGroupType = GetParentPurposeGroupType( parentGroupType, purposeGuid, startingGroup );
                 if ( testGroupType != null )
                 {
                     return testGroupType;
@@ -479,7 +511,7 @@ namespace Rock.Web.Cache
         /// The scheduled communication template identifier.
         /// </value>
         [DataMember]
-        [Obsolete( "Use ScheduleConfirmationSystemCommunicationId instead." )]
+        [Obsolete( "Use ScheduleConfirmationSystemCommunicationId instead.", true )]
         [RockObsolete( "1.10" )]
         public int? ScheduleConfirmationSystemEmailId { get; private set; }
 
@@ -499,7 +531,7 @@ namespace Rock.Web.Cache
         /// The schedule reminder communication template identifier.
         /// </value>
         [DataMember]
-        [Obsolete( "Use ScheduleReminderSystemCommunicationId instead." )]
+        [Obsolete( "Use ScheduleReminderSystemCommunicationId instead.", true )]
         [RockObsolete( "1.10" )]
         public int? ScheduleReminderSystemEmailId { get; private set; }
 
@@ -586,6 +618,15 @@ namespace Rock.Web.Cache
         public bool AllowAnyChildGroupType { get; private set; }
 
         /// <summary>
+        /// Gets or sets the schedule confirmation logic.
+        /// </summary>
+        /// <value>
+        /// The schedule confirmation logic.
+        /// </value>
+        [DataMember]
+        public ScheduleConfirmationLogic ScheduleConfirmationLogic { get; set; }
+
+        /// <summary>
         /// Gets or sets the roles.
         /// </summary>
         /// <value>
@@ -600,18 +641,17 @@ namespace Rock.Web.Cache
                 {
                     lock ( _obj )
                     {
-                        if ( _roles == null )
+                        using ( var rockContext = new RockContext() )
                         {
-                            using ( var rockContext = new RockContext() )
-                            {
-                                _roles = new List<GroupTypeRoleCache>();
-                                new GroupTypeRoleService( rockContext )
-                                    .Queryable().AsNoTracking()
-                                    .Where( r => r.GroupTypeId == Id )
-                                    .OrderBy( r => r.Order )
-                                    .ToList()
-                                    .ForEach( r => _roles.Add( new GroupTypeRoleCache( r ) ) );
-                            }
+                            var roles = new List<GroupTypeRoleCache>();
+                            new GroupTypeRoleService( rockContext )
+                                .Queryable().AsNoTracking()
+                                .Where( r => r.GroupTypeId == Id )
+                                .OrderBy( r => r.Order )
+                                .ToList()
+                                .ForEach( r => roles.Add( new GroupTypeRoleCache( r ) ) );
+
+                            _roles = roles;
                         }
                     }
                 }
@@ -808,6 +848,80 @@ namespace Rock.Web.Cache
         #region Public Methods
 
         /// <summary>
+        /// Gets a list of all attributes defined for the GroupTypes specified that
+        /// match the entityTypeQualifierColumn and the GroupType Ids.
+        /// </summary>
+        /// <param name="entityTypeId">The Entity Type Id for which Attributes to load.</param>
+        /// <param name="entityTypeQualifierColumn">The EntityTypeQualifierColumn value to match against.</param>
+        /// <returns>A list of attributes defined in the inheritance tree.</returns>
+        internal List<AttributeCache> GetInheritedAttributesForQualifier( int entityTypeId, string entityTypeQualifierColumn )
+        {
+            var groupTypeIds = GetInheritedGroupTypeIds();
+
+            var inheritedAttributes = new Dictionary<int, List<AttributeCache>>();
+            groupTypeIds.ForEach( g => inheritedAttributes.Add( g, new List<AttributeCache>() ) );
+
+            //
+            // Walk each group type and generate a list of matching attributes.
+            //
+            foreach ( var entityTypeAttribute in AttributeCache.GetByEntityType( entityTypeId ) )
+            {
+                // group type ids exist and qualifier is for a group type id
+                if ( string.Compare( entityTypeAttribute.EntityTypeQualifierColumn, entityTypeQualifierColumn, true ) == 0 )
+                {
+                    int groupTypeIdValue = int.MinValue;
+                    if ( int.TryParse( entityTypeAttribute.EntityTypeQualifierValue, out groupTypeIdValue ) && groupTypeIds.Contains( groupTypeIdValue ) )
+                    {
+                        inheritedAttributes[groupTypeIdValue].Add( entityTypeAttribute );
+                    }
+                }
+            }
+
+            //
+            // Walk the generated list of attribute groups and put them, ordered, into a list
+            // of inherited attributes.
+            //
+            var attributes = new List<AttributeCache>();
+            foreach ( var attributeGroup in inheritedAttributes )
+            {
+                foreach ( var attribute in attributeGroup.Value.OrderBy( a => a.Order ) )
+                {
+                    attributes.Add( attribute );
+                }
+            }
+
+            return attributes;
+        }
+
+        /// <summary>
+        /// Gets a list of GroupType Ids, including our own Id, that identifies the
+        /// inheritance tree.
+        /// </summary>
+        /// <returns>A list of GroupType Ids, including our own Id, that identifies the inheritance tree.</returns>
+        internal List<int> GetInheritedGroupTypeIds()
+        {
+            //
+            // Can't use GroupTypeCache here since it loads attributes and could
+            // result in a recursive stack overflow situation when we are called
+            // from a GetInheritedAttributes() method.
+            //
+            var groupTypeIds = new List<int>();
+            var groupType = this;
+
+            //
+            // Loop until we find a recursive loop or run out of parent group types.
+            //
+            while ( groupType != null && !groupTypeIds.Contains( groupType.Id ) )
+            {
+                groupTypeIds.Insert( 0, groupType.Id );
+
+                groupType = groupType.InheritedGroupType;
+            }
+
+            return groupTypeIds;
+        }
+
+        /// <summary>
         /// Copies from model.
         /// </summary>
         /// <param name="entity">The entity.</param>
@@ -868,10 +982,9 @@ namespace Rock.Web.Cache
             ScheduleReminderEmailOffsetDays = groupType.ScheduleReminderEmailOffsetDays;
             RequiresReasonIfDeclineSchedule = groupType.RequiresReasonIfDeclineSchedule;
             AllowAnyChildGroupType = groupType.AllowAnyChildGroupType;
-#pragma warning disable CS0618 // Type or member is obsolete
-            ScheduleConfirmationSystemEmailId = groupType.ScheduleConfirmationSystemEmailId;
-            ScheduleReminderSystemEmailId = groupType.ScheduleReminderSystemEmailId;
-#pragma warning restore CS0618 // Type or member is obsolete
+            ScheduleConfirmationLogic = groupType.ScheduleConfirmationLogic;
+            IsCapacityRequired = groupType.IsCapacityRequired;
+            GroupsRequireCampus = groupType.GroupsRequireCampus;
         }
 
         /// <summary>

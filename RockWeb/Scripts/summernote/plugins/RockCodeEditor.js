@@ -22,7 +22,7 @@
     var button = ui.button({
         contents: '<i class="fa fa-code"/>',
         tooltip: 'Code Editor',
-        className: 'btn-codeview', // swap out the default btn-codeview with the RockCodeEditor
+        className: 'btn-codeview note-codeview-keep', // swap out the default btn-codeview with the RockCodeEditor
         click: function () {
 
             var $codeEditor = $('#codeeditor-div-' + context.options.codeEditorOptions.controlId);
@@ -73,7 +73,7 @@
                 // HtmlEditor.cs will initialize this with keepEditorContent = true and set the codeEditor content instead of the summernoteNote editor content
                 // this will prevent bad html or scripts from trying to render when startInCodeEditor mode is enabled
                 if (!keepEditorContent) {
-                    var content = context.code();
+                    let content = context.code();
                     var editor = ace.edit($codeEditor.attr('id'));
                     editor.setValue(content);
                     editor.resize();

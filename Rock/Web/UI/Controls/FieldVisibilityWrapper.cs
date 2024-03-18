@@ -31,6 +31,41 @@ namespace Rock.Web.UI.Controls
     public class FieldVisibilityWrapper : DynamicPlaceholder
     {
         /// <summary>
+        /// The type of form the field is being used on. e.g. a Registration form or a Workflow form
+        /// </summary>
+        public enum FormTypes
+        {
+            /// <summary>
+            /// The field is being used on a registration form
+            /// </summary>
+            Registration = 0,
+
+            /// <summary>
+            /// The field is being used on a workflow form
+            /// </summary>
+            Workflow = 1
+        }
+
+        /// <summary>
+        /// Gets or sets the type of the form the field is being used on. e.g. a Registration form or a Workflow form.
+        /// The default value is FormTypes.Registration.
+        /// </summary>
+        /// <value>The type of the form.</value>
+        public FormTypes FormType
+        {
+            get
+            {
+                if ( ViewState["FormType"] != null )
+                {
+                    return ( FormTypes ) Enum.Parse( typeof( FormTypes ), ViewState["FormType"].ToString() );
+                }
+
+                return FormTypes.Registration;
+            }
+            set => ViewState["FormType"] = value;
+        }
+
+        /// <summary>
         /// Gets or sets the field identifier
         /// </summary>
         /// <value>
@@ -40,6 +75,16 @@ namespace Rock.Web.UI.Controls
         {
             get => ViewState["FormFieldId"] as int? ?? 0;
             set => ViewState["FormFieldId"] = value;
+        }
+
+        /// <summary>
+        /// Gets or sets the previous edit value.
+        /// </summary>
+        /// <value>The previous edit value.</value>
+        public string PreviousEditValue
+        {
+            get => ViewState["PreviousEditValue"] as string;
+            set => ViewState["PreviousEditValue"] = value;
         }
 
         /// <summary>
@@ -85,10 +130,21 @@ namespace Rock.Web.UI.Controls
         public void UpdateVisibility( Dictionary<int, AttributeValueCache> attributeValues, Dictionary<RegistrationPersonFieldType, string> personFieldValues )
         {
             var visible = FieldVisibilityRules.Evaluate( attributeValues, personFieldValues );
-            if ( visible == false && this.Visible )
+            if ( !visible && this.Visible )
             {
+                // Store the previous value since we are force removing the value here.
+                this.PreviousEditValue = EditValue;
+
                 // if hiding this field, set the value to null since we don't want to save values that aren't shown
                 this.EditValue = null;
+            }
+            else if ( visible && !this.Visible )
+            {
+                // if showing this field, reset the previous value, if available
+                if ( !string.IsNullOrEmpty( this.PreviousEditValue ) )
+                {
+                    this.EditValue = this.PreviousEditValue;
+                }
             }
 
             this.Visible = visible;
@@ -113,7 +169,7 @@ namespace Rock.Web.UI.Controls
             get
             {
                 var field = GetRegistrationTemplateFormField();
-                var attribute = GetAttributeCache() ?? GetFormField();
+                var attribute = FormType == FormTypes.Registration ? GetAttributeCache() : GetFormField();
 
                 if ( attribute != null )
                 {
@@ -133,7 +189,7 @@ namespace Rock.Web.UI.Controls
             private set
             {
                 var field = GetRegistrationTemplateFormField();
-                var attribute = GetAttributeCache() ?? GetFormField();
+                var attribute = FormType == FormTypes.Registration ? GetAttributeCache() : GetFormField();
 
                 if ( attribute != null )
                 {
@@ -175,7 +231,7 @@ namespace Rock.Web.UI.Controls
         public event EventHandler<FieldEventArgs> EditValueUpdated;
 
         /// <summary>
-        /// 
+        ///
         /// </summary>
         /// <seealso cref="System.EventArgs" />
         public class FieldEventArgs : EventArgs
@@ -220,7 +276,9 @@ namespace Rock.Web.UI.Controls
             foreach ( var fieldVisibilityWrapper in fieldVisibilityWrappers.Values )
             {
                 var field = fieldVisibilityWrapper.GetRegistrationTemplateFormField();
-                var fieldAttribute = fieldVisibilityWrapper.GetFormField();
+                var fieldAttribute = fieldVisibilityWrapper.FormType == FormTypes.Registration
+                    ? fieldVisibilityWrapper.GetAttributeCache()
+                    : fieldVisibilityWrapper.GetFormField();
 
                 var fieldAttributeId = field?.AttributeId ?? fieldAttribute?.Id;
                 if ( fieldAttributeId.HasValue )

@@ -58,6 +58,7 @@ namespace RockWeb.Blocks.Communication
         Order = 1 )]
 
     #endregion Block Attributes
+    [Rock.SystemGuid.BlockTypeGuid( "7B506760-93FA-4FBF-9FB5-0D9C3E36DCCD" )]
     public partial class EmailAnalytics : RockBlock
     {
         #region Attribute Keys
@@ -140,7 +141,9 @@ namespace RockWeb.Blocks.Communication
 
             if ( !Page.IsPostBack )
             {
-                hfSelectedMonthsDateRange.Value = this.GetBlockUserPreference( UserPreferenceKey.SelectedMonthsDateRange );
+                var preferences = GetBlockPersonPreferences();
+
+                hfSelectedMonthsDateRange.Value = preferences.GetValue( UserPreferenceKey.SelectedMonthsDateRange );
                 ShowCharts();
             }
         }
@@ -236,7 +239,10 @@ namespace RockWeb.Blocks.Communication
                 hfSelectedMonthsDateRange.Value = string.Empty;
             }
 
-            this.SetBlockUserPreference( UserPreferenceKey.SelectedMonthsDateRange, hfSelectedMonthsDateRange.Value );
+            var preferences = GetBlockPersonPreferences();
+
+            preferences.SetValue( UserPreferenceKey.SelectedMonthsDateRange, hfSelectedMonthsDateRange.Value );
+            preferences.Save();
 
             ShowCharts();
         }

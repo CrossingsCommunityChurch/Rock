@@ -25,6 +25,7 @@ using Rock;
 using Rock.Attribute;
 using Rock.Data;
 using Rock.Model;
+using Rock.Security;
 using Rock.Web.Cache;
 using Rock.Web.UI;
 using Rock.Web.UI.Controls;
@@ -35,10 +36,11 @@ namespace RockWeb.Blocks.Checkin
     /// Block for displaying the attendance history of a person or a group.
     /// </summary>
     [DisplayName( "Attendance History" )]
-    [Category( "Checkin" )]
+    [Category( "Check-in" )]
     [Description( "Block for displaying the attendance history of a person or a group." )]
     [BooleanField( "Filter Attendance By Default", "Sets the default display of Attended to Did Attend instead of [All]", false )]
     [ContextAware]
+    [Rock.SystemGuid.BlockTypeGuid( "21FFA70E-18B3-4148-8FC4-F941100B49B8" )]
     public partial class AttendanceHistoryList : RockBlock, ICustomGridColumns
     {
         #region Fields
@@ -211,18 +213,18 @@ namespace RockWeb.Blocks.Checkin
         /// <exception cref="System.NotImplementedException"></exception>
         protected void rFilter_ApplyFilterClick( object sender, EventArgs e )
         {
-            rFilter.SaveUserPreference( "Date Range", drpDates.DelimitedValues );
-            rFilter.SaveUserPreference( "Person", ppPerson.SelectedValue.ToString() );
-            rFilter.SaveUserPreference( "Group", ddlAttendanceGroup.SelectedValue );
-            rFilter.SaveUserPreference( "Schedule", spSchedule.SelectedValue );
-            rFilter.SaveUserPreference( "Attended", ddlDidAttend.SelectedValue );
+            rFilter.SetFilterPreference( "Date Range", drpDates.DelimitedValues );
+            rFilter.SetFilterPreference( "Person", ppPerson.SelectedValue.ToString() );
+            rFilter.SetFilterPreference( "Group", ddlAttendanceGroup.SelectedValue );
+            rFilter.SetFilterPreference( "Schedule", spSchedule.SelectedValue );
+            rFilter.SetFilterPreference( "Attended", ddlDidAttend.SelectedValue );
 
             BindGrid();
         }
 
         protected void RFilter_ClearFilterClick( object sender, EventArgs e )
         {
-            rFilter.DeleteUserPreferences();
+            rFilter.DeleteFilterPreferences();
             BindFilter();
         }
 
@@ -235,7 +237,7 @@ namespace RockWeb.Blocks.Checkin
         /// </summary>
         private void BindFilter()
         {
-            drpDates.DelimitedValues = rFilter.GetUserPreference( "Date Range" );
+            drpDates.DelimitedValues = rFilter.GetFilterPreference( "Date Range" );
 
             using ( var rockContext = new RockContext() )
             {
@@ -268,7 +270,7 @@ namespace RockWeb.Blocks.Checkin
                             ddlAttendanceGroup.Items.Add( new ListItem( group.Name, group.Id.ToString() ) );
                         }
 
-                        ddlAttendanceGroup.SetValue( rFilter.GetUserPreference( "Group" ).AsIntegerOrNull() );
+                        ddlAttendanceGroup.SetValue( rFilter.GetFilterPreference( "Group" ).AsIntegerOrNull() );
                     }
                     else
                     {
@@ -278,7 +280,7 @@ namespace RockWeb.Blocks.Checkin
                 else
                 {
                     ppPerson.Visible = true;
-                    int? personId = rFilter.GetUserPreference( "Person" ).AsIntegerOrNull();
+                    int? personId = rFilter.GetFilterPreference( "Person" ).AsIntegerOrNull();
                     if ( personId.HasValue )
                     {
                         var person = new PersonService( rockContext ).Get( personId.Value );
@@ -289,14 +291,14 @@ namespace RockWeb.Blocks.Checkin
                 }
             }
 
-            spSchedule.SetValue( rFilter.GetUserPreference( "Schedule" ).AsIntegerOrNull() );
+            spSchedule.SetValue( rFilter.GetFilterPreference( "Schedule" ).AsIntegerOrNull() );
 
-            string filterValue = rFilter.GetUserPreference( "Attended" );
+            string filterValue = rFilter.GetFilterPreference( "Attended" );
             var filterAttendance = GetAttributeValue( "FilterAttendanceByDefault" ).AsBoolean();
             if ( string.IsNullOrEmpty( filterValue ) && filterAttendance )
             {
                 filterValue = "1";
-                rFilter.SaveUserPreference( "Attended", filterValue );
+                rFilter.SetFilterPreference( "Attended", filterValue );
             }
 
             ddlDidAttend.SetValue( filterValue );
@@ -384,7 +386,7 @@ namespace RockWeb.Blocks.Checkin
                 }
             }
 
-            var qry = qryAttendance
+            var qryAttendanceListItems = qryAttendance
                 .Select( a => new
                 {
                     LocationId = a.Occurrence.LocationId,
@@ -397,25 +399,38 @@ namespace RockWeb.Blocks.Checkin
                     GroupTypeId = a.Occurrence.Group != null ? a.Occurrence.Group.GroupTypeId : (int?)null,
                     StartDateTime = a.StartDateTime,
                     EndDateTime = a.EndDateTime,
-                    DidAttend = a.DidAttend
+                    DidAttend = a.DidAttend,
+                    Group = a.Occurrence.Group
                 } );
 
             SortProperty sortProperty = gHistory.SortProperty;
             if ( sortProperty != null )
             {
-                qry = qry.Sort( sortProperty );
+                qryAttendanceListItems = qryAttendanceListItems.Sort( sortProperty );
             }
             else
             {
-                qry = qry.OrderByDescending( p => p.StartDateTime );
+                qryAttendanceListItems = qryAttendanceListItems.OrderByDescending( p => p.StartDateTime );
             }
+
+            // Filter out attendance records where the current user does not have View permission for the Group.
+            var securedAttendanceItems = qryAttendanceListItems
+                .ToList()
+                .Where( a => ( a.Group != null && a.Group.IsAuthorized( Authorization.VIEW, this.CurrentPerson ) ) || a.Group == null )
+                .ToList();
 
             // build a lookup for _checkinAreaPaths for OnRowDatabound
             _checkinAreaPaths = new GroupTypeService( rockContext ).GetAllCheckinAreaPaths().ToList();
 
             // build a lookup for _locationpaths for OnRowDatabound
+            var locationIdList = securedAttendanceItems.Select( a => a.LocationId )
+                .Distinct()
+                .ToList();
+
             _locationPaths = new Dictionary<int, string>();
-            var qryLocations = new LocationService( rockContext ).Queryable().Where( a => qry.Any( b => b.LocationId == a.Id ) );
+            var qryLocations = new LocationService( rockContext )
+                .Queryable()
+                .Where( l => locationIdList.Contains( l.Id ) );
             foreach ( var location in qryLocations )
             {
                 var parentLocation = location.ParentLocation;
@@ -437,7 +452,7 @@ namespace RockWeb.Blocks.Checkin
             }
 
             gHistory.EntityTypeId = EntityTypeCache.Get<Attendance>().Id;
-            gHistory.DataSource = qry.ToList();
+            gHistory.DataSource = securedAttendanceItems;
             gHistory.DataBind();
         }
 

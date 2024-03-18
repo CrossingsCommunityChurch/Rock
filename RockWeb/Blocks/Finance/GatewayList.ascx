@@ -4,6 +4,14 @@
     <ContentTemplate>
 
         <Rock:ModalAlert ID="mdGridWarning" runat="server" />
+        <Rock:NotificationBox
+            ID="nbInactiveWarning"
+            runat="server"
+            NotificationBoxType="Warning"
+            Visible="false"
+            Heading="Inactive Gateways"
+            Text="Inactive gateways will not be selectable when configuring new configurations, but will continue to process payments where used. Consider blanking out the configured values if you would like to ensure that inactive gateways no longer work." >
+        </Rock:NotificationBox>
 
         <div class="panel panel-block">
             <div class="panel-heading">
@@ -16,7 +24,7 @@
                         <Columns>
                             <Rock:RockBoundField DataField="Name" HeaderText="Name" SortExpression="Name" />
                             <asp:TemplateField HeaderText="Gateway Type" SortExpression="EntityType.Name">
-                                <ItemTemplate><%# GetComponentName( Eval( "EntityType") )%></ItemTemplate>
+                                <ItemTemplate><%# GetComponentDisplayName( Eval( "EntityType") )%></ItemTemplate>
                             </asp:TemplateField>
                             <Rock:BoolField DataField="IsActive" HeaderText="Active" SortExpression="IsActive" />
                             <Rock:DeleteField OnClick="rGridGateway_Delete" />

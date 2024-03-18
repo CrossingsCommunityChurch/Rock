@@ -50,7 +50,8 @@ namespace RockWeb.Blocks.Farm
         DefaultIntegerValue = 4,
         Order = 2 )]
 
-    public partial class WebFarmSettings : RockBlock, IDetailBlock
+    [Rock.SystemGuid.BlockTypeGuid( "4280625A-C69A-4B47-A4D3-89B61F43C967" )]
+    public partial class WebFarmSettings : RockBlock
     {
         #region Keys
 
@@ -286,7 +287,7 @@ namespace RockWeb.Blocks.Farm
         }
 
         /// <summary>
-        /// This method satisfies the IDetailBlock requirement
+        /// Called by a related block to show the detail for a specific entity.
         /// </summary>
         /// <param name="unused"></param>
         public void ShowDetail( int unused )

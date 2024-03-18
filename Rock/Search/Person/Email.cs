@@ -20,6 +20,7 @@ using System.ComponentModel.Composition;
 using System.Linq;
 
 using Rock.Data;
+using Rock.Enums.Core;
 using Rock.Model;
 
 namespace Rock.Search.Person
@@ -30,6 +31,7 @@ namespace Rock.Search.Person
     [Description( "Person Email Search" )]
     [Export(typeof(SearchComponent))]
     [ExportMetadata("ComponentName", "Person Email")]
+    [Rock.SystemGuid.EntityTypeGuid( "00095C10-72C9-4C82-844E-AE8B146DE4F1")]
     public class Email : SearchComponent
     {
 
@@ -50,18 +52,42 @@ namespace Rock.Search.Person
         }
 
         /// <summary>
+        /// The preferred keyboard mode for this search component.
+        /// </summary>
+        public override KeyboardInputMode PreferredKeyboardMode => KeyboardInputMode.Email;
+
+        /// <summary>
+        /// Gets the search result entity queryable that matches the search term.
+        /// </summary>
+        /// <param name="searchTerm">The search term used to find results.</param>
+        /// <returns>A queryable of entity objects that match the search term.</returns>
+        private IQueryable<Model.Person> GetSearchResults( string searchTerm )
+        {
+            var personService = new PersonService( new RockContext() );
+
+            return personService.Queryable()
+                .Where( p => p.Email.Contains( searchTerm ) );
+        }
+
+        /// <inheritdoc/>
+        public override IOrderedQueryable<object> SearchQuery( string searchTerm )
+        {
+            return GetSearchResults( searchTerm )
+                .OrderBy( p => p.NickName )
+                .ThenBy( p => p.LastName );
+        }
+
+        /// <summary>
         /// Returns a list of matching people
         /// </summary>
         /// <param name="searchterm"></param>
         /// <returns></returns>
         public override IQueryable<string> Search( string searchterm )
         {
-            var personService = new PersonService( new RockContext() );
-
-            return personService.Queryable().
-                Where( p => p.Email.Contains( searchterm ) ).
-                OrderBy( p => p.Email ).
-                Select( p => p.Email ).Distinct();
+            return GetSearchResults( searchterm )
+                .OrderBy( p => p.Email )
+                .Select( p => p.Email )
+                .Distinct();
         }
     }
 }

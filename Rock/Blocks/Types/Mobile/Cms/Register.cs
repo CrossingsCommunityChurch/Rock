@@ -31,12 +31,13 @@ namespace Rock.Blocks.Types.Mobile.Cms
     /// <summary>
     /// Allows the user to register a new account on a mobile application.
     /// </summary>
-    /// <seealso cref="Rock.Blocks.RockMobileBlockType" />
+    /// <seealso cref="Rock.Blocks.RockBlockType" />
 
     [DisplayName( "Register" )]
     [Category( "Mobile > Cms" )]
     [Description( "Allows the user to register a new account on a mobile application." )]
     [IconCssClass( "fa fa-user-plus" )]
+    [SupportedSiteTypes( Model.SiteType.Mobile )]
 
     #region Block Attributes
 
@@ -165,7 +166,9 @@ namespace Rock.Blocks.Types.Mobile.Cms
 
     #endregion
 
-    public class Register : RockMobileBlockType
+    [Rock.SystemGuid.EntityTypeGuid( Rock.SystemGuid.EntityType.MOBILE_REGISTER_BLOCK_TYPE )]
+    [Rock.SystemGuid.BlockTypeGuid( "2A71FDA2-5204-418F-858E-693A1F4E9A49")]
+    public class Register : RockBlockType
     {
         /// <summary>
         /// The block setting attribute keys for the MobileRegister block.
@@ -245,21 +248,8 @@ namespace Rock.Blocks.Types.Mobile.Cms
 
         #region IRockMobileBlockType Implementation
 
-        /// <summary>
-        /// Gets the required mobile application binary interface version required to render this block.
-        /// </summary>
-        /// <value>
-        /// The required mobile application binary interface version required to render this block.
-        /// </value>
-        public override int RequiredMobileAbiVersion => 1;
-
-        /// <summary>
-        /// Gets the class name of the mobile block to use during rendering on the device.
-        /// </summary>
-        /// <value>
-        /// The class name of the mobile block to use during rendering on the device
-        /// </value>
-        public override string MobileBlockType => "Rock.Mobile.Blocks.RegisterAccount";
+        /// <inheritdoc/>
+        public override Version RequiredMobileVersion => new Version( 1, 1 );
 
         /// <summary>
         /// Gets the property values that will be sent to the device in the application bundle.
@@ -328,7 +318,9 @@ namespace Rock.Blocks.Types.Mobile.Cms
                     // to work with then create a new account. We need at least an
                     // e-mail address so we can send the confirmation e-mail.
                     person = CreatePerson( account, rockContext );
-                    userLogin = CreateUser( person, account, true, rockContext );
+
+                    var isConfirmed = GetAttributeValue( AttributeKeys.ConfirmationWebPage ).IsNullOrWhiteSpace();
+                    userLogin = CreateUser( person, account, isConfirmed, rockContext );
                 }
                 else
                 {
@@ -368,8 +360,8 @@ namespace Rock.Blocks.Types.Mobile.Cms
         /// Validates the username and password and returns a response that
         /// can by used by the mobile shell.
         /// </summary>
-        /// <param name="username">The username to login with.</param>
-        /// <param name="password">The password to login with.</param>
+        /// <param name="username">The username to log in with.</param>
+        /// <param name="password">The password to log in with.</param>
         /// <param name="rememberMe">If <c>true</c> then the cookie will persist across sessions.</param>
         /// <param name="personalDeviceGuid">The personal device unique identifier making the request.</param>
         /// <returns>The result of the block action.</returns>
@@ -400,7 +392,7 @@ namespace Rock.Blocks.Types.Mobile.Cms
 
         /// <summary>
         /// Finds the best matching person for the given account data. This will
-        /// handle 
+        /// handle
         /// </summary>
         /// <param name="account">The account.</param>
         /// <param name="rockContext">The rock context.</param>
@@ -600,7 +592,7 @@ namespace Rock.Blocks.Types.Mobile.Cms
         }
 
         /// <summary>
-        /// Gets the response to send for a valid login on mobile.
+        /// Gets the response to send for a valid log in on mobile.
         /// </summary>
         /// <param name="userLogin">The user login.</param>
         /// <param name="rememberMe">if set to <c>true</c> then the login should persist beyond this session.</param>

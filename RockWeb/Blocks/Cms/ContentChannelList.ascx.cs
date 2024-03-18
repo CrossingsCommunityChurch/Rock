@@ -47,6 +47,7 @@ namespace RockWeb.Blocks.Cms
         Key = AttributeKey.DetailPage )]
 
     #endregion Block Attributes
+    [Rock.SystemGuid.BlockTypeGuid( "991507B6-D222-45E5-BA0D-B61EA72DFB64" )]
     public partial class ContentChannelList : RockBlock, ISecondaryBlock, ICustomGridColumns
     {
         #region Attribute Keys
@@ -114,6 +115,28 @@ namespace RockWeb.Blocks.Cms
             // this event gets fired after block settings are updated. it's nice to repaint the screen if these settings would alter it
             this.BlockUpdated += Block_BlockUpdated;
             this.AddConfigurationUpdateTrigger( upnlContent );
+
+            string deleteScript = @"
+                $('table.js-grid-content-channel-list a.grid-delete-button').on('click', function( e ){
+                    var $btn = $(this);
+                    e.preventDefault();
+                    Rock.dialogs.confirm('Are you sure you want to delete this Content Channel?', function (result) {
+                        if (result) {
+                            if ( $btn.closest('tr').hasClass('js-has-items') ) {
+                                Rock.dialogs.confirm('This Channel has items. Are you sure that you want to delete this Channel and all of its items?', function (result) {
+                                    if (result) {
+                                        window.location = e.target.href ? e.target.href : e.target.parentElement.href;
+                                    }
+                                });
+                            } else {
+                                window.location = e.target.href ? e.target.href : e.target.parentElement.href;
+                            }
+                        }
+                    });
+                });"
+            ;
+
+            ScriptManager.RegisterStartupScript( gContentChannels, gContentChannels.GetType(), "deleteContentChannelScript", deleteScript, true );
         }
 
         /// <summary>
@@ -195,14 +218,14 @@ namespace RockWeb.Blocks.Cms
         /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
         void gfFilter_ApplyFilterClick( object sender, EventArgs e )
         {
-            gfFilter.SaveUserPreference( UserPreferenceKey.Type, ddlType.SelectedValue );
+            gfFilter.SetFilterPreference( UserPreferenceKey.Type, ddlType.SelectedValue );
             string categoryFilterValue = cpCategories.SelectedValuesAsInt()
                 .Where( v => v != 0 )
                 .Select( c => c.ToString() )
                 .ToList()
                 .AsDelimited( "," );
 
-            gfFilter.SaveUserPreference( UserPreferenceKey.Categories, categoryFilterValue );
+            gfFilter.SetFilterPreference( UserPreferenceKey.Categories, categoryFilterValue );
             BindGrid();
         }
 
@@ -235,6 +258,7 @@ namespace RockWeb.Blocks.Cms
         {
             var rockContext = new RockContext();
             ContentChannelService contentChannelService = new ContentChannelService( rockContext );
+            var contentChannelItemService = new ContentChannelItemService( rockContext );
 
             ContentChannel contentChannel = contentChannelService.Get( e.RowKeyId );
 
@@ -248,10 +272,18 @@ namespace RockWeb.Blocks.Cms
                 }
 
                 contentChannel.ParentContentChannels.Clear();
-                contentChannel.ChildContentChannels.Clear();
 
-                contentChannelService.Delete( contentChannel );
-                rockContext.SaveChanges();
+                rockContext.WrapTransaction( () =>
+                {
+                    var channelItemsToDelete = contentChannelItemService
+                        .Queryable()
+                        .Where( t => t.ContentChannelId == contentChannel.Id );
+
+                    contentChannelItemService.DeleteRange( channelItemsToDelete );
+
+                    contentChannelService.Delete( contentChannel );
+                    rockContext.SaveChanges();
+                } );
             }
 
             BindGrid();
@@ -277,6 +309,23 @@ namespace RockWeb.Blocks.Cms
             BindGrid();
         }
 
+        /// <summary>
+        /// Handles the RowDataBound event of the control.
+        /// </summary>
+        /// <param name="sender">The source of the event.</param>
+        /// <param name="e">The <see cref="GridViewRowEventArgs"/> instance containing the event data.</param>
+        protected void gContentChannels_RowDataBound( object sender, GridViewRowEventArgs e )
+        {
+            if ( e.Row.RowType == DataControlRowType.DataRow )
+            {
+                var batchRow = e.Row.DataItem as dynamic;
+                if ( batchRow.TotalItems > 0 )
+                {
+                    e.Row.AddCssClass( "js-has-items" );
+                }
+            }
+        }
+
         #endregion
 
         #region Internal Methods
@@ -292,7 +341,7 @@ namespace RockWeb.Blocks.Cms
 
         private void BindFilter()
         {
-            int? typeId = gfFilter.GetUserPreference( "Type" ).AsIntegerOrNull();
+            int? typeId = gfFilter.GetFilterPreference( "Type" ).AsIntegerOrNull();
             ddlType.Items.Clear();
             ddlType.Items.Add( new ListItem( string.Empty, string.Empty ) );
             foreach ( var contentType in new ContentChannelTypeService( new RockContext() ).Queryable().OrderBy( c => c.Name ) )
@@ -315,14 +364,14 @@ namespace RockWeb.Blocks.Cms
                 .Include( a => a.Items )
                 .Where( a => a.ContentChannelType.ShowInChannelList == true );
 
-            int? typeId = gfFilter.GetUserPreference( UserPreferenceKey.Type ).AsIntegerOrNull();
+            int? typeId = gfFilter.GetFilterPreference( UserPreferenceKey.Type ).AsIntegerOrNull();
             if ( typeId.HasValue )
             {
                 qry = qry.Where( c => c.ContentChannelTypeId == typeId.Value );
             }
 
             var selectedCategoryIds = new List<int>();
-            gfFilter.GetUserPreference( UserPreferenceKey.Categories ).SplitDelimitedValues().ToList().ForEach( s => selectedCategoryIds.Add( int.Parse( s ) ) );
+            gfFilter.GetFilterPreference( UserPreferenceKey.Categories ).SplitDelimitedValues().ToList().ForEach( s => selectedCategoryIds.Add( int.Parse( s ) ) );
             if ( selectedCategoryIds.Any() )
             {
                 qry = qry.Where( a => a.Categories.Any( c => selectedCategoryIds.Contains( c.Id ) ) );

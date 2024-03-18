@@ -138,6 +138,7 @@ namespace Rock.CheckIn.Registration
 
                 familyPersonState.AlternateID = person.GetPersonSearchKeys().Where( a => a.SearchTypeValueId == _personSearchAlternateValueId ).Select( a => a.SearchValue ).FirstOrDefault();
                 familyPersonState.BirthDate = person.BirthDate;
+                familyPersonState.DeceasedDate = person.DeceasedDate;
                 familyPersonState.ChildRelationshipToAdult = childRelationshipToAdult;
                 familyPersonState.InPrimaryFamily = inPrimaryFamily;
                 familyPersonState.Email = person.Email;
@@ -157,6 +158,9 @@ namespace Rock.CheckIn.Registration
 
                 familyPersonState.RecordStatusValueId = person.RecordStatusValueId;
                 familyPersonState.ConnectionStatusValueId = person.ConnectionStatusValueId;
+
+                familyPersonState.RaceValueId = person.RaceValueId;
+                familyPersonState.EthnicityValueId = person.EthnicityValueId;
 
                 return familyPersonState;
             }
@@ -308,7 +312,7 @@ namespace Rock.CheckIn.Registration
             /// <value>
             /// The age.
             /// </value>
-            public int? Age => Person.GetAge( this.BirthDate );
+            public int? Age => Person.GetAge( this.BirthDate, this.DeceasedDate );
 
             /// <summary>
             /// Gets the grade formatted.
@@ -375,6 +379,14 @@ namespace Rock.CheckIn.Registration
             public DateTime? BirthDate { get; set; }
 
             /// <summary>
+            /// Gets or sets the deceased date.
+            /// </summary>
+            /// <value>
+            /// The deceased date.
+            /// </value>
+            public DateTime? DeceasedDate { get; set; }
+
+            /// <summary>
             /// Gets or sets the email.
             /// </summary>
             /// <value>
@@ -397,6 +409,22 @@ namespace Rock.CheckIn.Registration
             /// The Alternate ID.
             /// </value>
             public string AlternateID { get; set; }
+
+            /// <summary>
+            /// Gets or sets the race value identifier.
+            /// </summary>
+            /// <value>
+            /// The suffix value identifier.
+            /// </value>
+            public int? RaceValueId { get; set; }
+
+            /// <summary>
+            /// Gets or sets the ethnicity value identifier.
+            /// </summary>
+            /// <value>
+            /// The suffix value identifier.
+            /// </value>
+            public int? EthnicityValueId { get; set; }
 
             /// <summary>
             /// Gets or sets the editable attributes for this person (only save these to the database)
@@ -481,6 +509,8 @@ namespace Rock.CheckIn.Registration
                     familyPersonState.RecordStatusValueId = matchingPerson.RecordStatusValueId;
                     familyPersonState.ConnectionStatusValueId = matchingPerson.ConnectionStatusValueId;
                     familyPersonState.ConvertedToMatchedPerson = true;
+                    familyPersonState.RaceValueId = matchingPerson.RaceValueId;
+                    familyPersonState.EthnicityValueId = matchingPerson.EthnicityValueId;
                     if ( primaryFamily == null && familyPersonState.IsAdult )
                     {
                         // if this is a new family, but we found a matching adult person, use that person's family as the family
@@ -525,6 +555,11 @@ namespace Rock.CheckIn.Registration
                     person.SetBirthDate( familyPersonState.BirthDate );
                 }
 
+                if ( familyPersonState.DeceasedDate.HasValue || saveEmptyValues )
+                {
+                    person.DeceasedDate = familyPersonState.DeceasedDate;
+                }
+
                 if ( familyPersonState.Email.IsNotNullOrWhiteSpace() || saveEmptyValues )
                 {
                     person.Email = familyPersonState.Email;
@@ -538,6 +573,8 @@ namespace Rock.CheckIn.Registration
                 // if a matching person was found, the familyPersonState's RecordStatusValueId and ConnectinoStatusValueId was already updated to match the matched person
                 person.RecordStatusValueId = familyPersonState.RecordStatusValueId;
                 person.ConnectionStatusValueId = familyPersonState.ConnectionStatusValueId;
+                person.EthnicityValueId = familyPersonState.EthnicityValueId;
+                person.RaceValueId = familyPersonState.RaceValueId;
 
                 rockContext.SaveChanges();
 

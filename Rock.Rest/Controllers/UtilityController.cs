@@ -15,9 +15,11 @@
 // </copyright>
 //
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Web.Http;
-
+using Rock.Data;
+using Rock.Net;
 using Rock.Web.Cache;
 using Rock.Web.UI.Controls;
 
@@ -26,7 +28,8 @@ namespace Rock.Rest.Controllers
     /// <summary>
     /// Controller of misc utility functions that are used by Rock controls
     /// </summary>
-    public class UtilityController : ApiController
+    [Rock.SystemGuid.RestControllerGuid( "846640A1-874B-4C12-AF0F-D50D562FF0CC")]
+    public class UtilityController : ApiController 
     {
         /// <summary>
         /// Calculates the sliding date range for the SlidingDateRange control (called from client side) and returns a string representing the date range
@@ -37,6 +40,7 @@ namespace Rock.Rest.Controllers
         /// <returns></returns>
         [System.Web.Http.Route( "api/Utility/CalculateSlidingDateRange" )]
         [HttpGet]
+        [Rock.SystemGuid.RestActionGuid( "68045EF4-5898-495E-9638-63F33ED2CF23" )]
         public string CalculateSlidingDateRange( SlidingDateRangePicker.SlidingDateRangeType slidingDateRangeType, SlidingDateRangePicker.TimeUnitType timeUnitType, int number = 1 )
         {
             var dateRange = SlidingDateRangePicker.CalculateDateRangeFromDelimitedValues( string.Format( "{0}|{1}|{2}|{3}|{4}", slidingDateRangeType, number, timeUnitType, string.Empty, string.Empty ) );
@@ -54,6 +58,7 @@ namespace Rock.Rest.Controllers
         /// <returns></returns>
         [System.Web.Http.Route( "api/Utility/CalculateSlidingDateRange" )]
         [HttpGet]
+        [Rock.SystemGuid.RestActionGuid( "7F2584B2-3182-4AC5-87B1-E9FEC45AAA75" )]
         public string CalculateSlidingDateRange( SlidingDateRangePicker.SlidingDateRangeType slidingDateRangeType, SlidingDateRangePicker.TimeUnitType timeUnitType, string startDate, string endDate, int number = 1 )
         {
             var dateRange = SlidingDateRangePicker.CalculateDateRangeFromDelimitedValues( string.Format( "{0}|{1}|{2}|{3}|{4}", slidingDateRangeType, number, timeUnitType, startDate, endDate ) );
@@ -69,6 +74,7 @@ namespace Rock.Rest.Controllers
         /// <returns></returns>
         [System.Web.Http.Route( "api/Utility/GetSlidingDateRangeTextValue" )]
         [HttpGet]
+        [Rock.SystemGuid.RestActionGuid( "2513F4C9-2578-4A4A-9F4D-B059AE825A77" )]
         public string GetSlidingDateRangeTextValue( SlidingDateRangePicker.SlidingDateRangeType slidingDateRangeType, SlidingDateRangePicker.TimeUnitType timeUnitType, int number = 1 )
         {
             string textValue = SlidingDateRangePicker.FormatDelimitedValues( string.Format( "{0}|{1}|{2}|{3}|{4}", slidingDateRangeType, number, timeUnitType, string.Empty, string.Empty ) );
@@ -86,6 +92,7 @@ namespace Rock.Rest.Controllers
         /// <returns></returns>
         [System.Web.Http.Route( "api/Utility/GetSlidingDateRangeTextValue" )]
         [HttpGet]
+        [Rock.SystemGuid.RestActionGuid( "AC5F9A4C-18AD-4108-99CB-48546C3F1CAB" )]
         public string GetSlidingDateRangeTextValue( SlidingDateRangePicker.SlidingDateRangeType slidingDateRangeType, SlidingDateRangePicker.TimeUnitType timeUnitType, string startDate, string endDate, int number = 1 )
         {
             string textValue = SlidingDateRangePicker.FormatDelimitedValues( string.Format( "{0}|{1}|{2}|{3}|{4}", slidingDateRangeType, number, timeUnitType, startDate, endDate ) );
@@ -95,45 +102,56 @@ namespace Rock.Rest.Controllers
         /// <summary>
         /// Gets the campus context.
         /// </summary>
-        /// <returns></returns>
+        /// <returns>The identifier for the campus context or 0 if not found.</returns>
         [System.Web.Http.Route( "api/Utility/GetCampusContext" )]
         [HttpGet]
+        [Rock.SystemGuid.RestActionGuid( "771A4B90-302E-4DAF-BC11-FB7C47615C9F" )]
         public int GetCampusContext()
         {
-            string campusCookieCypher = null;
-            if ( System.Web.HttpContext.Current.Request.Cookies.AllKeys.Contains( "Rock_Context" ) )
+            // Get the sitewide context cookie.
+            System.Web.HttpCookie contextCookie = null;
+            if ( System.Web.HttpContext.Current.Request.Cookies.AllKeys.Contains( RockRequestContext.SiteContextCookieName ) )
             {
-                var contextCookie = System.Web.HttpContext.Current.Request.Cookies["Rock_Context"];
-                if ( contextCookie.Values.OfType<string>().Contains( "Rock.Model.Campus" ) )
-                {
-                    campusCookieCypher = contextCookie.Values["Rock.Model.Campus"];
-                }
+                contextCookie = System.Web.HttpContext.Current.Request.Cookies[RockRequestContext.SiteContextCookieName];
             }
 
-            if ( campusCookieCypher == null )
+            if ( contextCookie == null )
             {
                 return 0;
             }
 
             try
             {
-                var publicKey = Rock.Security.Encryption.DecryptString( campusCookieCypher ).Split( '|' )[1];
-
-                string[] idParts = publicKey.Split( '>' );
-                if ( idParts.Length == 2 )
+                // See if the cookie contains a campus context value.
+                var contextItems = contextCookie.Value.FromJsonOrNull<Dictionary<string, string>>();
+                string contextItem = null;
+                if ( contextItems?.TryGetValue( "Rock.Model.Campus", out contextItem ) != true )
                 {
-                    int id = idParts[0].AsInteger();
-                    Guid guid = idParts[1].AsGuid();
-                    var campus = CampusCache.Get( guid );
-                    if ( campus != null )
-                    {
-                        return campus.Id;
-                    }
+                    return 0;
                 }
+
+                // Attempt to parse the URL-encoded, encrypted campus context value.
+                var decodedItem = System.Web.HttpUtility.UrlDecode( contextItem );
+                var decryptedItem = Rock.Security.Encryption.DecryptString( decodedItem );
+                var itemParts = decryptedItem.Split( '|' );
+                if ( itemParts.Length != 2 )
+                {
+                    return 0;
+                }
+
+                var idParts = itemParts[1].Split( '>' );
+                if ( idParts.Length != 2 )
+                {
+                    return 0;
+                }
+
+                var campusCache = CampusCache.Get( idParts[1] );
+
+                return campusCache?.Id ?? 0;
             }
             catch
             {
-                // ignore and return 0
+                // Intentionally ignore exception in case parsing fails.
             }
 
             return 0;
@@ -145,6 +163,7 @@ namespace Rock.Rest.Controllers
         /// <returns></returns>
         [System.Web.Http.Route( "api/Utility/GetRockSemanticVersionNumber" )]
         [HttpGet]
+        [Rock.SystemGuid.RestActionGuid( "E44CC71F-2952-4400-A04D-F3C242C8664E" )]
         public string GetRockSemanticVersionNumber()
         {
             return VersionInfo.VersionInfo.GetRockSemanticVersionNumber();
@@ -160,6 +179,7 @@ namespace Rock.Rest.Controllers
         //[Authenticate, Secured]
         [HttpPost]
         [System.Web.Http.Route( "api/Utility/TextToWorkflow/{fromNumber}/{toNumber}/{message}" )]
+        [Rock.SystemGuid.RestActionGuid( "A42C1F49-D3E2-4411-ABEF-F6B2B1D18480" )]
         public string TextToWorkflow( string fromNumber, string toNumber, string message )
         {
             var processResponse = string.Empty;

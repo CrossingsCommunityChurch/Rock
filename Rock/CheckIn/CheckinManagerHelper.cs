@@ -17,11 +17,14 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Data.Entity;
 using System.Linq;
 using System.Web;
 
+using Rock.Attribute;
 using Rock.Data;
 using Rock.Model;
+using Rock.ViewModels.Utility;
 using Rock.Web.Cache;
 using Rock.Web.UI;
 using Rock.Web.UI.Controls;
@@ -48,6 +51,11 @@ namespace Rock.CheckIn
             /// The location identifier
             /// </summary>
             public const string LocationId = "LocationId";
+
+            /// <summary>
+            /// The schedule identifier
+            /// </summary>
+            public const string ScheduleId = "ScheduleId";
         }
 
         /// <summary>
@@ -156,6 +164,36 @@ namespace Rock.CheckIn
         }
 
         /// <summary>
+        /// Sets the selected schedule.
+        /// Note this will redirect to the current page to include a ScheduleId query parameter if a ScheduleId parameter in the URL is missing or doesn't match.
+        /// </summary>
+        /// <param name="rockBlock">The rock block.</param>
+        /// <param name="spSchedule">The schedule picker.</param>
+        /// <param name="scheduleId">The identifier of the schedule.</param>
+        /// <param name="campusId">The campus identifier.</param>
+        public static void SetSelectedSchedule( RockBlock rockBlock, SchedulePicker spSchedule, int? scheduleId, int campusId )
+        {
+            spSchedule.SetValue( scheduleId );
+            CheckinManagerHelper.SaveCampusScheduleConfigurationToCookie( campusId, scheduleId );
+            var pageParameterScheduleId = rockBlock.PageParameter( PageParameterKey.ScheduleId ).AsIntegerOrNull();
+            if ( pageParameterScheduleId.ToIntSafe() != scheduleId.ToIntSafe() )
+            {
+                if ( scheduleId.ToIntSafe() != default( int ) )
+                {
+                    var additionalQueryParameters = new Dictionary<string, string>();
+                    additionalQueryParameters.Add( PageParameterKey.ScheduleId, scheduleId.ToString() );
+                    rockBlock.NavigateToCurrentPageReference( additionalQueryParameters );
+                }
+                else
+                {
+                    rockBlock.NavigateToCurrentPageReferenceWithRemove( new List<string>() { PageParameterKey.ScheduleId } );
+                }
+
+                return;
+            }
+        }
+
+        /// <summary>
         /// Gets the selected location.
         /// </summary>
         /// <param name="rockBlock">The rock block.</param>
@@ -196,11 +234,11 @@ namespace Rock.CheckIn
             {
                 // If still not defined, check for cookie setting.
                 locationId = CheckinManagerHelper.GetCheckinManagerConfigurationFromCookie().LocationIdFromSelectedCampusId.GetValueOrNull( campus.Id ) ?? 0;
-                
+
                 if ( locationId > 0 )
                 {
                     // double check the locationId in the cookie is valid for the Campus (just in case it was altered or is no longer valid for the campus)
-                    var locationCampusId = NamedLocationCache.Get( locationId ).CampusId;
+                    var locationCampusId = NamedLocationCache.Get( locationId )?.CampusId;
                     if ( locationCampusId != campus.Id )
                     {
                         locationId = 0;
@@ -214,6 +252,44 @@ namespace Rock.CheckIn
             }
 
             return locationId;
+        }
+
+        /// <summary>
+        /// Gets the selected schedule.
+        /// </summary>
+        /// <param name="rockBlock">The rock block.</param>
+        /// <param name="campus">The campus.</param>
+        /// <param name="spSchedule">The schedule.</param>
+        /// <returns></returns>
+        public static int? GetSelectedSchedule( RockBlock rockBlock, CampusCache campus, SchedulePicker spSchedule )
+        {
+            // Check the SchedulePicker for the Schedule ID.
+            var scheduleId = spSchedule.SelectedValueAsInt();
+
+            if ( scheduleId.HasValue && scheduleId.Value > 0 )
+            {
+                return scheduleId;
+            }
+
+            // If not defined on the SchedulePicker, check first for a ScheduleId Page parameter.
+            scheduleId = rockBlock.PageParameter( PageParameterKey.ScheduleId ).AsInteger();
+
+            if ( scheduleId > 0 )
+            {
+                CheckinManagerHelper.SaveCampusLocationConfigurationToCookie( campus.Id, scheduleId );
+            }
+            else
+            {
+                // If still not defined, check for cookie setting.
+                scheduleId = CheckinManagerHelper.GetCheckinManagerConfigurationFromCookie().ScheduleIdFromSelectedCampusId.GetValueOrNull( campus.Id ) ?? 0;
+
+                if ( scheduleId <= 0 )
+                {
+                    return null;
+                }
+            }
+
+            return scheduleId;
         }
 
         /// <summary>
@@ -232,6 +308,27 @@ namespace Rock.CheckIn
             else
             {
                 checkinManagerConfiguration.LocationIdFromSelectedCampusId.Remove( campusId );
+            }
+
+            SaveCheckinManagerConfigurationToCookie( checkinManagerConfiguration );
+        }
+
+        /// <summary>
+        /// Saves the campus schedule configuration to the response cookie
+        /// </summary>
+        /// <param name="campusId">The campus identifier.</param>
+        /// <param name="scheduleId">The schedule identifier.</param>
+        public static void SaveCampusScheduleConfigurationToCookie( int campusId, int? scheduleId )
+        {
+            CheckinManagerConfiguration checkinManagerConfiguration = GetCheckinManagerConfigurationFromCookie();
+
+            if ( scheduleId.HasValue )
+            {
+                checkinManagerConfiguration.ScheduleIdFromSelectedCampusId.AddOrReplace( campusId, scheduleId.Value );
+            }
+            else
+            {
+                checkinManagerConfiguration.ScheduleIdFromSelectedCampusId.Remove( campusId );
             }
 
             SaveCheckinManagerConfigurationToCookie( checkinManagerConfiguration );
@@ -343,6 +440,11 @@ namespace Rock.CheckIn
                 checkinManagerConfiguration.LocationIdFromSelectedCampusId = new Dictionary<int, int>();
             }
 
+            if ( checkinManagerConfiguration.ScheduleIdFromSelectedCampusId == null )
+            {
+                checkinManagerConfiguration.ScheduleIdFromSelectedCampusId = new Dictionary<int, int>();
+            }
+
             if ( checkinManagerConfiguration.RoomListScheduleIdsFilter == null )
             {
                 checkinManagerConfiguration.RoomListScheduleIdsFilter = new int[0];
@@ -380,7 +482,7 @@ namespace Rock.CheckIn
             var groupTypeIds = attendanceList.Select( a => a.GroupTypeId ).Distinct().ToList();
             var groupTypes = groupTypeIds.Select( a => GroupTypeCache.Get( a ) );
             var groupTypeIdsWithAllowCheckout = new HashSet<int>( groupTypes
-                .Where( gt => gt.GetCheckInConfigurationAttributeValue( Rock.SystemKey.GroupTypeAttributeKey.CHECKIN_GROUPTYPE_ALLOW_CHECKOUT ).AsBoolean() )
+                .Where( gt => gt.GetCheckInConfigurationAttributeValue( Rock.SystemKey.GroupTypeAttributeKey.CHECKIN_GROUPTYPE_ALLOW_CHECKOUT_MANAGER ).AsBoolean() )
                 .Where( a => a != null )
                 .Select( a => a.Id )
                 .Distinct().ToList() );
@@ -446,6 +548,206 @@ namespace Rock.CheckIn
 
             return attendanceQuery;
         }
+
+        /// <summary>
+        /// Queries the database for the available group, location and schedule combinations to which a person may be moved.
+        /// </summary>
+        /// <param name="rockContext">The rock context.</param>
+        /// <param name="attendance">The attendance instance.</param>
+        /// <returns>The available group, location and schedule combinations to which a person may be moved.</returns>
+        /// <remarks>
+        ///     <para>
+        ///         <strong>This is an internal API</strong> that supports the Rock
+        ///         infrastructure and not subject to the same compatibility standards
+        ///         as public APIs. It may be changed or removed without notice in any
+        ///         release and should therefore not be directly used in any plug-ins.
+        ///     </para>
+        /// </remarks>
+        [RockInternal( "1.16.2" )]
+        public static List<CheckInGroupLocationSchedule> GetGroupLocationSchedulesForPersonMove( RockContext rockContext, Attendance attendance )
+        {
+            var groupLocationSchedules = new List<CheckInGroupLocationSchedule>();
+
+            if ( rockContext == null || attendance?.Occurrence?.Group == null )
+            {
+                return groupLocationSchedules;
+            }
+
+            // Get the attendance occurrence's current check-in area.
+            var checkInArea = GroupTypeCache.Get( attendance.Occurrence.Group.GroupTypeId );
+            if ( checkInArea == null )
+            {
+                return groupLocationSchedules;
+            }
+
+            // Get all related check-in areas; those that belong to the same check-in configuration.
+            var relatedCheckInAreas = new GroupTypeService( rockContext ).GetRelatedCheckInAreas( checkInArea );
+            if ( relatedCheckInAreas?.Any() != true )
+            {
+                return groupLocationSchedules;
+            }
+
+            var groupTypeIds = relatedCheckInAreas
+                .Select( gt => gt.Id )
+                .Distinct()
+                .ToList();
+
+            // Get group locations belonging to any group within this check-in configuration.
+            var groupLocationsQuery = new GroupLocationService( rockContext )
+                .Queryable()
+                .AsNoTracking()
+                .Where( gl => groupTypeIds.Contains( gl.Group.GroupTypeId ) );
+
+            if ( attendance.CampusId.HasValue )
+            {
+                // If the attendance belongs to a particular campus, only include those
+                // group locations that belong to the same campus.
+                var campusLocationId = CampusCache.Get( attendance.CampusId.Value )?.LocationId;
+                if ( campusLocationId.HasValue )
+                {
+                    var campusLocationIds = new LocationService( rockContext )
+                        .GetAllDescendentIds( campusLocationId.Value )
+                        .ToList();
+
+                    groupLocationsQuery = groupLocationsQuery.Where( gl => campusLocationIds.Contains( gl.LocationId ) );
+                }
+            }
+
+            // Finalize query filters according to the following:
+            //  1. Group is active and not archived;
+            //  2. Location is active and named;
+            //  3. Schedule is active and named.
+            groupLocationSchedules = groupLocationsQuery
+                .SelectMany( gl => gl.Schedules, ( gl, s ) => new
+                {
+                    GroupLocationOrder = gl.Order,
+                    gl.Group,
+                    gl.Location,
+                    Schedule = s
+                } )
+                .Where( gls =>
+                    gls.Group.IsActive
+                    && !gls.Group.IsArchived
+                    && gls.Location.IsActive
+                    && gls.Location.Name != null
+                    && gls.Location.Name != string.Empty
+                    && gls.Schedule.IsActive
+                    && gls.Schedule.Name != null
+                    && gls.Schedule.Name != string.Empty
+                )
+                .Select( gls => new CheckInGroupLocationSchedule
+                {
+                    GroupLocationOrder = gls.GroupLocationOrder,
+                    Group = gls.Group,
+                    Location = gls.Location,
+                    Schedule = gls.Schedule
+                } )
+                .ToList();
+
+            return groupLocationSchedules;
+        }
+
+        /// <summary>
+        /// Groups and sorts available group, location and schedule combinations into 3 <see cref="ListItemBag"/> collections for ease-of-selection:
+        /// <list type="number">
+        /// <item><description>Unique, sorted schedules: List&lt;<see cref="ListItemBag"/>&gt;</description></item>
+        /// <item><description>Unique, sorted locations per schedule: Dictionary&lt;<see langword="string"/>, &lt;<see cref="ListItemBag"/>&gt;&gt;</description></item>
+        /// <item><description>Unique, sorted groups per schedule|location combination: Dictionary&lt;<see langword="string"/>, &lt;<see cref="ListItemBag"/>&gt;&gt;</description></item>
+        /// </list>
+        /// </summary>
+        /// <param name="groupLocationSchedules">The source group, location and schedule combinations.</param>
+        /// <param name="scheduleListItems">The collection into which unique, sorted schedules should be added.</param>
+        /// <param name="locationListItemsBySchedule">The collection into which unique, sorted locations per schedule should be added.</param>
+        /// <param name="groupListItemsByScheduleAndLocation">The collection into which unique, sorted groups per schedule|location combination should be added.</param>
+        /// <param name="groupListItemKeyDelimiter">The delimiter to be used between the schedule and location when adding groups to the collection.</param>
+        /// <remarks>
+        ///     <para>
+        ///         <strong>This is an internal API</strong> that supports the Rock
+        ///         infrastructure and not subject to the same compatibility standards
+        ///         as public APIs. It may be changed or removed without notice in any
+        ///         release and should therefore not be directly used in any plug-ins.
+        ///     </para>
+        /// </remarks>
+        [RockInternal( "1.16.2" )]
+        public static void GroupAndSortMovePersonOptions(
+            List<CheckInGroupLocationSchedule> groupLocationSchedules,
+            out List<ListItemBag> scheduleListItems,
+            out Dictionary<string, List<ListItemBag>> locationListItemsBySchedule,
+            out Dictionary<string, List<ListItemBag>> groupListItemsByScheduleAndLocation,
+            string groupListItemKeyDelimiter = "|" )
+        {
+            scheduleListItems = new List<ListItemBag>();
+            locationListItemsBySchedule = new Dictionary<string, List<ListItemBag>>();
+            groupListItemsByScheduleAndLocation = new Dictionary<string, List<ListItemBag>>();
+
+            if ( groupLocationSchedules?.Any() != true )
+            {
+                return;
+            }
+
+            // Collect unique schedules.
+            var uniqueSchedules = new List<Schedule>();
+            foreach ( var schedule in groupLocationSchedules.Select( gls => gls.Schedule ) )
+            {
+                if ( uniqueSchedules.Any( s => s.Id == schedule.Id ) )
+                {
+                    continue;
+                }
+
+                uniqueSchedules.Add( schedule );
+            }
+
+            // Sort schedules before adding.
+            foreach ( var schedule in uniqueSchedules.OrderByOrderAndNextScheduledDateTime() )
+            {
+                // Add the schedule list item.
+                var scheduleIdString = schedule.Id.ToString();
+                scheduleListItems.Add( new ListItemBag { Value = scheduleIdString, Text = schedule.Name } );
+
+                // Create and add the location list item collection for this schedule.
+                var locationListItems = new List<ListItemBag>();
+                locationListItemsBySchedule.Add( scheduleIdString, locationListItems );
+
+                // Collect, sort and add unique locations for this schedule.
+                foreach ( var location in groupLocationSchedules.Where( gls => gls.Schedule.Id == schedule.Id )
+                                                                .Select( gls => gls.Location )
+                                                                .OrderBy( l => l.Name )
+                                                                .ToList() )
+                {
+                    var locationIdString = location.Id.ToString();
+
+                    // Ensure we haven't already added this location for this schedule.
+                    if ( locationListItems.Any( l => l.Value == locationIdString ) )
+                    {
+                        continue;
+                    }
+
+                    // Add the location list item.
+                    locationListItems.Add( new ListItemBag { Value = locationIdString, Text = location.Name } );
+
+                    // Create and add the group list item collection for this schedule and location combination.
+                    var groupListItems = new List<ListItemBag>();
+                    var groupListItemKey = $"{scheduleIdString}{groupListItemKeyDelimiter}{locationIdString}";
+                    groupListItemsByScheduleAndLocation.Add( groupListItemKey, groupListItems );
+
+                    // Collect, sort and add unique groups for this schedule and location combination.
+                    foreach ( var group in groupLocationSchedules.Where( gls => gls.Schedule.Id == schedule.Id && gls.Location.Id == location.Id )
+                                                                 .Select( gls => gls.Group )
+                                                                 .OrderBy( g => g.Name ) )
+                    {
+                        var groupIdString = group.Id.ToString();
+
+                        // Ensure we haven't already added this group for this schedule and location combination.
+                        if ( groupListItems.Any( g => g.Value == groupIdString ) )
+                        {
+                            continue;
+                        }
+
+                        groupListItems.Add( new ListItemBag { Value = groupIdString, Text = group.Name } );
+                    }
+                }
+            }
+        }
     }
 
     /// <summary>
@@ -509,6 +811,14 @@ namespace Rock.CheckIn
         /// The location identifier from selected campus identifier.
         /// </value>
         public Dictionary<int, int> LocationIdFromSelectedCampusId { get; set; }
+
+        /// <summary>
+        /// Gets or sets the schedule identifier from selected campus identifier.
+        /// </summary>
+        /// <value>
+        /// The schedule identifier from selected campus identifier.
+        /// </value>
+        public Dictionary<int, int> ScheduleIdFromSelectedCampusId { get; set; }
 
         /// <summary>
         /// Gets or sets the roster status filter.

@@ -69,7 +69,8 @@ namespace Rock.Lava.Fluid
         /// <returns></returns>
         protected override ILavaRenderContext OnCreateRenderContext()
         {
-            var fluidContext = new global::Fluid.TemplateContext( _templateOptions );
+            var options = GetTemplateOptions();
+            var fluidContext = new global::Fluid.TemplateContext( options );
             var context = new FluidRenderContext( fluidContext );
 
             return context;
@@ -108,7 +109,7 @@ namespace Rock.Lava.Fluid
                 // If the value is an Enum, render the value name.
                 if ( value is Enum e )
                 {
-                    return e.ToString();
+                    return new LavaEnumValue( e );
                 }
 
                 // This converter cannot process the value.
@@ -121,12 +122,29 @@ namespace Rock.Lava.Fluid
             {
                 if ( value is DateTime dt )
                 {
-                    // Assume that the DateTime is expressed in Rock time.
-                    return new LavaDateTimeValue( LavaDateTime.NewDateTimeOffset( dt.Ticks ) );
+                    // Convert the DateTime to a DateTimeOffset value.
+                    // MinValue/MaxValue are substituted directly because they are not timezone dependent.
+                    if ( dt == DateTime.MinValue )
+                    {
+                        return new LavaDateTimeValue( DateTimeOffset.MinValue );
+                    }
+                    else if ( dt == DateTime.MaxValue )
+                    {
+                        return new LavaDateTimeValue( DateTimeOffset.MaxValue );
+                    }
+                    else
+                    {
+                        // Assume that the DateTime is expressed in Rock time.
+                        return new LavaDateTimeValue( LavaDateTime.NewDateTimeOffset( dt.Ticks ) );
+                    }
                 }
                 else if ( value is DateTimeOffset dto )
                 {
                     return new LavaDateTimeValue( dto );
+                }
+                else if ( value is TimeSpan ts )
+                {
+                    return new LavaTimeSpanValue( ts );
                 }
 
                 // This converter cannot process the value.
@@ -152,7 +170,7 @@ namespace Rock.Lava.Fluid
                 // return the appropriate Fluid wrapper to short-circuit further conversion attempts.
                 if ( value is IDictionary<string, object> liquidDictionary )
                 {
-                    return new DictionaryValue( new ObjectDictionaryFluidIndexable( liquidDictionary, _templateOptions ) );
+                    return new DictionaryValue( new ObjectDictionaryFluidIndexable<object>( liquidDictionary, templateOptions ) );
                 }
 
                 var valueType = value.GetType();
@@ -301,20 +319,25 @@ namespace Rock.Lava.Fluid
             options.Filters.AddFilter( "Join", global::Fluid.Filters.ArrayFilters.Join );
             options.Filters.AddFilter( "First", global::Fluid.Filters.ArrayFilters.First );
             options.Filters.AddFilter( "Last", global::Fluid.Filters.ArrayFilters.Last );
+            options.Filters.AddFilter( "Concat", global::Fluid.Filters.ArrayFilters.Concat );
             options.Filters.AddFilter( "Map", global::Fluid.Filters.ArrayFilters.Map );
             options.Filters.AddFilter( "Reverse", global::Fluid.Filters.ArrayFilters.Reverse );
             options.Filters.AddFilter( "Size", global::Fluid.Filters.ArrayFilters.Size );
             options.Filters.AddFilter( "Sort", global::Fluid.Filters.ArrayFilters.Sort );
+            options.Filters.AddFilter( "SortNatural", global::Fluid.Filters.ArrayFilters.SortNatural );
             options.Filters.AddFilter( "Uniq", global::Fluid.Filters.ArrayFilters.Uniq );
             options.Filters.AddFilter( "Where", global::Fluid.Filters.ArrayFilters.Where );
 
             options.Filters.AddFilter( "Default", global::Fluid.Filters.MiscFilters.Default );
             options.Filters.AddFilter( "Date", global::Fluid.Filters.MiscFilters.Date );
+            options.Filters.AddFilter( "Compact", global::Fluid.Filters.MiscFilters.Compact );
             options.Filters.AddFilter( "UnescapeDataString", global::Fluid.Filters.MiscFilters.UrlDecode );
             options.Filters.AddFilter( "EscapeDataString", global::Fluid.Filters.MiscFilters.UrlEncode );
+            options.Filters.AddFilter( "EscapeOnce", global::Fluid.Filters.MiscFilters.EscapeOnce );
             options.Filters.AddFilter( "StripHtml", global::Fluid.Filters.MiscFilters.StripHtml );
             options.Filters.AddFilter( "Escape", global::Fluid.Filters.MiscFilters.Escape );
 
+            options.Filters.AddFilter( "Abs", global::Fluid.Filters.NumberFilters.Abs );
             options.Filters.AddFilter( "AtLeast", global::Fluid.Filters.NumberFilters.AtLeast );
             options.Filters.AddFilter( "AtMost", global::Fluid.Filters.NumberFilters.AtMost );
             options.Filters.AddFilter( "Ceiling", global::Fluid.Filters.NumberFilters.Ceil );
@@ -323,6 +346,7 @@ namespace Rock.Lava.Fluid
             options.Filters.AddFilter( "Minus", global::Fluid.Filters.NumberFilters.Minus );
             options.Filters.AddFilter( "Modulo", global::Fluid.Filters.NumberFilters.Modulo );
             options.Filters.AddFilter( "Plus", global::Fluid.Filters.NumberFilters.Plus );
+            options.Filters.AddFilter( "Round", global::Fluid.Filters.NumberFilters.Round );
             options.Filters.AddFilter( "Times", global::Fluid.Filters.NumberFilters.Times );
 
             options.Filters.AddFilter( "Append", global::Fluid.Filters.StringFilters.Append );
@@ -452,12 +476,6 @@ namespace Rock.Lava.Fluid
                 catch ( TargetInvocationException ex )
                 {
                     // Any exceptions thrown from the filter method are wrapped in a TargetInvocationException by the .NET framework.
-                    if ( ex.InnerException is LavaInterruptException )
-                    {
-                        // This exception is intentionally thrown by a component to abort the render process, so ensure it propagates to the caller.
-                        throw ex.InnerException;
-                    }
-
                     // Rethrow the actual exception thrown by the filter, where possible.
                     throw ex.InnerException ?? ex;
                 }
@@ -556,24 +574,19 @@ namespace Rock.Lava.Fluid
             }
         }
 
-        private static LavaToLiquidTemplateConverter _lavaToLiquidConverter = new LavaToLiquidTemplateConverter();
-
         /// <summary>
         /// Pre-parses a Lava template to ensure it is using Liquid-compliant syntax, and creates a new template object.
         /// </summary>
         /// <param name="lavaTemplate"></param>
         /// <param name=""></param>
         /// <returns></returns>
-        private FluidTemplate CreateNewFluidTemplate( string lavaTemplate, out string liquidTemplate )
+        private FluidTemplate CreateNewFluidTemplate( string lavaTemplate )
         {
             FluidTemplate template;
-
-            liquidTemplate = _lavaToLiquidConverter.RemoveLavaComments( lavaTemplate );
-
             string error;
             IFluidTemplate fluidTemplate;
 
-            var success = _parser.TryParse( liquidTemplate, out fluidTemplate, out error );
+            var success = _parser.TryParse( lavaTemplate, out fluidTemplate, out error );
 
             var fluidTemplateObject = ( FluidTemplate ) fluidTemplate;
 
@@ -583,7 +596,7 @@ namespace Rock.Lava.Fluid
             }
             else
             {
-                throw new LavaParseException( this.EngineName, liquidTemplate, error );
+                throw new LavaParseException( this.EngineName, lavaTemplate, error );
             }
 
             return template;
@@ -592,20 +605,16 @@ namespace Rock.Lava.Fluid
         protected override LavaRenderResult OnRenderTemplate( ILavaTemplate inputTemplate, LavaRenderParameters parameters )
         {
             var templateProxy = inputTemplate as FluidTemplateProxy;
-
             var template = templateProxy?.FluidTemplate;
 
             var templateContext = parameters.Context as FluidRenderContext;
-
             if ( templateContext == null )
             {
                 throw new LavaException( "Invalid LavaContext parameter. This context type is not compatible with the Fluid templating engine." );
             }
 
             var result = new LavaRenderResult();
-
             var sb = new StringBuilder();
-            var writer = new StringWriter( sb );
 
             // Set the render options for culture and timezone if they are specified.
             if ( parameters.Culture != null )
@@ -617,13 +626,34 @@ namespace Rock.Lava.Fluid
                 templateContext.FluidContext.Options.TimeZone = parameters.TimeZone;
             }
 
-            template.Render( templateContext.FluidContext, NullEncoder.Default, writer );
+            // Set the render options for encoding.
+            System.Text.Encodings.Web.TextEncoder encoder;
+            if ( parameters.ShouldEncodeStringsAsXml )
+            {
+                encoder = System.Text.Encodings.Web.HtmlEncoder.Default;
+            }
+            else
+            {
+                encoder = NullEncoder.Default;
+            }
 
-            writer.Flush();
+            using ( var writer = new StringWriter( sb ) )
+            {
+                try
+                {
+                    template.Render( templateContext.FluidContext, encoder, writer );
 
-            result.Text = sb.ToString();
+                    writer.Flush();
+                    result.Text = sb.ToString();
 
-            writer.Dispose();
+                }
+                catch ( LavaInterruptException )
+                {
+                    // The render was terminated intentionally, so return the current buffer content.
+                    writer.Flush();
+                    result.Text = sb.ToString();
+                }
+            }
 
             return result;
         }
@@ -693,18 +723,38 @@ namespace Rock.Lava.Fluid
         /// </summary>
         /// <param name="lavaTemplate"></param>
         /// <returns></returns>
+        [Obsolete( "Use ParseTemplateToTokens instead.")]
+        [RockObsolete("v17")] 
         public List<string> TokenizeTemplate( string lavaTemplate )
         {
             return LavaFluidParser.ParseToTokens( lavaTemplate );
         }
 
+        /// <summary>
+        /// Process a template and return the list of valid tokens identified by the parser.
+        /// </summary>
+        /// <param name="lavaTemplate"></param>
+        /// <returns></returns>
+        public List<string> ParseTemplateToTokens( string lavaTemplate, bool includeComments = false )
+        {
+            return LavaFluidParser.ParseToTokens( lavaTemplate, includeComments );
+        }
+
+        /// <summary>
+        /// Process a template and return the list of statements identified by the parser.
+        /// </summary>
+        /// <param name="lavaTemplate"></param>
+        /// <returns></returns>
+        public List<string> ParseTemplateToStatements( string lavaTemplate )
+        {
+            return LavaFluidParser.ParseToStatements( lavaTemplate );
+        }
+
         protected override ILavaTemplate OnParseTemplate( string lavaTemplate )
         {
-            string liquidTemplate;
+            var fluidTemplate = CreateNewFluidTemplate( lavaTemplate );
 
-            var fluidTemplate = CreateNewFluidTemplate( lavaTemplate, out liquidTemplate );
-
-            var newTemplate = new FluidTemplateProxy( fluidTemplate );
+            var newTemplate = new FluidTemplateProxy( fluidTemplate, lavaTemplate );
 
             return newTemplate;
         }
@@ -728,6 +778,18 @@ namespace Rock.Lava.Fluid
             }
 
             return left.Equals( right );
+        }
+
+        /// <inheritdoc />
+        public override List<string> GetRegisteredFilterNames()
+        {
+            var templateOptions = GetTemplateOptions();
+
+            var filterNames = templateOptions.Filters
+                .Select( f => f.Key )
+                .OrderBy( f => f )
+                .ToList();
+            return filterNames;
         }
     }
 }

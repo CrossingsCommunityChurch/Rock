@@ -44,6 +44,9 @@ namespace Rock.Client
         public bool AllowIndexing { get; set; } = true;
 
         /// <summary />
+        public Rock.Client.Enums.Cms.BotGuardianLevel BotGuardianLevel { get; set; }
+
+        /// <summary />
         public int? ChangePasswordPageId { get; set; }
 
         /// <summary />
@@ -71,6 +74,9 @@ namespace Rock.Client
         public string Description { get; set; }
 
         /// <summary />
+        public bool DisablePredictableIds { get; set; }
+
+        /// <summary />
         public bool EnabledForShortening { get; set; } = true;
 
         /// <summary />
@@ -80,7 +86,16 @@ namespace Rock.Client
         public bool EnableMobileRedirect { get; set; }
 
         /// <summary />
+        public bool EnablePageViewGeoTracking { get; set; }
+
+        /// <summary />
         public bool EnablePageViews { get; set; } = true;
+
+        /// <summary />
+        public bool EnablePersonalization { get; set; }
+
+        /// <summary />
+        public bool EnableVisitorTracking { get; set; }
 
         /// <summary />
         public string ErrorPage { get; set; }
@@ -201,6 +216,7 @@ namespace Rock.Client
             this.AdditionalSettings = source.AdditionalSettings;
             this.AllowedFrameDomains = source.AllowedFrameDomains;
             this.AllowIndexing = source.AllowIndexing;
+            this.BotGuardianLevel = source.BotGuardianLevel;
             this.ChangePasswordPageId = source.ChangePasswordPageId;
             this.ChangePasswordPageRouteId = source.ChangePasswordPageRouteId;
             this.CommunicationPageId = source.CommunicationPageId;
@@ -210,10 +226,14 @@ namespace Rock.Client
             this.DefaultPageId = source.DefaultPageId;
             this.DefaultPageRouteId = source.DefaultPageRouteId;
             this.Description = source.Description;
+            this.DisablePredictableIds = source.DisablePredictableIds;
             this.EnabledForShortening = source.EnabledForShortening;
             this.EnableExclusiveRoutes = source.EnableExclusiveRoutes;
             this.EnableMobileRedirect = source.EnableMobileRedirect;
+            this.EnablePageViewGeoTracking = source.EnablePageViewGeoTracking;
             this.EnablePageViews = source.EnablePageViews;
+            this.EnablePersonalization = source.EnablePersonalization;
+            this.EnableVisitorTracking = source.EnableVisitorTracking;
             this.ErrorPage = source.ErrorPage;
             this.ExternalUrl = source.ExternalUrl;
             this.FavIconBinaryFileId = source.FavIconBinaryFileId;

@@ -23,10 +23,7 @@
 using System;
 using System.Linq;
 
-using Rock.Attribute;
 using Rock.Data;
-using Rock.ViewModel;
-using Rock.Web.Cache;
 
 namespace Rock.Model
 {
@@ -54,68 +51,15 @@ namespace Rock.Model
         public bool CanDelete( SignatureDocument item, out string errorMessage )
         {
             errorMessage = string.Empty;
+
+            if ( new Service<RegistrationRegistrant>( Context ).Queryable().Any( a => a.SignatureDocumentId == item.Id ) )
+            {
+                errorMessage = string.Format( "This {0} is assigned to a {1}.", SignatureDocument.FriendlyTypeName, RegistrationRegistrant.FriendlyTypeName );
+                return false;
+            }
             return true;
         }
     }
-
-    /// <summary>
-    /// SignatureDocument View Model Helper
-    /// </summary>
-    [DefaultViewModelHelper( typeof( SignatureDocument ) )]
-    public partial class SignatureDocumentViewModelHelper : ViewModelHelper<SignatureDocument, Rock.ViewModel.SignatureDocumentViewModel>
-    {
-        /// <summary>
-        /// Converts the model to a view model.
-        /// </summary>
-        /// <param name="model">The entity.</param>
-        /// <param name="currentPerson">The current person.</param>
-        /// <param name="loadAttributes">if set to <c>true</c> [load attributes].</param>
-        /// <returns></returns>
-        public override Rock.ViewModel.SignatureDocumentViewModel CreateViewModel( SignatureDocument model, Person currentPerson = null, bool loadAttributes = true )
-        {
-            if ( model == null )
-            {
-                return default;
-            }
-
-            var viewModel = new Rock.ViewModel.SignatureDocumentViewModel
-            {
-                Id = model.Id,
-                Guid = model.Guid,
-                AppliesToPersonAliasId = model.AppliesToPersonAliasId,
-                AssignedToPersonAliasId = model.AssignedToPersonAliasId,
-                BinaryFileId = model.BinaryFileId,
-                CompletionEmailSentDateTime = model.CompletionEmailSentDateTime,
-                DocumentKey = model.DocumentKey,
-                EntityId = model.EntityId,
-                EntityTypeId = model.EntityTypeId,
-                InviteCount = model.InviteCount,
-                LastInviteDate = model.LastInviteDate,
-                LastStatusDate = model.LastStatusDate,
-                Name = model.Name,
-                SignatureData = model.SignatureData,
-                SignatureDocumentTemplateId = model.SignatureDocumentTemplateId,
-                SignatureVerficationHash = model.SignatureVerficationHash,
-                SignedByEmail = model.SignedByEmail,
-                SignedByPersonAliasId = model.SignedByPersonAliasId,
-                SignedClientIp = model.SignedClientIp,
-                SignedClientUserAgent = model.SignedClientUserAgent,
-                SignedDateTime = model.SignedDateTime,
-                SignedDocumentText = model.SignedDocumentText,
-                SignedName = model.SignedName,
-                Status = ( int ) model.Status,
-                CreatedDateTime = model.CreatedDateTime,
-                ModifiedDateTime = model.ModifiedDateTime,
-                CreatedByPersonAliasId = model.CreatedByPersonAliasId,
-                ModifiedByPersonAliasId = model.ModifiedByPersonAliasId,
-            };
-
-            AddAttributesToViewModel( model, viewModel, currentPerson, loadAttributes );
-            ApplyAdditionalPropertiesAndSecurityToViewModel( model, viewModel, currentPerson, loadAttributes );
-            return viewModel;
-        }
-    }
-
 
     /// <summary>
     /// Generated Extension Methods
@@ -186,9 +130,9 @@ namespace Rock.Model
             target.LastInviteDate = source.LastInviteDate;
             target.LastStatusDate = source.LastStatusDate;
             target.Name = source.Name;
-            target.SignatureData = source.SignatureData;
+            target.SignatureDataEncrypted = source.SignatureDataEncrypted;
             target.SignatureDocumentTemplateId = source.SignatureDocumentTemplateId;
-            target.SignatureVerficationHash = source.SignatureVerficationHash;
+            target.SignatureVerificationHash = source.SignatureVerificationHash;
             target.SignedByEmail = source.SignedByEmail;
             target.SignedByPersonAliasId = source.SignedByPersonAliasId;
             target.SignedClientIp = source.SignedClientIp;
@@ -205,20 +149,5 @@ namespace Rock.Model
             target.ForeignId = source.ForeignId;
 
         }
-
-        /// <summary>
-        /// Creates a view model from this entity
-        /// </summary>
-        /// <param name="model">The entity.</param>
-        /// <param name="currentPerson" >The currentPerson.</param>
-        /// <param name="loadAttributes" >Load attributes?</param>
-        public static Rock.ViewModel.SignatureDocumentViewModel ToViewModel( this SignatureDocument model, Person currentPerson = null, bool loadAttributes = false )
-        {
-            var helper = new SignatureDocumentViewModelHelper();
-            var viewModel = helper.CreateViewModel( model, currentPerson, loadAttributes );
-            return viewModel;
-        }
-
     }
-
 }

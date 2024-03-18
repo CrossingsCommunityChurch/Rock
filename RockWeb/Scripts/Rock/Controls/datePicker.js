@@ -24,6 +24,8 @@
                     format: dateFormat,
                     assumeNearbyYear: 10,
                     autoclose: true,
+                    container: options.container || document.fullscreenElement || document.mozFullScreenElement || document.webkitFullscreenElement || "body",
+                    orientation: options.orientation || "auto",
                     todayBtn: "linked",
                     forceParse: options.forceParse,
                     startDate: options.startDate,

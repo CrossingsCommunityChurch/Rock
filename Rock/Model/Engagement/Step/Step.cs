@@ -1,4 +1,4 @@
-﻿// <copyright>
+// <copyright>
 // Copyright by the Spark Development Network
 //
 // Licensed under the Rock Community License (the "License");
@@ -31,6 +31,7 @@ namespace Rock.Model
     [RockDomain( "Engagement" )]
     [Table( "Step" )]
     [DataContract]
+    [Rock.SystemGuid.EntityTypeGuid( Rock.SystemGuid.EntityType.STEP )]
     public partial class Step : Model<Step>, IOrdered
     {
         /* Custom Indexes:
@@ -103,15 +104,57 @@ namespace Rock.Model
         public int? StepProgramCompletionId { get; set; }
 
         /// <summary>
-        /// Gets or sets the caption.
+        /// Gets the start date key.
         /// </summary>
         /// <value>
-        /// The caption.
+        /// The start date key.
         /// </value>
-        [NotMapped]
-        public virtual string Caption { get; set; }
+        [DataMember]
+        [FieldType( Rock.SystemGuid.FieldType.DATE )]
+        public int? StartDateKey
+        {
+            get => ( StartDateTime == null || StartDateTime.Value == default ) ?
+                        ( int? ) null :
+                        StartDateTime.Value.ToString( "yyyyMMdd" ).AsInteger();
 
-        #endregion Entity Properties
+            private set { }
+        }
+
+        /// <summary>
+        /// Gets the end date key.
+        /// </summary>
+        /// <value>
+        /// The end date key.
+        /// </value>
+        [DataMember]
+        [FieldType( Rock.SystemGuid.FieldType.DATE )]
+        public int? EndDateKey
+        {
+            get => ( EndDateTime == null || EndDateTime.Value == default ) ?
+                        ( int? ) null :
+                        EndDateTime.Value.ToString( "yyyyMMdd" ).AsInteger();
+
+            private set { }
+        }
+
+        /// <summary>
+        /// Gets the completed date key.
+        /// </summary>
+        /// <value>
+        /// The completed date key.
+        /// </value>
+        [DataMember]
+        [FieldType( Rock.SystemGuid.FieldType.DATE )]
+        public int? CompletedDateKey
+        {
+            get => ( CompletedDateTime == null || CompletedDateTime.Value == default ) ?
+                        ( int? ) null :
+                        CompletedDateTime.Value.ToString( "yyyyMMdd" ).AsInteger();
+
+            private set { }
+        }
+
+        #endregion
 
         #region IOrdered
 

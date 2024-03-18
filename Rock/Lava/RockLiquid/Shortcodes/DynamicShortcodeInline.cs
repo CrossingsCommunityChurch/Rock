@@ -23,13 +23,15 @@ using System.Text.RegularExpressions;
 
 using DotLiquid;
 using Rock.Model;
+using Rock.Utility.Settings;
 using Rock.Web.Cache;
 
 namespace Rock.Lava.Shortcodes
 {
     /// <summary>
-    ///
+    /// Provides the implementation of a Rock dynamic tag shortcode in DotLiquid.
     /// </summary>
+    /// <seealso cref="global::DotLiquid.Block" />
     public class DynamicShortcodeInline : RockLavaShortcodeBase
     {
         private static readonly Regex Syntax = new Regex( @"(\w+)" );
@@ -38,8 +40,6 @@ namespace Rock.Lava.Shortcodes
         string _tagName = string.Empty;
         LavaShortcodeCache _shortcode;
 
-        Dictionary<string, object> _internalMergeFields;
-
         const int _maxRecursionDepth = 10;
 
         /// <summary>
@@ -47,6 +47,13 @@ namespace Rock.Lava.Shortcodes
         /// </summary>
         public override void OnStartup()
         {
+            // If the database is not connected, we do not have access to dynamic shortcodes.
+            // This can occur when the Lava engine is started without an attached database.
+            if ( !RockInstanceConfig.DatabaseIsAvailable )
+            {
+                return;
+            }
+
             // get all the inline dynamic shortcodes and register them
             var inlineShortCodes = LavaShortcodeCache.All().Where( s => s.TagType == TagType.Inline );
 
@@ -123,14 +130,14 @@ namespace Rock.Lava.Shortcodes
             var parms = new Dictionary<string, object>();
 
             // first run lava across the inputted markup
-            _internalMergeFields = new Dictionary<string, object>();
+            var internalMergeFields = new Dictionary<string, object>();
 
             // get merge fields loaded by the block or container
             if ( context.Environments.Count > 0 )
             {
                 foreach ( var item in context.Environments[0] )
                 {
-                    _internalMergeFields.AddOrReplace( item.Key, item.Value );
+                    internalMergeFields.AddOrReplace( item.Key, item.Value );
                     parms.AddOrReplace( item.Key, item.Value );
                 }
             }
@@ -140,12 +147,12 @@ namespace Rock.Lava.Shortcodes
             {
                 foreach ( var item in scope )
                 {
-                    _internalMergeFields.AddOrReplace( item.Key, item.Value );
+                    internalMergeFields.AddOrReplace( item.Key, item.Value );
                     parms.AddOrReplace( item.Key, item.Value );
                 }
             }
 
-            var resolvedMarkup = markup.ResolveMergeFields( _internalMergeFields );
+            var resolvedMarkup = markup.ResolveMergeFields( internalMergeFields );
 
             // create all the parameters from the shortcode with their default values
             var shortcodeParms = RockSerializableDictionary.FromUriEncodedString( _shortcode.Parameters );

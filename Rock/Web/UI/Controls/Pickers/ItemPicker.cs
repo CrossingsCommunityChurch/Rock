@@ -141,11 +141,9 @@ namespace Rock.Web.UI.Controls
         }
 
         /// <summary>
-        /// Gets or sets a value indicating whether this <see cref="RockTextBox"/> is required.
+        /// Gets or sets a value indicating whether this <see cref="IRockControl" /> is required.
         /// </summary>
-        /// <value>
-        ///   <c>true</c> if required; otherwise, <c>false</c>.
-        /// </value>
+        /// <value><c>true</c> if required; otherwise, <c>false</c>.</value>
         [
         Bindable( true ),
         Category( "Behavior" ),
@@ -246,12 +244,24 @@ namespace Rock.Web.UI.Controls
         private HiddenFieldWithClass _hfExpandedCategoryIds;
         private HiddenFieldWithClass _hfItemName;
         private HiddenFieldWithClass _hfItemRestUrlExtraParams;
-        private HtmlAnchor _btnSelect;
-        private HtmlAnchor _btnSelectNone;
 
+        private HtmlButton _btnSelect;
+        private HtmlButton _btnSelectNone;
         #endregion
 
         #region Properties
+
+        /// <summary>
+        /// Gets or sets the placeholder text to display inside textbox when it is empty
+        /// </summary>
+        /// <value>
+        /// The placeholder text
+        /// </value>
+        public string Placeholder
+        {
+            get { return ViewState["Placeholder"] as string ?? string.Empty; }
+            set { ViewState["Placeholder"] = value; }
+        }
 
         /// <summary>
         /// Gets or sets a value indicating whether the control should be displayed Full-Width
@@ -259,18 +269,7 @@ namespace Rock.Web.UI.Controls
         /// <value>
         ///   <c>true</c> if [enable full width]; otherwise, <c>false</c>.
         /// </value>
-        public bool EnableFullWidth
-        {
-            get
-            {
-                return ViewState["EnableFullWidth"] as bool? ?? false;
-            }
-
-            set
-            {
-                ViewState["EnableFullWidth"] = value;
-            }
-        }
+        public bool EnableFullWidth { get; set; }
 
         /// <summary>
         /// Gets the item rest URL.
@@ -300,6 +299,26 @@ namespace Rock.Web.UI.Controls
                 _hfItemRestUrlExtraParams.Value = value;
             }
         }
+
+        /// <summary>
+        /// Gets the item rest URL extra parameters control.
+        /// </summary>
+        /// <value>The item rest URL extra parameters control.</value>
+        internal HiddenFieldWithClass ItemRestUrlExtraParamsControl
+        {
+            get
+            {
+                return _hfItemRestUrlExtraParams;
+            }
+        }
+
+        /// <summary>
+        /// Gets or sets the dropdown picker menu classes. Default: 'picker-menu dropdown-menu'
+        /// </summary>
+        /// <value>
+        /// The CSS classes to apply.
+        /// </value>
+        public string PickerMenuCssClasses { get; set; }
 
         /// <summary>
         /// Gets or sets the item id.
@@ -688,7 +707,7 @@ namespace Rock.Web.UI.Controls
         protected virtual void RegisterJavaScript()
         {
             string treeViewScript =
-$@"Rock.controls.itemPicker.initialize({{ 
+$@"Rock.controls.itemPicker.initialize({{
     controlId: '{this.ClientID}',
     restUrl: '{this.ResolveUrl( ItemRestUrl )}',
     allowMultiSelect: {this.AllowMultiSelect.ToString().ToLower()},
@@ -702,6 +721,9 @@ $@"Rock.controls.itemPicker.initialize({{
 }});
 ";
             ScriptManager.RegisterStartupScript( this, this.GetType(), "item_picker-treeviewscript_" + this.ClientID, treeViewScript, true );
+
+            // Search Control
+
         }
 
         /// <summary>
@@ -713,33 +735,46 @@ $@"Rock.controls.itemPicker.initialize({{
 
             Controls.Clear();
 
-            _hfItemId = new HiddenFieldWithClass();
-            _hfItemId.ID = this.ID + "_hfItemId";
-            _hfItemId.CssClass = "js-item-id-value";
-            _hfItemId.Value = Constants.None.IdValue;
+            _hfItemId = new HiddenFieldWithClass
+            {
+                ID = this.ID + "_hfItemId",
+                CssClass = "js-item-id-value",
+                Value = Constants.None.IdValue
+            };
 
-            _hfInitialItemParentIds = new HiddenFieldWithClass();
-            _hfInitialItemParentIds.ID = this.ID + "_hfInitialItemParentIds";
-            _hfInitialItemParentIds.CssClass = "js-initial-item-parent-ids-value";
+            _hfInitialItemParentIds = new HiddenFieldWithClass
+            {
+                ID = this.ID + "_hfInitialItemParentIds",
+                CssClass = "js-initial-item-parent-ids-value",
+                Value = Constants.None.IdValue
+            };
 
-            _hfExpandedCategoryIds = new HiddenFieldWithClass();
-            _hfExpandedCategoryIds.ID = this.ID + "_hfExpandedCategoryIds";
-            _hfExpandedCategoryIds.CssClass = "js-expanded-category-ids";
+            _hfExpandedCategoryIds = new HiddenFieldWithClass
+            {
+                ID = this.ID + "_hfExpandedCategoryIds",
+                CssClass = "js-expanded-category-ids"
+            };
 
-            _hfItemName = new HiddenFieldWithClass();
-            _hfItemName.ID = this.ID + "_hfItemName";
-            _hfItemName.CssClass = "js-item-name-value";
+            _hfItemName = new HiddenFieldWithClass
+            {
+                ID = this.ID + "_hfItemName",
+                CssClass = "js-item-name-value"
+            };
 
-            _hfItemRestUrlExtraParams = new HiddenFieldWithClass();
-            _hfItemRestUrlExtraParams.ID = this.ID + "_hfItemRestUrlExtraParams";
-            _hfItemRestUrlExtraParams.CssClass = "js-item-rest-url-extra-params-value";
+            _hfItemRestUrlExtraParams = new HiddenFieldWithClass
+            {
+                ID = this.ID + "_hfItemRestUrlExtraParams",
+                CssClass = "js-item-rest-url-extra-params-value"
+            };
 
             if ( ModePanel != null )
             {
                 this.Controls.Add( ModePanel );
             }
 
-            _btnSelect = new HtmlAnchor();
+            _btnSelect = new HtmlButton();
+            _btnSelect.Attributes["role"] = "button";
+            _btnSelect.Attributes["type"] = "button";
             _btnSelect.Attributes["class"] = "btn btn-xs btn-primary picker-btn";
             _btnSelect.ID = this.ID + "_btnSelect";
             _btnSelect.InnerText = "Select";
@@ -748,11 +783,14 @@ $@"Rock.controls.itemPicker.initialize({{
             // make sure  this always does a postback if this is a PagePicker or if ValueChanged is assigned, even if _selectItem is not assigned
             if ( _selectItem == null && ( this is PagePicker || _valueChanged != null ) )
             {
-                _btnSelect.ServerClick += btnSelect_Click;
+            _btnSelect.ServerClick += btnSelect_Click;
             }
 
-            _btnSelectNone = new HtmlAnchor();
-            _btnSelectNone.Attributes["class"] = "picker-select-none";
+            _btnSelectNone = new HtmlButton();
+            _btnSelectNone.Attributes["role"] = "button";
+            _btnSelectNone.Attributes["type"] = "button";
+            _btnSelectNone.Attributes["aria-label"] = "Clear selection";
+            _btnSelectNone.Attributes["class"] = "btn picker-select-none";
             _btnSelectNone.ID = this.ID + "_btnSelectNone";
             _btnSelectNone.InnerHtml = "<i class='fa fa-times'></i>";
             _btnSelectNone.CausesValidation = false;
@@ -798,6 +836,13 @@ $@"Rock.controls.itemPicker.initialize({{
         /// <param name="writer">The writer.</param>
         public virtual void RenderBaseControl( HtmlTextWriter writer )
         {
+            // Determine what text to display in the control. If there is no selection then show the placeholder.
+            var selectedText = this.Placeholder;
+            if (this.ItemName.IsNotNullOrWhiteSpace())
+            {
+                selectedText = this.ItemName;
+            }
+
             if ( this.Enabled )
             {
                 writer.AddAttribute( "id", this.ClientID.ToString() );
@@ -828,22 +873,37 @@ $@"Rock.controls.itemPicker.initialize({{
 
                 if ( !HidePickerLabel )
                 {
-                    string pickerLabelHtmlFormat = @"
-                    <a class='picker-label' href='#'>
-                        <i class='{2} fa-fw'></i>
-                        <span id='selectedItemLabel_{0}' class='selected-names'>{1}</span>
-                        <b class='fa fa-caret-down pull-right'></b>
-                    </a>";
+                    writer.AddAttribute( HtmlTextWriterAttribute.Class, "picker-label" );
+                    writer.AddAttribute( HtmlTextWriterAttribute.Href, "#" );
+                    writer.RenderBeginTag( HtmlTextWriterTag.A );
 
-                    writer.Write( pickerLabelHtmlFormat, this.ClientID, this.ItemName, this.IconCssClass );
+                    string pickerLabelHtmlFormat = String.Empty;
+
+                    if (!string.IsNullOrEmpty(this.IconCssClass))
+                    {
+                        pickerLabelHtmlFormat += $@"<i class='{this.IconCssClass} fa-fw'></i>";
+                    }
+
+                    pickerLabelHtmlFormat += @"
+                        <span id='selectedItemLabel_{0}' class='selected-names'>{1}</span>";
+
+                    writer.Write( pickerLabelHtmlFormat, this.ClientID, selectedText );
 
                     writer.WriteLine();
 
                     _btnSelectNone.RenderControl( writer );
+                    writer.Write( $@"<b class='fa fa-caret-down'></b>" );
+
+                    writer.RenderEndTag();
+                }
+
+                if ( string.IsNullOrEmpty( PickerMenuCssClasses ) )
+                {
+                    PickerMenuCssClasses = "picker-menu dropdown-menu";
                 }
 
                 // picker menu
-                writer.AddAttribute( "class", "picker-menu dropdown-menu" );
+                writer.AddAttribute( "class", PickerMenuCssClasses );
                 if ( ShowDropDown )
                 {
                     writer.AddStyleAttribute( HtmlTextWriterStyle.Display, "block" );
@@ -867,19 +927,18 @@ $@"Rock.controls.itemPicker.initialize({{
                                         </div>
                                     </div>
                                 </div>
-                                <div class='viewport'>
+                                <div id='treeview-view-port_{0}' class='viewport'>
                                     <div class='overview'>
-                                        <div id='treeviewItems_{0}' class='treeview treeview-items'></div>        
+                                        <div id='treeviewItems_{0}' class='treeview treeview-items'>
+                                        </div>
                                     </div>
                                 </div>
-                            </div>",
-                           this.ClientID );
+                            </div>", this.ClientID );
 
                 // picker actions
                 writer.AddAttribute( "class", "picker-actions" );
                 writer.RenderBeginTag( HtmlTextWriterTag.Div );
                 _btnSelect.RenderControl( writer );
-                writer.Write( "<a class='btn btn-xs btn-link picker-cancel' id='btnCancel_{0}'>Cancel</a>", this.ClientID );
 
                 // render any additional picker actions that a child class if ItemPicker implements
                 RenderCustomPickerActions( writer );
@@ -900,6 +959,7 @@ $@"Rock.controls.itemPicker.initialize({{
                 // this picker is not enabled (readonly), so just render a readonly version
                 List<string> pickerClasses = new List<string>();
                 pickerClasses.Add( "picker" );
+
                 if ( EnableFullWidth )
                 {
                     pickerClasses.Add( "picker-fullwidth" );
@@ -912,7 +972,7 @@ $@"Rock.controls.itemPicker.initialize({{
                 writer.RenderBeginTag( HtmlTextWriterTag.Div );
                 LinkButton linkButton = new LinkButton();
                 linkButton.CssClass = "picker-label";
-                linkButton.Text = string.Format( "<i class='{1}'></i><span>{0}</span>", this.ItemName, this.IconCssClass );
+                linkButton.Text = string.Format( "<i class='{1}'></i><span>{0}</span>", selectedText, this.IconCssClass );
                 linkButton.Enabled = false;
                 linkButton.RenderControl( writer );
                 writer.WriteLine();
@@ -926,7 +986,7 @@ $@"Rock.controls.itemPicker.initialize({{
         /// <param name="writer">The writer.</param>
         public virtual void RenderCustomPickerActions( HtmlTextWriter writer )
         {
-            //
+            writer.Write( "<a class='btn btn-xs btn-link picker-cancel' id='btnCancel_{0}'>Cancel</a>", this.ClientID );
         }
 
         /// <summary>
@@ -958,7 +1018,7 @@ $@"Rock.controls.itemPicker.initialize({{
 
         /// <summary>
         /// Returns the value of the currently selected item.
-        /// It will return NULL if either <see cref="T:Rock.Constants.None"/> or <see cref="T:Rock.Constants.All"/> is selected. />
+        /// It will return NULL if either <see cref="T:Rock.Constants.None"/> or <see cref="T:Rock.Constants.All"/> is selected.
         /// </summary>
         /// <returns></returns>
         public int? SelectedValueAsId()

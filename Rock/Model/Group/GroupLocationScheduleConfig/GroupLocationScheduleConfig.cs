@@ -82,6 +82,34 @@ namespace Rock.Model
         [DataMember]
         public int? MaximumCapacity { get; set; }
 
+        /// <summary>
+        /// Gets or sets the confirmation additional details.
+        /// </summary>
+        /// <value>
+        /// The confirmation additional details.
+        /// </value>
+        [DataMember]
+        public string ConfirmationAdditionalDetails { get; set; }
+
+        /// <summary>
+        /// Gets or sets the configuration name.
+        /// </summary>
+        /// <value>
+        /// The configuration name.
+        /// </value>
+        [MaxLength( 100 )]
+        [DataMember]
+        public string ConfigurationName { get; set; }
+
+        /// <summary>
+        /// Gets or sets the reminder additional details.
+        /// </summary>
+        /// <value>
+        /// The reminder additional details.
+        /// </value>
+        [DataMember]
+        public string ReminderAdditionalDetails { get; set; }
+
         #endregion Entity Properties
 
         #region Navigation Properties

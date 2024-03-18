@@ -18,11 +18,15 @@ using System;
 using System.Collections.Generic;
 using System.Data.Entity;
 using System.Linq;
+#if WEBFORMS
 using System.Web.UI;
 using System.Web.UI.WebControls;
-
+#endif
+using Rock.Attribute;
 using Rock.Data;
 using Rock.Model;
+using Rock.ViewModels.Utility;
+using Rock.Web.Cache;
 using Rock.Web.UI.Controls;
 
 namespace Rock.Field.Types
@@ -31,12 +35,238 @@ namespace Rock.Field.Types
     /// Field Type used to display a dropdown list of activity types for a specific workflow type
     /// </summary>
     [Serializable]
-    public class WorkflowActivityFieldType : FieldType, IEntityFieldType
+    [RockPlatformSupport( Utility.RockPlatform.WebForms, Utility.RockPlatform.Obsidian )]
+    [Rock.SystemGuid.FieldTypeGuid( Rock.SystemGuid.FieldType.WORKFLOW_ACTIVITY )]
+    public class WorkflowActivityFieldType : FieldType, IEntityFieldType, IEntityReferenceFieldType
     {
-
         #region Configuration
 
         private const string WORKFLOW_TYPE_KEY = "WorkflowType";
+        private const string CLIENT_VALUES_KEY = "values";
+        private const string WORKFLOW_TYPE_OPTIONS = "WorkflowTypes";
+
+        /// <inheritdoc />
+        public override Dictionary<string, string> GetPublicEditConfigurationProperties( Dictionary<string, string> privateConfigurationValues )
+        {
+            var configurationProperties = base.GetPublicEditConfigurationProperties( privateConfigurationValues );
+
+            var workflowTypes = WorkflowTypeCache.All().OrderBy( w => w.Name ).ToListItemBagList();
+            configurationProperties[WORKFLOW_TYPE_OPTIONS] = workflowTypes.ToCamelCaseJson( false, true );
+
+            return configurationProperties;
+        }
+
+        /// <inheritdoc />
+        public override Dictionary<string, string> GetPublicConfigurationValues( Dictionary<string, string> privateConfigurationValues, ConfigurationValueUsage usage, string value )
+        {
+            var configurationValues = base.GetPublicConfigurationValues( privateConfigurationValues, usage, value );
+
+            if ( usage != ConfigurationValueUsage.View )
+            {
+                var workflowTypeGuid = configurationValues.ContainsKey( WORKFLOW_TYPE_KEY ) ? configurationValues[WORKFLOW_TYPE_KEY].AsGuidOrNull() : null;
+
+                WorkflowType workflowType = null;
+
+                using ( var rockContext = new RockContext() )
+                {
+                    if ( workflowTypeGuid.HasValue )
+                    {
+                        var workflowTypeService = new WorkflowTypeService( rockContext );
+                        workflowType = workflowTypeService.Get( workflowTypeGuid.Value );
+                    }
+
+                    if ( workflowType == null )
+                    {
+                        workflowType = GetContextWorkflowType();
+                    }
+
+                    if ( workflowType != null )
+                    {
+                        var workflowActivityTypes = workflowType.ActivityTypes;
+
+                        if ( workflowActivityTypes?.Any() == true )
+                        {
+                            var activityTypes = new List<ListItemBag>();
+
+                            foreach ( var activityType in workflowActivityTypes.OrderBy( a => a.Order ) )
+                            {
+                                activityTypes.Add( new ListItemBag() { Text = activityType.Name ?? "[New Activity]", Value = activityType.Guid.ToString().ToUpper() } );
+                            }
+
+                            configurationValues[CLIENT_VALUES_KEY] = activityTypes.ToCamelCaseJson( false, true );
+                        }
+                    }
+                }
+            }
+
+            return configurationValues;
+        }
+
+        /// <inheritdoc />
+        public override Dictionary<string, string> GetPrivateConfigurationValues( Dictionary<string, string> publicConfigurationValues )
+        {
+            var configurationValues = base.GetPrivateConfigurationValues( publicConfigurationValues );
+
+            configurationValues.Remove( CLIENT_VALUES_KEY );
+
+            return configurationValues;
+        }
+
+        #endregion
+
+        #region Formatting
+
+        /// <inheritdoc/>
+        public override string GetTextValue( string privateValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            string formattedValue = string.Empty;
+
+            Guid guid = privateValue.AsGuid();
+            if ( !guid.IsEmpty() )
+            {
+                var workflowType = GetContextWorkflowType();
+                if ( workflowType != null )
+                {
+                    formattedValue = workflowType.ActivityTypes
+                        .Where( a => a.Guid.Equals( guid ) )
+                        .Select( a => a.Name )
+                        .FirstOrDefault();
+                }
+
+                if ( string.IsNullOrWhiteSpace( formattedValue ) )
+                {
+                    using ( var rockContext = new RockContext() )
+                    {
+                        formattedValue = new WorkflowActivityTypeService( rockContext )
+                            .Queryable()
+                            .AsNoTracking()
+                            .Where( a => a.Guid.Equals( guid ) )
+                            .Select( a => a.Name )
+                            .FirstOrDefault();
+                    }
+                }
+            }
+
+            return formattedValue;
+        }
+
+        #endregion
+
+        #region Edit Control
+
+        /// <inheritdoc/>
+        public override string GetPublicValue( string privateValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            return GetTextValue( privateValue, privateConfigurationValues );
+        }
+
+        /// <inheritdoc/>
+        public override string GetPublicEditValue( string privateValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            return privateValue;
+        }
+
+        private WorkflowType GetContextWorkflowType()
+        {
+            var httpContext = System.Web.HttpContext.Current;
+            if ( httpContext != null && httpContext.Items != null )
+            {
+                return httpContext.Items[WORKFLOW_TYPE_KEY] as WorkflowType;
+            }
+
+            return null;
+        }
+
+        #endregion
+
+        #region Filter Control
+
+        /// <summary>
+        /// Determines whether this filter has a filter control
+        /// </summary>
+        /// <returns></returns>
+        public override bool HasFilterControl()
+        {
+            return false;
+        }
+
+        #endregion
+
+        #region IEntityFieldType
+
+        /// <summary>
+        /// Gets the entity.
+        /// </summary>
+        /// <param name="value">The value.</param>
+        /// <returns></returns>
+        public IEntity GetEntity( string value )
+        {
+            return GetEntity( value, null );
+        }
+
+        /// <summary>
+        /// Gets the entity.
+        /// </summary>
+        /// <param name="value">The value.</param>
+        /// <param name="rockContext">The rock context.</param>
+        /// <returns></returns>
+        public IEntity GetEntity( string value, RockContext rockContext )
+        {
+            var guid = value.AsGuidOrNull();
+            if ( guid.HasValue )
+            {
+                rockContext = rockContext ?? new RockContext();
+                return new WorkflowActivityTypeService( rockContext ).Get( guid.Value );
+            }
+
+            return null;
+        }
+        #endregion
+
+        #region IEntityReferenceFieldType
+
+        /// <inheritdoc/>
+        List<ReferencedEntity> IEntityReferenceFieldType.GetReferencedEntities( string privateValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            var guid = privateValue.AsGuidOrNull();
+
+            if ( !guid.HasValue )
+            {
+                return null;
+            }
+
+            using ( var rockContext = new RockContext() )
+            {
+                var workflowActivityTypeId = WorkflowActivityTypeCache.GetId( guid.Value );
+
+                if ( !workflowActivityTypeId.HasValue )
+                {
+                    return null;
+                }
+
+                return new List<ReferencedEntity>
+                {
+                    new ReferencedEntity( EntityTypeCache.GetId<WorkflowActivityType>().Value, workflowActivityTypeId.Value )
+                };
+            }
+        }
+
+        /// <inheritdoc/>
+        List<ReferencedProperty> IEntityReferenceFieldType.GetReferencedProperties( Dictionary<string, string> privateConfigurationValues )
+        {
+            // This field type references the Name property of a WorkflowActivityType and
+            // should have its persisted values updated when changed.
+            return new List<ReferencedProperty>
+            {
+                new ReferencedProperty( EntityTypeCache.GetId<WorkflowActivityType>().Value, nameof( WorkflowActivityType.Name ) )
+            };
+        }
+
+        #endregion
+
+        #region WebForms
+#if WEBFORMS
+
 
         /// <summary>
         /// Returns a list of the configuration keys
@@ -118,10 +348,6 @@ namespace Rock.Field.Types
             }
         }
 
-        #endregion
-
-        #region Formatting
-
         /// <summary>
         /// Returns the field's current value(s)
         /// </summary>
@@ -132,41 +358,10 @@ namespace Rock.Field.Types
         /// <returns></returns>
         public override string FormatValue( Control parentControl, string value, Dictionary<string, ConfigurationValue> configurationValues, bool condensed )
         {
-            string formattedValue = string.Empty;
-
-            Guid guid = value.AsGuid();
-            if ( !guid.IsEmpty() )
-            {
-                var workflowType = GetContextWorkflowType();
-                if ( workflowType != null )
-                {
-                    formattedValue = workflowType.ActivityTypes
-                        .Where( a => a.Guid.Equals( guid ) )
-                        .Select( a => a.Name )
-                        .FirstOrDefault();
-                }
-
-                if ( string.IsNullOrWhiteSpace( formattedValue ) )
-                {
-                    using ( var rockContext = new RockContext() )
-                    {
-                        formattedValue = new WorkflowActivityTypeService( rockContext )
-                            .Queryable()
-                            .AsNoTracking()
-                            .Where( a => a.Guid.Equals( guid ) )
-                            .Select( a => a.Name )
-                            .FirstOrDefault();
-                    }
-                }
-            }
-
-            return base.FormatValue( parentControl, formattedValue, null, condensed );
-
+            return !condensed
+                ? GetTextValue( value, configurationValues.ToDictionary( cv => cv.Key, cv => cv.Value.Value ) )
+                : GetCondensedTextValue( value, configurationValues.ToDictionary( cv => cv.Key, cv => cv.Value.Value ) );
         }
-
-        #endregion
-
-        #region Edit Control
 
         /// <summary>
         /// Creates the control(s) necessary for prompting user for a new value
@@ -248,21 +443,6 @@ namespace Rock.Field.Types
             }
         }
 
-        private WorkflowType GetContextWorkflowType()
-        {
-            var httpContext = System.Web.HttpContext.Current;
-            if ( httpContext != null && httpContext.Items != null )
-            {
-                return httpContext.Items[WORKFLOW_TYPE_KEY] as WorkflowType;
-            }
-
-            return null;
-        }
-
-        #endregion
-
-        #region Filter Control
-
         /// <summary>
         /// Creates the control needed to filter (query) values using this field type.
         /// </summary>
@@ -277,18 +457,6 @@ namespace Rock.Field.Types
             return null;
         }
 
-        /// <summary>
-        /// Determines whether this filter has a filter control
-        /// </summary>
-        /// <returns></returns>
-        public override bool HasFilterControl()
-        {
-            return false;
-        }
-
-        #endregion
-
-        #region IEntityFieldType
         /// <summary>
         /// Gets the edit value as the IEntity.Id
         /// </summary>
@@ -315,33 +483,7 @@ namespace Rock.Field.Types
             SetEditValue( control, configurationValues, guidValue );
         }
 
-        /// <summary>
-        /// Gets the entity.
-        /// </summary>
-        /// <param name="value">The value.</param>
-        /// <returns></returns>
-        public IEntity GetEntity( string value )
-        {
-            return GetEntity( value, null );
-        }
-
-        /// <summary>
-        /// Gets the entity.
-        /// </summary>
-        /// <param name="value">The value.</param>
-        /// <param name="rockContext">The rock context.</param>
-        /// <returns></returns>
-        public IEntity GetEntity( string value, RockContext rockContext )
-        {
-            var guid = value.AsGuidOrNull();
-            if ( guid.HasValue )
-            {
-                rockContext = rockContext ?? new RockContext();
-                return new WorkflowActivityTypeService( rockContext ).Get( guid.Value );
-            }
-
-            return null;
-        }
+#endif
         #endregion
     }
 }

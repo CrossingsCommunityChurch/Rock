@@ -152,6 +152,21 @@ namespace Rock.Security
         /// </summary>
         public const string MANAGE_STEPS = "ManageSteps";
 
+        /// <summary>
+        /// Authorization to delete check-in attendance
+        /// </summary>
+        public const string DELETE_ATTENDANCE = "DeleteAttendance";
+
+        /// <summary>
+        /// Authorization to override for group requirements
+        /// </summary>
+        public const string OVERRIDE = "Override";
+
+        /// <summary>
+        /// Authorization to view the protection profile alert for the selected person.
+        /// </summary>
+        public const string VIEW_PROTECTION_PROFILE = "ViewProtectionProfile";
+
         #endregion
 
         #region Public Methods
@@ -399,7 +414,8 @@ namespace Rock.Security
         /// <returns></returns>
         public static bool Authorized( ISecured entity, string action, Person person )
         {
-            return ItemAuthorized( entity, action, person, true, true ) ?? entity.IsAllowedByDefault( action );
+            int recursiveCallCount = 0;
+            return ItemAuthorized( entity, action, person, true, true, ref recursiveCallCount ) ?? entity.IsAllowedByDefault( action );
         }
 
         /// <summary>
@@ -422,8 +438,8 @@ namespace Rock.Security
 
             var authorizations = Get();
 
-            // If there are entries in the Authorizations object for this entity type and entity instance, evaluate each 
-            // one to find the first one specific to the selected user or a role that the selected user belongs 
+            // If there are entries in the Authorizations object for this entity type and entity instance, evaluate each
+            // one to find the first one specific to the selected user or a role that the selected user belongs
             // to.  If a match is found return whether the user is allowed (true) or denied (false) access
             if ( authorizations == null || !authorizations.Keys.Contains( entity.TypeId ) ||
                 !authorizations[entity.TypeId].Keys.Contains( entity.Id ) ||
@@ -713,22 +729,38 @@ namespace Rock.Security
         }
 
         /// <summary>
-        /// Sets the auth cookie.
+        /// Gets the auth cookie.
         /// </summary>
         /// <param name="userName">Name of the user.</param>
         /// <param name="isPersisted">if set to <c>true</c> [is persisted].</param>
         /// <param name="isImpersonated">if set to <c>true</c> [is impersonated].</param>
-        private static HttpCookie GetAuthCookie( string userName, bool isPersisted, bool isImpersonated )
+        /// <param name="isTwoFactorAuthenticated">if set to <c>true</c> [is two-factor authenticated].</param>
+        private static HttpCookie GetAuthCookie( string userName, bool isPersisted, bool isImpersonated, bool isTwoFactorAuthenticated )
         {
+            return GetAuthCookie( userName, isPersisted, isImpersonated, isTwoFactorAuthenticated, FormsAuthentication.Timeout );
+        }
+
+        /// <summary>
+        /// Gets the auth cookie.
+        /// </summary>
+        /// <param name="userName">Name of the user.</param>
+        /// <param name="isPersisted">if set to <c>true</c> [is persisted].</param>
+        /// <param name="isImpersonated">if set to <c>true</c> [is impersonated].</param>
+        /// <param name="expiresIn">The cookie expiration.</param>
+        /// <param name="isTwoFactorAuthenticated">if set to <c>true</c> [is two-factor authenticated].</param>
+        private static HttpCookie GetAuthCookie( string userName, bool isPersisted, bool isImpersonated, bool isTwoFactorAuthenticated, TimeSpan expiresIn )
+        {
+            var userData = new AuthenticationTicketUserData( isImpersonated, isTwoFactorAuthenticated );
+
             var ticket = new FormsAuthenticationTicket(
                 1,
                 userName,
                 RockInstanceConfig.SystemDateTime,
-                RockInstanceConfig.SystemDateTime.Add( FormsAuthentication.Timeout ),
+                RockInstanceConfig.SystemDateTime.Add( expiresIn ),
                 isPersisted,
-                isImpersonated.ToString(),
+                userData.ToJson(),
                 FormsAuthentication.FormsCookiePath );
-
+            
             var authCookie = GetAuthCookie( GetCookieDomain(), FormsAuthentication.Encrypt( ticket ) );
 
             if ( ticket.IsPersistent )
@@ -748,7 +780,7 @@ namespace Rock.Security
         /// <returns></returns>
         public static SimpleCookie GetSimpleAuthCookie( string userName, bool isPersisted, bool isImpersonated )
         {
-            var authCookie = GetAuthCookie( userName, isPersisted, isImpersonated );
+            var authCookie = GetAuthCookie( userName, isPersisted, isImpersonated, isTwoFactorAuthenticated: false );
 
             if ( authCookie == null )
             {
@@ -764,6 +796,43 @@ namespace Rock.Security
         }
 
         /// <summary>
+        /// Gets the user data in an authentication ticket.
+        /// </summary>
+        /// <param name="formsAuthenticationTicket">The forms authentication ticket.</param>
+        /// <returns>The user data.</returns>
+        internal static IAuthenticationTicketUserData GetUserData( FormsAuthenticationTicket formsAuthenticationTicket )
+        {
+            if ( formsAuthenticationTicket == null )
+            {
+                return null;
+            }
+
+            var userData = formsAuthenticationTicket.UserData.FromJsonOrNull<AuthenticationTicketUserData>();
+
+            if ( userData != null )
+            {
+                return userData;
+            }
+
+            /*
+                10/19/2023 - JMH
+
+                If we are here, then the ticket's user data is not a JSON AuthenticationTicketUserData object.
+
+                The user data used to contain a stringified boolean value indicating whether the authenticated
+                user is impersonated.
+
+                Assuming the user data is in this old format, return a new AuthenticationTicketUserData object
+                and try to set the IsImpersonated property to the current ticket's user data value.
+
+                Reason: Two-Factor Authentication
+             */
+            return new AuthenticationTicketUserData(
+                isImpersonated: formsAuthenticationTicket.UserData?.ToString().ToLower() == "true",
+                isTwoFactorAuthenticated: false );
+        }
+
+        /// <summary>
         /// Sets the auth cookie.
         /// </summary>
         /// <param name="userName">Name of the user.</param>
@@ -771,12 +840,37 @@ namespace Rock.Security
         /// <param name="isImpersonated">if set to <c>true</c> [is impersonated].</param>
         public static void SetAuthCookie( string userName, bool isPersisted, bool isImpersonated )
         {
-            var authCookie = GetAuthCookie( userName, isPersisted, isImpersonated );
+            SetAuthCookie( userName, isPersisted, isImpersonated, isTwoFactorAuthenticated: false );
+        }
+
+        /// <summary>
+        /// Sets the auth cookie.
+        /// </summary>
+        /// <param name="userName">Name of the user.</param>
+        /// <param name="isPersisted">if set to <c>true</c> [is persisted].</param>
+        /// <param name="isImpersonated">if set to <c>true</c> [is impersonated].</param>
+        /// <param name="isTwoFactorAuthenticated">if set to <c>true</c> [is two-factor authenticated].</param>
+        public static void SetAuthCookie( string userName, bool isPersisted, bool isImpersonated, bool isTwoFactorAuthenticated )
+        {
+            SetAuthCookie( userName, isPersisted, isImpersonated, isTwoFactorAuthenticated, FormsAuthentication.Timeout );
+        }
+
+        /// <summary>
+        /// Sets the auth cookie.
+        /// </summary>
+        /// <param name="userName">Name of the user.</param>
+        /// <param name="isPersisted">if set to <c>true</c> [is persisted].</param>
+        /// <param name="isImpersonated">if set to <c>true</c> [is impersonated].</param>
+        /// <param name="isTwoFactorAuthenticated">if set to <c>true</c> [is two-factor authenticated].</param>
+        /// <param name="expiresIn">The cookie expiration.</param>
+        internal static void SetAuthCookie( string userName, bool isPersisted, bool isImpersonated, bool isTwoFactorAuthenticated, TimeSpan expiresIn )
+        {
+            var authCookie = GetAuthCookie( userName, isPersisted, isImpersonated, isTwoFactorAuthenticated, expiresIn );
             RockPage.AddOrUpdateCookie( authCookie );
 
-            // If cookie is for a more generic domain, we need to store that domain so that we can expire it correctly 
+            // If cookie is for a more generic domain, we need to store that domain so that we can expire it correctly
             // when the user signs out.
-            if ( !authCookie.Domain.IsNotNullOrWhiteSpace() )
+            if ( authCookie.Domain.IsNullOrWhiteSpace() )
             {
                 return;
             }
@@ -915,7 +1009,8 @@ namespace Rock.Security
         /// <returns></returns>
         public static bool? AuthorizedForEntity( ISecured entity, string action, Person person, bool checkParentAuthority )
         {
-            return ItemAuthorized( entity, action, person, true, checkParentAuthority );
+            int recursiveCallCount = 0;
+            return ItemAuthorized( entity, action, person, true, checkParentAuthority, ref recursiveCallCount );
         }
 
         /// <summary>
@@ -952,8 +1047,8 @@ namespace Rock.Security
 
             var authorizations = Get();
 
-            // If there are entries in the Authorizations object for this entity type and entity instance, evaluate each 
-            // one to find the first one specific to the selected user or a role that the selected user belongs 
+            // If there are entries in the Authorizations object for this entity type and entity instance, evaluate each
+            // one to find the first one specific to the selected user or a role that the selected user belongs
             // to.  If a match is found return whether the user is allowed (true) or denied (false) access
             if ( authorizations != null &&
                 authorizations.Keys.Contains( entityTypeId ) &&
@@ -1009,47 +1104,24 @@ namespace Rock.Security
         /// <param name="person">The person.</param>
         /// <param name="isRootEntity">if set to <c>true</c> [is root entity].</param>
         /// <param name="checkParentAuthority">if set to <c>true</c> [check parent].</param>
-        /// <returns></returns>
-        private static bool? ItemAuthorized( ISecured entity, string action, Person person, bool isRootEntity, bool checkParentAuthority )
+        /// <param name="recursiveCallCount">The recursive call count.</param>
+        private static bool? ItemAuthorized( ISecured entity, string action, Person person, bool isRootEntity, bool checkParentAuthority, ref int recursiveCallCount )
         {
             var entityTypeId = entity.TypeId;
-
-            // check for infinite recursion
-            var parentHistory = new List<ISecured> { entity };
-            foreach ( var parentAuth in new[] { entity.ParentAuthority, entity.ParentAuthorityPre } )
-            {
-                var parentAuthEntity = parentAuth;
-                while ( parentAuthEntity != null )
-                {
-                    // check if the exact same instance of an entity is already a parent (indicating we are spinning around recursively)
-                    if ( parentHistory.Any( a => a.TypeId == parentAuthEntity.TypeId && a.Id == parentAuthEntity.Id && parentAuthEntity.Id > 0 ) )
-                    {
-                        // infinite recursion situation, so treat as if no rules were found and return NULL
-                        return null;
-                    }
-
-                    parentHistory.Add( parentAuthEntity );
-
-                    parentAuthEntity = parentAuthEntity.ParentAuthority;
-                }
-            }
 
             var matchFound = false;
             var authorized = false;
 
-            var authorizations = Get();
+            // We only need the AuthRules for the specified EntityType, Entity and action, so lets get them all here.
+            var authRules = Get()?.GetValueOrNull( entityTypeId )?.GetValueOrNull( entity.Id )?.GetValueOrNull( action );
 
-            // If there are entries in the Authorizations object for this entity type and entity instance, evaluate each 
-            // one to find the first one specific to the selected user or a role that the selected user belongs 
+            // If there are entries in the Authorizations object for this entity type and entity instance, evaluate each
+            // one to find the first one specific to the selected user or a role that the selected user belongs
             // to.  If a match is found return whether the user is allowed (true) or denied (false) access
-            if ( authorizations != null &&
-                authorizations.Keys.Contains( entityTypeId ) &&
-                authorizations[entityTypeId].Keys.Contains( entity.Id ) &&
-                authorizations[entityTypeId][entity.Id].Keys.Contains( action ) )
+            if ( authRules != null  )
             {
                 var personGuid = person?.Guid;
-
-                foreach ( var authRule in authorizations[entityTypeId][entity.Id][action] )
+                foreach ( var authRule in authRules )
                 {
                     // All Users
                     if ( authRule.SpecialRole == SpecialRole.AllUsers )
@@ -1116,6 +1188,22 @@ namespace Rock.Security
                 return authorized;
             }
 
+            /* 10-31-2022 MDP
+
+            Let make sure we aren't stuck in infinite recursion.
+            We will get a stack overflow if this method is called recursively more than around 400 times, so lets limit it to 100. 
+            In this situation, it is almost certainly an infinite recursion situation, so treat as if no rules were found and return NULL.
+            
+            */
+
+            const long maxRecursiveCallCount = 100;
+            if ( recursiveCallCount > maxRecursiveCallCount )
+            {
+                return null;
+            }
+
+            recursiveCallCount++;
+
             // If no match was found for the selected user on the current entity instance, check to see if the instance
             // has a parent authority defined and if so evaluate that entities authorization rules.  If there is no
             // parent authority return the default authorization
@@ -1127,12 +1215,12 @@ namespace Rock.Security
 
             if ( isRootEntity && entity.ParentAuthorityPre != null )
             {
-                parentAuthorized = ItemAuthorized( entity.ParentAuthorityPre, action, person, false, false );
+                parentAuthorized = ItemAuthorized( entity.ParentAuthorityPre, action, person, false, false, ref recursiveCallCount );
             }
 
             if ( !parentAuthorized.HasValue && entity.ParentAuthority != null )
             {
-                parentAuthorized = ItemAuthorized( entity.ParentAuthority, action, person, false, true );
+                parentAuthorized = ItemAuthorized( entity.ParentAuthority, action, person, false, true, ref recursiveCallCount );
             }
 
             return parentAuthorized;
@@ -1243,7 +1331,7 @@ namespace Rock.Security
         }
 
         /// <summary>
-        /// If the entity is currently private for selected person, removes all the rules 
+        /// If the entity is currently private for selected person, removes all the rules
         /// </summary>
         /// <param name="entity">The entity.</param>
         /// <param name="action">The action.</param>
@@ -1364,12 +1452,39 @@ namespace Rock.Security
         }
 
         #endregion
+
+        #region Private Helper Classes        
+
+        /// <summary>
+        /// User data in an authentication ticket.
+        /// </summary>
+        private class AuthenticationTicketUserData : IAuthenticationTicketUserData
+        {
+            /// <inheritdoc />
+            public bool IsImpersonated { get; }
+            
+            /// <inheritdoc />
+            public bool IsTwoFactorAuthenticated { get; }
+
+            /// <summary>
+            /// Initializes a new instance of the <see cref="AuthenticationTicketUserData"/> class.
+            /// </summary>
+            /// <param name="isImpersonated">if set to <c>true</c> then authenticated user is impersonated.</param>
+            /// <param name="isTwoFactorAuthenticated">if set to <c>true</c> then authenticated user is two-factor authenticated.</param>
+            public AuthenticationTicketUserData( bool isImpersonated, bool isTwoFactorAuthenticated )
+            {
+                this.IsImpersonated = isImpersonated;
+                this.IsTwoFactorAuthenticated = isTwoFactorAuthenticated;
+            }
+        }
+
+        #endregion
     }
 
     #region Helper Class/Struct
 
     /// <summary>
-    /// 
+    ///
     /// </summary>
     public class AuthEntityRule
     {
@@ -1613,6 +1728,28 @@ namespace Rock.Security
             GroupId = auth.GroupId;
             Order = auth.Order;
         }
+    }
+
+    /// <summary>
+    /// User data in an authentication ticket.
+    /// </summary>
+    internal interface IAuthenticationTicketUserData
+    {
+        /// <summary>
+        /// Gets a value indicating whether the authenticated individual is impersonated.
+        /// </summary>
+        /// <value>
+        ///   <c>true</c> if the authenticated individual is impersonated; otherwise, <c>false</c>.
+        /// </value>
+        bool IsImpersonated { get; }
+
+        /// <summary>
+        /// Gets a value indicating whether the authenticated individual is two-factor authenticated.
+        /// </summary>
+        /// <value>
+        ///   <c>true</c> if the authenticated individual is two-factor authenticated; otherwise, <c>false</c>.
+        /// </value>
+        bool IsTwoFactorAuthenticated { get; }
     }
 
     #endregion

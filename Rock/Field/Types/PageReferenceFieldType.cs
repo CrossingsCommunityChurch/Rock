@@ -17,9 +17,14 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-
+#if WEBFORMS
+using System.Web.UI;
+#endif
+using Rock.Attribute;
 using Rock.Data;
 using Rock.Model;
+using Rock.ViewModels.Rest.Controls;
+using Rock.ViewModels.Utility;
 using Rock.Web.Cache;
 using Rock.Web.UI.Controls;
 
@@ -29,25 +34,27 @@ namespace Rock.Field.Types
     /// Stored as "Page.Guid" or "Page.Guid,PageRoute.Guid"
     /// </summary>
     [Serializable]
-    public class PageReferenceFieldType : FieldType
+    [FieldTypeUsage( FieldTypeUsage.System )]
+    [RockPlatformSupport( Utility.RockPlatform.WebForms, Utility.RockPlatform.Obsidian )]
+    [Rock.SystemGuid.FieldTypeGuid( Rock.SystemGuid.FieldType.PAGE_REFERENCE )]
+    public class PageReferenceFieldType : FieldType, IEntityReferenceFieldType
     {
 
         #region Formatting
 
         /// <summary>
-        /// Returns the field's current value(s)
+        /// Gets the text value.
         /// </summary>
-        /// <param name="parentControl">The parent control.</param>
-        /// <param name="value">Information about the value</param>
-        /// <param name="configurationValues">The configuration values.</param>
-        /// <param name="condensed">Flag indicating if the value should be condensed (i.e. for use in a grid column)</param>
-        /// <returns></returns>
-        public override string FormatValue( System.Web.UI.Control parentControl, string value, Dictionary<string, ConfigurationValue> configurationValues, bool condensed )
+        /// <param name="privateValue">The private value.</param>
+        /// <param name="privateConfigurationValues">The private configuration values.</param>
+        /// <returns>System.String.</returns>
+        /// <inheritdoc />
+        public override string GetTextValue( string privateValue, Dictionary<string, string> privateConfigurationValues )
         {
-            if ( !string.IsNullOrWhiteSpace( value ) )
+            if ( !string.IsNullOrWhiteSpace( privateValue ) )
             {
                 //// Value is in format "Page.Guid,PageRoute.Guid"
-                string[] valuePair = value.Split( new char[] { ',' }, StringSplitOptions.RemoveEmptyEntries );
+                string[] valuePair = privateValue.Split( new char[] { ',' }, StringSplitOptions.RemoveEmptyEntries );
                 if ( valuePair.Length > 0 )
                 {
                     Guid? pageGuid = valuePair[0].AsGuidOrNull();
@@ -75,12 +82,168 @@ namespace Rock.Field.Types
                 }
             }
 
-            return value;
+            return privateValue;
         }
 
         #endregion
 
         #region Edit Control
+
+        /// <inheritdoc />
+        public override string GetPublicValue( string privateValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            return GetTextValue( privateValue, privateConfigurationValues );
+        }
+
+        /// <inheritdoc />
+        public override string GetPublicEditValue( string privateValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            var pageRouteBag = new PageRouteValueBag();
+            string[] valuePair = ( privateValue ?? string.Empty ).Split( new char[] { ',' }, StringSplitOptions.RemoveEmptyEntries );
+
+            //// Value is in format "Page.Guid,PageRoute.Guid"
+            //// If only the Page.Guid is specified this is just a reference to a page without a special route
+            //// In case the PageRoute record can't be found from PageRoute.Guid (maybe the pageroute was deleted), fall back to the Page without a PageRoute
+
+            if ( valuePair.Length > 0 )
+            {
+                var pageGuid = valuePair[0].AsGuidOrNull();
+                if ( pageGuid.HasValue )
+                {
+                    var page = PageCache.Get( pageGuid.Value );
+                    if ( page != null )
+                    {
+                        pageRouteBag.Page = page.ToListItemBag();
+
+                        if ( valuePair.Length > 1 )
+                        {
+                            var routeGuid = valuePair[1].AsGuidOrNull();
+                            if ( routeGuid.HasValue )
+                            {
+                                var route = page.PageRoutes.Find( r => r.Guid.Equals( routeGuid.Value ) );
+                                if ( route != null )
+                                {
+                                    pageRouteBag.Route = new ListItemBag()
+                                    {
+                                        Text = route.Route,
+                                        Value = route.Guid.ToString()
+                                    };
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            return pageRouteBag.ToCamelCaseJson( false, true );
+        }
+
+        /// <inheritdoc />
+        public override string GetPrivateEditValue( string publicValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            var jsonValue = publicValue.FromJsonOrNull<PageRouteValueBag>();
+
+            if ( jsonValue != null )
+            {
+                if ( jsonValue.Route != null )
+                {
+                    return $"{jsonValue.Page.Value},{jsonValue.Route.Value}";
+                }
+                else
+                {
+                    return jsonValue.Page.Value;
+                }
+            }
+
+            return base.GetPrivateEditValue( publicValue, privateConfigurationValues );
+        }
+
+        #endregion
+
+        #region Filter Control
+
+        /// <summary>
+        /// Determines whether this filter has a filter control
+        /// </summary>
+        /// <returns></returns>
+        public override bool HasFilterControl()
+        {
+            return false;
+        }
+
+        #endregion
+
+        #region IEntityReferenceFieldType
+
+        /// <inheritdoc/>
+        List<ReferencedEntity> IEntityReferenceFieldType.GetReferencedEntities( string privateValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            List<ReferencedEntity> referencedEntities = new List<ReferencedEntity>();
+
+            if ( !string.IsNullOrWhiteSpace( privateValue ) )
+            {
+                //// Value is in format "Page.Guid,PageRoute.Guid"
+                string[] valuePair = privateValue.Split( new char[] { ',' }, StringSplitOptions.RemoveEmptyEntries );
+                if ( valuePair.Length > 0 )
+                {
+                    Guid? pageGuid = valuePair[0].AsGuidOrNull();
+                    if ( pageGuid.HasValue )
+                    {
+                        var page = PageCache.Get( pageGuid.Value );
+                        if ( page != null )
+                        {
+                            referencedEntities.Add( new ReferencedEntity( EntityTypeCache.GetId<Rock.Model.Page>().Value, page.Id ) );
+                            if ( valuePair.Length > 1 )
+                            {
+                                Guid? routeGuid = valuePair[1].AsGuidOrNull();
+                                if ( routeGuid.HasValue )
+                                {
+                                    var route = page.PageRoutes.FirstOrDefault( r => r.Guid.Equals( routeGuid.Value ) );
+
+                                    if ( route != null )
+                                    {
+                                        referencedEntities.Add( new ReferencedEntity( EntityTypeCache.GetId<Rock.Model.PageRoute>().Value, route.Id ) );
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            return referencedEntities;
+        }
+
+        /// <inheritdoc/>
+        List<ReferencedProperty> IEntityReferenceFieldType.GetReferencedProperties( Dictionary<string, string> privateConfigurationValues )
+        {
+            // This field type references the Name property of a Page.PageTitle and sometimes also PageRoute.Route and
+            // should have its persisted values updated when changed.
+            return new List<ReferencedProperty>
+            {
+                new ReferencedProperty( EntityTypeCache.GetId<Rock.Model.Page>().Value, nameof( Rock.Model.Page.PageTitle ) ),
+                new ReferencedProperty( EntityTypeCache.GetId<PageRoute>().Value, nameof( PageRoute.Route ) )
+            };
+        }
+
+        #endregion
+
+        #region WebForms
+#if WEBFORMS
+
+        /// <summary>
+        /// Returns the field's current value(s)
+        /// </summary>
+        /// <param name="parentControl">The parent control.</param>
+        /// <param name="value">Information about the value</param>
+        /// <param name="configurationValues">The configuration values.</param>
+        /// <param name="condensed">Flag indicating if the value should be condensed (i.e. for use in a grid column)</param>
+        /// <returns>System.String.</returns>
+        public override string FormatValue( Control parentControl, string value, Dictionary<string, ConfigurationValue> configurationValues, bool condensed )
+        {
+            // Note that the original FormatValue didn't call Base.FormatValue, so it wouldn't have done any condensing.
+            return GetTextValue( value, configurationValues.ToDictionary( cv => cv.Key, cv => cv.Value.Value ) );
+        }
 
         /// <summary>
         /// Creates the control(s) necessary for prompting user for a new value
@@ -90,9 +253,9 @@ namespace Rock.Field.Types
         /// <returns>
         /// The control
         /// </returns>
-        public override System.Web.UI.Control EditControl( Dictionary<string, ConfigurationValue> configurationValues, string id )
+        public override Control EditControl( Dictionary<string, ConfigurationValue> configurationValues, string id )
         {
-            return new PagePicker { ID = id }; 
+            return new PagePicker { ID = id };
         }
 
         /// <summary>
@@ -101,7 +264,7 @@ namespace Rock.Field.Types
         /// <param name="control">Parent control that controls were added to in the CreateEditControl() method</param>
         /// <param name="configurationValues">The configuration values.</param>
         /// <returns></returns>
-        public override string GetEditValue( System.Web.UI.Control control, Dictionary<string, ConfigurationValue> configurationValues )
+        public override string GetEditValue( Control control, Dictionary<string, ConfigurationValue> configurationValues )
         {
             PagePicker ppPage = control as PagePicker;
             string result = string.Empty;
@@ -145,14 +308,14 @@ namespace Rock.Field.Types
         /// <param name="control">The control.</param>
         /// <param name="configurationValues">The configuration values.</param>
         /// <param name="value">The value.</param>
-        public override void SetEditValue( System.Web.UI.Control control, Dictionary<string, ConfigurationValue> configurationValues, string value )
+        public override void SetEditValue( Control control, Dictionary<string, ConfigurationValue> configurationValues, string value )
         {
             PagePicker ppPage = control as PagePicker;
             if ( ppPage != null )
             {
                 string[] valuePair = ( value ?? string.Empty ).Split( new char[] { ',' }, StringSplitOptions.RemoveEmptyEntries );
 
-                Page page = null;
+                Rock.Model.Page page = null;
                 PageRoute pageRoute = null;
 
                 //// Value is in format "Page.Guid,PageRoute.Guid"
@@ -186,10 +349,6 @@ namespace Rock.Field.Types
             }
         }
 
-        #endregion
-
-        #region Filter Control
-
         /// <summary>
         /// Creates the control needed to filter (query) values using this field type.
         /// </summary>
@@ -198,21 +357,13 @@ namespace Rock.Field.Types
         /// <param name="required">if set to <c>true</c> [required].</param>
         /// <param name="filterMode">The filter mode.</param>
         /// <returns></returns>
-        public override System.Web.UI.Control FilterControl( System.Collections.Generic.Dictionary<string, ConfigurationValue> configurationValues, string id, bool required, Rock.Reporting.FilterMode filterMode )
+        public override Control FilterControl( System.Collections.Generic.Dictionary<string, ConfigurationValue> configurationValues, string id, bool required, Rock.Reporting.FilterMode filterMode )
         {
             // This field type does not support filtering
             return null;
         }
 
-        /// <summary>
-        /// Determines whether this filter has a filter control
-        /// </summary>
-        /// <returns></returns>
-        public override bool HasFilterControl()
-        {
-            return false;
-        }
-
+#endif
         #endregion
 
     }

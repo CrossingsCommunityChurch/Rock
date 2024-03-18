@@ -3,7 +3,7 @@
 <asp:UpdatePanel ID="upnlContent" runat="server">
     <ContentTemplate>
 
-        <asp:HiddenField ID="hfScheduledTransactionId" runat="server" />
+        <asp:HiddenField ID="hfScheduledTransactionGuid" runat="server" />
         <asp:HiddenField ID="hfFinancialGatewayId" runat="server" />
         <Rock:HiddenFieldWithClass ID="hfChangePaymentInfoVisible" CssClass="js-change-paymentinfo-visible" runat="server" />
         <Rock:HiddenFieldWithClass ID="hfSaveNewAccount" CssClass="js-save-new-account" runat="server" />
@@ -16,6 +16,9 @@
         <%-- Prompt for Changes to Scheduled Transaction --%>
         <asp:Panel ID="pnlPromptForChanges" runat="server">
             <Rock:CampusAccountAmountPicker ID="caapPromptForAccountAmounts" runat="server" />
+
+            <Rock:ButtonDropDownList ID="btnAddAccount" runat="server" Visible="false" Label=" "
+                DataTextField="PublicName" DataValueField="Guid" OnSelectionChanged="btnAddAccount_SelectionChanged" />
 
             <Rock:RockDropDownList ID="ddlFrequency" runat="server" Label="Frequency" FormGroupCssClass="margin-t-md" />
 

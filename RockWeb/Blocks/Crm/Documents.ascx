@@ -1,6 +1,11 @@
 ﻿<%@ Control Language="C#" AutoEventWireup="true" CodeFile="Documents.ascx.cs" Inherits="RockWeb.Blocks.Crm.Documents" %>
 <asp:UpdatePanel ID="upPanel" runat="server">
     <ContentTemplate>
+        <script type="text/javascript">
+            $(document).ready(function () {
+                $('.js-document-link').attr('rel', 'noopener noreferrer');
+            });
+        </script>
         <asp:Panel ID="pnlContent" runat="server">
             <Rock:NotificationBox ID="nbMessage" runat="server" Text="" Visible="false" NotificationBoxType="Warning" Mode="PassThrough"></Rock:NotificationBox>
 
@@ -33,13 +38,7 @@
                             <Rock:RockBoundField DataField="CreatedByPersonName" HeaderText="Created By"></Rock:RockBoundField>
                             <Rock:DateTimeField DataField="CreatedDateTime" HeaderText="Created On" FormatAsElapsedTime="true" ItemStyle-HorizontalAlign="Left" HeaderStyle-HorizontalAlign="Left"></Rock:DateTimeField>
 
-                            <Rock:RockTemplateField ShowHeader="false"  ExcelExportBehavior="NeverInclude" HeaderStyle-Width="48px" ItemStyle-CssClass="grid-select-field">
-                                <ItemTemplate>
-                                    <button class="btn btn-square btn-link text-color" data-toggle="tooltip" title="<%# Eval("Description") %>">
-                                        <i class="fa fa-sticky-note"></i>
-                                    </button>
-                                </ItemTemplate>
-                            </Rock:RockTemplateField>
+                            <asp:HyperLinkField ShowHeader="false" Text="<i class='fa fa-file-alt'></i>" Target="_blank" ItemStyle-HorizontalAlign="Center" ItemStyle-CssClass="grid-columncommand" HeaderStyle-HorizontalAlign="Center" ControlStyle-CssClass="js-document-link btn btn-default"/>
 
                             <Rock:RockTemplateField ShowHeader="false" ItemStyle-CssClass="grid-columncommand">
                                 <ItemTemplate>
@@ -47,7 +46,7 @@
                                 </ItemTemplate>
                             </Rock:RockTemplateField>
 
-                            <Rock:SecurityField ID="securityField" ToolTip="Secure Document"/>
+                            <Rock:SecurityField ID="securityField" TitleField="Name" ToolTip="Secure Document"/>
                             <Rock:DeleteField OnClick="gFileList_DeleteClick" />
                         </Columns>
                     </Rock:Grid>
@@ -72,7 +71,8 @@
                                 <Rock:RockTextBox ID="tbDescription" runat="server" Label="Description" TextMode="MultiLine"></Rock:RockTextBox>
                             </div>
                             <div class="col-md-6">
-                                <Rock:FileUploader ID="fuUploader" runat="server" DisplayMode="DropZone" IsBinaryFile="true" Required="true" Label="Document File" RequiredErrorMessage="A Document File is required." FormGroupCssClass="label-hidden fileupload-group-lg" UploadButtonText="Drop File Here or Click to Select"></Rock:FileUploader>
+                                <Rock:NotificationBox ID="nbSelectDocumentType" runat="server" Text="Select a document type" Visible="true" NotificationBoxType="Info" Mode="PassThrough"></Rock:NotificationBox> 
+                                <Rock:FileUploader ID="fuUploader" runat="server" DisplayMode="DropZone" IsBinaryFile="true" Required="true" Label="Document File" RequiredErrorMessage="A Document File is required." FormGroupCssClass="label-hidden fileupload-group-lg" UploadButtonText="Drop File Here or Click to Select" Visible="false"></Rock:FileUploader>
                             </div>
                         </div>
                         <div class="actions">

@@ -14,12 +14,14 @@
 // limitations under the License.
 // </copyright>
 //
+using System;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using System.Data.Entity.ModelConfiguration;
 using System.Runtime.Serialization;
 
 using Rock.Data;
+using Rock.Enums.Core;
 using Rock.Web.Cache;
 
 namespace Rock.Model
@@ -31,9 +33,9 @@ namespace Rock.Model
     [RockDomain( "Core" )]
     [Table( "NoteType" )]
     [DataContract]
+    [Rock.SystemGuid.EntityTypeGuid( "337EED57-D4AB-4EED-BBDB-0CB3A467DBCC")]
     public partial class NoteType : Model<NoteType>, IOrdered, ICacheable
     {
-
         #region Entity Properties
 
         /// <summary>
@@ -125,6 +127,8 @@ namespace Rock.Model
         ///   <c>true</c> if [requires approvals]; otherwise, <c>false</c>.
         /// </value>
         [DataMember]
+        [Obsolete( "This property is no longer used and will be removed in the future." )]
+        [RockObsolete( "1.16" )]
         public bool RequiresApprovals { get; set; }
 
         /// <summary>
@@ -155,6 +159,15 @@ namespace Rock.Model
         public int? MaxReplyDepth { get; set; }
 
         /// <summary>
+        /// Gets or sets the base color to use when calculating the color pair for
+        /// notes of this type.
+        /// </summary>
+        /// <value>The base color to use when calculating the color pair.</value>
+        [DataMember]
+        [MaxLength( 100 )]
+        public string Color { get; set; }
+
+        /// <summary>
         /// Gets or sets the background color of each note
         /// </summary>
         /// <value>
@@ -162,6 +175,8 @@ namespace Rock.Model
         /// </value>
         [DataMember]
         [MaxLength( 100 )]
+        [Obsolete( "This property is no longer used and will be removed in the future." )]
+        [RockObsolete( "1.16" )]
         public string BackgroundColor { get; set; }
 
         /// <summary>
@@ -172,6 +187,8 @@ namespace Rock.Model
         /// </value>
         [DataMember]
         [MaxLength( 100 )]
+        [Obsolete( "This property is no longer used and will be removed in the future." )]
+        [RockObsolete( "1.16" )]
         public string FontColor { get; set; }
 
         /// <summary>
@@ -182,6 +199,8 @@ namespace Rock.Model
         /// </value>
         [DataMember]
         [MaxLength( 100 )]
+        [Obsolete( "This property is no longer used and will be removed in the future." )]
+        [RockObsolete( "1.16" )]
         public string BorderColor { get; set; }
 
         /// <summary>
@@ -191,6 +210,8 @@ namespace Rock.Model
         ///   <c>true</c> if [send approval notifications]; otherwise, <c>false</c>.
         /// </value>
         [DataMember]
+        [Obsolete( "This property is no longer used and will be removed in the future." )]
+        [RockObsolete( "1.16" )]
         public bool SendApprovalNotifications { get; set; }
 
         /// <summary>
@@ -210,6 +231,8 @@ namespace Rock.Model
         /// The approval URL template.
         /// </value>
         [DataMember]
+        [Obsolete( "This property is no longer used and will be removed in the future." )]
+        [RockObsolete( "1.16" )]
         public string ApprovalUrlTemplate { get; set; }
 
         /// <summary>
@@ -229,6 +252,21 @@ namespace Rock.Model
         /// </value>
         [DataMember]
         public int? BinaryFileTypeId { get; set; }
+
+        /// <summary>
+        /// Gets or sets the format the note text is stored in.
+        /// </summary>
+        /// <value>The format the note text is stored in.</value>
+        [DataMember]
+        public NoteFormatType FormatType { get; set; }
+
+        /// <summary>
+        /// Gets or sets a value indicating whether notes of this type allow
+        /// person mentions to be embedded in the text.
+        /// </summary>
+        /// <value><c>true</c> if person mentions are enabled; otherwise, <c>false</c>.</value>
+        [DataMember]
+        public bool IsMentionEnabled { get; set; }
 
         #endregion
 
@@ -268,7 +306,6 @@ namespace Rock.Model
         }
 
         #endregion
-
     }
 
     #region Entity Configuration    
@@ -289,5 +326,4 @@ namespace Rock.Model
     }
 
     #endregion
-
 }

@@ -19,6 +19,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Globalization;
 using System.Linq;
+using System.Net;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -31,6 +32,45 @@ namespace Rock
     public static class StringExtensions
     {
         #region String Extensions
+
+        /// <summary>
+        /// Prepends a character to a string if it doesn't already exist.
+        /// </summary>
+        /// <param name="text"></param>
+        /// <param name="prepend"></param>
+        /// <returns></returns>
+        public static string AddStringAtBeginningIfItDoesNotExist( this string text, string prepend )
+        {
+            if ( text == null )
+                return prepend;
+            if ( prepend == null )
+                prepend = "";
+            return text.StartsWith( prepend ) ? text : prepend + text;
+        }
+
+        /// <summary>
+        /// Gets the nth occurrence of a string within a string. Pass 0 for the first occurrence, 1 for the second.
+        /// </summary>
+        /// <param name="str"></param>
+        /// <param name="value"></param>
+        /// <param name="nth"></param>
+        /// <returns></returns>
+        /// <exception cref="ArgumentException"></exception>
+        public static int IndexOfNth( this string str, string value, int nth = 0, StringComparison comparisonType = StringComparison.OrdinalIgnoreCase )
+        {
+            if ( nth < 0 )
+                throw new ArgumentException( "Can not find a negative index of substring in string. Must start with 0" );
+
+            int offset = str.IndexOf( value, comparisonType );
+            for ( int i = 0; i < nth; i++ )
+            {
+                if ( offset == -1 )
+                    return -1;
+                offset = str.IndexOf( value, offset + 1, comparisonType );
+            }
+
+            return offset;
+        }
 
         /// <summary>
         /// Converts string to MD5 hash
@@ -49,6 +89,7 @@ namespace Rock
                     // Can be "x2" if you want lowercase
                     sb.Append( b.ToString( "x2" ) );
                 }
+
                 return sb.ToString();
             }
         }
@@ -92,6 +133,7 @@ namespace Rock
                     // Can be "x2" if you want lowercase
                     sb.Append( b.ToString( "x2" ) );
                 }
+
                 return sb.ToString();
             }
         }
@@ -139,19 +181,225 @@ namespace Rock
         /// Accepts an encoded string and returns an encoded string
         /// </summary>
         /// <param name="encodedString"></param>
+        [RockObsolete( "1.16.1" )]
+        [Obsolete( "This method is no longer suitable. Consider using RedirectUrlContainsXss." )]
         public static string ScrubEncodedStringForXSSObjects( this string encodedString )
+        {
+            var decodedString = encodedString.GetFullyUrlDecodedValue();
+
+            if ( decodedString.HasXssObjects() )
+            {
+                return "%2f";
+            }
+
+            return encodedString;
+        }
+
+        /// <summary>
+        /// Determines whether <paramref name="decodedString"/> has XSS objects.
+        /// </summary>
+        /// <param name="decodedString">The decoded string.</param>
+        /// <returns>
+        ///   <c>true</c> if <paramref name="decodedString"/> has XSS objects; otherwise, <c>false</c>.
+        /// </returns>
+        [RockObsolete( "1.16.1" )]
+        [Obsolete( "This method is no longer suitable. Consider using RedirectUrlContainsXss." )]
+        public static bool HasXssObjects( this string decodedString )
         {
             // Characters used by DOM Objects; javascript, document, window and URLs
             char[] badCharacters = new char[] { '<', '>', ':', '*' };
 
-            if ( encodedString.IndexOfAny( badCharacters ) >= 0 )
+            if ( decodedString?.IndexOfAny( badCharacters ) >= 0 )
             {
-                return "%2f";
+                return true;
             }
-            else
+
+            return false;
+        }
+
+        /// <summary>
+        /// Checks a value intended to be a redirect URL for XSS injection methods.
+        /// </summary>
+        /// <param name="redirectUrl">The value intended to be used for a redirect URL.</param>
+        /// <returns>
+        ///   <c>true</c> if [redirectUrl contains XSS injection methods]; otherwise, <c>false</c>.
+        /// </returns>
+        public static bool RedirectUrlContainsXss( this string redirectUrl )
+        {
+            if ( string.IsNullOrWhiteSpace( redirectUrl ) )
+            {
+                return false; // Early exit, nothing to check.
+            }
+
+            // These are characters which we will not ever allow in a URL query string value.  We used to block colon (:), but that
+            // has a valid use in DateTime values.
+            char[] badCharacters = new char[] { '<', '>', '*' };
+
+            // Ensure we URL and HTML decode all characters, even if they are double/triple/etc encoded.
+            var decodedString = redirectUrl.GetFullyUrlDecodedValue().GetFullyHtmlDecodedValue();
+
+            // Check for bad characters.
+            if ( decodedString.IndexOfAny( badCharacters ) >= 0 )
+            {
+                return true;
+            }
+
+            // Some special whitespace characters are ignored by the browser when parsing script.  Remove all whitespace from the
+            // string and make it lower case for easier comparison.
+            decodedString = Regex.Replace( decodedString, @"\s+", "" ).ToLower();
+
+            // These are strings that should never be allowed in a URL query string value.
+            string[] blockedStrings = new string[] { "javascript:" };
+
+            // Check for bad strings.
+            foreach ( string blockedString in blockedStrings )
+            {
+                if ( decodedString.Contains( blockedString ) )
+                {
+                    return true;
+                }
+            }
+
+            // Everything looks okay.
+            return false;
+        }
+
+        /// <summary>
+        /// Gets a fully URL-decoded string (or returns string.Empty if it cannot be decoded within 10 attempts).
+        /// </summary>
+        /// <param name="encodedString">The encoded string.</param>
+        /// <returns></returns>
+        public static string GetFullyUrlDecodedValue( this string encodedString )
+        {
+            if ( string.IsNullOrWhiteSpace( encodedString) )
             {
                 return encodedString;
             }
+
+            int loopCount = 0;
+            var decodedString = encodedString;
+            var testString = WebUtility.UrlDecode( encodedString );
+            while ( testString != decodedString )
+            {
+                loopCount++;
+                if ( loopCount >= 10 )
+                {
+                    return string.Empty;
+                }
+
+                decodedString = testString;
+                testString = WebUtility.UrlDecode( testString );
+            }
+
+            return decodedString;
+        }
+
+        /// <summary>
+        /// Gets a fully HTML-decoded string (or returns string.Empty if it cannot be decoded within 10 attempts).
+        /// </summary>
+        /// <param name="encodedString">The encoded string.</param>
+        /// <returns></returns>
+        public static string GetFullyHtmlDecodedValue( this string encodedString )
+        {
+            if ( string.IsNullOrWhiteSpace( encodedString ) )
+            {
+                return encodedString;
+            }
+
+            int loopCount = 0;
+            var decodedString = encodedString;
+            var testString = HtmlDecodeCharactersWithoutSeparators( encodedString );
+            while ( testString != decodedString )
+            {
+                loopCount++;
+                if ( loopCount >= 10 )
+                {
+                    return string.Empty;
+                }
+
+                decodedString = testString;
+                testString = HtmlDecodeCharactersWithoutSeparators( testString );
+            }
+
+            return decodedString;
+        }
+
+        /// <summary>
+        /// This method inserts missing semi-colon separators into HTML-encoded character strings that use hex or decimal character
+        /// references before HTML decoding them. Browsers will render these strings without the separators, but
+        /// <see cref="WebUtility.HtmlDecode"/> will not.
+        /// </summary>
+        /// <param name="encodedString">The encoded string.</param>
+        /// <returns></returns>
+        private static string HtmlDecodeCharactersWithoutSeparators( this string encodedString )
+        {
+            if ( string.IsNullOrWhiteSpace( encodedString ) )
+            {
+                return encodedString;
+            }
+
+            // Hex encoded HTML characters should follow the format "&#0000;" (for decimal) or &#x0000; (for hex).  If we don't have
+            // an ampersand together with a pound symbol, we can just use the base method.
+            if ( !encodedString.Contains( "&#" ) )
+            {
+                return WebUtility.HtmlDecode( encodedString );
+            }
+
+            // This loop will shift each segment of the string from encodedString to correctedEncodedString, adding any missing
+            // semi-colons after each decimal or hex encoded character.
+            var correctedEncodedString = string.Empty;
+            while ( encodedString.Contains( "&#" ) )
+            {
+                var elementBoundary = encodedString.IndexOf( "&#" );
+
+                // Start by putting everything before the next &# into the corrected string and removing it from the original.
+                correctedEncodedString += encodedString.Substring( 0, elementBoundary ) + "&#";
+                elementBoundary += 2;
+                encodedString = encodedString.Substring( elementBoundary, encodedString.Length - elementBoundary );
+
+                // If the next character in the string is an "x", move it to the corrected string.
+                var nextChar = encodedString.FirstOrDefault();
+                bool useHex = false;
+                if ( nextChar == 'x' )
+                {
+                    useHex = true;
+                    correctedEncodedString += nextChar;
+                    encodedString = encodedString.Substring( 1, encodedString.Length - 1 );
+                    nextChar = encodedString.FirstOrDefault();
+                }
+
+                // Keep moving any digits to the corrected string.  There's technically no limit on padding zeros.
+                var isDigit = useHex ? nextChar.IsHexDigit() : char.IsDigit( nextChar );
+                while ( isDigit )
+                {
+                    correctedEncodedString += nextChar;
+                    encodedString = encodedString.Substring( 1, encodedString.Length - 1 );
+                    nextChar = encodedString.FirstOrDefault();
+                    isDigit = useHex ? nextChar.IsHexDigit() : char.IsDigit( nextChar );
+                }
+
+                // Add missing semi-colons.
+                if ( nextChar != ';' )
+                {
+                    correctedEncodedString += ";";
+                }
+            }
+
+            // Re-append any trailing characters left over in the original string.
+            correctedEncodedString += encodedString;
+
+            return WebUtility.HtmlDecode( correctedEncodedString );
+        }
+
+        /// <summary>
+        /// Checks a digit to see if it's a valid hexadecimal character (0-9 or A-F).  Permits lowercase.
+        /// </summary>
+        /// <param name="c">The character.</param>
+        /// <returns></returns>
+        private static bool IsHexDigit( this char c )
+        {
+            char[] nonNumericHexCharacters = new char[] { 'A', 'B', 'C', 'D', 'E', 'F', 'a', 'b', 'c', 'd', 'e', 'f' };
+            return char.IsDigit( c ) || nonNumericHexCharacters.Contains( c );
         }
 
         /// <summary>
@@ -159,7 +407,7 @@ namespace Rock
         /// </summary>
         /// <param name="source">The source.</param>
         /// <param name="separator">The separator.</param>
-        /// <returns>Concatencated string.</returns>
+        /// <returns>Concatenated string.</returns>
         public static string JoinStrings( this IEnumerable<string> source, string separator )
         {
             return string.Join( separator, source.ToArray() );
@@ -191,6 +439,46 @@ namespace Rock
             {
                 // only one element, just use it
                 output = list[0];
+            }
+
+            return output;
+        }
+
+        /// <summary>
+        /// Joins an array of English strings together with a chosen delimiter, plus a final delimiter for last element, with a maximum length of results and truncation value.
+        /// </summary>
+        /// <param name="source"></param>
+        /// <param name="repeatDelimiter">The delimiter for all but the final string.</param>
+        /// <param name="finalDelimiter">The delimiter for only the final string.</param>
+        /// <param name="maxLength">The maximum length allowed for the concatenated string from the source (not including the <paramref name="truncation"/> string).</param>
+        /// <param name="truncation">The truncation string value (default is "..." for ellipsis).</param>
+        /// <returns>Concatenated string.</returns>
+        public static string JoinStringsWithRepeatAndFinalDelimiterWithMaxLength( this IEnumerable<String> source, string repeatDelimiter, string finalDelimiter, int? maxLength, string truncation = "..." )
+        {
+            if ( source == null || source.Count() == 0 )
+            {
+                return string.Empty;
+            }
+
+            var output = string.Empty;
+
+            var list = source.ToList();
+
+            if ( list.Count > 1 )
+            {
+                var delimited = string.Join( repeatDelimiter, list.Take( list.Count - 1 ) );
+
+                output = string.Concat( delimited, finalDelimiter, list.LastOrDefault() );
+            }
+            else
+            {
+                // only one element, just use it.
+                output = list[0];
+            }
+
+            if ( maxLength.HasValue && output.Length > maxLength.Value )
+            {
+                output = output.Substring( 0, maxLength.Value ) + truncation;
             }
 
             return output;
@@ -298,12 +586,7 @@ namespace Rock
         /// <returns></returns>
         public static string Right( this string str, int length )
         {
-            if ( str == null )
-            {
-                return string.Empty;
-            }
-
-            return str.Substring( str.Length - length );
+            return str.SubstringSafe( str.Length - length );
         }
 
         /// <summary>
@@ -415,7 +698,6 @@ namespace Rock
         public static IEnumerable<int> StringToIntList( this string str )
         {
             // https://stackoverflow.com/questions/1763613/convert-comma-separated-string-of-ints-to-int-array
-
             if ( String.IsNullOrEmpty( str ) )
             {
                 yield break;
@@ -662,18 +944,7 @@ namespace Rock
         /// <returns></returns>
         public static string Left( this string str, int length )
         {
-            if ( str == null )
-            {
-                return null;
-            }
-            else if ( str.Length <= length )
-            {
-                return str;
-            }
-            else
-            {
-                return str.Substring( 0, length );
-            }
+            return str.SubstringSafe( 0, length );
         }
 
         /// <summary>
@@ -803,6 +1074,19 @@ namespace Rock
         {
             int place = source.LastIndexOf( find );
             return place > 0 ? source.Remove( place, find.Length ).Insert( place, replace ) : source;
+        }
+
+        /// <summary>
+        /// Replaces the first occurrence of a given string with a new value
+        /// </summary>
+        /// <param name="source">The source.</param>
+        /// <param name="find">The find.</param>
+        /// <param name="replace">The replace.</param>
+        /// <returns>System.String.</returns>
+        public static string ReplaceFirstOccurrence( this string source, string find, string replace )
+        {
+            var regex = new Regex( Regex.Escape( find ) );
+            return regex.Replace( source, replace, 1 );
         }
 
         /// <summary>
@@ -1188,6 +1472,16 @@ namespace Rock
         }
 
         /// <summary>
+        /// Removes the trailing forwardslash.
+        /// </summary>
+        /// <param name="value">The value.</param>
+        /// <returns>System.String.</returns>
+        public static string RemoveTrailingForwardslash( this string value )
+        {
+            return value.TrimEnd( new char[] { '/' } );
+        }
+
+        /// <summary>
         /// Evaluates string, and if null or empty, returns nullValue instead.
         /// </summary>
         /// <param name="value">The value.</param>
@@ -1388,6 +1682,97 @@ namespace Rock
             }
 
             return sb.ToString();
+        }
+
+        /// <summary>
+        /// Returns true/false based on whether the provided string is in a valid hex color format.
+        /// </summary>
+        /// <param name="str"></param>
+        /// <returns></returns>
+        public static bool IsValidHexColor( this string str )
+        {
+            if (str == null )
+            {
+                return false;
+            }
+
+            return Regex.IsMatch( str, @"^#(([0-9a-fA-F]{2}){3}|([0-9a-fA-F]){3})$" );
+        }
+
+        /// <summary>
+        /// Returns the hex color as a string if it is valid otherwise it will return the fallback or null.
+        /// </summary>
+        /// <param name="str"></param>
+        /// <param name="fallback"></param>
+        /// <returns></returns>
+        public static string AsHexColorString( this string str, string fallback = null )
+        {
+            if ( str.IsValidHexColor() )
+            {
+                return str;
+            }
+
+            // Return null if no fallback provided
+            if ( fallback == null )
+            {
+                return null;
+            }
+
+            // Check if fallback is a valid hex color
+            if ( fallback.IsValidHexColor() )
+            {
+                return fallback;
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Convert a string into camelCase.
+        /// </summary>
+        /// <remarks>Originally from https://github.com/JamesNK/Newtonsoft.Json/blob/01e1759cac40d8154e47ed0e11c12a9d42d2d0ff/Src/Newtonsoft.Json/Utilities/StringUtils.cs#L155</remarks>
+        /// <param name="value">The string to be converted.</param>
+        /// <returns>A string in camel case.</returns>
+        public static string ToCamelCase( this string value )
+        {
+            if ( string.IsNullOrEmpty( value ) || !char.IsUpper( value[0] ) )
+            {
+                return value;
+            }
+
+            var chars = value.ToCharArray();
+
+            for ( int i = 0; i < chars.Length; i++ )
+            {
+                if ( i == 1 && !char.IsUpper( chars[i] ) )
+                {
+                    break;
+                }
+
+                var hasNext = i + 1 < chars.Length;
+
+                if ( i > 0 && hasNext && !char.IsUpper( chars[i + 1] ) )
+                {
+                    // if the next character is a space, which is not considered uppercase 
+                    // (otherwise we wouldn't be here...)
+                    // we want to ensure that the following:
+                    // 'FOO bar' is rewritten as 'foo bar', and not as 'foO bar'
+                    // The code was written in such a way that the first word in uppercase
+                    // ends when if finds an uppercase letter followed by a lowercase letter.
+                    // now a ' ' (space, (char)32) is considered not upper
+                    // but in that case we still want our current character to become lowercase
+                    if ( char.IsSeparator( chars[i + 1] ) )
+                    {
+                        chars[i] = char.ToLower( chars[i] );
+                    }
+
+                    break;
+                }
+
+                chars[i] = char.ToLower( chars[i] );
+            }
+
+            return new string( chars );
         }
 
         #endregion String Extensions

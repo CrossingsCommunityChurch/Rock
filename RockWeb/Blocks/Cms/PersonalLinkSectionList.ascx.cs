@@ -54,6 +54,7 @@ namespace RockWeb.Blocks.Cms
         Order = 1 )]
 
     #endregion Block Attributes
+    [Rock.SystemGuid.BlockTypeGuid( "0BFD74A8-1888-4407-9102-D3FCEABF3095" )]
     public partial class PersonalLinkSectionList : RockBlock, ICustomGridColumns
     {
         #region Attribute Keys
@@ -264,7 +265,7 @@ namespace RockWeb.Blocks.Cms
         /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
         protected void gfFilter_ApplyFilterClick( object sender, EventArgs e )
         {
-            gfFilter.SaveUserPreference( UserPreferenceKey.Name, txtSectionName.Text );
+            gfFilter.SetFilterPreference( UserPreferenceKey.Name, txtSectionName.Text );
             BindGrid();
         }
 
@@ -275,7 +276,7 @@ namespace RockWeb.Blocks.Cms
         /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
         protected void gfFilter_ClearFilterClick( object sender, EventArgs e )
         {
-            gfFilter.DeleteUserPreferences();
+            gfFilter.DeleteFilterPreferences();
             BindFilter();
         }
 
@@ -312,7 +313,7 @@ namespace RockWeb.Blocks.Cms
         /// </summary>
         private void BindFilter()
         {
-            txtSectionName.Text = gfFilter.GetUserPreference( UserPreferenceKey.Name );
+            txtSectionName.Text = gfFilter.GetFilterPreference( UserPreferenceKey.Name );
         }
 
         /// <summary>
@@ -335,11 +336,18 @@ namespace RockWeb.Blocks.Cms
             var limitToSharedSections = GetAttributeValue( AttributeKey.SharedSections ).AsBoolean();
             List<PersonalLinkSection> personalLinkSectionList;
             Dictionary<int, PersonalLinkSectionOrder> currentPersonSectionOrderLookupBySectionId = null;
+            var nameFilter = gfFilter.GetFilterPreference( UserPreferenceKey.Name );
 
             if ( limitToSharedSections )
             {
                 // only show shared sections in this mode
                 var sharedPersonalLinkSectionsQuery = new PersonalLinkSectionService( rockContext ).Queryable().Where( a => a.IsShared );
+
+                if ( nameFilter.IsNotNullOrWhiteSpace() )
+                {
+                    sharedPersonalLinkSectionsQuery = sharedPersonalLinkSectionsQuery.Where( p => p.Name.Contains( nameFilter ) );
+                }
+
                 personalLinkSectionList = sharedPersonalLinkSectionsQuery.Include( a => a.PersonalLinks ).OrderBy( a => a.Name ).AsNoTracking().ToList();
             }
             else
@@ -357,7 +365,9 @@ namespace RockWeb.Blocks.Cms
                     .Include( a => a.PersonalLinks )
                     .AsNoTracking()
                     .ToList()
-                    .Where( a => a.IsAuthorized( Rock.Security.Authorization.VIEW, this.CurrentPerson ) )
+                    .Where( a => a.IsAuthorized( Rock.Security.Authorization.VIEW, this.CurrentPerson )
+                        && ( string.IsNullOrWhiteSpace( nameFilter ) || a.Name.Contains( nameFilter ) )
+                        )
                     .ToList();
 
                 // NOTE: We might be making changes when resorting this, so don't use AsNoTracking()

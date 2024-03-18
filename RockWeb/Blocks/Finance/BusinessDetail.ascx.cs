@@ -1,4 +1,4 @@
-﻿// <copyright>
+// <copyright>
 // Copyright by the Spark Development Network
 //
 // Licensed under the Rock Community License (the "License");
@@ -18,6 +18,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
+using System.Text;
 using System.Web.UI;
 using System.Web.UI.WebControls;
 using Newtonsoft.Json;
@@ -38,6 +39,8 @@ namespace RockWeb.Blocks.Finance
     [DisplayName( "Business Detail" )]
     [Category( "Finance" )]
     [Description( "Displays the details of the given business." )]
+
+    #region Block Attributes
 
     [LinkedPage( "Communication Page",
         Description = "The communication page to use for when the business email address is clicked. Leave this blank to use the default.",
@@ -85,7 +88,28 @@ namespace RockWeb.Blocks.Finance
         AllowMultiple = true,
         Order = 5 )]
 
-    public partial class BusinessDetail : ContextEntityBlock, IDetailBlock
+    [WorkflowTypeField(
+        "Workflow Actions",
+        Key = AttributeKey.WorkflowActions,
+        Description = "The workflows to make available as actions.",
+        AllowMultiple = true,
+        IsRequired = false,
+        Order = 6 )]
+
+    [CodeEditorField(
+        "Additional Custom Actions",
+        Key = AttributeKey.AdditionalCustomActions,
+        Description = BlockAttributeDescription.AdditionalCustomActions,
+        EditorMode = CodeEditorMode.Html,
+        EditorTheme = CodeEditorTheme.Rock,
+        EditorHeight = 200,
+        IsRequired = false,
+        Order = 7 )]
+
+    #endregion BlockAttributes
+
+    [Rock.SystemGuid.BlockTypeGuid( "3CB1F9F0-11B2-4A46-B9D1-464811E5015C" )]
+    public partial class BusinessDetail : ContextEntityBlock
     {
         private static class AttributeKey
         {
@@ -95,6 +119,19 @@ namespace RockWeb.Blocks.Finance
             public const string DisplayTags = "DisplayTags";
             public const string SearchKeyTypes = "SearchKeyTypes";
             public const string TagCategory = "TagCategory";
+            public const string WorkflowActions = "WorkflowActions";
+            public const string AdditionalCustomActions = "AdditionalCustomActions";
+        }
+
+        private static class BlockAttributeDescription
+        {
+            public const string AdditionalCustomActions = @"
+Additional custom actions (will be displayed after the list of workflow actions). Any instance of '{0}' will be replaced with the current business's id.
+Because the contents of this setting will be rendered inside a &lt;ul&gt; element, it is recommended to use an 
+&lt;li&gt; element for each available action.  Example:
+<pre>
+    &lt;li&gt;&lt;a href='~/WorkflowEntry/4?PersonId={0}' tabindex='0'&gt;Fourth Action&lt;/a&gt;&lt;/li&gt;
+</pre>";
         }
 
         private static class ListSource
@@ -153,7 +190,8 @@ namespace RockWeb.Blocks.Finance
 
             if ( !Page.IsPostBack )
             {
-                ShowDetail( PageParameter( "BusinessId" ).AsInteger() );
+                var businessId = PageParameter( "BusinessId" ).AsInteger();
+                ShowDetail( businessId );
             }
         }
 
@@ -207,7 +245,8 @@ namespace RockWeb.Blocks.Finance
         /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
         private void BusinessDetail_BlockUpdated( object sender, EventArgs e )
         {
-            ShowDetail( PageParameter( "BusinessId" ).AsInteger() );
+            var businessId = PageParameter( "BusinessId" ).AsInteger();
+            ShowDetail( businessId );
         }
 
         #endregion Control Methods
@@ -247,7 +286,6 @@ namespace RockWeb.Blocks.Finance
             {
                 business = new Person();
                 personService.Add( business );
-                tbBusinessName.Text = tbBusinessName.Text.FixCase();
             }
 
             // Business Name
@@ -383,13 +421,39 @@ namespace RockWeb.Blocks.Finance
                 }
 
                 rockContext.SaveChanges();
-                business.SaveAttributeValues();
-
+                
                 hfBusinessId.Value = business.Id.ToString();
             } );
 
-            var queryParams = new Dictionary<string, string>();
-            queryParams.Add( "BusinessId", hfBusinessId.Value );
+            /* Ethan Drotning 2022-01-11
+             * Need save the PersonSearchKeys outside of the transaction since the DB might not have READ_COMMITTED_SNAPSHOT enabled.
+             */
+
+            // PersonSearchKey
+            var personSearchKeyService = new PersonSearchKeyService( rockContext );
+            var validSearchTypes = GetValidSearchKeyTypes();
+            var databaseSearchKeys = personSearchKeyService.Queryable().Where( a => a.PersonAlias.PersonId == business.Id && validSearchTypes.Contains( a.SearchTypeValue.Guid ) ).ToList();
+
+            foreach ( var deletedSearchKey in databaseSearchKeys.Where( a => !PersonSearchKeysState.Any( p => p.Guid == a.Guid ) ) )
+            {
+                personSearchKeyService.Delete( deletedSearchKey );
+            }
+
+            foreach ( var personSearchKey in PersonSearchKeysState.Where( a => !databaseSearchKeys.Any( d => d.Guid == a.Guid ) ) )
+            {
+                personSearchKey.PersonAliasId = business.PrimaryAliasId.Value;
+                personSearchKeyService.Add( personSearchKey );
+            }
+
+            rockContext.SaveChanges();
+
+            business.SaveAttributeValues();
+
+            var queryParams = new Dictionary<string, string>
+            {
+                { "BusinessId", hfBusinessId.Value }
+            };
+
             NavigateToCurrentPage( queryParams );
         }
 
@@ -471,6 +535,80 @@ namespace RockWeb.Blocks.Finance
         #endregion Events
 
         #region Internal Methods
+
+        /// <summary>
+        /// Creates an "Actions" menu with workflow and/or custom actions, as specified in the block settings.
+        /// </summary>
+        /// <param name="businessId">The business (person) identifier.</param>
+        protected void CreateActionMenu( int businessId )
+        {
+            StringBuilder sbActions = new StringBuilder();
+            var hasCustomActions = false;
+            var hasWorkflowActions = false;
+
+            // First list the actions manually entered as html in the block settting
+            var actions = GetAttributeValue( AttributeKey.AdditionalCustomActions );
+            if ( !string.IsNullOrWhiteSpace( actions ) )
+            {
+                hasCustomActions = true;
+                string appRoot = ResolveRockUrl( "~/" );
+                string themeRoot = ResolveRockUrl( "~~/" );
+                actions = actions.Replace( "~~/", themeRoot ).Replace( "~/", appRoot );
+
+                if ( actions.Contains( "{0}" ) )
+                {
+                    actions = string.Format( actions, businessId );
+                }
+
+                sbActions.Append( actions );
+            }
+
+            // Next list the workflow actions selected in the picker
+            var workflowActions = GetAttributeValue( AttributeKey.WorkflowActions );
+            if ( !string.IsNullOrWhiteSpace( workflowActions ) )
+            {
+                hasWorkflowActions = true;
+                List<WorkflowType> workflowTypes = new List<WorkflowType>();
+
+                using ( var rockContext = new RockContext() )
+                {
+                    var workflowTypeService = new WorkflowTypeService( rockContext );
+                    foreach ( string guidValue in workflowActions.Split( new char[] { ',' }, StringSplitOptions.RemoveEmptyEntries ) )
+                    {
+                        Guid? guid = guidValue.AsGuidOrNull();
+                        if ( guid.HasValue )
+                        {
+                            var workflowType = workflowTypeService.Get( guid.Value );
+                            if ( workflowType != null && ( workflowType.IsActive ?? true ) && workflowType.IsAuthorized( Authorization.VIEW, CurrentPerson ) )
+                            {
+                                workflowTypes.Add( workflowType );
+                            }
+                        }
+                    }
+                }
+
+                workflowTypes = workflowTypes.OrderBy( w => w.Name ).ToList();
+
+                if ( hasCustomActions && workflowTypes.Count() > 0 )
+                {
+                    sbActions.Append( "<li role=\"separator\" class=\"divider\"></li>" );
+                }
+
+                foreach ( var workflowType in workflowTypes )
+                {
+                    string url = string.Format( "~/WorkflowEntry/{0}?PersonId={1}", workflowType.Id, businessId );
+                    sbActions.AppendFormat(
+                        "<li><a href='{0}'><i class='fa-fw {1}'></i> {2}</a></li>",
+                        ResolveRockUrl( url ),
+                        workflowType.IconCssClass,
+                        workflowType.Name );
+                    sbActions.AppendLine();
+                }
+            }
+
+            lActions.Text = sbActions.ToString();
+            pnlActionWrapper.Visible = hasCustomActions || hasWorkflowActions;
+        }
 
         /// <summary>
         /// Shows the detail.
@@ -581,6 +719,7 @@ namespace RockWeb.Blocks.Finance
         /// <param name="business">The business.</param>
         private void ShowSummary( int businessId )
         {
+            CreateActionMenu( businessId );
             SetEditMode( false );
             hfBusinessId.SetValue( businessId );
             lTitle.Text = "Business Details".FormatAsHtmlTitle();
@@ -745,9 +884,13 @@ namespace RockWeb.Blocks.Finance
                 lTitle.Text = ActionTitle.Add( "Business" ).FormatAsHtmlTitle();
             }
 
+            var validSearchTypes = GetValidSearchKeyTypes();
+            this.PersonSearchKeysState = business.GetPersonSearchKeys().Where( a => validSearchTypes.Contains( a.SearchTypeValue.Guid ) ).ToList();
+
             BindPersonSearchKeysGrid();
             SetEditMode( true );
             ShowEditAttributes( business );
+            pnlActionWrapper.Visible = false;
         }
 
         /// <summary>
@@ -766,7 +909,7 @@ namespace RockWeb.Blocks.Finance
         /// </summary>
         private void BindPersonSearchKeysGrid()
         {
-            var values = this.PersonSearchKeysState;
+            var values = this.PersonSearchKeysState ?? new List<PersonSearchKey>();
             var dv = DefinedValueCache.Get( Rock.SystemGuid.DefinedValue.PERSON_SEARCH_KEYS_ALTERNATE_ID.AsGuid() );
             if ( dv != null )
             {
@@ -846,6 +989,19 @@ namespace RockWeb.Blocks.Finance
             if ( groupMember.Id == 0)
             {
                 groupMemberService.Add( groupMember );
+
+                /*
+                     6/20/2022 - SMC
+
+                     We need to save the new Group to the database so that an Id is assigned.  This
+                     Id is necessary to calculate the correct GivingId for the business, otherwise
+                     all new businesses are given a GivingId of "G0" until the Rock Cleanup Job runs,
+                     which causes the transactions to appear on any new records (because they all
+                     have the same GivingId).
+
+                     Reason: Transactions showing up on records they don't belong to.
+                */
+                rockContext.SaveChanges();
             }
 
             return groupMember;

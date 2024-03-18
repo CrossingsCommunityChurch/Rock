@@ -39,6 +39,7 @@ namespace RockWeb.Blocks.Core
     [DisplayName( "Attribute Categories" )]
     [Category( "Core" )]
     [Description( "Allows attribute categories to be managed." )]
+    [Rock.SystemGuid.BlockTypeGuid( "1FC50941-A883-47A2-ABE9-13528BCC4D1B" )]
     public partial class AttributeCategories : RockBlock
     {
         #region Fields
@@ -118,7 +119,7 @@ namespace RockWeb.Blocks.Core
         /// <param name="e">The <see cref="EventArgs" /> instance containing the event data.</param>
         protected void rFilter_ApplyFilterClick( object sender, EventArgs e )
         {
-            rFilter.SaveUserPreference( "EntityType", entityTypeFilter.SelectedValue );
+            rFilter.SetFilterPreference( "EntityType", entityTypeFilter.SelectedValue );
             BindGrid();
         }
 
@@ -369,7 +370,7 @@ namespace RockWeb.Blocks.Core
                 .Select( c => c.AsInteger() );
 
             entityTypeFilter.EntityTypes = entityTypes.Where( e => categoryEntities.Contains( e.Id ) ).ToList();
-            entityTypeFilter.SetValue( rFilter.GetUserPreference( "EntityType" ) );
+            entityTypeFilter.SetValue( rFilter.GetFilterPreference( "EntityType" ) );
         }
 
         /// <summary>

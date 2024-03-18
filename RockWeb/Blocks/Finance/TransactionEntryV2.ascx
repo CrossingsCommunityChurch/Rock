@@ -44,23 +44,20 @@
 
                             <asp:Literal ID="lIntroMessage" runat="server" />
 
-                            <%-- Special input with rock-fullname class --%>
-                            <Rock:RockTextBox ID="tbRockFullName_AmountEntry" runat="server" CssClass="rock-fullname" ValidationGroup="vgRockFullName_AmountEntry" Placeholder="Please enter name (Required)" />
-                            <Rock:NotificationBox ID="nbRockFullName_AmountEntry" runat="server" NotificationBoxType="Validation" />
-
                             <Rock:CampusAccountAmountPicker ID="caapPromptForAccountAmounts" runat="server" />
 
-                            <asp:Panel ID="pnlScheduledTransaction" runat="server">
+                            <asp:Panel ID="pnlScheduledTransactionFrequency" runat="server">
                                 <div class="form-group">
                                     <Rock:RockDropDownList ID="ddlFrequency" runat="server" Label="Frequency" AutoPostBack="true" OnSelectedIndexChanged="ddlFrequency_SelectedIndexChanged" />
                                 </div>
+                            </asp:Panel>
 
-                                <asp:Panel ID="pnlSavedAccounts" runat="server" class="form-group" Visible="false">
-                                    <Rock:RockDropDownList ID="ddlPersonSavedAccount" runat="server" Label="Giving Method" AutoPostBack="true" OnSelectedIndexChanged="ddlPersonSavedAccount_SelectedIndexChanged" />
-                                </asp:Panel>
+                            <asp:Panel ID="pnlSavedAccounts" runat="server" class="form-group" Visible="false">
+                                <Rock:RockDropDownList ID="ddlPersonSavedAccount" runat="server" Label="Giving Method" AutoPostBack="true" OnSelectedIndexChanged="ddlPersonSavedAccount_SelectedIndexChanged" />
+                            </asp:Panel>
 
+                            <asp:Panel ID="pnlScheduledTransactionStartDate" runat="server">
                                 <Rock:DatePicker ID="dtpStartDate" runat="server" AllowPastDateSelection="false" Label="Start Date" />
-
                             </asp:Panel>
 
                             <Rock:RockTextBox ID="tbCommentEntry" runat="server" Required="true" Label="Comment" />
@@ -71,8 +68,10 @@
 
                             <%-- Cover the Fee checkbox (When a Saved Account is selected and we know the currency type already) --%>
                             <asp:Panel ID="pnlGiveNowCoverTheFee" runat="server" CssClass="js-coverthefee-container" Visible="false">
-                                <Rock:RockCheckBox ID="cbGiveNowCoverTheFee" runat="server" Text="Hello $<span class='js-coverthefee-checkbox-fee-amount-text'></span> World" CssClass="js-givenow-coverthefee" />
+                                <Rock:RockCheckBox ID="cbGiveNowCoverTheFee" runat="server" Text="$<span class='js-coverthefee-checkbox-fee-amount-text'></span>" CssClass="js-givenow-coverthefee" />
                             </asp:Panel>
+
+                            <Rock:Captcha ID="cpCaptcha" runat="server" />
 
                             <Rock:BootstrapButton ID="btnGiveNow" runat="server" CssClass="btn btn-primary btn-give-now" Text="Give Now" OnClick="btnGiveNow_Click" />
 
@@ -114,7 +113,7 @@
                             <div class="navigation actions">
                                 <asp:LinkButton ID="btnGetPaymentInfoBack" runat="server" CssClass="btn btn-default" Text="Back" OnClick="btnGetPaymentInfoBack_Click" />
 
-
+                                <Rock:HiddenFieldWithClass ID="hfHostPaymentInfoSubmitScript" runat="server" CssClass="js-hosted-payment-script" />
                                 <%-- NOTE: btnGetPaymentInfoNext ends up telling the HostedPaymentControl (via the js-submit-hostedpaymentinfo hook) to request a token, which will cause the _hostedPaymentInfoControl_TokenReceived postback
                                		Even though this is a LinkButton, btnGetPaymentInfoNext won't autopostback  (see $('.js-submit-hostedpaymentinfo').off().on('click').. )
                                 --%>
@@ -127,10 +126,6 @@
 
                             <Rock:Toggle ID="tglIndividualOrBusiness" runat="server" ButtonGroupCssClass="btn-group-justified" OnText="Business" OffText="Individual" OnCheckedChanged="tglIndividualOrBusiness_CheckedChanged" />
 
-                            <%-- Special input with rock-fullname class --%>
-                            <Rock:RockTextBox ID="tbRockFullName_PersonalInformation" runat="server" CssClass="rock-fullname" ValidationGroup="vgRockFullName_PersonalInformation" Placeholder="Please enter name (Required)" />
-                            <Rock:NotificationBox ID="nbRockFullName_PersonalInformation" runat="server" NotificationBoxType="Validation" />
-
                             <asp:Panel ID="pnlPersonInformationAsIndividual" runat="server">
                                 <asp:Panel ID="pnlLoggedInNameDisplay" runat="server">
                                     <div class="form-control-static">
@@ -139,7 +134,7 @@
                                 </asp:Panel>
                                 <asp:Panel ID="pnlNotLoggedInNameEntry" runat="server">
                                     <div class="form-group">
-                                        <Rock:RockTextBox ID="tbFirstName" runat="server" Placeholder="First Name" CssClass="margin-b-sm" Required="true" />
+                                        <Rock:FirstNameTextBox ID="tbFirstName" runat="server" Placeholder="First Name" CssClass="margin-b-sm" ValidationGroup="vgFirstName" Required="true" />
                                     </div>
                                     <div class="form-group">
                                         <Rock:RockTextBox ID="tbLastName" runat="server" Placeholder="Last Name" CssClass="margin-b-sm" Required="true" />
@@ -189,7 +184,7 @@
                             <Rock:NotificationBox ID="nbProcessTransactionError" runat="server" NotificationBoxType="Danger" Visible="false" />
 
                             <div class="navigation actions margin-t-md">
-                                <asp:LinkButton ID="btnPersonalInformationBack" runat="server" CssClass="btn btn-default" Text="Back" OnClick="btnPersonalInformationBack_Click" />
+                                <asp:LinkButton ID="btnPersonalInformationBack" runat="server" CssClass="btn btn-default" Text="Back" CausesValidation="false" OnClick="btnPersonalInformationBack_Click" />
                                 <Rock:BootstrapButton ID="btnPersonalInformationNext" runat="server" CssClass="btn btn-primary pull-right" Text="Finish" OnClick="btnPersonalInformationNext_Click" />
                             </div>
                         </asp:Panel>
@@ -214,7 +209,7 @@
                                         <div class="control-group">
                                             <div class="controls">
                                                 <div class="alert alert-info">
-                                                    <b>Note:</b> For security purposes you will need to login to use your saved account information. To create
+                                                    <b>Note:</b> For security purposes you will need to log in to use your saved account information. To create
 	    			                    a login account please provide a user name and password below. You will be sent an email with the account
 	    			                    information above as a reminder.
                                                 </div>
@@ -325,7 +320,8 @@
                     // Prevent the btnGetPaymentInfoNext autopostback event from firing by doing stopImmediatePropagation and returning false
                     e.stopImmediatePropagation();
 
-                    <%=HostPaymentInfoSubmitScript%>
+                    const hfHostedPaymentScript = document.querySelector(".js-hosted-payment-script");
+                    window.location = "javascript: " + hfHostedPaymentScript.value;
 
                     return false;
                 });

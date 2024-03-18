@@ -41,6 +41,7 @@ namespace RockWeb.Blocks.Examples
     [Description( "Allows you to see and try various Rock UI controls." )]
 
     [DefinedValueField( Rock.SystemGuid.DefinedType.MAP_STYLES, "Map Style", "The map theme that should be used for styling the GeoPicker map.", true, false, Rock.SystemGuid.DefinedValue.MAP_STYLE_ROCK )]
+    [Rock.SystemGuid.BlockTypeGuid( "55468258-18B9-4FAE-90E8-F173F7704E23" )]
     public partial class RockControlGallery : RockBlock
     {
         private Regex specialCharsRegex = new Regex( "[^a-zA-Z0-9-]" );
@@ -67,7 +68,7 @@ namespace RockWeb.Blocks.Examples
             htmlEditorLight.MergeFields.Add( "GlobalAttribute" );
             htmlEditorLight.MergeFields.Add( "Rock.Model.Person" );
 
-            mfpExample.MergeFields.Add( "GlobalAttribute,Rock.Model.Person" );
+            mfpExample.MergeFields.Add( "GlobalAttribute,Rock.Model.Person,Rock.Model.Group" );
 
             var selectableAccountIds = new FinancialAccountService( new RockContext() ).Queryable().Where( a => a.ParentAccountId == null ).Take( 4 ).Select( a => a.Id ).ToArray();
             caapExampleSingleAccount.SelectableAccountIds = selectableAccountIds;
@@ -83,10 +84,10 @@ namespace RockWeb.Blocks.Examples
                     example.Controls.Add( new LiteralControl( string.Format( "<pre class='prettyprint'>{0}</pre>", Server.HtmlEncode( list[i] ) ) ) );
                 }
 
-                if ( example.NamingContainer == this && (example.TagName == "h1" || example.TagName == "h2" || example.TagName == "h3") )
+                if ( example.NamingContainer == this && ( example.TagName == "h1" || example.TagName == "h2" || example.TagName == "h3" ) )
                 {
                     example.Attributes["class"] = "rollover-container";
-                    example.Controls.AddAt( 0, new LiteralControl( string.Format( "<a name='{0}' class='anchor rollover-item' href='#{0}'><i class='fa fa-link rlink icon-link'></i></a>", BuildAnchorForHref( (HtmlGenericControl)example ) ) ) );
+                    example.Controls.AddAt( 0, new LiteralControl( string.Format( "<a name='{0}' class='anchor rollover-item' href='#{0}'><i class='fa fa-link rlink icon-link'></i></a>", BuildAnchorForHref( ( HtmlGenericControl ) example ) ) ) );
                 }
             }
         }
@@ -447,7 +448,7 @@ namespace RockWeb.Blocks.Examples
         /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
         protected void btnMarkdownPreview_Click( object sender, EventArgs e )
         {
-            lMarkdownHtml.Text = mdMarkdownEditor.Text.ConvertMarkdownToHtml(true);
+            lMarkdownHtml.Text = mdMarkdownEditor.Text.ConvertMarkdownToHtml( true );
         }
 
         /// <summary>

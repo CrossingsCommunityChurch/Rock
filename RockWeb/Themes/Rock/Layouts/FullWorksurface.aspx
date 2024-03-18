@@ -35,12 +35,18 @@
         .featured-content {
             --block-min-height: 100px;
         }
+
+        .featured-content,
+        .featured-content > .col-md-12,
+        .main-content {
+            padding: 0 !important;
+        }
         .block-content-main > .panel.panel-block,
         .panel.panel-block {
             margin-bottom: 0;
-            height: calc(100vh - 152px);
-            height: calc(100vh - var(--full-worksurface-offset, 152px)); /* Where 152px is the height of the header and footer */
-            overflow-y: auto;
+            height: calc(100vh - 116px);
+            height: calc(100vh - var(--top-header-height, 80px) - 36px); /* Where 152px is the height of the header and footer */
+            overflow-y: auto !important;
         }
     </style>
         <!-- Ajax Error -->

@@ -13,7 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 // </copyright>
-//
+
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -50,6 +50,7 @@ namespace RockWeb.Blocks.Crm.PersonDetail
     [SecurityAction( SecurityActionKey.EditSMS, "The roles and/or users that can edit the SMS Enabled properties for the selected person." )]
     [SecurityAction( SecurityActionKey.EditConnectionStatus, "The roles and/or users that can edit the connection status for the selected person." )]
     [SecurityAction( SecurityActionKey.EditRecordStatus, "The roles and/or users that can edit the record status for the selected person." )]
+    [SecurityAction( SecurityActionKey.ViewProtectionProfile, "The roles and/or users that can view the protection profile alert for the selected person." )]
 
     #region Block Attributes
 
@@ -75,11 +76,36 @@ namespace RockWeb.Blocks.Crm.PersonDetail
         IsRequired = false,
         Order = 2 )]
 
+    [BooleanField(
+        "Require Complete Birth Date",
+        Key = AttributeKey.RequireCompleteBirthDate,
+        Description = "If set to true, the year portion for the birth date will be required if there are values set in the day and month parts.",
+        DefaultBooleanValue = false,
+        Order = 3 )]
+
+    [CustomDropdownListField(
+        "Race",
+        Key = AttributeKey.RaceOption,
+        Description = "Allow Race to be optionally selected.",
+        ListSource = ListSource.HIDE_OPTIONAL_REQUIRED,
+        IsRequired = false,
+        DefaultValue = "Hide",
+        Order = 4 )]
+
+    [CustomDropdownListField(
+        "Ethnicity",
+        Key = AttributeKey.EthnicityOption,
+        Description = "Allow Ethnicity to be optionally selected.",
+        ListSource = ListSource.HIDE_OPTIONAL_REQUIRED,
+        IsRequired = false,
+        DefaultValue = "Hide",
+        Order = 5 )]
+
     #endregion Block Attributes
 
+    [Rock.SystemGuid.BlockTypeGuid( "0A15F28C-4828-4B38-AF66-58AC5BDE48E0" )]
     public partial class EditPerson : Rock.Web.UI.PersonBlock
     {
-
         #region Attribute Keys and Values
 
         private static class AttributeKey
@@ -87,6 +113,9 @@ namespace RockWeb.Blocks.Crm.PersonDetail
             public const string HideGrade = "HideGrade";
             public const string HideAnniversaryDate = "HideAnniversaryDate";
             public const string SearchKeyTypes = "SearchKeyTypes";
+            public const string RequireCompleteBirthDate = "RequireCompleteBirthDate";
+            public const string RaceOption = "RaceOption";
+            public const string EthnicityOption = "EthnicityOption";
         }
 
         private static class ListSource
@@ -110,6 +139,8 @@ namespace RockWeb.Blocks.Crm.PersonDetail
         AND AV.[Id] IS NULL
         ORDER BY V.[Order]
 ";
+
+            public const string HIDE_OPTIONAL_REQUIRED = "Hide,Optional,Required";
         }
 
         #endregion Attribute Keys and Values
@@ -125,6 +156,7 @@ namespace RockWeb.Blocks.Crm.PersonDetail
             public const string EditSMS = "EditSMS";
             public const string EditConnectionStatus = "EditConnectionStatus";
             public const string EditRecordStatus = "EditRecordStatus";
+            public const string ViewProtectionProfile = "ViewProtectionProfile";
         }
 
         #endregion
@@ -201,6 +233,13 @@ namespace RockWeb.Blocks.Crm.PersonDetail
 
             pnlGradeGraduation.Visible = !GetAttributeValue( AttributeKey.HideGrade ).AsBoolean();
             dpAnniversaryDate.Visible = !GetAttributeValue( AttributeKey.HideAnniversaryDate ).AsBoolean();
+            if ( GetAttributeValue( AttributeKey.RequireCompleteBirthDate ).AsBoolean() )
+            {
+                bpBirthDay.SelectedDatePartsChanged += bpBirthDay_SelectedDatePartsChanged;
+            }
+
+            this.BlockUpdated += Block_BlockUpdated;
+            this.AddConfigurationUpdateTrigger( upEditPerson );
         }
 
         /// <summary>
@@ -225,6 +264,7 @@ namespace RockWeb.Blocks.Crm.PersonDetail
             {
                 familyNameWithFirstNames = string.Format( "{0} (no family members)", familyName );
             }
+
             return familyNameWithFirstNames;
         }
 
@@ -240,6 +280,28 @@ namespace RockWeb.Blocks.Crm.PersonDetail
             {
                 ShowDetails();
             }
+
+            ShowOrHideEthnicityAndRace();
+        }
+
+        /// <summary>
+        /// Handles the BlockUpdated event of the control.
+        /// </summary>
+        /// <param name="sender">The source of the event.</param>
+        /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
+        protected void Block_BlockUpdated( object sender, EventArgs e )
+        {
+            if ( GetAttributeValue( AttributeKey.RequireCompleteBirthDate ).AsBoolean() )
+            {
+                bpBirthDay.SelectedDatePartsChanged += bpBirthDay_SelectedDatePartsChanged;
+                bpBirthDay_SelectedDatePartsChanged( null, null );
+            }
+            else
+            {
+                bpBirthDay.RequireYear = false;
+            }
+
+            ShowOrHideEthnicityAndRace();
         }
 
         #region View State related stuff
@@ -320,7 +382,7 @@ namespace RockWeb.Blocks.Crm.PersonDetail
         /// <param name="e">The <see cref="EventArgs" /> instance containing the event data.</param>
         protected void ddlRecordStatus_SelectedIndexChanged( object sender, EventArgs e )
         {
-            bool showInactiveReason = ( dvpRecordStatus.SelectedValueAsInt() == DefinedValueCache.Get( new Guid( Rock.SystemGuid.DefinedValue.PERSON_RECORD_STATUS_INACTIVE ) ).Id );
+            bool showInactiveReason = dvpRecordStatus.SelectedValueAsInt() == DefinedValueCache.Get( new Guid( Rock.SystemGuid.DefinedValue.PERSON_RECORD_STATUS_INACTIVE ) ).Id;
 
             bool canEditRecordStatus = UserCanAdministrate || IsUserAuthorized( "EditRecordStatus" );
             dvpReason.Visible = showInactiveReason && canEditRecordStatus;
@@ -330,13 +392,24 @@ namespace RockWeb.Blocks.Crm.PersonDetail
         }
 
         /// <summary>
+        /// Handles the SelectedDatePartsChanged event of the bpBirthDay control.
+        /// </summary>
+        /// <param name="sender">The source of the event.</param>
+        /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
+        protected void bpBirthDay_SelectedDatePartsChanged( object sender, EventArgs e )
+        {
+            var birthDate = bpBirthDay.SelectedDate;
+            bpBirthDay.RequireYear = birthDate.HasValue;
+        }
+
+        /// <summary>
         /// Handles the SelectedIndexChanged event of the dvpReason control.
         /// </summary>
         /// <param name="sender">The source of the event.</param>
         /// <param name="e">The <see cref="EventArgs" /> instance containing the event data.</param>
         protected void dvpReason_SelectedIndexChanged( object sender, EventArgs e )
         {
-            bool isDeceased = ( dvpReason.SelectedValueAsInt() == DefinedValueCache.Get( new Guid( Rock.SystemGuid.DefinedValue.PERSON_RECORD_STATUS_REASON_DECEASED ) ).Id );
+            bool isDeceased = dvpReason.SelectedValueAsInt() == DefinedValueCache.Get( new Guid( Rock.SystemGuid.DefinedValue.PERSON_RECORD_STATUS_REASON_DECEASED ) ).Id;
             bool canEditRecordStatus = UserCanAdministrate || IsUserAuthorized( "EditRecordStatus" );
             dpDeceasedDate.Visible = isDeceased && canEditRecordStatus;
             lDeceasedDateReadOnly.Visible = isDeceased && !canEditRecordStatus;
@@ -360,7 +433,6 @@ namespace RockWeb.Blocks.Crm.PersonDetail
                         var personService = new PersonService( rockContext );
 
                         var person = personService.Get( Person.Id );
-
                         int? orphanedPhotoId = null;
                         if ( person.PhotoId != imgPhoto.BinaryFileId )
                         {
@@ -403,12 +475,23 @@ namespace RockWeb.Blocks.Crm.PersonDetail
                         {
                             graduationYear = ypGraduation.SelectedYear.Value;
                         }
+
                         person.GraduationYear = graduationYear;
 
                         person.MaritalStatusValueId = dvpMaritalStatus.SelectedValueAsInt();
                         person.AnniversaryDate = person.MaritalStatusValueId == DefinedValueCache.Get( Rock.SystemGuid.DefinedValue.PERSON_MARITAL_STATUS_MARRIED ).Id ? dpAnniversaryDate.SelectedDate : null;
                         person.Gender = rblGender.SelectedValue.ConvertToEnum<Gender>();
                         person.ConnectionStatusValueId = dvpConnectionStatus.SelectedValueAsInt();
+
+                        if ( rpRace.Visible )
+                        {
+                            person.RaceValueId = rpRace.SelectedValueAsId();
+                        }
+
+                        if ( epEthnicity.Visible )
+                        {
+                            person.EthnicityValueId = epEthnicity.SelectedValueAsId();
+                        }
 
                         var phoneNumberTypeIds = new List<int>();
 
@@ -464,15 +547,8 @@ namespace RockWeb.Blocks.Crm.PersonDetail
                             }
                         }
 
-                        // Remove any blank numbers
-                        var phoneNumberService = new PhoneNumberService( rockContext );
-                        foreach ( var phoneNumber in person.PhoneNumbers
-                            .Where( n => n.NumberTypeValueId.HasValue && !phoneNumberTypeIds.Contains( n.NumberTypeValueId.Value ) )
-                            .ToList() )
-                        {
-                            person.PhoneNumbers.Remove( phoneNumber );
-                            phoneNumberService.Delete( phoneNumber );
-                        }
+                        // Remove any duplicates and blank numbers
+                        personService.RemoveEmptyAndDuplicatePhoneNumbers( person, phoneNumberTypeIds, rockContext );
 
                         person.Email = tbEmail.Text.Trim();
                         person.IsEmailActive = cbIsEmailActive.Checked;
@@ -507,7 +583,7 @@ namespace RockWeb.Blocks.Crm.PersonDetail
                                 return false;
                             }
                         }
-                        
+
                         person.GivingGroupId = ddlGivingGroup.SelectedValueAsId();
                         person.IsLockedAsChild = cbLockAsChild.Checked;
 
@@ -575,10 +651,11 @@ namespace RockWeb.Blocks.Crm.PersonDetail
                         var reasonDeceasedId = DefinedValueCache.Get( new Guid( Rock.SystemGuid.DefinedValue.PERSON_RECORD_STATUS_REASON_DECEASED ) ).Id;
 
                         int? newRecordStatusId = dvpRecordStatus.SelectedValueAsInt();
+
                         // Is the person's record status changing?
                         if ( person.RecordStatusValueId.HasValue && person.RecordStatusValueId != newRecordStatusId )
                         {
-                            //  If it was inactive OR if the new status is inactive, flag this for use later below.
+                            // If it was inactive OR if the new status is inactive, flag this for use later below.
                             if ( person.RecordStatusValueId == recordStatusInactiveId || newRecordStatusId == recordStatusInactiveId )
                             {
                                 recordStatusChangedToOrFromInactive = true;
@@ -592,14 +669,26 @@ namespace RockWeb.Blocks.Crm.PersonDetail
                         {
                             newRecordStatusReasonId = dvpReason.SelectedValueAsInt();
                         }
+
                         person.RecordStatusReasonValueId = newRecordStatusReasonId;
                         person.InactiveReasonNote = tbInactiveReasonNote.Text.Trim();
 
                         DateTime? deceasedDate = null;
                         if ( newRecordStatusReasonId.HasValue && newRecordStatusReasonId.Value == reasonDeceasedId )
                         {
-                            deceasedDate = dpDeceasedDate.SelectedDate;
+                            // sanity check to ensure that the deceased date is not before the birthday
+                            if ( dpDeceasedDate.SelectedDate < bpBirthDay.SelectedDate )
+                            {
+                                nbDeceasedDateError.Visible = true;
+                                nbDeceasedDateError.Text = "Select a date older than the Birth Day.";
+                                return false;
+                            }
+                            else
+                            {
+                                deceasedDate = dpDeceasedDate.SelectedDate;
+                            }
                         }
+
                         person.DeceasedDate = deceasedDate;
 
                         // Save any Removed/Added Previous Names
@@ -708,7 +797,7 @@ namespace RockWeb.Blocks.Crm.PersonDetail
                         return true;
                     } );
 
-                    if (wrapTransactionResult)
+                    if ( wrapTransactionResult )
                     {
                         Response.Redirect( string.Format( "~/Person/{0}", Person.Id ), false );
                     }
@@ -744,8 +833,8 @@ namespace RockWeb.Blocks.Crm.PersonDetail
             }
 
             return searchKeyTypes;
-
         }
+
         /// <summary>
         /// Handles the Click event of the btnCancel control.
         /// </summary>
@@ -761,6 +850,27 @@ namespace RockWeb.Blocks.Crm.PersonDetail
         /// </summary>
         private void ShowDetails()
         {
+            if ( IsUserAuthorized( SecurityActionKey.ViewProtectionProfile ) )
+            {
+                nbAccountProtectionProfile.Visible = Person.AccountProtectionProfile > Rock.Utility.Enums.AccountProtectionProfile.Low;
+                var messageSuffix = "Ensure you trust the source of the request to update their email address and/or mobile phone number as this could be used to grant access to their account.";
+                if ( Person.AccountProtectionProfile == Rock.Utility.Enums.AccountProtectionProfile.Medium )
+                {
+                    nbAccountProtectionProfile.Text = $"Use care when editing this record as the individual has a login. {messageSuffix}";
+                    nbAccountProtectionProfile.NotificationBoxType = NotificationBoxType.Warning;
+                }
+                else if ( Person.AccountProtectionProfile == Rock.Utility.Enums.AccountProtectionProfile.High )
+                {
+                    nbAccountProtectionProfile.Text = $"Use care when editing this record as the individual has financial account information stored in Rock or is a member of a sensitive security role. {messageSuffix}";
+                    nbAccountProtectionProfile.NotificationBoxType = NotificationBoxType.Danger;
+                }
+                else if ( Person.AccountProtectionProfile == Rock.Utility.Enums.AccountProtectionProfile.Extreme )
+                {
+                    nbAccountProtectionProfile.Text = $"Use care when editing this record as the individual is in a sensitive security role. {messageSuffix}";
+                    nbAccountProtectionProfile.NotificationBoxType = NotificationBoxType.Danger;
+                }
+            }
+
             lTitle.Text = string.Format( "Edit: {0}", Person.FullName ).FormatAsHtmlTitle();
 
             imgPhoto.BinaryFileId = Person.PhotoId;
@@ -773,6 +883,10 @@ namespace RockWeb.Blocks.Crm.PersonDetail
             tbLastName.Text = Person.LastName;
             dvpSuffix.SelectedValue = Person.SuffixValueId.HasValue ? Person.SuffixValueId.Value.ToString() : string.Empty;
             bpBirthDay.SelectedDate = Person.BirthDate;
+            if ( GetAttributeValue( AttributeKey.RequireCompleteBirthDate ).AsBoolean() )
+            {
+                bpBirthDay_SelectedDatePartsChanged( null, null );
+            }
 
             if ( Person.GraduationYear.HasValue )
             {
@@ -823,6 +937,9 @@ namespace RockWeb.Blocks.Crm.PersonDetail
 
             tbInactiveReasonNote.Text = Person.InactiveReasonNote;
             lReasonNoteReadOnly.Text = Person.InactiveReasonNote;
+
+            rpRace.SetValue( Person.RaceValueId );
+            epEthnicity.SetValue( Person.EthnicityValueId );
 
             ddlRecordStatus_SelectedIndexChanged( null, null );
             dvpReason_SelectedIndexChanged( null, null );
@@ -899,6 +1016,7 @@ namespace RockWeb.Blocks.Crm.PersonDetail
             {
                 values = values.Where( s => s.SearchTypeValueId == dv.Id && !s.IsValuePrivate ).ToList();
             }
+
             gAlternateIds.DataKeyNames = new string[] { "Guid" };
             gAlternateIds.DataSource = values;
             gAlternateIds.DataBind();
@@ -915,6 +1033,7 @@ namespace RockWeb.Blocks.Crm.PersonDetail
             {
                 values = values.Where( s => s.SearchTypeValueId != dv.Id ).ToList();
             }
+
             gSearchKeys.DataKeyNames = new string[] { "Guid" };
             gSearchKeys.DataSource = values;
             gSearchKeys.DataBind();
@@ -954,6 +1073,7 @@ namespace RockWeb.Blocks.Crm.PersonDetail
             {
                 this.PersonSearchKeysState.Add( new PersonSearchKey { SearchValue = tbAlternateId.Text, SearchTypeValueId = dv.Id, Guid = Guid.NewGuid() } );
             }
+
             BindPersonAlternateIdsGrid();
             mdAlternateId.Hide();
         }
@@ -981,7 +1101,6 @@ namespace RockWeb.Blocks.Crm.PersonDetail
             ddlSearchValueType.Items.Insert( 0, new ListItem() );
             mdSearchKey.Show();
         }
-
 
         /// <summary>
         /// Handles the SaveClick event of the mdSearchKey control.
@@ -1126,6 +1245,21 @@ namespace RockWeb.Blocks.Crm.PersonDetail
                     args.IsValid = false;
                 }
             }
+        }
+
+        /// <summary>
+        /// Shows or hides the RacePicker and EthnicityPicker according to settings and business rules.
+        /// </summary>
+        protected void ShowOrHideEthnicityAndRace()
+        {
+            var raceOptionAttributeValue = GetAttributeValue( AttributeKey.RaceOption );
+            var ethnicityOptionAttributeValue = GetAttributeValue( AttributeKey.EthnicityOption );
+
+            rpRace.Visible = raceOptionAttributeValue != "Hide";
+            rpRace.Required = raceOptionAttributeValue == "Required";
+
+            epEthnicity.Visible = ethnicityOptionAttributeValue != "Hide";
+            epEthnicity.Required = ethnicityOptionAttributeValue == "Required";
         }
     }
 }

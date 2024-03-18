@@ -1,4 +1,4 @@
-﻿// <copyright>
+// <copyright>
 // Copyright by the Spark Development Network
 //
 // Licensed under the Rock Community License (the "License");
@@ -73,7 +73,7 @@ namespace RockWeb.Blocks.Connection
         EditorTheme = CodeEditorTheme.Rock,
         DefaultValue = StatusTemplateDefaultValue,
         Order = 4,
-        Key =  AttributeKey.StatusTemplate )]
+        Key = AttributeKey.StatusTemplate )]
 
     [CodeEditorField(
         "Opportunity Summary Template",
@@ -86,6 +86,7 @@ namespace RockWeb.Blocks.Connection
 
     #endregion Block Attributes
 
+    [Rock.SystemGuid.BlockTypeGuid( "23438CBC-105B-4ADB-8B9A-D5DDDCDD7643" )]
     public partial class ConnectionOpportunitySelect : Rock.Web.UI.RockBlock
     {
         #region Keys
@@ -107,7 +108,8 @@ namespace RockWeb.Blocks.Connection
         /// </summary>
         private static class UserPreferenceKey
         {
-            public const string MyActiveOpportunitiesChecked = "MyActiveOpportunitiesChecked";
+            public const string MyActiveOpportunitiesChecked = "my-active-opportunities";
+            public const string ConnectionOpportunitiesSelectedCampus = "selected-campus";
         }
 
         /// <summary>
@@ -116,6 +118,7 @@ namespace RockWeb.Blocks.Connection
         private static class PageParameterKey
         {
             public const string ConnectionOpportunityId = "ConnectionOpportunityId";
+            public const string CampusId = "CampusId";
         }
 
         /// <summary>
@@ -146,8 +149,7 @@ namespace RockWeb.Blocks.Connection
     <span class='badge badge-warning'>{{ OpportunitySummary.UnassignedCount | Format:'#,###,###' }}</span>
     <span class='badge badge-critical'>{{ OpportunitySummary.CriticalCount | Format:'#,###,###' }}</span>
     <span class='badge badge-danger'>{{ OpportunitySummary.IdleCount | Format:'#,###,###' }}</span>
-</div>
-";
+</div>";
 
         #endregion Attribute Default values
 
@@ -193,7 +195,13 @@ namespace RockWeb.Blocks.Connection
 
             if ( !Page.IsPostBack )
             {
-                tglMyActiveOpportunities.Checked = GetUserPreference( UserPreferenceKey.MyActiveOpportunitiesChecked ).AsBoolean();
+                var preferences = GetBlockPersonPreferences();
+
+                // NOTE: Don't include Inactive Campuses for the "Campus Filter for Page"
+                cpCampusFilter.Campuses = CampusCache.All( false );
+                cpCampusFilter.Items[0].Text = "All";
+                tglMyActiveOpportunities.Checked = preferences.GetValue( UserPreferenceKey.MyActiveOpportunitiesChecked ).AsBoolean();
+                cpCampusFilter.SelectedCampusId = preferences.GetValue( UserPreferenceKey.ConnectionOpportunitiesSelectedCampus ).AsIntegerOrNull();
                 GetSummaryData();
             }
         }
@@ -231,8 +239,27 @@ namespace RockWeb.Blocks.Connection
         /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
         protected void tglMyActiveOpportunities_CheckedChanged( object sender, EventArgs e )
         {
-            SetUserPreference( UserPreferenceKey.MyActiveOpportunitiesChecked, tglMyActiveOpportunities.Checked.ToString() );
+            var preferences = GetBlockPersonPreferences();
+
+            preferences.SetValue( UserPreferenceKey.MyActiveOpportunitiesChecked, tglMyActiveOpportunities.Checked.ToString() );
+            preferences.Save();
+
             BindSummaryData();
+        }
+
+        /// <summary>
+        /// Handles the SelectedIndexChanged event of the cpCampusPicker control.
+        /// </summary>
+        /// <param name="sender">The source of the event.</param>
+        /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
+        protected void cpCampusPicker_SelectedIndexChanged( object sender, EventArgs e )
+        {
+            var preferences = GetBlockPersonPreferences();
+
+            preferences.SetValue( UserPreferenceKey.ConnectionOpportunitiesSelectedCampus, cpCampusFilter.SelectedCampusId.ToString() );
+            preferences.Save();
+
+            GetSummaryData();
         }
 
         /// <summary>
@@ -279,7 +306,9 @@ namespace RockWeb.Blocks.Connection
         {
             var template = GetAttributeValue( AttributeKey.OpportunitySummaryTemplate );
 
-            var mergeFields = Rock.Lava.LavaHelper.GetCommonMergeFields( this.RockPage, this.CurrentPerson, new Rock.Lava.CommonMergeFieldsOptions { GetLegacyGlobalMergeFields = false } );
+            var mergeFields = Rock.Lava.LavaHelper.GetCommonMergeFields( this.RockPage, this.CurrentPerson, new Rock.Lava.CommonMergeFieldsOptions() );
+
+            var filteredCampusId = cpCampusFilter.SelectedCampusId.ToStringSafe();
 
             mergeFields.Add( "OpportunitySummary", opportunitySummary );
 
@@ -288,7 +317,7 @@ namespace RockWeb.Blocks.Connection
             {
                 var connectionOpportunity = new ConnectionOpportunityService( rockContext ).Queryable().AsNoTracking().FirstOrDefault( a => a.Id == opportunitySummary.Id );
                 mergeFields.Add( "ConnectionOpportunity", connectionOpportunity );
-
+                mergeFields.Add( "FilteredCampusId", filteredCampusId );
                 result = template.ResolveMergeFields( mergeFields );
             }
 
@@ -306,9 +335,13 @@ namespace RockWeb.Blocks.Connection
 
             if ( e.CommandName == "Select" )
             {
-                NavigateToLinkedPage( AttributeKey.OpportunityDetailPage, new Dictionary<string, string> {
-                    { PageParameterKey.ConnectionOpportunityId, selectedOpportunityId.ToString() }
-                } );
+                var queryParams = new Dictionary<string, string> { { PageParameterKey.ConnectionOpportunityId, selectedOpportunityId.ToString() } };
+                if ( cpCampusFilter.SelectedCampusId.HasValue )
+                {
+                    queryParams.Add( PageParameterKey.CampusId, cpCampusFilter.SelectedCampusId.ToString() );
+                }
+
+                NavigateToLinkedPage( AttributeKey.OpportunityDetailPage, queryParams );
             }
             else if ( e.CommandName == "ToggleFollow" )
             {
@@ -466,7 +499,28 @@ namespace RockWeb.Blocks.Connection
 
                     // get list of idle requests (no activity in past X days)
 
-                    var connectionRequestsQry = new ConnectionRequestService( rockContext ).Queryable().Where( a => a.ConnectionOpportunityId == opportunity.Id );
+                    var connectionRequestsQry = new ConnectionRequestService( rockContext ).Queryable()
+                        .Where( cr => cr.ConnectionOpportunityId == opportunity.Id
+                            && ( cr.ConnectionState == ConnectionState.Active
+                            || ( cr.ConnectionState == ConnectionState.FutureFollowUp
+                            && cr.FollowupDate.HasValue && cr.FollowupDate.Value < midnightToday ) ) );
+
+                    if ( cpCampusFilter.SelectedCampusId.HasValue )
+                    {
+                        connectionRequestsQry = connectionRequestsQry.Where( a => a.CampusId.HasValue && a.CampusId == cpCampusFilter.SelectedCampusId );
+                    }
+
+                    // Calculate status counts using connectionRequestsQry
+                    var statusCounts = connectionRequestsQry
+                        .GroupBy( cr => new { cr.ConnectionStatus.Id, cr.ConnectionStatus.Name, cr.ConnectionStatus.HighlightColor } )
+                        .Select( sci => new StatusCountInfo
+                        {
+                            Id = sci.Key.Id,
+                            Name = sci.Key.Name,
+                            HighlightColor = sci.Key.HighlightColor ?? ConnectionStatus.DefaultHighlightColor,
+                            Count = sci.Count()
+                        } )
+                        .ToList();
 
                     var currentDateTime = RockDateTime.Now;
                     int activeRequestCount = connectionRequestsQry
@@ -484,28 +538,16 @@ namespace RockWeb.Blocks.Connection
                         //  AND
                         //  (where the activity is more than DaysUntilRequestIdle days old OR no activity but created more than DaysUntilRequestIdle days ago)
                         List<int> idleConnectionRequests = connectionRequestsQry
-                                            .Where( cr =>
-                                                (
-                                                    cr.ConnectionState == ConnectionState.Active
-                                                    || ( cr.ConnectionState == ConnectionState.FutureFollowUp && cr.FollowupDate.HasValue && cr.FollowupDate.Value < midnightToday )
-                                                )
-                                                &&
-                                                (
-                                                    ( cr.ConnectionRequestActivities.Any() && cr.ConnectionRequestActivities.Max( ra => ra.CreatedDateTime ) < SqlFunctions.DateAdd( "day", -cr.ConnectionOpportunity.ConnectionType.DaysUntilRequestIdle, currentDateTime ) )
-                                                    || ( !cr.ConnectionRequestActivities.Any() && cr.CreatedDateTime < SqlFunctions.DateAdd( "day", -cr.ConnectionOpportunity.ConnectionType.DaysUntilRequestIdle, currentDateTime ) )
-                                                )
-                                            )
-                                            .Select( a => a.Id ).ToList();
+                                                    .Where( cr =>
+                                                            ( cr.ConnectionRequestActivities.Any()
+                                                            && cr.ConnectionRequestActivities.Max( ra => ra.CreatedDateTime ) < SqlFunctions.DateAdd( "day", -cr.ConnectionOpportunity.ConnectionType.DaysUntilRequestIdle, currentDateTime ) )
+                                                            || ( !cr.ConnectionRequestActivities.Any() && cr.CreatedDateTime < SqlFunctions.DateAdd( "day", -cr.ConnectionOpportunity.ConnectionType.DaysUntilRequestIdle, currentDateTime ) )
+                                                    )
+                                                    .Select( a => a.Id ).ToList();
 
                         // get list of requests that have a status that is considered critical.
                         List<int> criticalConnectionRequests = connectionRequestsQry
-                                                    .Where( r =>
-                                                        r.ConnectionStatus.IsCritical
-                                                        && (
-                                                                r.ConnectionState == ConnectionState.Active
-                                                                || ( r.ConnectionState == ConnectionState.FutureFollowUp && r.FollowupDate.HasValue && r.FollowupDate.Value < midnightToday )
-                                                           )
-                                                    )
+                                                    .Where( cr => cr.ConnectionStatus.IsCritical )
                                                     .Select( a => a.Id ).ToList();
 
                         // Add the opportunity
@@ -520,13 +562,13 @@ namespace RockWeb.Blocks.Connection
                             CriticalConnectionRequests = criticalConnectionRequests,
                             DaysUntilRequestIdle = opportunity.ConnectionType.DaysUntilRequestIdle,
                             CanEdit = canEdit,
-                            IsFollowed = followedOpportunityIds.Contains( opportunity.Id )
+                            IsFollowed = followedOpportunityIds.Contains( opportunity.Id ),
+                            StatusCounts = statusCounts
                         };
 
                         // If the user is limited requests with specific campus(es) set the list, otherwise leave it to be null
                         opportunitySummary.CampusSpecificConnector = campusSpecificConnector;
                         opportunitySummary.ConnectorCampusIds = campusIds.Distinct().ToList();
-
                         connectionTypeSummary.Opportunities.Add( opportunitySummary );
                     }
                 }
@@ -549,6 +591,11 @@ namespace RockWeb.Blocks.Connection
                     r.CampusId,
                     ConnectorPersonId = r.ConnectorPersonAlias != null ? r.ConnectorPersonAlias.PersonId : -1
                 } );
+
+            if ( cpCampusFilter.SelectedCampusId.HasValue )
+            {
+                activeRequestsQry = activeRequestsQry.Where( a => a.CampusId.HasValue && a.CampusId == cpCampusFilter.SelectedCampusId );
+            }
 
             var activeRequests = activeRequestsQry.ToList();
 
@@ -596,7 +643,7 @@ namespace RockWeb.Blocks.Connection
             }
 
             var statusTemplate = GetAttributeValue( AttributeKey.StatusTemplate );
-            var statusMergeFields = Rock.Lava.LavaHelper.GetCommonMergeFields(this.RockPage);
+            var statusMergeFields = Rock.Lava.LavaHelper.GetCommonMergeFields( this.RockPage );
             statusMergeFields.Add( "ConnectionOpportunities", allOpportunities );
             statusMergeFields.Add( "ConnectionTypes", connectionTypes );
             statusMergeFields.Add( "IdleTooltip", sb.ToString().EncodeHtml() );
@@ -709,14 +756,26 @@ namespace RockWeb.Blocks.Connection
             public List<int> UnassignedConnectionRequests { get; internal set; }
             public List<int> IdleConnectionRequests { get; internal set; }
             public List<int> CriticalConnectionRequests { get; internal set; }
+            public List<StatusCountInfo> StatusCounts { get; set; } = new List<StatusCountInfo>();
             public int TotalRequests { get; internal set; }
 
-            public string FollowIconHtml {
+            public string FollowIconHtml
+            {
                 get
                 {
                     return string.Format( @"<i class=""{0} fa-star""></i>", IsFollowed ? "fas" : "far" );
                 }
             }
+
+        }
+
+        [Serializable]
+        public class StatusCountInfo : LavaDataObject
+        {
+            public int Id { get; set; }
+            public string Name { get; set; }
+            public string HighlightColor { get; set; }
+            public int Count { get; set; }
         }
 
         #endregion

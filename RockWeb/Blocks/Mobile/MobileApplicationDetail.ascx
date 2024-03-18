@@ -4,13 +4,15 @@
     .mobile-app-preview {
         padding: 20px;
     }
-    .mobile-app-preview img {
-        width: 100%;
-        height: auto;
-        display: block;
-        min-height: 50px;
-        background-color: #ddd;
-    }
+
+        .mobile-app-preview img {
+            width: 100%;
+            height: auto;
+            display: block;
+            min-height: 50px;
+            background-color: #ddd;
+        }
+
     .mobile-app-icon {
         width: 100%;
         height: auto;
@@ -29,7 +31,7 @@
                     <asp:Literal ID="ltAppName" runat="server" />
                 </h3>
                 <div class="panel-labels">
-                    <span class="label label-default">Site Id: <asp:Literal ID="lSiteId" runat="server" /></span>
+                    <span class="label label-default">Site Id:<asp:Literal ID="lSiteId" runat="server" /></span>
                     <asp:Literal ID="lLastDeployDate" runat="server" />
                 </div>
             </div>
@@ -53,6 +55,9 @@
                                 </li>
                                 <li id="liTabPages" runat="server">
                                     <asp:LinkButton ID="lbTabPages" runat="server" OnClick="lbTabPages_Click">Pages</asp:LinkButton>
+                                </li>
+                                <li id="liTabDeepLinks" runat="server">
+                                    <asp:LinkButton ID="lbTabDeepLinks" runat="server" OnClick="lbTabDeepLinks_Click">Deep Links</asp:LinkButton>
                                 </li>
                             </ul>
 
@@ -95,7 +100,7 @@
                                             <Rock:ColorPicker ID="cpEditBarBackgroundColor" runat="server" Label="Bar Background Color" Help="Override the default title bar background color provided by the mobile OS." />
                                         </div>
                                         <div class="col-md-4">
-                                            <Rock:ColorPicker ID="cpEditMenuButtonColor" runat="server" Label="Menu Button Color" Help="The color of the menu button in the title bar."/>
+                                            <Rock:ColorPicker ID="cpEditMenuButtonColor" runat="server" Label="Menu Button Color" Help="The color of the menu button in the title bar." />
                                         </div>
                                         <div class="col-md-4">
                                             <Rock:ColorPicker ID="cpEditActivityIndicatorColor" runat="server" Label="Activity Indicator Color" Help="Defines the color that will be used when displaying an activity indicator, these alert the user that something is happening in the background." />
@@ -111,6 +116,14 @@
                                         </div>
                                     </div>
                                 </Rock:RockControlWrapper>
+
+
+                                <div class="row">
+                                    <div class="col-md-4">
+                                        <Rock:RockCheckBox ID="cbNavbarTransclucent" runat="server" AutoPostBack="true" OnCheckedChanged="CbNavbarTransclucent_CheckedChanged" Label="Enable Navigation Bar Transparency" Help="Please note, your bar background color must have an opacity less than 100% for this to work. Enable to view different blurring options. (iOS Only)" />
+                                        <Rock:RockDropDownList ID="ddlNavbarBlurStyle" runat="server" Label="Navigation Bar Blur Style" Help="Select between the different blur styles of the navigation bar. (iOS Only)" />
+                                    </div>
+                                </div>
 
                                 <hr />
 
@@ -156,7 +169,7 @@
 
                                 <div class="row">
                                     <div class="col-md-4">
-                                        <Rock:NumberBox ID="nbRadiusBase" runat="server" NumberType="Integer" Label="Radius Base" Help="" ></Rock:NumberBox>
+                                        <Rock:NumberBox ID="nbRadiusBase" runat="server" NumberType="Integer" Label="Radius Base" Help=""></Rock:NumberBox>
                                     </div>
                                     <div class="col-md-4">
                                         <Rock:ImageUploader ID="imgEditHeaderImage" runat="server" Label="Navigation Bar Image" Help="The image that appears on the top header. While the size is dependent on design we recommend a height of 120px and minimum width of 560px." />
@@ -165,11 +178,11 @@
 
                                 <div class="clearfix">
                                     <div class="pull-right">
-                                        <a href="#" class="btn btn-xs btn-link js-show-advanced-style-fields" >Show Advanced Fields</a>
+                                        <a href="#" class="btn btn-xs btn-link js-show-advanced-style-fields">Show Advanced Fields</a>
                                     </div>
                                 </div>
 
-                                <asp:Panel ID="pnlStylesAdvancedFields" runat="server" CssClass="js-advanced-style-fields" style="display:none">
+                                <asp:Panel ID="pnlStylesAdvancedFields" runat="server" CssClass="js-advanced-style-fields" Style="display: none">
                                     <div class="row">
 
                                         <div class="col-md-4">
@@ -206,8 +219,30 @@
                                         <Rock:ReorderField />
                                         <Rock:RockBoundField DataField="InternalName" SortExpression="Name" HeaderText="Name" />
                                         <Rock:RockBoundField DataField="LayoutName" SortExpression="LayoutName" HeaderText="Layout" />
-                                        <Rock:BoolField DataField="DisplayInNav" SortExpression="DisplayInNav" HeaderText="Display In Nav" />
+                                        <Rock:RockBoundField DataField="DisplayInNavWhen" SortExpression="DisplayInNav" HeaderText="Display In Nav" />
                                         <Rock:DeleteField OnClick="gPages_DeleteClick" />
+                                    </Columns>
+                                </Rock:Grid>
+                            </asp:Panel>
+
+                            <asp:Panel ID="pnlDeepLinks" runat="server">
+                                <asp:Panel ID="pnlDeepLinkDomains" runat="server" class="alert alert-info" Width="40%">
+                                    <asp:Label runat="server" Font-Bold="true" Text="Enabled domains:" />
+                                    <asp:Label ID="lblDeepLinkDomains" runat="server" />
+                                </asp:Panel>
+                                <Rock:Grid ID="gDeepLinks" runat="server" RowItemText="Deep Link" DisplayType="Light" OnGridRebind="gDeepLinks_GridRebind" OnRowSelected="gDeepLinks_RowSelected" OnGridReorder="gDeepLinks_GridReorder">
+                                    <Columns>
+                                        <Rock:ReorderField />
+                                        <Rock:RockBoundField DataField="Route" SortExpression="Route" HeaderText="Route" DataFormatString="/{0}" />
+                                        <Rock:RockBoundField DataField="Page" SortExpression="Page" HeaderText="Mobile Page" />
+
+                                        <Rock:RockTemplateField SortExpression="Fallback" HeaderText="Fallback">
+                                            <ItemTemplate>
+                                                <asp:Label runat="server" Visible='<%#Eval("IsUrl") %>' CssClass="badge badge-info" Text='URL' />
+                                                <asp:Label runat="server" Text='<%#Eval("Fallback") %>' />
+                                            </ItemTemplate>
+                                        </Rock:RockTemplateField>
+                                        <Rock:DeleteField OnClick="gDeepLinks_DeleteClick" />
                                     </Columns>
                                 </Rock:Grid>
                             </asp:Panel>
@@ -256,10 +291,23 @@
 
                     <div class="row">
                         <div class="col-md-6">
-                            <Rock:RockTextBox ID="tbEditApiKey" runat="server" Label="API Key" Required="true" />
+                            <Rock:PagePicker ID="ppEditInteractiveExperiencePage" runat="server" Label="Interactive Experience Page" Help="If you are using interactive experiences then set this page to the mobile page that contains the Live Experience block." />
                         </div>
+
                         <div class="col-md-6">
                             <Rock:PagePicker ID="ppCommunicationViewPage" runat="server" Label="Communication View Page" />
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <Rock:PagePicker ID="ppEditSmsConversationPage" runat="server" Label="SMS Conversation Page" Help="If you are using the SMS conversations, then set this to the page that contains the SMS Conversation block." />
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <Rock:RockTextBox ID="tbEditApiKey" runat="server" Label="API Key" Required="true" />
                         </div>
                     </div>
 
@@ -269,7 +317,7 @@
                         </div>
 
                         <div class="col-md-6">
-                            <Rock:CategoryPicker ID="cpEditPersonAttributeCategories" runat="server" Label="Person Attribute Categories" Help="All attributes in selected categories will be sent to the client and made available remotely."  AllowMultiSelect="true" />
+                            <Rock:CategoryPicker ID="cpEditPersonAttributeCategories" runat="server" Label="Person Attribute Categories" Help="All attributes in selected categories will be sent to the client and made available remotely." AllowMultiSelect="true" />
                         </div>
                     </div>
 
@@ -291,6 +339,88 @@
                                 <Rock:ImageUploader ID="imgEditPreviewThumbnail" runat="server" Label="Preview Thumbnail" Help="Preview thumbnail to be used by Rock to distinguish application." />
                             </div>
                         </div>
+
+                        <div class="row">
+                            <div class="col-md-6">
+                                <Rock:RockTextBox ID="tbEditPushTokenUpdateValue" runat="server" Label="Force Push Token Update" Help="Setting or changing this value will force all clients to update their push token. Use with caution." />
+                            </div>
+
+                            <div class="col-md-6">
+                                <Rock:RockCheckBox ID="cbCompressUpdatePackages" runat="server" Label="Compress Update Packages" Help="Compresses update packages to reduce their size by up to 95%. Not supported with mobile shell v1." />
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6">
+                                <Rock:NumberBox ID="nbPageViewRetentionPeriodDays" runat="server" Label="Page View Retention Period" Help="The number of days to keep page views logged. Leave blank to keep page views logged indefinitely." />
+                            </div>
+                            <div class="col-md-6">
+                                <Rock:RockCheckBox ID="cbEnablePageViewGeoTracking" runat="server" Label="Enable Page View Geo Tracking" Help="Enabling this feature will allow the PopulateInteractionSessionData job to begin performing geolocation lookup on the IP addresses in the Interaction Session data. This also requires setting up a IP Address Location Service found under System Settings." />
+                            </div>
+                        </div>
+
+                    </Rock:PanelWidget>
+
+                    <Rock:PanelWidget ID="pwAuthenticationSettings" runat="server" Title="Authentication Settings">
+                        <div class="rock-header">
+                            <h3 class="title mb-2">Auth0</h3>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <Rock:RockTextBox ID="tbAuth0ClientId" runat="server" Label="Auth0 Client ID" Help="Set this to reflect the value in your configured Auth0 application to add support for Auth0 based login in your mobile application." />
+                                </div>
+
+                                <div class="col-md-6">
+                                    <Rock:RockTextBox ID="tbAuth0ClientDomain" runat="server" Label="Auth0 Domain" Help="Set this to reflect the value in your configured Auth0 application to add support for Auth0 based login in your mobile application." />
+                                </div>
+                            </div>
+                            <hr class="section-header-hr" />
+                        </div>
+
+                        <div class="rock-header">
+                            <h3 class="title mb-2">Microsoft Entra (Azure AD)</h3>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <Rock:RockTextBox ID="tbEntraClientId" runat="server" Label="Entra Client ID" Help="The client ID of the Microsoft Entra application to add authentication support for." />
+                                </div>
+                                <div class="col-md-6">
+                                    <Rock:RockTextBox ID="tbEntraTenantId" runat="server" Label="Entra Tenant ID" Help="The tenant ID of the Microsoft Entra application to add authentication support for." />
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <Rock:ComponentPicker ID="compEntraAuthComponent" runat="server" Label="Microsoft Entra Authentication Provider" ContainerType="Rock.Security.AuthenticationContainer, Rock" Help="The authentication component used for web Entra authentication. This is typically provided through a plugin." />
+                                </div>
+                            </div>
+                            <hr class="section-header-hr, hidden" />
+                        </div>
+
+                        <div class="hidden">
+                            <div class="row">
+                                <div class="col-md-6">
+                                </div>
+
+                                <div class="col-md-6">
+                                </div>
+                            </div>
+                        </div>
+                    </Rock:PanelWidget>
+
+                    <Rock:PanelWidget ID="pwEditDeepLinkSettings" runat="server" Title="Deep Link Settings">
+                        <Rock:RockCheckBox ID="cbEnableDeepLinking" OnCheckedChanged="cbEnableDeepLinking_CheckedChanged" runat="server" Label="Enable Deep Linking" Help="Determines if specific web links should open in the app if it’s installed on the individual’s phone." AutoPostBack="true" />
+                        <asp:Panel runat="server" class="info alert-info" Width="40%">
+                        </asp:Panel>
+                        <asp:Panel ID="pnlDeepLinkSettings" runat="server">
+                            <Rock:NotificationBox ID="nbDeepLinks" runat="server" Visible="false" NotificationBoxType="Danger" />
+                            <Rock:RockTextBox ID="tbDeepLinkPathPrefix" runat="server" Label="Deep Link Path Prefix" Required="true" Help="The URL path prefix that flags that a URL should be opened in the application. A value of ‘m’ would mean that all URLs like https://server.com/m/<route> will be routed to the mobile app if it’s installed on the individual’s phone." />
+                            <Rock:ValueList ID="vlDeepLinkingDomain" runat="server" Label="Deep Linking Domains"
+                                Help="The domains that you plan to accept deep links from. To accept all subdomains, use '*.<domain>'." />
+                            <h4>iOS Settings</h4>
+                            <Rock:RockTextBox ID="tbTeamId" runat="server" Label="Team Id" Required="true" Width="40%" />
+                            <Rock:RockTextBox ID="tbBundleId" runat="server" Label="Bundle Id" Required="true" Help="The iOS bundle id. You will get this value from your shell hosting service." Width="40%" />
+                            <h4>Android Settings</h4>
+                            <Rock:RockTextBox ID="tbPackageName" runat="server" Label="Package Name" Required="true" Help="The Android package name. You will get this value from your shell hosting service." Width="40%" />
+                            <Rock:RockTextBox ID="tbCertificateFingerprint" runat="server" Label="Certificate Fingerprint" Required="true" Help="The application’s certificate fingerprint. You will get this value from your shell hosting service." Width="40%" />
+                        </asp:Panel>
                     </Rock:PanelWidget>
 
                     <div class="actions margin-t-md">

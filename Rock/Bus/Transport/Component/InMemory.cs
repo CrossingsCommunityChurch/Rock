@@ -29,6 +29,7 @@ namespace Rock.Bus.Transport
     [Export( typeof( TransportComponent ) )]
     [ExportMetadata( "ComponentName", "InMemory" )]
 
+    [Rock.SystemGuid.EntityTypeGuid( "D6AE6233-BCD4-43BC-9D4B-5D70A0A1A9BB")]
     public class InMemory : TransportComponent
     {
         /// <summary>
@@ -44,6 +45,23 @@ namespace Rock.Bus.Transport
                 { BaseAttributeKey.Active, true.ToString() },
                 { BaseAttributeKey.Order, 0.ToString() }
             };
+        }
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="InMemory"/> class.
+        /// </summary>
+        public InMemory()
+            : base()
+        {
+        }
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="InMemory" /> class.
+        /// </summary>
+        /// <param name="updateAttributes">if set to <c>true</c> then attributes will be loaded from database.</param>
+        public InMemory( bool updateAttributes )
+            : base( updateAttributes )
+        {
         }
 
         /// <summary>

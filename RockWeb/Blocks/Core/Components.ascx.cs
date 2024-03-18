@@ -13,7 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 // </copyright>
-//
+
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -57,6 +57,7 @@ namespace RockWeb.Blocks.Core
         Order = 3,
         Key = AttributeKey.SupportSecurity )]
 
+    [Rock.SystemGuid.BlockTypeGuid( "21F5F466-59BC-40B2-8D73-7314D936C3CB" )]
     public partial class Components : RockBlock, ICustomGridColumns
     {
         public static class AttributeKey
@@ -171,7 +172,6 @@ namespace RockWeb.Blocks.Core
             }
         }
 
-
         private void Block_BlockUpdated( object sender, EventArgs e )
         {
             ConfigureBlock();
@@ -187,9 +187,9 @@ namespace RockWeb.Blocks.Core
         /// <param name="e">The <see cref="EventArgs" /> instance containing the event data.</param>
         protected void rFilter_ApplyFilterClick( object sender, EventArgs e )
         {
-            rFilter.SaveUserPreference( "Name", tbName.Text );
-            rFilter.SaveUserPreference( "Description", tbDescription.Text );
-            rFilter.SaveUserPreference( "Active", rblActive.SelectedValue );
+            rFilter.SetFilterPreference( "Name", tbName.Text );
+            rFilter.SetFilterPreference( "Description", tbDescription.Text );
+            rFilter.SetFilterPreference( "Active", rblActive.SelectedValue );
 
             BindGrid();
         }
@@ -267,7 +267,7 @@ namespace RockWeb.Blocks.Core
                     aSecure.Visible = true;
 
                     var entityType = EntityTypeCache.Get( componentDescription.Type );
-                    string url = Page.ResolveUrl( string.Format( "~/Secure/{0}/{1}?t={2}&pb=&sb=Done", entityType.Id, 0, componentDescription.Name + " Security" ) );
+                    string url = Page.ResolveUrl( string.Format( "~/Secure/{0}/{1}?t={2}&pb=&sb=Done", entityType.Id, 0, componentDescription.Name.EscapeQuotes() + " Security" ) );
                     aSecure.HRef = "javascript: Rock.controls.modal.show($(this), '" + url + "')";
                 }
             }
@@ -322,7 +322,6 @@ namespace RockWeb.Blocks.Core
             if ( securityColumn != null )
             {
                 securityColumn.Visible = _supportSecurity && _isAuthorizedToConfigure;
-                ;
             }
         }
 
@@ -333,9 +332,9 @@ namespace RockWeb.Blocks.Core
         {
             if ( !Page.IsPostBack )
             {
-                tbName.Text = rFilter.GetUserPreference( "Name" );
-                tbDescription.Text = rFilter.GetUserPreference( "Description" );
-                rblActive.SelectedValue = rFilter.GetUserPreference( "Active" );
+                tbName.Text = rFilter.GetFilterPreference( "Name" );
+                tbDescription.Text = rFilter.GetFilterPreference( "Description" );
+                rblActive.SelectedValue = rFilter.GetFilterPreference( "Active" );
             }
         }
 
@@ -375,19 +374,19 @@ namespace RockWeb.Blocks.Core
 
             var items = dataSource.AsQueryable();
 
-            string name = rFilter.GetUserPreference( "Name" );
+            string name = rFilter.GetFilterPreference( "Name" );
             if ( !string.IsNullOrWhiteSpace( name ) )
             {
                 items = items.Where( c => c.Name.ToLower().Contains( name.ToLower() ) );
             }
 
-            string description = rFilter.GetUserPreference( "Description" );
+            string description = rFilter.GetFilterPreference( "Description" );
             if ( !string.IsNullOrWhiteSpace( description ) )
             {
                 items = items.Where( c => c.Name.Contains( description ) );
             }
 
-            string active = rFilter.GetUserPreference( "Active" );
+            string active = rFilter.GetFilterPreference( "Active" );
             if ( !string.IsNullOrWhiteSpace( active ) )
             {
                 if ( active == "Yes" )
@@ -416,6 +415,17 @@ namespace RockWeb.Blocks.Core
             LoadEditControls( serviceId, true );
 
             mdEditComponent.Title = ( _container.Dictionary[serviceId].Key + " Properties" ).FormatAsHtmlTitle();
+
+            if ( _container.Dictionary[serviceId].Value is Rock.Communication.Transport.SMTP )
+            {
+                nbWarnings.Text = "This transport should only be used for development and testing.";
+                nbWarnings.Visible = true;
+            }
+            else
+            {
+                nbWarnings.Text = "";
+                nbWarnings.Visible = false;
+            }
 
             ShowDialog( "EditComponent" );
         }

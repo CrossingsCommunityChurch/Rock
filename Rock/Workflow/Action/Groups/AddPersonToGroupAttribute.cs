@@ -1,4 +1,4 @@
-﻿// <copyright>
+// <copyright>
 // Copyright by the Spark Development Network
 //
 // Licensed under the Rock Community License (the "License");
@@ -63,12 +63,13 @@ namespace Rock.Workflow.Action
         IsRequired = false,
         Order = 3 )]
 
-    [GroupField( "LimitToGroupsUnderSpecificParentGroup",
+    [GroupField( "Limit To Groups Under Specific Parent Group",
         Description = "When set, if the group given is not found under this parent group the action will not be marked as a success and an error will be logged.",
         Key = AttributeKey.LimitToGroupsUnderSpecificParentGroup,
         IsRequired = false,
         Order = 4 )]
 
+    [Rock.SystemGuid.EntityTypeGuid( "BD53F375-78A2-4A54-B1D1-2D805F3FCD44")]
     public class AddPersonToGroupWFAttribute : ActionComponent
     {
         private class AttributeKey
@@ -141,7 +142,7 @@ namespace Rock.Workflow.Action
 
                     if ( !limitToGroupTypeIds.Contains( group.GroupTypeId ) )
                     {
-                        errorMessages.Add( $"The group type for group \"{group.Name} is \"{group.GroupType.Name}\". This action is configured to only add persons to groups of type \"{limitToGroupType.Name}\" and it's child types." );
+                        errorMessages.Add( $"The group type for group \"{group.Name} is \"{group.GroupType.Name}\". This action is configured to only add persons to groups of type \"{limitToGroupType.Name}\" and its child types." );
                     }
                 }
 

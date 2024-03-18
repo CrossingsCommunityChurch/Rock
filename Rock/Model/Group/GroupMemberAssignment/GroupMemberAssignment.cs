@@ -15,6 +15,8 @@
 // </copyright>
 //
 
+using System;
+using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using System.Data.Entity.ModelConfiguration;
 using System.Runtime.Serialization;
@@ -28,9 +30,20 @@ namespace Rock.Model
     [RockDomain( "Group" )]
     [Table( "GroupMemberAssignment" )]
     [DataContract]
-    public class GroupMemberAssignment : Model<GroupMemberAssignment>
+    [Rock.SystemGuid.EntityTypeGuid( "22BF14ED-E882-4BB0-9328-D12545BF5F61")]
+    public partial class GroupMemberAssignment : Model<GroupMemberAssignment>
     {
         #region Entity Properties
+
+        /// <summary>
+        /// Gets or sets the <see cref="Rock.Model.Group"/> identifier.
+        /// </summary>
+        /// <value>
+        /// The group identifier.
+        /// </value>
+        [Required]
+        [DataMember( IsRequired = true )]
+        public int GroupId { get; set; }
 
         /// <summary>
         /// Gets or sets the <see cref="Rock.Model.GroupMember"/> identifier.
@@ -63,6 +76,23 @@ namespace Rock.Model
         [Index( "IX_GroupMemberIdLocationIdScheduleId", IsUnique = true, Order = 2 )]
         public int? ScheduleId { get; set; }
 
+        /// <summary>
+        /// The date and time when the confirmation is sent.
+        /// </summary>
+        /// <value>
+        /// The confirmation is sent.
+        /// </value>
+        [DataMember]
+        public DateTime? ConfirmationSentDateTime { get; set; }
+
+        /// <summary>
+        /// The date and time when the last reminder was sent.
+        /// </summary>
+        /// <value>
+        /// The last reminder was sent.
+        /// </value>
+        public DateTime? LastReminderSentDateTime { get; set; }
+
         #endregion Entity Properties
 
         #region Navigation Properties
@@ -93,6 +123,21 @@ namespace Rock.Model
         [DataMember]
         public virtual Schedule Schedule { get; set; }
 
+        /// <summary>
+        /// Gets the <see cref="Rock.Model.Person"/> identifier.
+        /// </summary>
+        /// <value>
+        /// The person identifier.
+        /// </value>
+        [NotMapped]
+        public virtual int? PersonId
+        {
+            get
+            {
+                return GroupMember?.PersonId;
+            }
+        }
+
         #endregion
 
         #region Public Methods
@@ -105,7 +150,14 @@ namespace Rock.Model
         /// </returns>
         public override string ToString()
         {
-            return $"{GroupMember} in {this.GroupMember.Group} is assigned to {Location.ToString( true ) ?? "any location"} at {Schedule.ToString() ?? "any schedule"}. ";
+            if ( GroupMember != null )
+            {
+                return $"{GroupMember} in {this.GroupMember.Group} is assigned to {Location.ToString( true ) ?? "any location"} at {Schedule.ToString() ?? "any schedule"}. ";
+            }
+            else
+            {
+                return base.ToString();
+            }
         }
 
         #endregion

@@ -1,4 +1,4 @@
-﻿// <copyright>
+// <copyright>
 // Copyright by the Spark Development Network
 //
 // Licensed under the Rock Community License (the "License");
@@ -29,6 +29,7 @@ namespace Rock.Model
     [Table( "AnalyticsSourceGivingUnit" )]
     [DataContract]
     [HideFromReporting]
+    [Rock.SystemGuid.EntityTypeGuid( "05103BCB-B164-4591-9129-F949A58C04B1")]
     public class AnalyticsSourceGivingUnit : Entity<AnalyticsSourceGivingUnit>
     {
         #region Entity Properties
@@ -127,6 +128,7 @@ namespace Rock.Model
 
         /// <summary>
         /// The frequency that this person typically has given in the past 12 months.
+        /// <see cref="Rock.Financial.FinancialGivingAnalyticsFrequencyLabel" />
         /// Possible values include: Weekly, Bi-Weekly, Monthly, Quarterly, Erratic, Variable
         /// </summary>
         /// <value>

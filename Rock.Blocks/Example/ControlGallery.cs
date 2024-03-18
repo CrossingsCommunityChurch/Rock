@@ -24,14 +24,19 @@ namespace Rock.Blocks.Example
     /// <summary>
     /// Allows the user to try out various controls.
     /// </summary>
-    /// <seealso cref="Rock.Blocks.RockObsidianBlockType" />
+    /// <seealso cref="Rock.Blocks.RockBlockType" />
 
     [DisplayName( "Control Gallery" )]
     [Category( "Obsidian > Example" )]
     [Description( "Allows the user to try out various controls." )]
     [IconCssClass( "fa fa-flask" )]
+    [SupportedSiteTypes( Model.SiteType.Web )]
 
-    public class ControlGallery : RockObsidianBlockType
+    [Rock.SystemGuid.EntityTypeGuid( Rock.SystemGuid.EntityType.OBSIDIAN_EXAMPLE_CONTROL_GALLERY )]
+    [Rock.SystemGuid.BlockTypeGuid( "6FAB07FF-D4C6-412B-B13F-7B881ECBFAD0")]
+    public class ControlGallery : RockBlockType
     {
+        /// <inheritdoc/>
+        public override string ObsidianFileUrl => base.ObsidianFileUrl.ReplaceIfEndsWith( ".obs", string.Empty );
     }
 }

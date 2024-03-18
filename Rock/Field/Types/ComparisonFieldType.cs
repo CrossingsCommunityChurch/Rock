@@ -16,10 +16,14 @@
 //
 using System;
 using System.Collections.Generic;
+using System.Linq;
+#if WEBFORMS
 using System.Web.UI;
 using System.Web.UI.WebControls;
-
+#endif
+using Rock.Attribute;
 using Rock.Model;
+using Rock.ViewModels.Utility;
 using Rock.Web.UI.Controls;
 
 namespace Rock.Field.Types
@@ -28,10 +32,72 @@ namespace Rock.Field.Types
     /// Field Type used to display a dropdown list of Defined Types
     /// </summary>
     [Serializable]
+    [FieldTypeUsage( FieldTypeUsage.System )]
+    [RockPlatformSupport( Utility.RockPlatform.WebForms, Utility.RockPlatform.Obsidian )]
+    [Rock.SystemGuid.FieldTypeGuid( Rock.SystemGuid.FieldType.COMPARISON )]
     public class ComparisonFieldType : FieldType
     {
+        private const string ClientValues = "clientValues";
+
+        #region Formatting
+
+        /// <inheritdoc/>
+        public override string GetTextValue( string privateValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            return privateValue.ConvertToEnum<ComparisonType>( ComparisonType.EqualTo ).ConvertToString();
+        }
+
+        #endregion
 
         #region Edit Control
+
+        /// <inheritdoc />
+        public override Dictionary<string, string> GetPublicConfigurationValues( Dictionary<string, string> privateConfigurationValues, ConfigurationValueUsage usage, string value )
+        {
+            var configuration = base.GetPublicConfigurationValues( privateConfigurationValues, usage, value );
+
+            if ( !configuration.ContainsKey( ClientValues ) )
+            {
+                var options = new List<ListItemBag>();
+
+                foreach ( ComparisonType comparisonType in Enum.GetValues( typeof( ComparisonType ) ) )
+                {
+                    options.Add( new ListItemBag() { Text = comparisonType.ConvertToString(), Value = comparisonType.ConvertToInt().ToString() } );
+                }
+
+                configuration[ClientValues] = options.ToCamelCaseJson( false, true );
+            }
+
+            return configuration;
+        }
+
+        /// <inheritdoc />
+        public override Dictionary<string, string> GetPrivateConfigurationValues( Dictionary<string, string> publicConfigurationValues )
+        {
+            var configuration = base.GetPrivateConfigurationValues( publicConfigurationValues );
+
+            configuration.Remove( ClientValues );
+
+            return configuration;
+        }
+
+        #endregion
+
+        #region Filter Control
+
+        /// <summary>
+        /// Determines whether this filter has a filter control
+        /// </summary>
+        /// <returns></returns>
+        public override bool HasFilterControl()
+        {
+            return false;
+        }
+
+        #endregion
+
+        #region WebForms
+#if WEBFORMS
 
         /// <summary>
         /// Returns the field's current value(s)
@@ -43,8 +109,9 @@ namespace Rock.Field.Types
         /// <returns></returns>
         public override string FormatValue( Control parentControl, string value, Dictionary<string, ConfigurationValue> configurationValues, bool condensed )
         {
-            string formattedValue = value.ConvertToEnum<ComparisonType>( ComparisonType.EqualTo ).ConvertToString();
-            return base.FormatValue( parentControl, formattedValue, configurationValues, condensed );
+            return !condensed
+                ? GetTextValue( value, configurationValues.ToDictionary( cv => cv.Key, cv => cv.Value.Value ) )
+                : GetCondensedTextValue( value, configurationValues.ToDictionary( cv => cv.Key, cv => cv.Value.Value ) );
         }
 
         /// <summary>
@@ -98,10 +165,6 @@ namespace Rock.Field.Types
             }
         }
 
-        #endregion
-
-        #region Filter Control
-
         /// <summary>
         /// Creates the control needed to filter (query) values using this field type.
         /// </summary>
@@ -116,16 +179,7 @@ namespace Rock.Field.Types
             return null;
         }
 
-        /// <summary>
-        /// Determines whether this filter has a filter control
-        /// </summary>
-        /// <returns></returns>
-        public override bool HasFilterControl()
-        {
-            return false;
-        }
-
+#endif
         #endregion
-
     }
 }

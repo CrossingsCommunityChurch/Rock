@@ -17,9 +17,12 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+#if WEBFORMS
 using System.Web.UI;
 using System.Web.UI.WebControls;
-
+#endif
+using Rock.Attribute;
+using Rock.ViewModels.Utility;
 using Rock.Web.UI.Controls;
 
 namespace Rock.Field.Types
@@ -29,11 +32,52 @@ namespace Rock.Field.Types
     /// Stored as a comma-delimited list of LavaCommand names
     /// </summary>
     [Serializable]
+    [FieldTypeUsage( FieldTypeUsage.System )]
+    [RockPlatformSupport( Utility.RockPlatform.WebForms, Utility.RockPlatform.Obsidian )]
+    [Rock.SystemGuid.FieldTypeGuid( Rock.SystemGuid.FieldType.LAVA_COMMANDS )]
     public class LavaCommandsFieldType : FieldType
     {
         #region Configuration
 
         private const string REPEAT_COLUMNS = "repeatColumns";
+
+        #endregion Configuration
+
+        #region Edit Control
+
+        /// <inheritdoc />
+        public override string GetPublicEditValue( string privateValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            var splitValues = privateValue.SplitDelimitedValues( ",", StringSplitOptions.RemoveEmptyEntries );
+
+            if ( splitValues.Length > 0 )
+            {
+                var values = splitValues.Select( lc => new ListItemBag() { Text = lc.SplitCase(), Value = lc } );
+                return values.ToCamelCaseJson( false, true );
+            }
+
+            return base.GetPublicEditValue( privateValue, privateConfigurationValues );
+        }
+
+        /// <inheritdoc />
+        public override string GetPrivateEditValue( string publicValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            var jsonValues = publicValue.FromJsonOrNull<List<ListItemBag>>();
+
+            if ( jsonValues != null )
+            {
+                var values = jsonValues.Select( li => li.Value );
+                return values.JoinStrings( "," );
+            }
+
+            return base.GetPrivateEditValue( publicValue, privateConfigurationValues );
+        }
+
+
+        #endregion
+
+        #region WebForms
+#if WEBFORMS
 
         /// <summary>
         /// Returns a list of the configuration keys
@@ -75,7 +119,7 @@ namespace Rock.Field.Types
             Dictionary<string, ConfigurationValue> configurationValues = base.ConfigurationValues( controls );
 
             string description = $"Select how many columns the list should use before going to the next row. If blank {LavaCommandsPicker.DefaultRepeatColumns} is used.";
-            configurationValues.Add( REPEAT_COLUMNS, new ConfigurationValue("Repeat Columns", description, LavaCommandsPicker.DefaultRepeatColumns.ToString() ) );
+            configurationValues.Add( REPEAT_COLUMNS, new ConfigurationValue( "Repeat Columns", description, LavaCommandsPicker.DefaultRepeatColumns.ToString() ) );
 
             if ( controls != null && controls.Count > 0 )
             {
@@ -101,11 +145,6 @@ namespace Rock.Field.Types
                 tbRepeatColumns.Text = configurationValues.ContainsKey( REPEAT_COLUMNS ) ? configurationValues[REPEAT_COLUMNS].Value : LavaCommandsPicker.DefaultRepeatColumns.ToString();
             }
         }
-
-        #endregion Configuration
-
-
-        #region Edit Control
 
         /// <summary>
         /// Renders the controls necessary for prompting user for a new value and adds them to the parentControl
@@ -159,6 +198,7 @@ namespace Rock.Field.Types
             }
         }
 
+#endif
         #endregion
     }
 }

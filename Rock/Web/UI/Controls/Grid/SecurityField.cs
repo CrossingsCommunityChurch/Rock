@@ -15,6 +15,7 @@
 // </copyright>
 //
 using System;
+using System.Web;
 using System.Web.UI;
 using System.Web.UI.HtmlControls;
 using System.Web.UI.WebControls;
@@ -112,6 +113,7 @@ namespace Rock.Web.UI.Controls
             this.HeaderStyle.HorizontalAlign = HorizontalAlign.Center;
             this.HeaderStyle.CssClass = "grid-columncommand";
             this.ItemStyle.CssClass = "grid-columncommand";
+            this.Title = "Secure";
         }
 
         /// <summary>
@@ -123,12 +125,20 @@ namespace Rock.Web.UI.Controls
         public int EntityTypeId { get; set; }
 
         /// <summary>
-        /// Gets or sets the field that contains the title.
+        /// Gets or sets the field that is displayed in the title.
         /// </summary>
         /// <value>
-        /// The title.
+        /// The title field name that is displayed.
         /// </value>
         public string TitleField { get; set; }
+
+        /// <summary>
+        /// Gets or sets the display title which is also a prefix to <seealso cref="TitleField"/> if one is specified. Defaults to the title "Secure".
+        /// </summary>
+        /// <value>
+        /// The title name.
+        /// </value>
+        public string Title { get; set; }
 
         /// <summary>
         /// When exporting a grid to Excel, this property controls whether a column is included
@@ -156,7 +166,7 @@ namespace Rock.Web.UI.Controls
         /// </returns>
         public override bool Initialize( bool sortingEnabled, Control control )
         {
-            SecurityFieldTemplate editFieldTemplate = new SecurityFieldTemplate(control.Page, EntityTypeId, TitleField);
+            SecurityFieldTemplate editFieldTemplate = new SecurityFieldTemplate( control.Page, EntityTypeId, TitleField, Title );
             this.ItemTemplate = editFieldTemplate;
 
             return base.Initialize( sortingEnabled, control );
@@ -171,12 +181,20 @@ namespace Rock.Web.UI.Controls
         private System.Web.UI.Page page;
 
         /// <summary>
-        /// Gets or sets the title field
+        /// Gets or sets the field that is displayed in the title.
         /// </summary>
         /// <value>
-        /// The title field
+        /// The title field name that is displayed.
         /// </value>
         public string TitleField { get; set; }
+
+        /// <summary>
+        /// Gets or sets the display title which is also a prefix to <seealso cref="TitleField"/> if one is specified. Defaults to the title "Secure".
+        /// </summary>
+        /// <value>
+        /// The title name.
+        /// </value>
+        public string Title { get; set; }
 
         /// <summary>
         /// Gets or sets the entity type id.
@@ -192,11 +210,28 @@ namespace Rock.Web.UI.Controls
         /// <param name="page">The page.</param>
         /// <param name="entityTypeId">The entity type id.</param>
         /// <param name="titleField">The title field.</param>
-        public SecurityFieldTemplate(System.Web.UI.Page page, int entityTypeId, string titleField )
+        [Obsolete( "Use the SecurityFieldTemplate constructor with the [string:title] parameter.", false )]
+        [RockObsolete( "1.14" )]
+        public SecurityFieldTemplate( System.Web.UI.Page page, int entityTypeId, string titleField )
         {
             this.page = page;
             this.EntityTypeId = entityTypeId;
             this.TitleField = titleField;
+        }
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="SecurityFieldTemplate" /> class.
+        /// </summary>
+        /// <param name="page">The page.</param>
+        /// <param name="entityTypeId">The entity type id.</param>
+        /// <param name="titleField">The title field.</param>
+        /// <param name="title">The title name. Which will be used as a prefix to <seealso cref="TitleField"/> if one is specified.</param>
+        public SecurityFieldTemplate( System.Web.UI.Page page, int entityTypeId, string titleField, string title )
+        {
+            this.page = page;
+            this.EntityTypeId = entityTypeId;
+            this.TitleField = titleField;
+            this.Title = title;
         }
 
         /// <summary>
@@ -211,7 +246,7 @@ namespace Rock.Web.UI.Controls
                 SecurityField securityField = cell.ContainingField as SecurityField;
                 HtmlGenericControl aSecure = new HtmlGenericControl( "a" );
                 cell.Controls.Add( aSecure );
-                aSecure.Attributes.Add("class", securityField.ButtonCssClass );
+                aSecure.Attributes.Add( "class", securityField.ButtonCssClass );
 
                 // height attribute is used by the modal that pops up when the button is clicked
                 aSecure.Attributes.Add( "height", "500px" );
@@ -227,17 +262,24 @@ namespace Rock.Web.UI.Controls
 
         void aSecure_DataBinding( object sender, EventArgs e )
         {
-            HtmlGenericControl lnk = (HtmlGenericControl)sender;
-            GridViewRow container = (GridViewRow)lnk.NamingContainer;
+            HtmlGenericControl lnk = ( HtmlGenericControl ) sender;
+            GridViewRow container = ( GridViewRow ) lnk.NamingContainer;
 
-            // Get title
-            string title = "Security";
-            if ( !string.IsNullOrWhiteSpace( TitleField ) )
+            var title = Title;
+
+            if ( !TitleField.IsNullOrWhiteSpace() )
             {
-                object titleValue = DataBinder.Eval( container.DataItem, TitleField );
-                if ( titleValue != DBNull.Value )
+                object titleFieldName = DataBinder.Eval( container.DataItem, TitleField );
+                if ( titleFieldName != DBNull.Value )
                 {
-                    title = titleValue.ToString();
+                    if ( !title.IsNullOrWhiteSpace() )
+                    {
+                        title = $"{title} {titleFieldName}";
+                    }
+                    else
+                    {
+                        title = titleFieldName.ToString();
+                    }
                 }
             }
 
@@ -245,6 +287,17 @@ namespace Rock.Web.UI.Controls
             var idValue = DataBinder.Eval( container.DataItem, "id" ) as int?;
             if ( idValue.HasValue && idValue > 0 )
             {
+                /*
+                 * 01/26/2024 - KA
+                 * Any existing ampersand is 'encoded' before calling HttpUtility.UrlEncode because Asp.Net's
+                 * HttpRequestBase decodes the url and interprets the encoded '&' as a query parameter delimiter
+                 * which results in null values when parsing to the QueryString parameter on HttpRequestBase.
+                 * However in this scenario the '&' has to be included as the value for the 't' key.
+                 * See https://stackoverflow.com/questions/3667902/c-sharp-asp-net-httpwebrequest-automatically-decodes-ampersand-values-from-q.
+                 *
+                */
+                title = title.Replace( "&", "%26" );
+                title = HttpUtility.UrlEncode( title.EscapeQuotes() );
                 string url = page.ResolveUrl( string.Format( "~/Secure/{0}/{1}?t={2}&pb=&sb=Done",
                     EntityTypeId, idValue.ToString(), title ) );
                 lnk.Attributes.Add( "href", "javascript: Rock.controls.modal.show($(this), '" + url.EscapeQuotes() + "')" );

@@ -22,10 +22,12 @@ using System.Linq;
 using System.Linq.Expressions;
 
 using Rock.Attribute;
+using Rock.ClientService.Core.Campus;
+using Rock.ClientService.Core.Campus.Options;
 using Rock.Data;
 using Rock.Model;
 using Rock.Utility;
-using Rock.ViewModel.Client;
+using Rock.ViewModels.Utility;
 using Rock.Web.Cache;
 
 using Regex = System.Text.RegularExpressions.Regex;
@@ -35,12 +37,13 @@ namespace Rock.Blocks.Types.Mobile.Groups
     /// <summary>
     /// Allows an individual to search for a group to join.
     /// </summary>
-    /// <seealso cref="Rock.Blocks.RockMobileBlockType" />
+    /// <seealso cref="Rock.Blocks.RockBlockType" />
 
     [DisplayName( "Group Finder" )]
     [Category( "Mobile > Groups" )]
     [Description( "Allows an individual to search for a group to join." )]
     [IconCssClass( "fa fa-search" )]
+    [SupportedSiteTypes( Model.SiteType.Mobile )]
 
     #region Block Attributes
 
@@ -208,7 +211,9 @@ namespace Rock.Blocks.Types.Mobile.Groups
 
     #endregion
 
-    public partial class GroupFinder : RockMobileBlockType
+    [Rock.SystemGuid.EntityTypeGuid( Rock.SystemGuid.EntityType.MOBILE_GROUPS_GROUP_FINDER_BLOCK_TYPE )]
+    [Rock.SystemGuid.BlockTypeGuid( Rock.SystemGuid.BlockType.MOBILE_GROUPS_GROUP_FINDER )]
+    public partial class GroupFinder : RockBlockType
     {
         #region Fields
 
@@ -423,21 +428,8 @@ namespace Rock.Blocks.Types.Mobile.Groups
 
         #region IRockMobileBlockType Implementation
 
-        /// <summary>
-        /// Gets the required mobile application binary interface version required to render this block.
-        /// </summary>
-        /// <value>
-        /// The required mobile application binary interface version required to render this block.
-        /// </value>
-        public override int RequiredMobileAbiVersion => 3;
-
-        /// <summary>
-        /// Gets the class name of the mobile block to use during rendering on the device.
-        /// </summary>
-        /// <value>
-        /// The class name of the mobile block to use during rendering on the device
-        /// </value>
-        public override string MobileBlockType => "Rock.Mobile.Blocks.Groups.GroupFinder";
+        /// <inheritdoc/>
+        public override Version RequiredMobileVersion => new Version( 1, 3 );
 
         /// <summary>
         /// Gets the property values that will be sent to the device in the application bundle.
@@ -451,7 +443,7 @@ namespace Rock.Blocks.Types.Mobile.Groups
             {
                 var attributes = AttributeFiltersGuids.Select( a => AttributeCache.Get( a ) )
                     .Where( a => a != null )
-                    .Select( a => ClientAttributeHelper.ToClientEditableAttributeValue( a, a.DefaultValue ) )
+                    .Select( a => ToPublicEditableAttributeValue( a, a.DefaultValue ) )
                     .ToList();
 
                 return new
@@ -469,6 +461,32 @@ namespace Rock.Blocks.Types.Mobile.Groups
         }
 
         #endregion
+
+        /// <summary>
+        /// Converts to an attribute and value into a custom poco that will
+        /// be transmitted to the shell.
+        /// </summary>
+        /// <param name="attribute">The attribute.</param>
+        /// <param name="value">The value.</param>
+        /// <returns>The editable attribute including the value.</returns>
+        private PublicEditableAttributeValueViewModel ToPublicEditableAttributeValue( AttributeCache attribute, string value )
+        {
+            var attr = PublicAttributeHelper.GetPublicAttributeForEdit( attribute );
+
+            return new PublicEditableAttributeValueViewModel
+            {
+                AttributeGuid = attr.AttributeGuid,
+                Categories = attr.Categories,
+                ConfigurationValues = attr.ConfigurationValues,
+                Description = attr.Description,
+                FieldTypeGuid = attr.FieldTypeGuid,
+                IsRequired = attr.IsRequired,
+                Key = attr.Key,
+                Name = attr.Name,
+                Order = attr.Order,
+                Value = PublicAttributeHelper.GetPublicEditValue( attribute, value )
+            };
+        }
 
         #region Methods
 
@@ -489,15 +507,15 @@ namespace Rock.Blocks.Types.Mobile.Groups
         /// </summary>
         /// <param name="rockContext">The rock context.</param>
         /// <returns>A collection of list items.</returns>
-        private List<ViewModel.NonEntities.ListItemViewModel> GetValidCampuses( RockContext rockContext )
+        private List<ViewModels.Utility.ListItemBag> GetValidCampuses( RockContext rockContext )
         {
-            var helper = new ClientHelper( rockContext, RequestContext.CurrentPerson );
+            var campusClientService = new CampusClientService( rockContext, RequestContext.CurrentPerson );
 
             // Bypass security because the admin has specified which campuses
             // they want to show up.
-            helper.EnableSecurity = false;
+            campusClientService.EnableSecurity = false;
 
-            return helper.GetCampusesAsListItems( new ViewModel.Client.CampusOptions
+            return campusClientService.GetCampusesAsListItems( new CampusOptions
             {
                 LimitCampusTypes = CampusTypeGuids,
                 LimitCampusStatuses = CampusStatusGuids
@@ -1045,5 +1063,18 @@ namespace Rock.Blocks.Types.Mobile.Groups
         }
 
         #endregion
+
+        /// <summary>
+        /// Custom class to store the value along with the attribute. This is for
+        /// backwards compatibility with Mobile Shell.
+        /// </summary>
+        private class PublicEditableAttributeValueViewModel : PublicAttributeBag
+        {
+            /// <summary>
+            /// Gets or sets the value.
+            /// </summary>
+            /// <value>The value.</value>
+            public string Value { get; set; }
+        }
     }
 }

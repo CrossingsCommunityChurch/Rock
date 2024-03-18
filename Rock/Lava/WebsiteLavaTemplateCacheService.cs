@@ -15,7 +15,9 @@
 // </copyright>
 //
 using System;
+using System.Collections.Generic;
 using System.Threading;
+using System.Web;
 using Rock.Web.Cache;
 
 namespace Rock.Lava
@@ -56,33 +58,34 @@ namespace Rock.Lava
         /// <param name="key">The key.</param>
         /// <param name="content">The content.</param>
         /// <returns></returns>
+        [Obsolete]
+        [RockObsolete( "1.15.1" )]
         public WebsiteLavaTemplateCache Get( ILavaEngine engine, string key, string content )
         {
             WebsiteLavaTemplateCache template;
 
-            // If cache items need to be serialized, do not cache the template because it isn't serializable.
-            if ( RockCache.IsCacheSerialized )
+            var fromCache = true;
+            template = WebsiteLavaTemplateCache.GetOrAddExisting( key, () =>
             {
-                template = Load( engine, content );
+                fromCache = false;
+
+                var parseResult = CompileLavaTemplate( engine, content );
+
+                var cacheEntry = new WebsiteLavaTemplateCache
+                {
+                    Template = parseResult.Template
+                };
+
+                return cacheEntry;
+            } );
+
+            if ( fromCache )
+            {
+                Interlocked.Increment( ref _cacheHits );
             }
             else
             {
-                var fromCache = true;
-
-                template = WebsiteLavaTemplateCache.GetOrAddExisting( key, () =>
-                {
-                    fromCache = false;
-                    return Load( engine, content );
-                } );
-
-                if ( fromCache )
-                {
-                    Interlocked.Increment( ref _cacheHits );
-                }
-                else
-                {
-                    Interlocked.Increment( ref _cacheMisses );
-                }
+                Interlocked.Increment( ref _cacheMisses );
             }
 
             return template;
@@ -95,13 +98,12 @@ namespace Rock.Lava
         /// <returns></returns>
         public bool Contains( string key )
         {
-            if ( RockCache.IsCacheSerialized )
+            if ( !this.IsCacheEnabled() )
             {
                 return false;
             }
 
-            bool contains = true;
-
+            var contains = true;
             var template = WebsiteLavaTemplateCache.GetOrAddExisting( key, () =>
             {
                 contains = false;
@@ -111,18 +113,86 @@ namespace Rock.Lava
             return contains;
         }
 
-        private WebsiteLavaTemplateCache Load( ILavaEngine engine, string content )
+        private AddOrGetTemplateResult AddOrGetTemplateInternal( ILavaEngine engine, string templateContent, string cacheKey )
+        {
+            if ( string.IsNullOrWhiteSpace( cacheKey ) )
+            {
+                cacheKey = GetTemplateKey( templateContent );
+            }
+
+            if ( engine == null )
+            {
+                throw new Exception( "WebsiteLavaTemplateCache template load failed. The cache must be initialized for a specific engine." );
+            }
+
+            bool fromCache;
+            ILavaTemplate template;
+            Exception parseException = null;
+            if ( this.IsCacheEnabled() )
+            {
+                // Retrieve the cached template or add a new template to the cache.
+                fromCache = true;
+                var templateCache = WebsiteLavaTemplateCache.GetOrAddExisting( cacheKey, () =>
+                {
+                    // Template not found in cache, so create it.
+                    fromCache = false;
+
+                    var parseResult = CompileLavaTemplate( engine, templateContent );
+                    parseException = parseResult.Error;
+
+                    var cacheEntry = new WebsiteLavaTemplateCache { Template = parseResult.Template };
+                    return cacheEntry;
+                } );
+
+                template = templateCache?.Template;
+            }
+            else
+            {
+                // Caching is disabled, so return a new template instance.
+                fromCache = false;
+
+                var parseResult = CompileLavaTemplate( engine, templateContent );
+                parseException = parseResult.Error;
+
+                template = parseResult.Template;
+            }
+
+            if ( fromCache )
+            {
+                Interlocked.Increment( ref _cacheHits );
+            }
+            else
+            {
+                Interlocked.Increment( ref _cacheMisses );
+            }
+
+            var result = new AddOrGetTemplateResult( template, parseException );
+            return result;
+        }
+
+        private LavaParseResult CompileLavaTemplate( ILavaEngine engine, string templateContent )
         {
             if ( engine == null )
             {
                 throw new Exception( "WebsiteLavaTemplateCache template load failed. The cache must be initialized for a specific engine." );
             }
 
-            var result = engine.ParseTemplate( content );
+            var parseResult = engine.ParseTemplate( templateContent );
 
-            var cacheEntry = new WebsiteLavaTemplateCache { Template = result.Template };
+            // If the source Lava template is invalid, cache the error message instead to prevent subsequent parse attempts.
+            if ( parseResult.HasErrors )
+            {
+                try
+                {
+                    parseResult.Template = engine.ParseTemplate( parseResult.GetLavaException().GetUserMessage() ).Template;
+                }
+                catch
+                {
+                    parseResult.Template = engine.ParseTemplate( "#Lava Template Error#" ).Template;
+                }
+            }
 
-            return cacheEntry;
+            return parseResult;
         }
 
         #region ILavaTemplateCacheService implementation
@@ -189,26 +259,32 @@ namespace Rock.Lava
 
         ILavaTemplate ILavaTemplateCacheService.GetOrAddTemplate( ILavaEngine engine, string templateContent, string cacheKey )
         {
-            if ( string.IsNullOrWhiteSpace( cacheKey ) )
-            {
-                cacheKey = GetTemplateKey( templateContent );
-            }
+            var result = AddOrGetTemplateInternal( engine, templateContent, cacheKey );
+            return result.Template;
+        }
 
-            var templateCache = Get( engine, cacheKey, templateContent );
-
-            if ( templateCache == null )
-            {
-                return null;
-            }
-            else
-            {
-                return templateCache.Template;
-            }
+        AddOrGetTemplateResult ILavaTemplateCacheService.AddOrGetTemplate( ILavaEngine engine, string templateContent, string cacheKey )
+        {
+            return AddOrGetTemplateInternal( engine, templateContent, cacheKey );
         }
 
         #endregion
 
         #region Support functions
+
+        private bool IsCacheEnabled()
+        {
+            // If a web request is active, check if caching is disabled by the CACHE_CONTROL_COOKIE.
+            if ( HttpContext.Current?.Request != null )
+            {
+                var isCachedEnabled = HttpContext.Current.Request.Cookies.Get( RockCache.CACHE_CONTROL_COOKIE );
+                if ( isCachedEnabled != null && !isCachedEnabled.Value.AsBoolean() )
+                {
+                    return false;
+                }
+            }
+            return true;
+        }
 
         private string GetTemplateKey( string content )
         {
@@ -233,7 +309,7 @@ namespace Rock.Lava
                 templateKey = content.XxHash();
             }
 
-            return $"{ _cacheKeyPrefix }:{templateKey}";
+            return $"{_cacheKeyPrefix}:{templateKey}";
         }
 
         #endregion

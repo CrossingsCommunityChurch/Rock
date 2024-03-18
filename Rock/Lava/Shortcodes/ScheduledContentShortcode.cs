@@ -22,8 +22,6 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
-
-using Rock.Data;
 using Rock.Model;
 
 namespace Rock.Lava.Shortcodes
@@ -32,39 +30,12 @@ namespace Rock.Lava.Shortcodes
     /// Lava shortcode for displaying content at scheduled times.
     /// </summary>
     [LavaShortcodeMetadata(
-        "Scheduled Content",
-        "scheduledcontent",
-        "The scheduled content shortcode will show/hide a block of content based on a provided Rock schedule.",
-        @"<p>Rock's schedules are a powerful tool in determining when certain events occur. The scheduled content
-            Lava shortcode allows you to extend the power of schedules to show/hide content. Below is a description
-            of how it works.
-            </p>
-
-            <pre>{[ scheduledcontent scheduleid:'15' ]}
-    {{ CurrentPerson.NickName }}, we're live!
- {[ endscheduledcontent ]}</pre>
-
-        <p>Let's take a look at some of the parameters and options that are available.</p>
-
-        <ul>
-            <li><strong>scheduleid</strong> - The schedule id to use for determining if the content should be displayed. This can be a single schedule or a comma-separated list of schedules.</li>
-            <li><strong>schedulecategoryid</strong> - The schedule category id to use for determining if the content should be displayed. All schedules in the category will be considered.</li>
-            <li><strong>showwhen</strong> (live) - Determines when the content should be displayed. Valid values are 'live', 'notlive' and 'both'.</li>
-            <li><strong>roleid</strong> - An optional parameter to limit the display to only people in a specified role (actually, any group id will work.)</li>
-            <li><strong>lookaheaddays</strong> (30)- The number of days to look ahead to find the next occurrence.</li>
-        </ul>
-
-        <p>The 'scheduleid' and 'schedulecategoryid' settings are meant to be either or. If you provide a value for one you don't need to provide a value for the other.</p>
-
-        <p>The following merge fields are available to the contents of your shortcode to help empower your user experience.</p>
-        <ul>
-            <li><strong>IsLive</strong> - Determines if the schedule is currently live. This is helpful when you set the 'showwhen' to 'both' as you can now display a different message by using this merge field in a simple if statement.</li>
-            <li><strong>OccurrenceEndDateTime</strong> - When a schedule is live this field will provide the date/time when the schedule will no longer be active. This helps assist you in creating a countdown to finish counter.</li>
-            <li><strong>NextOccurrenceDateTime</strong> - This is the date time of the next occurrence. This is provided to help you create a countdown to start counter. When a schedule is live this value will be the next active occurrence to help you craft messaging as to when you can see the next full occurrence.</li>
-            <li><strong>Schedule</strong> - This is the schedule object related to the request. If the event is live it will be the active schedule otherwise it will be the upcoming schedule.</li>
-        </ul>",
-        "scheduleid,showwhen,roleid",
-        "" )]
+        Name = "Scheduled Content",
+        TagName = "scheduledcontent",
+        Description = "The scheduled content shortcode will show/hide a block of content based on a provided Rock schedule.",
+        Documentation = DocumentationMetadata,
+        Parameters = "scheduleid,showwhen,roleid",
+        Categories = "C3270142-E72E-4FBF-BE94-9A2505DE7D54" )]
     public class ScheduledContentShortcode : LavaShortcodeBase, ILavaBlock
     {
         string _markup = string.Empty;
@@ -78,6 +49,34 @@ namespace Rock.Lava.Shortcodes
         const string LOOK_AHEAD_DAYS = "lookaheaddays";
         const string SCHEDULE_CATEGORY_ID = "schedulecategoryid";
         const string AS_AT_DATE = "asatdate";
+
+        internal const string DocumentationMetadata = @"<p>Rock's schedules are a powerful tool in determining when certain events occur. The scheduled content
+Lava shortcode allows you to extend the power of schedules to show/hide content. Below is a description
+of how it works.</p>
+
+            <pre>{[ scheduledcontent scheduleid:'15' ]}
+    {{ CurrentPerson.NickName }}, we're live!
+ {[ endscheduledcontent ]}</pre>
+
+         <p>Let's take a look at some of the parameters and options that are available.</p>
+
+         <ul>
+            <li><strong>scheduleid</strong> - The schedule id to use for determining if the content should be displayed. This can be a single schedule or a comma-separated list of schedules.</li>
+            <li><strong>schedulecategoryid</strong> - The schedule category id to use for determining if the content should be displayed. All schedules in the category will be considered.</li>
+            <li><strong>showwhen</strong> (live) - Determines when the content should be displayed. Valid values are 'live', 'notlive' and 'both'.</li>
+            <li><strong>roleid</strong> - An optional parameter to limit the display to only people in a specified role (actually, any group id will work.)</li>
+            <li><strong>lookaheaddays</strong> (30)- The number of days to look ahead to find the next occurrence.</li>
+         </ul>
+
+         <p>The 'scheduleid' and 'schedulecategoryid' settings are meant to be either or. If you provide a value for one you don't need to provide a value for the other.</p>
+
+         <p>The following merge fields are available to the contents of your shortcode to help empower your user experience.</p>
+         <ul>
+            <li><strong>IsLive</strong> - Determines if the schedule is currently live. This is helpful when you set the 'showwhen' to 'both' as you can now display a different message by using this merge field in a simple if statement.</li>
+            <li><strong>OccurrenceEndDateTime</strong> - When a schedule is live this field will provide the date/time when the schedule will no longer be active. This helps assist you in creating a countdown to finish counter.</li>
+            <li><strong>NextOccurrenceDateTime</strong> - This is the date time of the next occurrence. This is provided to help you create a countdown to start counter. When a schedule is live this value will be the next active occurrence to help you craft messaging as to when you can see the next full occurrence.</li>
+            <li><strong>Schedule</strong> - This is the schedule object related to the request. If the event is live it will be the active schedule otherwise it will be the upcoming schedule.</li>
+         </ul>";
 
         /// <summary>
         /// Specifies the type of Liquid element for this shortcode.
@@ -172,16 +171,15 @@ namespace Rock.Lava.Shortcodes
 
                 base.OnRender( context, writer );
 
-                var parms = ParseMarkup( _markup, context );
-                var lookAheadDays = parms[LOOK_AHEAD_DAYS].AsInteger();
-                var scheduleCategoryId = parms[SCHEDULE_CATEGORY_ID].AsIntegerOrNull();
-                var asAtDate = parms[AS_AT_DATE].AsDateTime();
+                var settings = LavaElementAttributes.NewFromMarkup( _markup, context );
 
-                var now = asAtDate ?? RockDateTime.Now;
+                var lookAheadDays = settings.GetInteger( LOOK_AHEAD_DAYS );
+                var scheduleCategoryId = settings.GetIntegerOrNull( SCHEDULE_CATEGORY_ID );
+                var asAtDate = settings.GetDateTime( AS_AT_DATE, RockDateTime.Now );
 
                 var scheduleIds = new List<int>();
 
-                var requestedSchedules = parms[SCHEDULE_ID].StringToIntList();
+                var requestedSchedules = settings.GetString( SCHEDULE_ID ).StringToIntList();
 
                 var schedulesQry = new ScheduleService( rockContext ).Queryable().AsNoTracking()
                     .Where( s => s.IsActive == true );
@@ -206,8 +204,8 @@ namespace Rock.Lava.Shortcodes
 
                 // Get the schedules are order them by the next start time
                 var schedules = schedulesQry.ToList()
-                                .Where( s => s.GetNextStartDateTime( now ) != null )
-                                .OrderBy( s => s.GetNextStartDateTime( now ) );
+                                .Where( s => s.GetNextStartDateTime( asAtDate ) != null )
+                                .OrderBy( s => s.GetNextStartDateTime( asAtDate ) );
 
                 if ( schedules.Count() == 0 )
                 {
@@ -216,17 +214,17 @@ namespace Rock.Lava.Shortcodes
 
                 var nextSchedule = schedules.FirstOrDefault();
 
-                var nextStartDateTime = nextSchedule.GetNextStartDateTime( now );
+                var nextStartDateTime = nextSchedule.GetNextStartDateTime( asAtDate );
                 var isLive = false;
                 DateTime? occurrenceEndDateTime = null;
 
                 // Determine if we're live
-                if ( nextSchedule.WasScheduleActive( now ) )
+                if ( nextSchedule.WasScheduleActive( asAtDate ) )
                 {
                     isLive = true;
-                    var occurrences = nextSchedule.GetICalOccurrences( now, now.AddDays( lookAheadDays ) ).Take( 2 );
+                    var occurrences = nextSchedule.GetICalOccurrences( asAtDate, asAtDate.AddDays( lookAheadDays ) ).Take( 2 );
                     var activeOccurrence = occurrences.FirstOrDefault();
-                    occurrenceEndDateTime = (DateTime)activeOccurrence.Period.EndTime.Value;
+                    occurrenceEndDateTime = ( DateTime ) activeOccurrence.Period.EndTime.Value;
 
                     // Set the next occurrence to be the literal next occurrence (vs the current occurrence)
                     nextStartDateTime = null;
@@ -237,14 +235,14 @@ namespace Rock.Lava.Shortcodes
                 }
 
                 // Determine when not to show the content
-                if ( ( parms[SHOW_WHEN] == "notlive" && isLive )
-                    || ( parms[SHOW_WHEN] == "live" && !isLive ) )
+                if ( ( settings.GetString( SHOW_WHEN ) == "notlive" && isLive )
+                    || ( settings.GetString( SHOW_WHEN ) == "live" && !isLive ) )
                 {
                     return;
                 }
 
                 // Check role membership
-                var roleId = parms[ROLE_ID].AsIntegerOrNull();
+                var roleId = settings.GetIntegerOrNull( ROLE_ID );
 
                 if ( roleId.HasValue )
                 {
@@ -300,43 +298,6 @@ namespace Rock.Lava.Shortcodes
             }
 
             return currentPerson;
-        }
-
-        /// <summary>
-        /// Parses the markup.
-        /// </summary>
-        /// <param name="markup">The markup.</param>
-        /// <param name="context">The context.</param>
-        /// <returns></returns>
-        private Dictionary<string, string> ParseMarkup( string markup, ILavaRenderContext context )
-        {
-            // first run lava across the inputted markup
-            var internalMergeFields = context.GetMergeFields();
-
-            var resolvedMarkup = markup.ResolveMergeFields( internalMergeFields );
-
-            var parms = new Dictionary<string, string>();
-            parms.Add( SCHEDULE_ID, "" );
-            parms.Add( ROLE_ID, "" );
-            parms.Add( SHOW_WHEN, "live" );
-            parms.Add( LOOK_AHEAD_DAYS, "30" );
-            parms.Add( SCHEDULE_CATEGORY_ID, "" );
-            parms.Add( AS_AT_DATE, "" );
-
-            var markupItems = Regex.Matches( resolvedMarkup, @"(\S*?:'[^']+')" )
-                .Cast<Match>()
-                .Select( m => m.Value )
-                .ToList();
-
-            foreach ( var item in markupItems )
-            {
-                var itemParts = item.ToString().Split( new char[] { ':' }, 2 );
-                if ( itemParts.Length > 1 )
-                {
-                    parms.AddOrReplace( itemParts[0].Trim().ToLower(), itemParts[1].Trim().Substring( 1, itemParts[1].Length - 2 ) );
-                }
-            }
-            return parms;
         }
     }
 }

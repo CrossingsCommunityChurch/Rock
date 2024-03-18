@@ -42,6 +42,7 @@ namespace RockWeb.Blocks.Connection
         Key = AttributeKey.DetailPage )]
 
     #endregion Block Attributes
+    [Rock.SystemGuid.BlockTypeGuid( "481AE184-4654-48FB-A2B4-90F6604B59B8" )]
     public partial class ConnectionOpportunityList : RockBlock, ISecondaryBlock, ICustomGridColumns
     {
         #region Attribute Keys
@@ -201,7 +202,7 @@ namespace RockWeb.Blocks.Connection
         /// <param name="e">The <see cref="EventArgs" /> instance containing the event data.</param>
         protected void rFilter_ApplyFilterClick( object sender, EventArgs e )
         {
-            rFilter.SaveUserPreference( MakeKeyUniqueToConnectionType( "Status" ), "Status", cbActive.Checked.ToTrueFalse() );
+            rFilter.SetFilterPreference( MakeKeyUniqueToConnectionType( "Status" ), "Status", cbActive.Checked.ToTrueFalse() );
 
             if ( AvailableAttributes != null )
             {
@@ -213,7 +214,7 @@ namespace RockWeb.Blocks.Connection
                         try
                         {
                             var values = attribute.FieldType.Field.GetFilterValues( filterControl, attribute.QualifierValues, Rock.Reporting.FilterMode.SimpleFilter );
-                            rFilter.SaveUserPreference( MakeKeyUniqueToConnectionType( attribute.Key ), attribute.Name, attribute.FieldType.Field.GetFilterValues( filterControl, attribute.QualifierValues, Rock.Reporting.FilterMode.SimpleFilter ).ToJson() );
+                            rFilter.SetFilterPreference( MakeKeyUniqueToConnectionType( attribute.Key ), attribute.Name, attribute.FieldType.Field.GetFilterValues( filterControl, attribute.QualifierValues, Rock.Reporting.FilterMode.SimpleFilter ).ToJson() );
                         }
                         catch
                         {
@@ -232,7 +233,11 @@ namespace RockWeb.Blocks.Connection
         /// <param name="e">The e.</param>
         protected void rFilter_DisplayFilterValue( object sender, GridFilter.DisplayFilterValueArgs e )
         {
-            if ( AvailableAttributes != null )
+            if ( e.Key == MakeKeyUniqueToConnectionType( "Status" ) )
+            {
+                e.Value = e.Value == "True" ? "Only Show Active Items" : string.Empty;
+            }
+            else if ( AvailableAttributes != null )
             {
                 var attribute = AvailableAttributes.FirstOrDefault( a => MakeKeyUniqueToConnectionType( a.Key ) == e.Key );
                 if ( attribute != null )
@@ -247,10 +252,8 @@ namespace RockWeb.Blocks.Connection
                     {
                     }
                 }
-            }
-            else if ( e.Key == MakeKeyUniqueToConnectionType( "Status" ) )
-            {
-                e.Value = e.Value == "True" ? "Only Show Active Items" : string.Empty;
+
+                e.Value = string.Empty;
             }
             else
             {
@@ -353,11 +356,16 @@ namespace RockWeb.Blocks.Connection
         /// <param name="e">The <see cref="GridReorderEventArgs" /> instance containing the event data.</param>
         protected void gConnectionOpportunities_GridReorder( object sender, GridReorderEventArgs e )
         {
-            var rockContext = new RockContext();
-            var service = new ConnectionOpportunityService( rockContext );
-            var connectionOpportunities = service.Queryable().OrderBy( b => b.Order );
+            if ( _connectionType == null )
+            {
+                return;
+            }
 
-            service.Reorder( connectionOpportunities.ToList(), e.OldIndex, e.NewIndex );
+            var rockContext = new RockContext();
+
+            var connectionOpportunityService = new ConnectionOpportunityService( rockContext );
+            var connectionOpportunities = connectionOpportunityService.Queryable().Where( o => o.ConnectionTypeId == _connectionType.Id ).OrderBy( o => o.Order ).ThenBy( o => o.Name );
+            connectionOpportunityService.Reorder( connectionOpportunities.ToList(), e.OldIndex, e.NewIndex );
             rockContext.SaveChanges();
 
             BindConnectionOpportunitiesGrid();
@@ -383,7 +391,7 @@ namespace RockWeb.Blocks.Connection
         /// </summary>
         private void SetFilter()
         {
-            string statusValue = rFilter.GetUserPreference( MakeKeyUniqueToConnectionType( "Status" ) );
+            string statusValue = rFilter.GetFilterPreference( MakeKeyUniqueToConnectionType( "Status" ) );
             if ( !string.IsNullOrWhiteSpace( statusValue ) )
             {
                 cbActive.Checked = statusValue.AsBoolean();
@@ -452,7 +460,7 @@ namespace RockWeb.Blocks.Connection
                     {
                         if ( control is IRockControl )
                         {
-                            var rockControl = (IRockControl)control;
+                            var rockControl = ( IRockControl ) control;
                             rockControl.Label = attribute.Name;
                             rockControl.Help = attribute.Description;
                             phAttributeFilters.Controls.Add( control );
@@ -466,7 +474,7 @@ namespace RockWeb.Blocks.Connection
                             phAttributeFilters.Controls.Add( wrapper );
                         }
 
-                        string savedValue = rFilter.GetUserPreference( MakeKeyUniqueToConnectionType( attribute.Key ) );
+                        string savedValue = rFilter.GetFilterPreference( MakeKeyUniqueToConnectionType( attribute.Key ) );
                         if ( !string.IsNullOrWhiteSpace( savedValue ) )
                         {
                             try
@@ -547,13 +555,9 @@ namespace RockWeb.Blocks.Connection
                 // Sort GridView by Order and then Name.
                 qry = qry.OrderBy( q => q.Order ).ThenBy( q => q.Name );
 
-                List<ConnectionOpportunity> connectionOpportunities = null;
-
-                connectionOpportunities = qry.OrderBy( q => q.Order ).ThenBy( q => q.Name ).ToList();
-                
                 // Only include opportunities that current person is allowed to view
                 var authorizedOpportunities = new List<ConnectionOpportunity>();
-                foreach ( var opportunity in connectionOpportunities )
+                foreach ( var opportunity in qry.ToList() )
                 {
                     if ( opportunity.IsAuthorized( Authorization.VIEW, CurrentPerson ) )
                     {

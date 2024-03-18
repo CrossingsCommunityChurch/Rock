@@ -30,12 +30,13 @@ namespace Rock.Blocks.Types.Mobile.Prayer
     /// <summary>
     /// Shows a list of prayer requests that the user has previously entered.
     /// </summary>
-    /// <seealso cref="Rock.Blocks.RockMobileBlockType" />
+    /// <seealso cref="Rock.Blocks.RockBlockType" />
 
     [DisplayName( "My Prayer Requests" )]
     [Category( "Mobile > Prayer" )]
     [Description( "Shows a list of prayer requests that the user has previously entered." )]
     [IconCssClass( "fa fa-list" )]
+    [SupportedSiteTypes( Model.SiteType.Mobile )]
 
     #region Block Attributes
 
@@ -79,9 +80,19 @@ namespace Rock.Blocks.Types.Mobile.Prayer
         Key = AttributeKeys.MaxResults,
         Order = 5 )]
 
+    [BooleanField( "Include Group Requests",
+        Description = "Includes prayer requests that are attached to a group.",
+        IsRequired = false,
+        DefaultBooleanValue = false,
+        ControlType = Field.Types.BooleanFieldType.BooleanControlType.Checkbox,
+        Key = AttributeKeys.IncludeGroupRequests,
+        Order = 6 )]
+
     #endregion
 
-    public class MyPrayerRequests : RockMobileBlockType
+    [Rock.SystemGuid.EntityTypeGuid( Rock.SystemGuid.EntityType.MOBILE_MY_PRAYER_REQUESTS_BLOCK_TYPE )]
+    [Rock.SystemGuid.BlockTypeGuid( "C095B269-36E2-446A-B73E-2C8CC4B7BF37")]
+    public class MyPrayerRequests : RockBlockType
     {
         #region Block Attributes
 
@@ -119,6 +130,11 @@ namespace Rock.Blocks.Types.Mobile.Prayer
             /// The maximum results key.
             /// </summary>
             public const string MaxResults = "MaxResults";
+
+            /// <summary>
+            /// The include group requests key.
+            /// </summary>
+            public const string IncludeGroupRequests = "IncludeGroupRequests";
         }
 
         /// <summary>
@@ -169,25 +185,44 @@ namespace Rock.Blocks.Types.Mobile.Prayer
         /// </value>
         protected int? MaxResults => GetAttributeValue( AttributeKeys.MaxResults ).AsIntegerOrNull();
 
+        /// <summary>
+        /// Gets a value that specifies if group requests should be included by default.
+        /// If <c>false</c> and no group is specified in the page parameters then any
+        /// requests that are attached to a group will be excluded.
+        /// </summary>
+        /// <value>
+        /// A value that specifies if group requests should be included by default.
+        /// </value>
+        protected bool IncludeGroupRequests => GetAttributeValue( AttributeKeys.IncludeGroupRequests ).AsBoolean( false );
+
+        #endregion
+
+        #region Page Parameters
+
+        private static class PageParameterKey
+        {
+            /// <summary>
+            /// The unique identifier to limit results to when specified.
+            /// </summary>
+            public const string GroupGuid = "GroupGuid";
+        }
+
+        /// <summary>
+        /// Gets the unique group identifier that will be used when limiting results
+        /// or <c>null</c> if no filtering by group should be performed.
+        /// </summary>
+        /// <value>
+        /// The unique group identifier that will be used when limiting results or
+        /// <c>null</c>.
+        /// </value>
+        protected Guid? GroupGuid => RequestContext.GetPageParameter( PageParameterKey.GroupGuid ).AsGuidOrNull();
+
         #endregion
 
         #region IRockMobileBlockType Implementation
 
-        /// <summary>
-        /// Gets the required mobile application binary interface version required to render this block.
-        /// </summary>
-        /// <value>
-        /// The required mobile application binary interface version required to render this block.
-        /// </value>
-        public override int RequiredMobileAbiVersion => 2;
-
-        /// <summary>
-        /// Gets the class name of the mobile block to use during rendering on the device.
-        /// </summary>
-        /// <value>
-        /// The class name of the mobile block to use during rendering on the device
-        /// </value>
-        public override string MobileBlockType => "Rock.Mobile.Blocks.Prayer.MyPrayerRequests";
+        /// <inheritdoc/>
+        public override Version RequiredMobileVersion => new Version( 1, 2 );
 
         /// <summary>
         /// Gets the property values that will be sent to the device in the application bundle.
@@ -230,6 +265,7 @@ namespace Rock.Blocks.Types.Mobile.Prayer
                     // back they want to include.
                     if ( DaysBackToShow.HasValue )
                     {
+                        limitDate = RockDateTime.Now.AddDays( -DaysBackToShow.Value );
                     }
 
                     // Build the basic query to filter prayer requests that
@@ -244,6 +280,21 @@ namespace Rock.Blocks.Types.Mobile.Prayer
                     {
                         prayerRequestQuery = prayerRequestQuery
                             .Where( a => !a.ExpirationDate.HasValue || a.ExpirationDate.Value > RockDateTime.Now );
+                    }
+
+                    // Filter by group if it has been specified.
+                    if ( GroupGuid.HasValue )
+                    {
+                        prayerRequestQuery = prayerRequestQuery
+                            .Where( a => a.Group.Guid == GroupGuid.Value );
+                    }
+
+                    // If we are not filtering by group, then exclude any group requests
+                    // unless the block setting including them is enabled.
+                    if ( !GroupGuid.HasValue && !IncludeGroupRequests )
+                    {
+                        prayerRequestQuery = prayerRequestQuery
+                            .Where( a => !a.GroupId.HasValue );
                     }
 
                     // Limit results to the maximum number requested.

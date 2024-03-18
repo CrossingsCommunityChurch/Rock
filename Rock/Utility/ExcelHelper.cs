@@ -19,6 +19,7 @@ using System.Data;
 using System.Drawing;
 using System.IO;
 using System.Linq;
+using System.Web;
 
 using OfficeOpenXml;
 
@@ -157,10 +158,28 @@ namespace Rock.Utility
         /// <param name="columns">The number of columns populated in the worksheet</param>
         public static void FormatWorksheet( this ExcelWorksheet worksheet, string title, int headerRows, int rows, int columns )
         {
+            // By default, allow the vertical alignment to be formatted.
+            FormatWorksheet( worksheet, title, headerRows, rows, columns, preventVerticalAlignmentFormatting: false );
+        }
+
+        /// <summary>
+        /// Apply the default Rock worksheet formatting
+        /// </summary>
+        /// <param name="worksheet">The worksheet to be formatted</param>
+        /// <param name="title">The title to display in the worksheet header</param>
+        /// <param name="headerRows">The number of rows to use for the header</param>
+        /// <param name="rows">The number of rows populated in the worksheet</param>
+        /// <param name="columns">The number of columns populated in the worksheet</param>
+        /// <param name="preventVerticalAlignmentFormatting">If true, the vertical alignment is not modified.</param>
+        public static void FormatWorksheet( this ExcelWorksheet worksheet, string title, int headerRows, int rows, int columns, bool preventVerticalAlignmentFormatting )
+        {
             var range = worksheet.Cells[headerRows, 1, rows, columns];
 
-            // align text to the top of the cell
-            range.Style.VerticalAlignment = OfficeOpenXml.Style.ExcelVerticalAlignment.Top;
+            if ( !preventVerticalAlignmentFormatting )
+            {
+                // align text to the top of the cell
+                range.Style.VerticalAlignment = OfficeOpenXml.Style.ExcelVerticalAlignment.Top;
+            }
 
             // Remove paces and line breaks. Replace worksheet title unallowed characters with '_'.
             var tableTitle = title
@@ -235,7 +254,16 @@ namespace Rock.Utility
             int autoFitRows = Math.Min( rows, 10000 );
             var autoFitRange = worksheet.Cells[headerRows, 1, autoFitRows, columns];
 
-            autoFitRange.AutoFitColumns();
+            // AutoFitColumns might throw an exception if the wrong format was used for a column, however if we've reached this stage
+            // the excel can be generated if the exception is handled.
+            try
+            {
+                autoFitRange.AutoFitColumns();
+            }
+            catch ( Exception ex )
+            {
+                ExceptionLogService.LogException( ex );
+            }
 
             // TODO: add alternating highlights
 
@@ -282,6 +310,16 @@ namespace Rock.Utility
             if ( field is CurrencyField )
             {
                 return DecimalFormat;
+            }
+
+            if ( field is DateField )
+            {
+                return DateFormat;
+            }
+
+            if ( field is DateTimeField )
+            {
+                return DateTimeFormat;
             }
 
             return DefaultColumnFormat( exportValue?.GetType() );
@@ -350,10 +388,14 @@ namespace Rock.Utility
                 exportValue is short || exportValue is short? ||
                 exportValue is long || exportValue is long? ||
                 exportValue is double || exportValue is double? ||
-                exportValue is float || exportValue is float? ||
-                exportValue is DateTime || exportValue is DateTime? ) )
+                exportValue is float || exportValue is float? ) )
             {
                 range.Value = exportValue;
+            }
+            else if ( exportValue is DateTime || exportValue is DateTime? )
+            {
+                var date = ( DateTime ) exportValue;
+                range.Value = date.TimeOfDay.TotalSeconds == 0 ? date.ToShortDateString() : date.ToString();
             }
             else
             {

@@ -121,18 +121,10 @@ html {
   -webkit-font-smoothing: antialiased;
 }
 
-// Temporary Fix for Safari 13 Select Rendering Bug
-select {
-  -webkit-font-smoothing: none;
-}
-// End Temporary Fix
-
 main {
   display: block;
 }
 
-h3,
-h4,
 legend {
   font-weight: 400;
 }
@@ -142,6 +134,11 @@ strong,
 dl:not(.dl-horizontal) dt,
 dt {
   font-weight: @font-weight-semibold;
+}
+
+.modal-title {
+  font-size: 24px;
+  font-weight: 500;
 }
 
 input[type="text"],
@@ -411,6 +408,11 @@ textarea,
     &[align="center"] {
       padding: 18px 6px;
     }
+
+    // Remove padding offset on center
+    &[align="right"] {
+      padding: 18px 12px 18px 0;
+    }
   }
 
   > thead > tr.grid-header-bold > th {
@@ -543,8 +545,7 @@ textarea,
 }
 
 .rating-input i {
-  color: @brand-primary;
-  color: var(--brand-primary);
+  color: var(--color-primary);
 }
 
 .wizard {
@@ -733,14 +734,14 @@ td.grid-actions {
   display: inline-block;
   width: 100%;
   padding: 7px 14px;
-  color: @navbartop-color;
+  color: @navbar-top-color;
   background: transparent;
-  border: 1px solid @navbartop-color;
+  border: 1px solid @navbar-top-color;
   border-radius: @btn-border-radius-base;
 
   &:hover,
   &:focus {
-    color: @navbartop-color;
+    color: @navbar-top-color;
     background: fade(@white, 10%);
   }
 }
@@ -749,8 +750,7 @@ td.grid-actions {
   display: flex;
   margin-bottom: 0;
   color: @white;
-  background-color: @brand-primary;
-  background-color: var(--brand-primary, @brand-primary);
+  background-color: var(--color-primary, @brand-primary);
   border: 0;
 
   @media (max-width: @screen-sm-max) {
@@ -850,8 +850,7 @@ td.grid-actions {
 
       &:hover {
         color: @white;
-        background-color: @brand-primary;
-        background-color: var(--brand-primary, @brand-primary);
+        background-color: var(--color-primary, @brand-primary);
         opacity: 1;
       }
     }
@@ -895,7 +894,6 @@ td.grid-actions {
     z-index: -1;
     width: @navbarside-width;
     content: "";
-    background-color: @navbarside-background-color;
     background-color: var(--navbarside-background-color);
   }
 }
@@ -905,14 +903,13 @@ td.grid-actions {
   top: 0;
   bottom: 0;
   left: 0;
-  z-index: @zindex-navbar-fixed + 10;
+  z-index: @zindex-navbar-fixed - 20;
   display: none;
   width: @navbarside-width;
   height: 100% !important;
   overflow-x: hidden;
   overflow-y: auto;
   color: @navbarside-color;
-  background-color: @navbarside-background-color;
   background-color: var(--navbarside-background-color);
 
   .zone-instance,
@@ -1028,7 +1025,6 @@ td.grid-actions {
 }
 
 
-
 // expanded view
 @media (min-width: @screen-sm-min) {
   .navbar-static-side {
@@ -1075,7 +1071,6 @@ td.grid-actions {
     padding: 4px 15px;
     margin: -5px -15px 5px;
     color: @pagetitle-text-color;
-    background-color: @pagetitle-background;
     background-color: var(--pagetitle-background, @pagetitle-background);
 
     .title {
@@ -1144,7 +1139,6 @@ td.grid-actions {
     margin: -35px -35px 0;
   }
 }
-
 
 
 // workflow page
@@ -1295,7 +1289,8 @@ td.grid-actions {
   .picker-label {
     display: flex;
     align-items: center;
-    width: auto;
+    width: auto !important;
+    max-width: 325px;
     max-width: none;
     padding-left: 4px;
     margin-left: -4px;
@@ -1321,13 +1316,31 @@ td.grid-actions {
     }
   }
 
-  .picker-select-none {
-    display: none !important;
-  }
-
   .selected-names {
     font-size: 24px;
     font-weight: 700;
+  }
+
+  @media screen and (max-width: @screen-sm-max) {
+    .dropdown-menu {
+      position: absolute !important;
+      max-width: ~"calc(100vw - 40px)";
+    }
+  }
+}
+
+.picker-noclear {
+  .picker-select-none {
+    display: none !important;
+  }
+}
+
+@media (min-width: 430px) and (max-width: 840px) {
+  .picker-schedule {
+    .dropdown-menu {
+      right: 0;
+      left: auto;
+    }
   }
 }
 

@@ -20,6 +20,8 @@ using System.Collections.Generic;
 using CacheManager.Core;
 using CacheManager.Core.Internal;
 
+using Microsoft.Extensions.Logging;
+
 using Rock.Bus;
 using Rock.Bus.Message;
 using Rock.Logging;
@@ -44,6 +46,10 @@ namespace Rock.Web.Cache
 
         private static BaseCacheManager<T> _cacheManager;
 
+        private readonly Lazy<ILogger> _logger;
+
+        private ILogger Logger => _logger.Value;
+
         static RockCacheManager()
         {
             RockCache.AddManager( Instance );
@@ -54,6 +60,7 @@ namespace Rock.Web.Cache
         /// </summary>
         private RockCacheManager()
         {
+            _logger = new Lazy<ILogger>( () => RockLogger.LoggerFactory.CreateLogger<RockCacheManager<T>>() );
         }
 
         /// <summary>
@@ -115,70 +122,19 @@ namespace Rock.Web.Cache
         {
             bool cacheStatisticsEnabled = Rock.Web.SystemSettings.GetValueFromWebConfig( SystemKey.SystemSetting.CACHE_MANAGER_ENABLE_STATISTICS )?.AsBoolean() ?? false;
 
-            bool redisEnabled = Rock.Web.SystemSettings.GetValueFromWebConfig( SystemKey.SystemSetting.REDIS_ENABLE_CACHE_CLUSTER )?.AsBoolean() ?? false;
-            if ( redisEnabled == false )
-            {
-                var config = new ConfigurationBuilder( "InProcess" )
-                .WithDictionaryHandle();
-                if ( cacheStatisticsEnabled )
-                {
-                    config = config.EnableStatistics().EnablePerformanceCounters();
-                }
-                else
-                {
-                    config = config.DisablePerformanceCounters().DisableStatistics();
-                }
 
-                return config.Build();
-            }
-
-            string redisPassword = Web.SystemSettings.GetValueFromWebConfig( SystemKey.SystemSetting.REDIS_PASSWORD ) ?? string.Empty;
-            string[] redisEndPointList = Web.SystemSettings.GetValueFromWebConfig( SystemKey.SystemSetting.REDIS_ENDPOINT_LIST )?.Split( ',' );
-            int redisDbIndex = Web.SystemSettings.GetValueFromWebConfig( SystemKey.SystemSetting.REDIS_DATABASE_NUMBER )?.AsIntegerOrNull() ?? 0;
-
-            var cacheConfig = new ConfigurationBuilder( "InProcess With Redis Backplane" )
-                .WithJsonSerializer()
-                .WithDictionaryHandle()
-                .And
-                .WithRedisConfiguration(
-                    "redis",
-                    redisConfig =>
-                    {
-                        redisConfig.WithAllowAdmin().WithDatabase( redisDbIndex );
-
-                        if ( redisPassword.IsNotNullOrWhiteSpace() )
-                        {
-                            redisConfig.WithPassword( redisPassword );
-                        }
-
-                        foreach ( var redisEndPoint in redisEndPointList )
-                        {
-                            string[] info = redisEndPoint.Split( ':' );
-                            if ( info.Length == 2 )
-                            {
-                                redisConfig.WithEndpoint( info[0], info[1].AsIntegerOrNull() ?? 6379 );
-                            }
-                            else
-                            {
-                                redisConfig.WithEndpoint( info[0], 6379 );
-                            }
-                        }
-                    } )
-                .WithMaxRetries( 100 )
-                .WithRetryTimeout( 10 )
-                .WithRedisBackplane( "redis" )
-                .WithRedisCacheHandle( "redis", true );
+            var config = new ConfigurationBuilder( "InProcess" ).WithDictionaryHandle();
 
             if ( cacheStatisticsEnabled )
             {
-                cacheConfig = cacheConfig.EnableStatistics().EnablePerformanceCounters();
+                config = config.EnableStatistics().EnablePerformanceCounters();
             }
             else
             {
-                cacheConfig = cacheConfig.DisablePerformanceCounters().DisableStatistics();
+                config = config.DisablePerformanceCounters().DisableStatistics();
             }
 
-            return cacheConfig.Build();
+            return config.Build();
         }
 
         /// <summary>
@@ -286,6 +242,10 @@ namespace Rock.Web.Cache
 
             CacheManager.Clear();
             CacheWasUpdatedMessage.Publish<T>();
+
+            // This is somewhat temporary. In the future this should be updated
+            // to use it's own domain.
+            Logger.LogDebug( $"Cache was cleared for {typeof(T).Name}. StackTrace: {Environment.StackTrace}" );
         }
 
         /// <summary>
@@ -298,7 +258,7 @@ namespace Rock.Web.Cache
             {
                 // We already took care of Clearing the cache for our instance, so
                 // we can ignore this message.
-                RockLogger.Log.Debug( RockLogDomains.Bus, $"Cache ClearMessage was from ourselves( {message.SenderNodeName} ). Skipping. {message.ToDebugString()}." );
+                Logger.LogDebug( $"Cache ClearMessage was from ourselves( {message.SenderNodeName} ). Skipping. {message.ToDebugString()}." );
                 return;
             }
 
@@ -354,7 +314,7 @@ namespace Rock.Web.Cache
             {
                 // We already took care of Clearing the cache for our instance, so
                 // we can ignore this message.
-                RockLogger.Log.Debug( RockLogDomains.Bus, $"Cache RemoveMessage was from ourselves( {message.SenderNodeName} ). Skipping. {message.ToDebugString()}." );
+                Logger.LogDebug( $"Cache RemoveMessage was from ourselves( {message.SenderNodeName} ). Skipping. {message.ToDebugString()}." );
                 return;
             }
 
@@ -383,12 +343,14 @@ namespace Rock.Web.Cache
             var type = typeof( T );
 
             string name = type.Name;
+            string fullname = type.FullName;
             if ( type.IsGenericType && type.GenericTypeArguments[0] != null )
             {
                 name = type.GenericTypeArguments[0].ToString();
+                fullname = type.GenericTypeArguments[0].ToString();
             }
 
-            var cacheStatistics = new CacheItemStatistics( name );
+            var cacheStatistics = new CacheItemStatistics( name, fullname );
 
             foreach ( var handle in CacheManager.CacheHandles )
             {
@@ -414,16 +376,19 @@ namespace Rock.Web.Cache
         /// <param name="item">Type of the item.</param>
         private void UpdateCacheReferences( string key, string region, T item )
         {
+            var cacheReferenceItem = new RockCache.CacheKeyReference { Key = key, Region = region };
+
             if ( item is List<string> )
             {
-                RockCache.StringCacheKeyReferences.Add( new RockCache.CacheKeyReference { Key = key, Region = region } );
+                RockCache.StringConcurrentCacheKeyReferences.AddOrIgnore( cacheReferenceItem.ToString(), cacheReferenceItem );
             }
 
             if ( item is List<object> )
             {
-                RockCache.ObjectCacheKeyReferences.Add( new RockCache.CacheKeyReference { Key = key, Region = region } );
+                RockCache.ObjectConcurrentCacheKeyReferences.AddOrIgnore( cacheReferenceItem.ToString(), cacheReferenceItem );
             }
         }
+
         #endregion
     }
 
@@ -441,6 +406,14 @@ namespace Rock.Web.Cache
         public string Name { get; set; }
 
         /// <summary>
+        /// Gets or sets the full name.
+        /// </summary>
+        /// <value>
+        /// The name.
+        /// </value>
+        public string FullName { get; set; }
+
+        /// <summary>
         /// Gets or sets the handle stats.
         /// </summary>
         /// <value>
@@ -455,6 +428,18 @@ namespace Rock.Web.Cache
         public CacheItemStatistics( string name )
         {
             Name = name;
+            FullName = $"Rock.Web.Cache.{name},Rock";
+        }
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="CacheItemStatistics"/> class.
+        /// </summary>
+        /// <param name="name">The name.</param>
+        /// <param name="fullname">The full name.</param>
+        public CacheItemStatistics( string name, string fullname )
+        {
+            Name = name;
+            FullName = fullname;
         }
     }
 

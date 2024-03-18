@@ -32,6 +32,8 @@ using Attribute = Rock.Model.Attribute;
 using Rock.Security;
 using Rock.Web.Cache;
 using Newtonsoft.Json;
+using Rock.Tasks;
+using Rock.Constants;
 
 namespace RockWeb.Blocks.WorkFlow
 {
@@ -41,7 +43,8 @@ namespace RockWeb.Blocks.WorkFlow
 
     [LinkedPage( "Entry Page", "Page used to launch a new workflow of the selected type." )]
     [LinkedPage( "Detail Page", "Page used to display details about a workflow." )]
-    [WorkflowTypeField("Default WorkflowType", "The default workflow type to use. If provided the query string will be ignored.")]
+    [WorkflowTypeField( "Default WorkflowType", "The default workflow type to use. If provided the query string will be ignored." )]
+    [Rock.SystemGuid.BlockTypeGuid( "C86C80DF-F2FD-47F8-81CF-7C5EA4100C3B" )]
     public partial class WorkflowList : RockBlock, ICustomGridColumns
     {
         #region Fields
@@ -49,6 +52,7 @@ namespace RockWeb.Blocks.WorkFlow
         private bool _canView = false;
         private bool _canEdit = false;
         private WorkflowType _workflowType = null;
+        BootstrapButton _bbtnDelete = new BootstrapButton();
 
         #endregion
 
@@ -87,6 +91,19 @@ namespace RockWeb.Blocks.WorkFlow
         {
             base.OnInit( e );
 
+            if ( !string.IsNullOrWhiteSpace( GetAttributeValue( "DefaultWorkflowType" ) ) )
+            {
+                Guid workflowTypeGuid = Guid.Empty;
+                Guid.TryParse( GetAttributeValue( "DefaultWorkflowType" ), out workflowTypeGuid );
+                _workflowType = new WorkflowTypeService( new RockContext() ).Get( workflowTypeGuid );
+            }
+            else
+            {
+                int workflowTypeId = 0;
+                workflowTypeId = PageParameter( "WorkflowTypeId" ).AsInteger();
+                _workflowType = new WorkflowTypeService( new RockContext() ).Get( workflowTypeId );
+            }
+
             if ( _workflowType != null )
             {
                 _canEdit = UserCanEdit || _workflowType.IsAuthorized( Authorization.EDIT, CurrentPerson );
@@ -99,6 +116,10 @@ namespace RockWeb.Blocks.WorkFlow
                 this.BlockUpdated += Block_BlockUpdated;
                 this.AddConfigurationUpdateTrigger( upnlSettings );
 
+                _bbtnDelete.Text = "Delete";
+                _bbtnDelete.Click += new EventHandler( bbtnDelete_Click );
+                _bbtnDelete.CssClass = "btn btn-xs btn-default btn-grid-custom-action pull-left";
+                gWorkflows.Actions.AddCustomActionControl( _bbtnDelete );
                 gWorkflows.DataKeyNames = new string[] { "Id" };
                 gWorkflows.Actions.ShowAdd = _canEdit;
                 gWorkflows.Actions.AddClick += gWorkflows_Add;
@@ -116,7 +137,7 @@ namespace RockWeb.Blocks.WorkFlow
 
                 if ( !string.IsNullOrWhiteSpace( _workflowType.IconCssClass ) )
                 {
-                    lHeadingIcon.Text = string.Format("<i class='{0}'></i>", _workflowType.IconCssClass);
+                    lHeadingIcon.Text = string.Format( "<i class='{0}'></i>", _workflowType.IconCssClass );
                 }
             }
             else
@@ -134,10 +155,20 @@ namespace RockWeb.Blocks.WorkFlow
         {
             base.OnLoad( e );
 
-            if ( !Page.IsPostBack && _canView )
+            nbResult.Visible = false;
+            if ( !Page.IsPostBack )
             {
-                SetFilter();
-                BindGrid();
+                if ( _canView )
+                {
+                    SetFilter();
+                    BindGrid();
+                }
+                else
+                {
+                    pnlWorkflowList.Visible = false;
+                    nbMessage.Visible = true;
+                    nbMessage.Text = EditModeMessage.NotAuthorizedToView( WorkflowType.FriendlyTypeName );
+                }
             }
         }
 
@@ -153,20 +184,24 @@ namespace RockWeb.Blocks.WorkFlow
         public override List<BreadCrumb> GetBreadCrumbs( Rock.Web.PageReference pageReference )
         {
             var breadCrumbs = new List<BreadCrumb>();
+            WorkflowType workflowType;
 
-            if (!string.IsNullOrWhiteSpace(GetAttributeValue("DefaultWorkflowType"))) {
+            if ( !string.IsNullOrWhiteSpace( GetAttributeValue( "DefaultWorkflowType" ) ) )
+            {
                 Guid workflowTypeGuid = Guid.Empty;
                 Guid.TryParse( GetAttributeValue( "DefaultWorkflowType" ), out workflowTypeGuid );
-                _workflowType = new WorkflowTypeService( new RockContext() ).Get( workflowTypeGuid );
-            } else {
+                workflowType = new WorkflowTypeService( new RockContext() ).Get( workflowTypeGuid );
+            }
+            else
+            {
                 int workflowTypeId = 0;
                 workflowTypeId = PageParameter( "WorkflowTypeId" ).AsInteger();
-                _workflowType = new WorkflowTypeService( new RockContext() ).Get( workflowTypeId );
+                workflowType = new WorkflowTypeService( new RockContext() ).Get( workflowTypeId );
             }
 
-            if ( _workflowType != null )
+            if ( workflowType != null )
             {
-                breadCrumbs.Add( new BreadCrumb( _workflowType.Name, pageReference ) );
+                breadCrumbs.Add( new BreadCrumb( workflowType.Name, pageReference ) );
             }
 
             return breadCrumbs;
@@ -256,14 +291,14 @@ namespace RockWeb.Blocks.WorkFlow
 
         protected void gfWorkflows_ApplyFilterClick( object sender, EventArgs e )
         {
-            gfWorkflows.SaveUserPreference( MakeKeyUniqueToType( "Activated" ), "Activated", drpActivated.DelimitedValues );
-            gfWorkflows.SaveUserPreference( MakeKeyUniqueToType( "Completed" ), "Completed", drpCompleted.DelimitedValues );
-            gfWorkflows.SaveUserPreference( MakeKeyUniqueToType( "Name" ), "Name", tbName.Text );
-            gfWorkflows.SaveUserPreference( MakeKeyUniqueToType( "Status" ), "Status", tbStatus.Text );
-            gfWorkflows.SaveUserPreference( MakeKeyUniqueToType( "State" ), "State", GetState() );
+            gfWorkflows.SetFilterPreference( MakeKeyUniqueToType( "Activated" ), "Activated", drpActivated.DelimitedValues );
+            gfWorkflows.SetFilterPreference( MakeKeyUniqueToType( "Completed" ), "Completed", drpCompleted.DelimitedValues );
+            gfWorkflows.SetFilterPreference( MakeKeyUniqueToType( "Name" ), "Name", tbName.Text );
+            gfWorkflows.SetFilterPreference( MakeKeyUniqueToType( "Status" ), "Status", tbStatus.Text );
+            gfWorkflows.SetFilterPreference( MakeKeyUniqueToType( "State" ), "State", GetState() );
 
             int? personId = ppInitiator.SelectedValue;
-            gfWorkflows.SaveUserPreference( MakeKeyUniqueToType( "Initiator" ), "Initiator", personId.HasValue ? personId.Value.ToString() : "" );
+            gfWorkflows.SetFilterPreference( MakeKeyUniqueToType( "Initiator" ), "Initiator", personId.HasValue ? personId.Value.ToString() : "" );
 
             if ( AvailableAttributes != null )
             {
@@ -275,14 +310,14 @@ namespace RockWeb.Blocks.WorkFlow
                         try
                         {
                             var values = attribute.FieldType.Field.GetFilterValues( filterControl, attribute.QualifierValues, Rock.Reporting.FilterMode.SimpleFilter );
-                            gfWorkflows.SaveUserPreference( MakeKeyUniqueToType( attribute.Key ), attribute.Name, attribute.FieldType.Field.GetFilterValues( filterControl, attribute.QualifierValues, Rock.Reporting.FilterMode.SimpleFilter ).ToJson() );
+                            gfWorkflows.SetFilterPreference( MakeKeyUniqueToType( attribute.Key ), attribute.Name, attribute.FieldType.Field.GetFilterValues( filterControl, attribute.QualifierValues, Rock.Reporting.FilterMode.SimpleFilter ).ToJson() );
                         }
                         catch { }
                     }
                 }
             }
 
-            BindGrid();
+                BindGrid();
         }
 
         /// <summary>
@@ -365,6 +400,44 @@ namespace RockWeb.Blocks.WorkFlow
             }
         }
 
+        /// <summary>
+        /// Marks the selected workflow to delete.
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        protected void bbtnDelete_Click( object sender, EventArgs e )
+        {
+            var workflowsSelected = new List<int>();
+            gWorkflows.SelectedKeys.ToList().ForEach( b => workflowsSelected.Add( b.ToString().AsInteger() ) );
+
+            if ( !workflowsSelected.Any() )
+            {
+                nbResult.Text = string.Format( "At least one workflow must be selected." );
+                nbResult.NotificationBoxType = NotificationBoxType.Warning;
+                nbResult.Visible = true;
+                return;
+            }
+
+            var deleteWorkflowsMsg = new DeleteWorkflows.Message
+            {
+                WorkflowIds = workflowsSelected
+            };
+
+            deleteWorkflowsMsg.Send();
+            BindGrid();
+            mdAlert.Show();
+        }
+
+        /// <summary>
+        /// Handles the OkClick event of the mdAlert control.
+        /// </summary>
+        /// <param name="sender">The source of the event.</param>
+        /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
+        protected void mdAlert_OkClick( object sender, EventArgs e )
+        {
+            Response.Redirect( Request.RawUrl );
+        }
+
         #endregion
 
         #region Methods
@@ -394,13 +467,13 @@ namespace RockWeb.Blocks.WorkFlow
             }
 
             // no items were selected (not good)
-            if (!selectedItems.Any())
+            if ( !selectedItems.Any() )
             {
                 return "None";
             }
 
             // Only one item was selected, return it's value
-            if (selectedItems.Count() == 1)
+            if ( selectedItems.Count() == 1 )
             {
                 return selectedItems[0];
             }
@@ -417,12 +490,12 @@ namespace RockWeb.Blocks.WorkFlow
             BindAttributes();
             AddDynamicControls();
 
-            drpActivated.DelimitedValues = gfWorkflows.GetUserPreference( MakeKeyUniqueToType( "Activated" ) );
-            drpCompleted.DelimitedValues = gfWorkflows.GetUserPreference( MakeKeyUniqueToType( "Completed" ) );
-            tbName.Text = gfWorkflows.GetUserPreference( MakeKeyUniqueToType( "Name" ) );
-            tbStatus.Text = gfWorkflows.GetUserPreference( MakeKeyUniqueToType( "Status" ) );
+            drpActivated.DelimitedValues = gfWorkflows.GetFilterPreference( MakeKeyUniqueToType( "Activated" ) );
+            drpCompleted.DelimitedValues = gfWorkflows.GetFilterPreference( MakeKeyUniqueToType( "Completed" ) );
+            tbName.Text = gfWorkflows.GetFilterPreference( MakeKeyUniqueToType( "Name" ) );
+            tbStatus.Text = gfWorkflows.GetFilterPreference( MakeKeyUniqueToType( "Status" ) );
 
-            int? personId = gfWorkflows.GetUserPreference( MakeKeyUniqueToType( "Initiator" ) ).AsIntegerOrNull();
+            int? personId = gfWorkflows.GetFilterPreference( MakeKeyUniqueToType( "Initiator" ) ).AsIntegerOrNull();
             if ( personId.HasValue )
             {
                 ppInitiator.SetValue( new PersonService( new RockContext() ).Get( personId.Value ) );
@@ -432,8 +505,8 @@ namespace RockWeb.Blocks.WorkFlow
                 ppInitiator.SetValue( null );
             }
 
-            string state = gfWorkflows.GetUserPreference( MakeKeyUniqueToType( "State" ) );
-            foreach( ListItem li in cblState.Items )
+            string state = gfWorkflows.GetFilterPreference( MakeKeyUniqueToType( "State" ) );
+            foreach ( ListItem li in cblState.Items )
             {
                 li.Selected = string.IsNullOrWhiteSpace( state ) || state.Contains( li.Value );
             }
@@ -485,7 +558,7 @@ namespace RockWeb.Blocks.WorkFlow
                     {
                         if ( control is IRockControl )
                         {
-                            var rockControl = (IRockControl)control;
+                            var rockControl = ( IRockControl ) control;
                             rockControl.Label = attribute.Name;
                             rockControl.Help = attribute.Description;
                             phAttributeFilters.Controls.Add( control );
@@ -500,7 +573,7 @@ namespace RockWeb.Blocks.WorkFlow
                         }
                     }
 
-                    string savedValue = gfWorkflows.GetUserPreference( MakeKeyUniqueToType( attribute.Key ) );
+                    string savedValue = gfWorkflows.GetFilterPreference( MakeKeyUniqueToType( attribute.Key ) );
                     if ( !string.IsNullOrWhiteSpace( savedValue ) )
                     {
                         try
@@ -555,7 +628,7 @@ namespace RockWeb.Blocks.WorkFlow
             stateField.HtmlEncode = false;
             stateField.OnFormatDataValue += ( sender, e ) =>
             {
-                if ( (bool)e.DataValue )
+                if ( ( bool ) e.DataValue )
                 {
                     e.FormattedValue = "<span class='label label-default'>Completed</span>";
                 }
@@ -584,9 +657,15 @@ namespace RockWeb.Blocks.WorkFlow
 
         /// <summary>
         /// Binds the grid.
+        /// 
         /// </summary>
         private void BindGrid()
         {
+            if ( !_canView )
+            {
+                return;
+            }
+
             if ( _workflowType != null )
             {
                 pnlWorkflowList.Visible = true;
@@ -725,13 +804,21 @@ namespace RockWeb.Blocks.WorkFlow
                 } );
 
                 gWorkflows.SetLinqDataSource( qryGrid );
+                if ( qryGrid.Count() == 0 )
+                {
+                    _bbtnDelete.Visible = false;
+                }
+                else
+                {
+                    _bbtnDelete.Visible = true;
+                }
+
                 gWorkflows.DataBind();
             }
             else
             {
                 pnlWorkflowList.Visible = false;
             }
-
         }
 
         private string MakeKeyUniqueToType( string key )

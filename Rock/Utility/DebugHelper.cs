@@ -15,6 +15,7 @@
 // </copyright>
 //
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Data.Common;
 using System.Data.Entity.Infrastructure.Interception;
@@ -119,6 +120,8 @@ namespace Rock
             /// </value>
             internal bool EnableForAllDbContexts { get; set; } = false;
 
+            private const string UserStateKey = "DebugLoggingDbCommandInterceptorKey";
+
             /// <summary>
             /// </summary>
             /// <param name="command"></param>
@@ -128,7 +131,7 @@ namespace Rock
             {
                 object userState;
                 this.CommandExecuting( command, interceptionContext, out userState );
-                interceptionContext.UserState = userState;
+                interceptionContext.SetUserState( UserStateKey, userState );
             }
 
             /// <summary>
@@ -138,7 +141,7 @@ namespace Rock
             /// <inheritdoc />
             public override void NonQueryExecuted( DbCommand command, DbCommandInterceptionContext<int> interceptionContext )
             {
-                this.CommandExecuted( command, interceptionContext, interceptionContext.UserState );
+                this.CommandExecuted( command, interceptionContext, interceptionContext.FindUserState( UserStateKey ) );
             }
 
             /// <summary>
@@ -150,7 +153,7 @@ namespace Rock
             {
                 object userState;
                 this.CommandExecuting( command, interceptionContext, out userState );
-                interceptionContext.UserState = userState;
+                interceptionContext.SetUserState( UserStateKey, userState );
             }
 
             /// <summary>
@@ -160,7 +163,7 @@ namespace Rock
             /// <inheritdoc />
             public override void ScalarExecuted( DbCommand command, DbCommandInterceptionContext<object> interceptionContext )
             {
-                this.CommandExecuted( command, interceptionContext, interceptionContext.UserState );
+                this.CommandExecuted( command, interceptionContext, interceptionContext.FindUserState( UserStateKey ) );
             }
 
             /// <summary>
@@ -172,7 +175,7 @@ namespace Rock
             {
                 object userState;
                 this.CommandExecuting( command, interceptionContext, out userState );
-                interceptionContext.UserState = userState;
+                interceptionContext.SetUserState( UserStateKey, userState );
             }
 
             /// <summary>
@@ -182,7 +185,7 @@ namespace Rock
             /// <inheritdoc />
             public override void ReaderExecuted( DbCommand command, DbCommandInterceptionContext<DbDataReader> interceptionContext )
             {
-                this.CommandExecuted( command, interceptionContext, interceptionContext.UserState );
+                this.CommandExecuted( command, interceptionContext, interceptionContext.FindUserState( UserStateKey ) );
             }
 
             /// <summary>
@@ -506,5 +509,127 @@ StackTrace:
                 }
             }
         }
+
+        #region Trace Logging
+
+        private const string _DateTimeFormat = "HH:mm:ss.fff";
+
+        private static ConcurrentDictionary<string, TaskInfo> _tasks = new ConcurrentDictionary<string, TaskInfo>();
+
+        private class TaskInfo
+        {
+            public string TaskIdentifier;
+            public DateTime StartDateTime;
+        }
+
+        /// <summary>
+        /// Start a named task and emit an optional log message.
+        /// </summary>
+        /// <param name="taskIdentifier"></param>
+        /// <param name="logMessage"></param>
+        public static void StartTask( string taskIdentifier, string logMessage = null )
+        {
+            if ( string.IsNullOrWhiteSpace( taskIdentifier ) )
+            {
+                taskIdentifier = "(default)";
+            }
+
+            if ( _tasks.ContainsKey(taskIdentifier) )
+            {
+                // If the task is already started, ignore this call.
+                return;
+            }
+
+            var newTask = new TaskInfo()
+            {
+                TaskIdentifier = taskIdentifier,
+                StartDateTime = DateTime.Now
+            };
+            _tasks.AddOrIgnore( taskIdentifier, newTask );
+
+            var msg = $"<TASK-START> {taskIdentifier}";
+            if ( !string.IsNullOrWhiteSpace( logMessage ) )
+            {
+                msg += $": {logMessage}";
+            }
+            msg = msg.Trim();
+
+            Log( msg );
+        }
+
+        /// <summary>
+        /// End a named task and emit a log message showing elapsed time.
+        /// </summary>
+        /// <param name="taskIdentifier"></param>
+        /// <param name="logMessage"></param>
+        public static void StopTask( string taskIdentifier, string logMessage = null )
+        {
+            if ( string.IsNullOrWhiteSpace( taskIdentifier ) )
+            {
+                taskIdentifier = "(default)";
+            }
+
+            if ( _tasks.TryGetValue( taskIdentifier, out var task ) )
+            {
+                var msg = $"<TASK--STOP> {taskIdentifier} [Elapsed={DateTime.Now.Subtract( task.StartDateTime ).TotalSeconds:N2}s]";
+                if ( !string.IsNullOrWhiteSpace( logMessage ) )
+                {
+                    msg += $": {logMessage}";
+                }
+                msg = msg.Trim();
+
+                Log( msg );
+
+                _tasks.TryRemove( taskIdentifier, out _ );
+            }
+        }
+
+        /// <summary>
+        /// Log an information message to trace output.
+        /// </summary>
+        /// <param name="message"></param>
+        public static void Log( string message )
+        {
+            var msg = $@"[{DateTime.Now.ToString( _DateTimeFormat )}] {message}";
+
+            Trace.WriteLine( msg );
+        }
+
+        /// <summary>
+        /// Log a warning message to trace output.
+        /// </summary>
+        /// <param name="message"></param>
+        public static void LogWarning( string message )
+        {
+            var msg = $"[{DateTime.Now.ToString( _DateTimeFormat )}] {message}";
+
+            Trace.TraceWarning( msg );
+        }
+
+        /// <summary>
+        /// Log an error message to trace output.
+        /// </summary>
+        /// <param name="message"></param>
+        public static void LogError( string message )
+        {
+            var msg = $"[{DateTime.Now.ToString( _DateTimeFormat )}] {message}";
+
+            Trace.TraceError( msg );
+        }
+
+        /// <summary>
+        /// Log an exception to trace output.
+        /// </summary>
+        /// <param name="ex"></param>
+        /// <param name="message"></param>
+        public static void LogError( Exception ex, string message = null )
+        {
+            var msg = $"[{DateTime.Now.ToString( _DateTimeFormat )}] {message}";
+            msg += "\n" + ex.ToString();
+
+            Trace.TraceError( msg );
+        }
+
+        #endregion
     }
 }

@@ -1,4 +1,4 @@
-﻿// <copyright>
+// <copyright>
 // Copyright by the Spark Development Network
 //
 // Licensed under the Rock Community License (the "License");
@@ -38,6 +38,7 @@ namespace Rock.Reporting.DataFilter.GroupMember
     [Description( "Filter Group Members by their Attribute Values" )]
     [Export( typeof( DataFilterComponent ) )]
     [ExportMetadata( "ComponentName", "Group Member Attributes Filter" )]
+    [Rock.SystemGuid.EntityTypeGuid( "5ABED6E0-BD45-455A-B28C-72F5648A28AD")]
     public class GroupMemberAttributesFilter : EntityFieldFilter
     {
         #region Settings
@@ -231,7 +232,7 @@ namespace Rock.Reporting.DataFilter.GroupMember
             groupTypePicker.ID = filterControl.ID + "_groupTypePicker";
             groupTypePicker.Label = "Group Type";
             groupTypePicker.AddCssClass( "js-group-type-picker" );
-            groupTypePicker.GroupTypes = new GroupTypeService( new RockContext() ).Queryable().OrderBy( a => a.Order ).ThenBy( a => a.Name ).ToList();
+            groupTypePicker.GroupTypes = new GroupTypeService( new RockContext() ).Queryable().ToList();
             groupTypePicker.SelectedIndexChanged += groupTypePicker_SelectedIndexChanged;
             groupTypePicker.AutoPostBack = true;
             if ( filterMode == FilterMode.SimpleFilter )

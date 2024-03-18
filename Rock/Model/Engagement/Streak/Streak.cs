@@ -21,6 +21,7 @@ using System.Data.Entity.ModelConfiguration;
 using System.Runtime.Serialization;
 using Newtonsoft.Json;
 using Rock.Data;
+using Rock.Utility;
 
 namespace Rock.Model
 {
@@ -30,6 +31,7 @@ namespace Rock.Model
     [RockDomain( "Engagement" )]
     [Table( "Streak" )]
     [DataContract]
+    [Rock.SystemGuid.EntityTypeGuid( Rock.SystemGuid.EntityType.STREAK )]
     public partial class Streak : Model<Streak>
     {
         #region Entity Properties

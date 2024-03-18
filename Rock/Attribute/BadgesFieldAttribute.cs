@@ -15,6 +15,8 @@
 // </copyright>
 //
 using System;
+
+using Rock.Utility.Settings;
 using Rock.Web.Cache;
 
 namespace Rock.Attribute
@@ -29,6 +31,11 @@ namespace Rock.Attribute
         /// The entity type key
         /// </summary>
         public static string ENTITY_TYPE_KEY = "entitytype";
+
+        /// <summary>
+        /// The enhanced selection key
+        /// </summary>
+        private const string ENHANCED_SELECTION_KEY = "enhancedselection";
 
         /// <summary>
         /// Initializes a new instance of the <see cref="BadgesFieldAttribute"/> class.
@@ -72,8 +79,24 @@ namespace Rock.Attribute
             set
             {
                 var entityTypeGuid = value.AsGuidOrNull();
-                var entityTypeId = entityTypeGuid.HasValue ? EntityTypeCache.GetId( entityTypeGuid.Value ) : null;
+                var entityTypeId = entityTypeGuid.HasValue && RockInstanceConfig.DatabaseIsAvailable ? EntityTypeCache.GetId( entityTypeGuid.Value ) : null;
                 FieldConfigurationValues.AddOrReplace( ENTITY_TYPE_KEY, new Field.ConfigurationValue( entityTypeId?.ToString() ) );
+            }
+        }
+
+        /// <summary>
+        /// Gets or sets a value indicating whether enhanced selection mode is used.
+        /// </summary>
+        /// <value><c>true</c> if enhanced selection mode is used; otherwise, <c>false</c>.</value>
+        public bool EnhancedSelection
+        {
+            get
+            {
+                return FieldConfigurationValues.GetValueOrNull( ENHANCED_SELECTION_KEY ).AsBoolean();
+            }
+            set
+            {
+                FieldConfigurationValues.AddOrReplace( ENHANCED_SELECTION_KEY, new Field.ConfigurationValue( value.ToString() ) );
             }
         }
     }

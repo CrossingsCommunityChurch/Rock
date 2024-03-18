@@ -14,29 +14,13 @@
 // limitations under the License.
 // </copyright>
 //
-using System.Collections.Generic;
-using System.Collections.ObjectModel;
-using System.Runtime.Serialization;
+
 using Rock.Data;
 
 namespace Rock.Model
 {
     public partial class BenevolenceRequest
     {
-        /// <summary>
-        /// Gets the request date key.
-        /// </summary>
-        /// <value>
-        /// The request date key.
-        /// </value>
-        [DataMember]
-        [FieldType( Rock.SystemGuid.FieldType.DATE )]
-        public int RequestDateKey
-        {
-            get => RequestDateTime.ToString( "yyyyMMdd" ).AsInteger();
-            private set { }
-        }
-
         /// <summary>
         /// Gets  full name of the person for who the benevolence request is about.
         /// </summary>
@@ -88,20 +72,5 @@ namespace Rock.Model
                 return totalAmount;
             }
         }
-
-        /// <summary>
-        /// Gets or sets the <see cref="Rock.Model.BenevolenceRequestDocument">documents</see>.
-        /// </summary>
-        /// <value>
-        /// The documents.
-        /// </value>
-        [DataMember]
-        public virtual ICollection<BenevolenceRequestDocument> Documents
-        {
-            get { return _documents ?? ( _documents = new Collection<BenevolenceRequestDocument>() ); }
-            set { _documents = value; }
-        }
-
-        private ICollection<BenevolenceRequestDocument> _documents;
     }
 }

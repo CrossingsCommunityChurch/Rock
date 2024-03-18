@@ -269,7 +269,7 @@ namespace Rock.Lava.RockLiquid
             // Create a new DotLiquid template and wrap it in a proxy for use with the Lava engine.
             var dotLiquidTemplate = CreateNewDotLiquidTemplate( inputTemplate );
 
-            var lavaTemplate = new DotLiquidTemplateProxy( dotLiquidTemplate );
+            var lavaTemplate = new DotLiquidTemplateProxy( dotLiquidTemplate, inputTemplate );
 
             return lavaTemplate;
         }
@@ -285,6 +285,21 @@ namespace Rock.Lava.RockLiquid
             var condition = global::DotLiquid.Condition.Operators["=="];
 
             return condition( left, right );
+        }
+
+        /// <inheritdoc />
+        public override List<string> GetRegisteredFilterNames()
+        {
+            var strainerType = typeof( Strainer );
+            var filtersField = strainerType.GetField( "Filters", BindingFlags.NonPublic | BindingFlags.Static );
+
+            var filters = filtersField.GetValue( null ) as Dictionary<string, Type>;
+
+            var filterNames = filters.Keys
+                .Select( k => k )
+                .OrderBy( k => k )
+                .ToList();
+            return filterNames;
         }
 
         private Template CreateNewDotLiquidTemplate( string inputTemplate )

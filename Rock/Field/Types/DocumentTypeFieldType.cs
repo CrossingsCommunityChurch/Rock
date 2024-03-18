@@ -16,11 +16,13 @@
 
 using System;
 using System.Collections.Generic;
-using System.Data.Entity;
 using System.Linq;
+#if WEBFORMS
 using System.Web.UI;
 using System.Web.UI.WebControls;
-using Rock.Data;
+#endif
+
+using Rock.Attribute;
 using Rock.Model;
 using Rock.Web.Cache;
 using Rock.Web.UI.Controls;
@@ -28,11 +30,130 @@ using Rock.Web.UI.Controls;
 
 namespace Rock.Field.Types
 {
-    class DocumentTypeFieldType : FieldType
+    /// <summary>
+    /// Class DocumentTypeFieldType.
+    /// Implements the <see cref="Rock.Field.FieldType" />
+    /// </summary>
+    /// <seealso cref="Rock.Field.FieldType" />
+    [RockPlatformSupport( Utility.RockPlatform.WebForms, Utility.RockPlatform.Obsidian )]
+    [Rock.SystemGuid.FieldTypeGuid( Rock.SystemGuid.FieldType.DOCUMENT_TYPE )]
+    public class DocumentTypeFieldType : FieldType, IEntityReferenceFieldType
     {
         private const string ALLOW_MULTIPLE_KEY = "allowmultiple";
+        private const string VALUES_PUBLIC_KEY = "values";
 
         #region Configuration
+
+        /// <inheritdoc/>
+        public override Dictionary<string, string> GetPublicConfigurationValues( Dictionary<string, string> privateConfigurationValues, ConfigurationValueUsage usage, string privateValue )
+        {
+            var publicConfigurationValues = base.GetPublicConfigurationValues( privateConfigurationValues, usage, privateValue );
+            publicConfigurationValues[VALUES_PUBLIC_KEY] = DocumentTypeCache.All()
+                .OrderBy( v => v.Name )
+                .ToListItemBagList()
+                .ToCamelCaseJson( false, true );
+            return publicConfigurationValues;
+        }
+
+        /// <inheritdoc />
+        public override Dictionary<string, string> GetPrivateConfigurationValues( Dictionary<string, string> publicConfigurationValues )
+        {
+            var configurationValues = base.GetPrivateConfigurationValues( publicConfigurationValues );
+            configurationValues.Remove( VALUES_PUBLIC_KEY );
+            return configurationValues;
+        }
+
+        #endregion Configuration
+
+        #region Formatting
+
+        /// <inheritdoc />
+        public override string GetTextValue( string privateValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            if ( privateValue.IsNullOrWhiteSpace() )
+            {
+                return string.Empty;
+            }
+
+            // This is a list of IDs, we'll want it to be document type names instead
+            var selectedValues = privateValue.SplitDelimitedValues().Select( int.Parse ).ToList();
+
+            return DocumentTypeCache.All()
+                .Where( v => selectedValues.Contains( v.Id ) )
+                .Select( v => v.Name )
+                .ToList()
+                .AsDelimited( ", " );
+        }
+
+        #endregion Formatting
+
+        #region Edit Control
+
+        /// <inheritdoc />
+        public override string GetPublicValue( string privateValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            // The database stores the Document Type AttirbuteValues by their Ids.
+            // However, the remote device needs the Guid to display them. So we are doing the following conversions.
+            return privateValue.SplitDelimitedValues()
+                .Select( g => DocumentTypeCache.GetGuid( g.ToIntSafe() ).ToString() )
+                .JoinStrings( "," );
+        }
+
+        /// <inheritdoc />
+        public override string GetPrivateEditValue( string publicValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            // The publicValue which is sent by the remote device is a GUID. However, the database only stores the integer values in the database.
+            // So for each DocumentTypeGuid from the remote device, we convert it to the corresponding Id
+            return publicValue.SplitDelimitedValues()
+                .Select( g => DocumentTypeCache.GetId( g.AsGuid() ).ToString() )
+                .JoinStrings( "," );
+        }
+
+        #endregion Edit Control
+
+        #region Filter Control
+
+        #endregion Filter Control
+
+        #region IEntityReferenceFieldType
+
+        /// <inheritdoc/>
+        List<ReferencedEntity> IEntityReferenceFieldType.GetReferencedEntities( string privateValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            var selectedValues = privateValue.Split( new char[] { ',' }, StringSplitOptions.RemoveEmptyEntries ).Select( int.Parse ).ToList();
+
+            if ( selectedValues.Count == 0 )
+            {
+                return null;
+            }
+
+            var documentTypeIds = DocumentTypeCache.All()
+                .Where( v => selectedValues.Contains( v.Id ) )
+                .Select( v => v.Id )
+                .ToList();
+
+            var referencedEntities = new List<ReferencedEntity>();
+            foreach ( var documentTypeId in documentTypeIds )
+            {
+                referencedEntities.Add( new ReferencedEntity( EntityTypeCache.GetId<DocumentType>().Value, documentTypeId ) );
+            }
+
+            return referencedEntities;
+        }
+
+        /// <inheritdoc/>
+        List<ReferencedProperty> IEntityReferenceFieldType.GetReferencedProperties( Dictionary<string, string> privateConfigurationValues )
+        {
+            return new List<ReferencedProperty>
+            {
+                new ReferencedProperty( EntityTypeCache.GetId<DocumentType>().Value, nameof( DocumentType.Name ) )
+            };
+        }
+
+        #endregion
+
+        #region WebForms
+#if WEBFORMS
 
         /// <summary>
         /// Returns a list of the configuration keys
@@ -108,10 +229,6 @@ namespace Rock.Field.Types
             }
         }
 
-        #endregion Configuration
-
-        #region Formatting
-
         /// <summary>
         /// Returns the field's current value(s)
         /// </summary>
@@ -122,26 +239,10 @@ namespace Rock.Field.Types
         /// <returns></returns>
         public override string FormatValue( System.Web.UI.Control parentControl, string value, Dictionary<string, ConfigurationValue> configurationValues, bool condensed )
         {
-            if ( value.IsNullOrWhiteSpace() )
-            {
-                return base.FormatValue( parentControl, value, configurationValues, condensed );
-
-            }
-
-            // This is a list of IDs, we'll want it to be document type names instead
-            var selectedValues = value.Split( new char[] { ',' }, StringSplitOptions.RemoveEmptyEntries ).Select( int.Parse ).ToList();
-
-            return DocumentTypeCache.All()
-                .Where( v => selectedValues.Contains( v.Id ) )
-                .Select( v => v.Name )
-                .ToList()
-                .AsDelimited( ", " );
-            ;
+            return !condensed
+                ? GetTextValue( value, configurationValues.ToDictionary( cv => cv.Key, cv => cv.Value.Value ) )
+                : GetCondensedTextValue( value, configurationValues.ToDictionary( cv => cv.Key, cv => cv.Value.Value ) );
         }
-
-        #endregion Formatting
-
-        #region Edit Control
 
         /// <summary>
         /// Creates the control(s) necessary for prompting user for a new value
@@ -248,11 +349,7 @@ namespace Rock.Field.Types
             }
         }
 
-        #endregion Edit Control
-
-        #region Filter Control
-
-        #endregion Filter Control
-
+#endif
+        #endregion
     }
 }

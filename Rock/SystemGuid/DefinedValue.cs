@@ -26,6 +26,41 @@ namespace Rock.SystemGuid
         #region Block Template
 
         /// <summary>
+        /// The block template for the mobile notes block.
+        /// </summary>
+        public const string BLOCK_TEMPLATE_MOBILE_GROUP_MEMBERS = "89322C87-CA36-4169-9361-FDA4EFEF07C1";
+
+        /// <summary>
+        /// The block template for the mobile notes block.
+        /// </summary>
+        public const string BLOCK_TEMPLATE_MOBILE_NOTES = "37F44005-C4D8-4527-BA86-B6F8B72BF243";
+
+        /// <summary>
+        /// The block template for the mobile group schedule preference landing page.
+        /// </summary>
+        public const string BLOCK_TEMPLATE_MOBILE_GROUP_SCHEDULE_SIGNUP_LANDING_PAGE = "7F89AE4D-BD8B-49ED-B8EC-F883D43505F2";
+
+        /// <summary>
+        /// The block template for the mobile group schedule preference landing page.
+        /// </summary>
+        public const string BLOCK_TEMPLATE_MOBILE_GROUP_SCHEDULE_PREFERENCE_LANDING_PAGE = "D39CCB65-2444-48E4-9DE1-7A01AB20CB61";
+
+        /// <summary>
+        /// The block template for mobile group schedule unavailability block. 
+        /// </summary>
+        public const string BLOCK_TEMPLATE_MOBILE_GROUP_SCHEDULE_UNAVAILABILITY = "48EE4803-66BE-43A0-A7CF-E2D669DB2D21";
+
+        /// <summary>
+        /// The block template for mobile group schedule toolbox block.
+        /// </summary>
+        public const string BLOCK_TEMPLATE_MOBILE_GROUP_SCHEDULE_TOOLBOX = "7E11BEF1-F6F7-49E3-8804-90AC1CB9AD25";
+
+        /// <summary>
+        /// The block template for mobile group schedule toolbox decline modal.
+        /// </summary>
+        public const string BLOCK_TEMPLATE_MOBILE_GROUP_SCHEDULE_TOOLBOX_DECLINE_MODAL = "68ACFE34-C1D9-40C6-9AB1-9E6F4DA846EE";
+
+        /// <summary>
         /// The block template for mobile answer to prayer block.
         /// </summary>
         public const string BLOCK_TEMPLATE_MOBILE_ANSWER_TO_PRAYER = "D13256E3-D9ED-45C2-8EF7-C4AABCF4B2B7";
@@ -66,6 +101,11 @@ namespace Rock.SystemGuid
         public const string BLOCK_TEMPLATE_MOBILE_CONNECTION_CONNECTION_REQUEST_DETAIL = "44538702-5157-489A-B256-217F5D1F53F4";
 
         /// <summary>
+        /// The block template for <see cref="Rock.Blocks.Types.Mobile.Core.Search"/> block.
+        /// </summary>
+        public const string BLOCK_TEMPLATE_MOBILE_CORE_SEARCH = "CFEB7FA6-0F19-496B-8DCC-4D200AEEE866";
+
+        /// <summary>
         /// The block template mobile daily challenge entry
         /// </summary>
         public const string BLOCK_TEMPLATE_MOBILE_DAILY_CHALLENGE_ENTRY = "30ECA4B6-0869-4656-A4CD-B8729CB29E76";
@@ -94,6 +134,11 @@ namespace Rock.SystemGuid
         /// The block template for the mobile group finder.
         /// </summary>
         public const string BLOCK_TEMPLATE_MOBILE_GROUPS_GROUP_FINDER = "1B6D540A-2E40-44F6-8AE9-2857DE913459";
+
+        /// <summary>
+        /// The block template for the live experience occurrences block.
+        /// </summary>
+        public const string BLOCK_TEMPLATE_LIVE_EXPERIENCE_OCCURRENCES = "95837896-BB45-47FA-8517-F1C0EFE2A89C";
 
         /// <summary>
         /// The block template for mobile my prayer requests.
@@ -261,6 +306,30 @@ namespace Rock.SystemGuid
 
         #endregion
 
+        #region External Link Types
+
+        /// <summary>
+        /// Barnes and Noble External Link Type
+        /// </summary>
+        public const string EXTERNAL_LINK_TYPE_BARNES_AND_NOBLE = "ACAC304A-A760-4313-BD7D-F272C2A8BC5B";
+
+        /// <summary>
+        /// Amazon External Link Type
+        /// </summary>
+        public const string EXTERNAL_LINK_TYPE_AMAZON = "BB3E2119-3CF1-4B20-958E-304BFFF120B1";
+
+        /// <summary>
+        /// ChristianBook External Link Type
+        /// </summary>
+        public const string EXTERNAL_LINK_TYPE_CHRISTIAN_BOOK = "EE74B3D2-1B5A-4436-9908-ABC63FF59309";
+
+        /// <summary>
+        /// YouTube Video External Link Type
+        /// </summary>
+        public const string EXTERNAL_LINK_TYPE_YOUTUBE_VIDEO = "FE7A6DE2-206C-420F-B67E-7139BB9B8B6D";
+
+        #endregion
+
         #region Financial Currency Type
 
         /// <summary>
@@ -411,7 +480,7 @@ namespace Rock.SystemGuid
         public const string FINANCIAL_SOURCE_TYPE_MOBILE_APPLICATION = "8ADCEC72-63FC-4F08-A4CC-72BCE470172C";
 
         /// <summary>
-        /// The financial source of On-site Collection
+        /// The financial source of On-Site
         /// </summary>
         public const string FINANCIAL_SOURCE_TYPE_ONSITE_COLLECTION = "BE7ECF50-52BC-4774-808D-574BA842DB98";
 
@@ -492,6 +561,34 @@ namespace Rock.SystemGuid
         /// Group RSVP Decline Reason - Other.
         /// </summary>
         public const string GROUP_RSVP_DECLINE_REASON_OTHER = "1634AC71-0054-4F3C-A76D-A75A48E6BA56";
+
+        #endregion
+
+        #region Library Content Types
+
+        /// <summary>
+        /// Article Library Content Type
+        /// </summary>
+        public const string LIBRARY_CONTENT_TYPE_ARTICLE = "8B66EBAA-9BE4-42C8-A106-655A2EFD6109";
+
+        #endregion
+
+        #region Library License Types
+
+        /// <summary>
+        /// Author Attribution Library License Type
+        /// </summary>
+        public const string LIBRARY_LICENSE_TYPE_AUTHOR_ATTRIBUTION = "9AED8DEE-F74D-4F38-AD45-2423170D31D2";
+
+        /// <summary>
+        /// Open Library License Type
+        /// </summary>
+        public const string LIBRARY_LICENSE_TYPE_OPEN = "54D8921D-A9E9-46DA-8B7C-433C163FD41A";
+
+        /// <summary>
+        /// Organization Attribution Library License Type
+        /// </summary>
+        public const string LIBRARY_LICENSE_TYPE_ORGANIZATION_ATTRIBUTION = "577F2BD5-BFDF-41B7-96A8-32C0F1E44905";
 
         #endregion
 
@@ -744,6 +841,10 @@ namespace Rock.SystemGuid
         /// </summary>
         public const string PERSONAL_DEVICE_TYPE_COMPUTER = "828ADECE-EFE7-49DF-BA8C-B3F132509A95";
 
+        /// <summary>
+        /// Personal Device Type - TV
+        /// </summary>
+        public const string PERSONAL_DEVICE_TYPE_TV = "CA45FC83-2B1C-51AC-4B46-F3427F57116B";
         #endregion
 
         #region Personal Device Platform
@@ -771,6 +872,11 @@ namespace Rock.SystemGuid
         /// Default Structure Content Editor
         /// </summary>
         public const string STRUCTURE_CONTENT_EDITOR_DEFAULT = "09B25845-B879-4E69-87E9-003F9380B8DD";
+
+        /// <summary>
+        /// Structure Content Editor Message Notes
+        /// </summary>
+        public const string STRUCTURE_CONTENT_EDITOR_MESSAGE_NOTES = "31C63FB9-1365-4EEF-851D-8AB9A188A06C";
 
         #endregion
 
@@ -842,7 +948,7 @@ namespace Rock.SystemGuid
 
         /// <summary>
         /// Interaction Channel Type: UrlShortener
-        /// </summary>        
+        /// </summary>
         public const string INTERACTIONCHANNELTYPE_URLSHORTENER = "371066D5-C5F9-4783-88C8-D9AC8DC67468";
 
         /// <summary>
@@ -874,6 +980,11 @@ namespace Rock.SystemGuid
         /// Interaction Channel Type: Challenge Progress
         /// </summary>
         public const string INTERACTIONCHANNELTYPE_CHALLENGE_PROGRESS = "6AA529BD-9FA5-43AD-A98E-B8DF5F997146";
+
+        /// <summary>
+        /// Interaction Channel Type: Interaction Intents
+        /// </summary>
+        public const string INTERACTIONCHANNELTYPE_INTERACTION_INTENTS = "A64DA89B-F634-4D58-ADC7-32243F84224B";
 
         /// <summary>
         /// The PBX CDR medium value
@@ -1230,6 +1341,15 @@ namespace Rock.SystemGuid
         public const string LOGGING_DOMAIN_PRAYER = "F460BDE7-6FFC-4979-A3AC-7BBBED05C781";
 
         /// <summary>
+        /// The logging domain mobile
+        /// </summary>
+        public const string LOGGING_DOMAIN_MOBILE = "77148fef-bc4f-4b16-9d4e-e1de28149751";
+
+        /// <summary>
+        /// The logging domain apple tv
+        /// </summary>
+        public const string LOGGING_DOMAIN_APPLE_TV = "41a3cbf1-769a-4d15-a13c-56d48b2009b8";
+        /// <summary>
         /// The logging domain other
         /// </summary>
         public const string LOGGING_DOMAIN_OTHER = "83CFDA4F-5867-4D4B-853F-D9B535EC5131";
@@ -1260,6 +1380,7 @@ namespace Rock.SystemGuid
         #endregion Schedule Types
 
         #region Map Markers
+
         /// <summary>
         /// The map marker pin
         /// </summary>
@@ -1276,9 +1397,11 @@ namespace Rock.SystemGuid
         /// The map marker circle
         /// </summary>
         public const string MAP_MARKER_CIRCLE = "66C27E88-6BC5-4B57-A981-0AD58481C66A";
-        #endregion
+
+        #endregion Map Markers
 
         #region Languages
+
         /// <summary>
         /// Translation Languages - English
         /// </summary>
@@ -1288,6 +1411,69 @@ namespace Rock.SystemGuid
         /// Translation Languages - Spanish
         /// </summary>
         public const string LANGUAGE_SPANISH = "C93CB430-8554-E599-4F49-D7F3CED2B2C7";
+
+        #endregion Languages
+
+        #region Person Race
+
+        /// <summary>
+        /// Person Race - White
+        /// </summary>
+        public const string PERSON_RACE_WHITE = "52E12EBE-1FCE-4B95-A677-AEEEDE9B1745";
+
+        /// <summary>
+        /// Person Race - Black or African American
+        /// </summary>
+        public const string PERSON_RACE_BLACK_OR_AFRICAN_AMERICAN = "3760BA55-3D68-4F55-AEEF-0AC9F39D1730";
+
+        /// <summary>
+        /// Person Race - American Indian or Alaska Native
+        /// </summary>
+        public const string PERSON_RACE_AMERICAN_INDIAN_OR_ALASKAN_NATIVE = "C734961E-43A7-4FB9-999E-B60D694268B4";
+
+        /// <summary>
+        /// Person Race - Asian
+        /// </summary>
+        public const string PERSON_RACE_ASIAN = "FCDC15DF-B298-4067-AE8A-431E42DA6F7E";
+
+        /// <summary>
+        /// Person Race - Native Hawaiian or Pacific Islander
+        /// </summary>
+        public const string PERSON_RACE_NATIVE_HAWAIIAN_OR_PACIFIC_ISLANDER = "B46F3250-34A1-46E5-8171-9C8ED4FA0845";
+
+        /// <summary>
+        /// Person Race - Other
+        /// </summary>
+        public const string PERSON_RACE_OTHER = "E364D2DE-81A0-4F9C-8ECF-96CC68009251";
+
+        #endregion
+
+        #region Person Ethnicity
+
+        /// <summary>
+        /// Person Ethnicity - Hispanic or Latino
+        /// </summary>
+        public const string PERSON_ETHNICITY_HISPANIC_OR_LATINO = "05762BE9-32D4-4C30-9CF1-E1513C5C8360";
+
+        /// <summary>
+        /// Person Ethnicity - Not Hispanic or Latino
+        /// </summary>
+        public const string PERSON_ETHNICITY_NOT_HISPANIC_OR_LATINO = "2D1EF4CF-19E5-46BC-B4B1-591CFF57E0D8";
+
+        #endregion
+
+        #region Project Type
+
+        /// <summary>
+        /// Project Type - In-Person
+        /// </summary>
+        public const string PROJECT_TYPE_IN_PERSON = "FF3F0C5C-9775-4A09-9CCF-94902DB99BF6";
+
+        /// <summary>
+        /// Project Type = Project Due
+        /// </summary>
+        public const string PROJECT_TYPE_PROJECT_DUE = "C999D489-5B8F-4892-BCC3-90DFFBC524F5";
+
         #endregion
     }
 }

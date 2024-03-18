@@ -32,6 +32,7 @@ namespace Rock.Reporting.DataSelect.Group
     [Description( "Shows the number of Members in the Group with a specified Status or Role type" )]
     [Export( typeof( DataSelectComponent ) )]
     [ExportMetadata( "ComponentName", "Member Count" )]
+    [Rock.SystemGuid.EntityTypeGuid( "45786F38-F50B-4FB2-8CEB-AFDCF42C5EB5")]
     public class MemberCountSelect : DataSelectComponent
     {
         #region Properties
@@ -140,7 +141,7 @@ namespace Rock.Reporting.DataSelect.Group
                 GroupMemberStatus? memberStatusValue = (GroupMemberStatus?)values[1].AsIntegerOrNull();
 
                 memberCountQuery = new GroupService( context ).Queryable()
-                                                            .Select( p => p.Members.Count( a =>
+                                                            .Select( p => p.Members.Where( a => !a.IsArchived ).Count( a =>
                                                                                          ( !memberStatusValue.HasValue || a.GroupMemberStatus == memberStatusValue )
                                                                                          && ( !isLeader.HasValue || ( a.GroupRole.IsLeader == isLeader.Value ) ) ) );
             }

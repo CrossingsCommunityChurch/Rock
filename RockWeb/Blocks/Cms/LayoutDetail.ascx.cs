@@ -38,7 +38,8 @@ namespace RockWeb.Blocks.Crm
     [DisplayName("Layout Detail")]
     [Category("CMS")]
     [Description("Displays the details for a specific layout.")]
-    public partial class LayoutDetail : RockBlock, IDetailBlock
+    [Rock.SystemGuid.BlockTypeGuid( "68B9D63D-D714-473A-89F2-62EB1602E00A" )]
+    public partial class LayoutDetail : RockBlock
     {
 
         #region Fields

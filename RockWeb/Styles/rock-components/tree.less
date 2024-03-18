@@ -19,11 +19,27 @@
 
 
 .rocktree-drawer {
-  padding: 12px 24px;
+  padding: 12px 18px;
   margin: 0;
   background: @gray-50;
   border-bottom: 1px solid @gray-200;
   //box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+}
+
+.treeview-search-parent {
+  position: relative;
+  min-height: 300px;
+
+  .search-results {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    height: 100%;
+    padding: 4px 12px;
+    overflow: auto;
+  }
 }
 
 .rocktree-loading {
@@ -33,6 +49,13 @@
   height: 100px;
   font-size: 30px;
   opacity: .25;
+
+  .rocktree-item & {
+    justify-content: flex-start;
+    width: 100%;
+    height: 30px;
+    margin-left: 30px;
+  }
 }
 
 ul.rocktree,
@@ -45,16 +68,25 @@ ul.rocktree-children {
 }
 
 ul.rocktree-children {
-  margin: 0 0 0 26px; // 30px
+  width: 100%;
+  margin: 0 0 0 26px;
 }
 
 .rocktree {
   .rocktree-item {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
     color: @text-color;
     white-space: nowrap;
 
+    // Only lighten the name, not the children of the item.
     &.is-inactive {
-      color: lighten(@text-color, 20%);
+      opacity: 1;
+
+      > .rocktree-name {
+        opacity: 0.6;
+      }
     }
 
     .select-children {
@@ -90,23 +122,15 @@ ul.rocktree-children {
     margin: 0;
   }
 
-  // .rocktree-name:hover,
-  // span:hover,
-  // span:hover a {
-  //   color: @tree-rollover-color;
-  //   background: @tree-rollover-bg;
-  // }
-
   .rocktree-name {
     position: relative;
     display: inline-block;
-    width: 100%;
-    max-width: 400px;
-    padding: 0;
+    flex-grow: 1;
+    width: ~"calc(100% - 48px)";
+    padding: 0 16px 0 0;
     line-height: 30px;
     cursor: pointer;
-    border-radius: 3px;
-    border-radius: var(--border-radius-base);
+    border-radius: var(--border-radius-base, 3px);
 
     i {
       margin-right: 2px;
@@ -135,7 +159,6 @@ ul.rocktree-children {
   .selected {
     color: @tree-selected-color;
 
-
     &::before {
       background: fade(@tree-selected-bg, 10%) !important;
     }
@@ -151,7 +174,7 @@ ul.rocktree-children {
   }
 
   .rocktree-loading {
-    font-size: @font-size-xs;
+    font-size: @font-size-small;
   }
 
   .rocktree-leaf {
@@ -179,7 +202,7 @@ ul.rocktree-children {
       padding: 8px 0;
 
       .overview {
-        width: 100%;
+        min-width: 100%;
       }
     }
   }
@@ -194,5 +217,27 @@ ul.rocktree-children {
     .btn {
       margin-bottom: 4px;
     }
+  }
+}
+
+.preview-item {
+  padding: 8px 6px;
+  line-height: 1.2;
+  cursor: default;
+  border-radius: 4px;
+
+  &:hover {
+    background: @tree-rollover-bg;
+  }
+
+  .title,
+  .subtitle {
+    display: block;
+    color: @text-color;
+  }
+
+  .subtitle {
+    font-size: 12px;
+    color: @text-muted;
   }
 }

@@ -343,6 +343,18 @@ namespace Rock.Web.UI.Controls
             set { ViewState["ShowCountDown"] = value; }
         }
 
+        /// <summary>
+        /// Gets or sets a value indicating whether the default text trim behaviour should be disabled
+        /// </summary>
+        /// <value>
+        ///   <c>true</c> if [disable text trim]; otherwise, <c>false</c>.
+        /// </value>
+        public bool DisableTextTrim
+        {
+            get { return ViewState["DisableTextTrim"] as bool? ?? false; }
+            set { ViewState["DisableTextTrim"] = value; }
+        }
+
         #endregion
 
         private HiddenField _hfDisableVrm;
@@ -488,10 +500,7 @@ namespace Rock.Web.UI.Controls
                 this.CssClass = cssClass;
             }
 
-            if ( _regexValidator != null )
-            {
-                RenderDataValidator( writer );
-            }
+            RenderDataValidator( writer );
 
             if ( this.MaxLength != 0 && this.ShowCountDown )
             {
@@ -506,8 +515,10 @@ namespace Rock.Web.UI.Controls
         /// <param name="writer">The writer.</param>
         protected virtual void RenderDataValidator( HtmlTextWriter writer )
         {
-            if ( this.MaxLength != 0 && this.TextMode == TextBoxMode.MultiLine )
-            {
+            if ( this.MaxLength != 0
+                 && this.TextMode == TextBoxMode.MultiLine
+                 && _regexValidator != null )
+            { 
                 _regexValidator.Enabled = true;
                 _regexValidator.ValidationExpression = @"^((.|\n){0," + this.MaxLength.ToString() + "})$";
 
@@ -561,6 +572,10 @@ namespace Rock.Web.UI.Controls
                 }
                 else
                 {
+                    if ( DisableTextTrim )
+                    {
+                        return base.Text;
+                    }
                     return base.Text.Trim();
                 }
             }

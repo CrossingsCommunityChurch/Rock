@@ -45,7 +45,7 @@ namespace RockWeb.Blocks.CheckIn
 
     [CodeEditorField( "Pre-Selected Options Format",
         Key = AttributeKey.OptionFormat,
-        Description = "The format to use when displaying auto-checkin options",
+        Description = "The format to use when displaying auto-checkin options. Merge fields include GroupType, Group, Location, Schedule, LocationCount and DisplayLocationCount (true/false).",
         EditorMode = CodeEditorMode.Lava,
         EditorTheme = CodeEditorTheme.Rock,
         EditorHeight = 100,
@@ -78,8 +78,9 @@ namespace RockWeb.Blocks.CheckIn
 
     [TextField( "No Option Message",
         Key = AttributeKey.NoOptionMessage,
+        Description = @"Message to display on a person's row if they don't have any options available. This is rare, as people without options are normally removed from the list altogether, but there are some check-in configurations that can lead to ""unscheduleable"" people remaining in the list.",
         IsRequired = false,
-        DefaultValue = "Sorry, there are currently not any available areas that the selected people can check into.",
+        DefaultValue = "",
         Category = "Text",
         Order = 10 )]
 
@@ -93,6 +94,7 @@ namespace RockWeb.Blocks.CheckIn
 
     #endregion Attribute Keys
 
+    [Rock.SystemGuid.BlockTypeGuid( "92DCF018-F551-4890-8BA1-511D97BF6B8A" )]
     public partial class MultiPersonSelect : CheckInBlock
     {
         /* 2021-05/07 ETD
@@ -113,7 +115,10 @@ namespace RockWeb.Blocks.CheckIn
         private const string PreSelectedOptionsFormatDefaultValue = @"
 <span class='auto-select-schedule'>{{ Schedule.Name }}:</span>
 <span class='auto-select-group'>{{ Group.Name }}</span>
-<span class='auto-select-location'>{{ Location.Name }}</span>
+<span class='auto-select-location'>{{ Location.Name }}</span
+{% if DisplayLocationCount == true %}
+<span class='ml-3'>Count: {{ LocationCount }}</span>
+{% endif %} 
 ";
 
 
@@ -232,7 +237,6 @@ namespace RockWeb.Blocks.CheckIn
 
                     lTitle.Text = GetTitleText();
                     lCaption.Text = GetAttributeValue( AttributeKey.Caption );
-                    lCaption2.Text = lCaption.Text;
                     lbSelect.Text = GetAttributeValue( AttributeKey.NextButtonText );
 
                     if ( _autoCheckin )
@@ -244,16 +248,24 @@ namespace RockWeb.Blocks.CheckIn
                             Rock.Workflow.Action.CheckIn.SetAvailableSchedules.ProcessForFamily( rockContext, family );
                             Rock.Workflow.Action.CheckIn.FilterByPreviousCheckin.ProcessForFamily( rockContext, family, preventDuplicate );
                         }
+                    }
 
+                    foreach ( var person in family.People )
+                    {
                         // Check to see if person has option pre-selected and if not, select first item.
-                        foreach ( var person in family.People )
+                        if ( _autoCheckin && !person.GroupTypes.Any( t => t.PreSelected ) )
                         {
-                            if ( !person.GroupTypes.Any( t => t.PreSelected ) )
-                            {
-                                SelectFirstOption( person );
-                            }
+                            SelectFirstOption( person );
+                        }
+
+                        // JS uses this to keep track of the selected items, so make sure to start it out with the preselected persons.
+                        if ( person.PreSelected )
+                        {
+                            hfPeople.Value += $"{person.Person.Id},";
                         }
                     }
+
+                    hfPeople.Value = hfPeople.Value.TrimEnd( new char[] { ',' } );
 
                     BindData();
                 }
@@ -295,18 +307,12 @@ namespace RockWeb.Blocks.CheckIn
 
                     if ( _autoCheckin )
                     {
-                        var selectedOptions = person.GetOptions( true, true );
+                        var selectedOptions = person.GetOptions( true, false );
 
-                        string format = GetAttributeValue( AttributeKey.OptionFormat );
                         foreach ( var option in selectedOptions )
                         {
-                            var mergeFields = new Dictionary<string, object> {
-                            { "GroupType", option.GroupType },
-                            { "Group", option.Group },
-                            { "Location", option.Location },
-                            { "Schedule", option.Schedule }
-                        };
-                            options.Add( format.ResolveMergeFields( mergeFields ) );
+                            var optionText = GetOptionText( option );
+                            options.Add( optionText );
                         }
 
                         var pnlPersonButton = e.Item.FindControl( "pnlPersonButton" ) as Panel;
@@ -317,13 +323,13 @@ namespace RockWeb.Blocks.CheckIn
                             pnlChangeButton.Visible = selectedOptions.Count > 1 || AnyUnselectedOptions( person );
                         }
                     }
-                    //<div class='row'>
-                    //    <div class='col-md-4 family-personselect'>{0}</div>
-                    //    <div class='col-md-8 auto-select'>
-                    //        <div class='auto-select-caption'>is checking into...<div>
-                    //        <div class='auto-select-details'>{1}</div>
-                    //    </div>
-                    //</div>
+
+                    // If the "No Option Message" block setting is defined, that takes precedence.
+                    // Otherwise, we'll fall back to using per-person messages.
+                    var attrNoOptionMessage = GetAttributeValue( AttributeKey.NoOptionMessage );
+                    var noOptionMessage = attrNoOptionMessage.IsNotNullOrWhiteSpace()
+                        ? attrNoOptionMessage
+                        : person.NoOptionReason;
 
                     if ( options.Any() )
                     {
@@ -338,6 +344,17 @@ namespace RockWeb.Blocks.CheckIn
 
 ", person.Person.FullName, options.AsDelimited( "<br/>" ) );
                     }
+                    else if ( !person.AnyPossibleSchedules && noOptionMessage.IsNotNullOrWhiteSpace() )
+                    {
+                        lPersonButton.Text = string.Format( @"
+<div class='row'>
+    <div class='col-md-5 family-personselect'>{0}</div>
+    <div class='col-md-7 family-no-option'>
+        <div class='no-option-caption'>{1}</div>
+    </div>
+</div>"
+, person.Person.FullName, noOptionMessage );
+                    }
                     else
                     {
                         lPersonButton.Text = string.Format( @"
@@ -351,12 +368,32 @@ namespace RockWeb.Blocks.CheckIn
                     var personSelectLavaTemplate = CurrentCheckInState.CheckInType.PersonSelectAdditionalInfoLavaTemplate;
                     if ( personSelectLavaTemplate.IsNotNullOrWhiteSpace() )
                     {
-                        var mergeFields = Rock.Lava.LavaHelper.GetCommonMergeFields( this.RockPage, null, new Rock.Lava.CommonMergeFieldsOptions { GetLegacyGlobalMergeFields = false } );
+                        var mergeFields = Rock.Lava.LavaHelper.GetCommonMergeFields( this.RockPage, null, new Rock.Lava.CommonMergeFieldsOptions() );
                         mergeFields.Add( "Person", person );
                         lPersonSelectLava.Text = personSelectLavaTemplate.ResolveMergeFields( mergeFields );
                     }
                 }
             }
+        }
+
+        /// <summary>
+        /// Get the option text.
+        /// </summary>
+        private string GetOptionText( CheckInPersonSummary option )
+        {
+            var format = GetAttributeValue( AttributeKey.OptionFormat );
+            var mergeFields = new Dictionary<string, object>
+            {
+                { "GroupType", option.GroupType },
+                { "Group", option.Group },
+                { "Location", option.Location },
+                { "Schedule", option.Schedule },
+                { "DisplayLocationCount", CurrentCheckInState.CheckInType.DisplayLocationCount },
+                { "LocationCount", KioskLocationAttendance.Get( option.Location.Location.Id ).CurrentCount }
+            };
+
+            var optionText = format.ResolveMergeFields( mergeFields );
+            return optionText;
         }
 
         /// <summary>
@@ -526,19 +563,14 @@ namespace RockWeb.Blocks.CheckIn
             }
         }
 
-        protected void ProcessSelection()
-        {
-            ProcessSelection(
-                maWarning,
-                () => CurrentCheckInState.CheckIn.CurrentFamily.GetPeople( true )
-                    .SelectMany( p => p.GroupTypes.Where( t => !t.ExcludedByFilter ) )
-                    .Count() <= 0,
-                string.Format( "<p>{0}</p>", GetAttributeValue( AttributeKey.NoOptionMessage ) ) );
-        }
-
         protected string GetSelectedClass( bool selected )
         {
             return selected ? "active" : "";
+        }
+
+        protected string GetDisabledClass( bool anyPossibleSchedules )
+        {
+            return !anyPossibleSchedules ? "disabled" : "";
         }
 
         protected string GetCheckboxClass( bool selected )
@@ -564,16 +596,10 @@ namespace RockWeb.Blocks.CheckIn
                 var options = new List<string>();
                 if ( _autoCheckin && person.PreSelected )
                 {
-                    string format = GetAttributeValue( AttributeKey.OptionFormat );
                     foreach ( var option in person.GetOptions( true, true ) )
                     {
-                        var mergeFields = new Dictionary<string, object> {
-                            { "GroupType", option.GroupType },
-                            { "Group", option.Group },
-                            { "Location", option.Location },
-                            { "Schedule", option.Schedule }
-                        };
-                        options.Add( format.ResolveMergeFields( mergeFields ) );
+                        var optionText = GetOptionText( option );
+                        options.Add( optionText );
                     }
                 }
 
@@ -653,14 +679,7 @@ namespace RockWeb.Blocks.CheckIn
             var option = dataItem as CheckInPersonSummary;
             if ( option != null )
             {
-                string format = GetAttributeValue( AttributeKey.OptionFormat );
-                var mergeFields = new Dictionary<string, object> {
-                            { "GroupType", option.GroupType },
-                            { "Group", option.Group },
-                            { "Location", option.Location },
-                            { "Schedule", option.Schedule }
-                        };
-                return format.ResolveMergeFields( mergeFields );
+                return GetOptionText( option );
             }
 
             return string.Empty;
@@ -674,19 +693,19 @@ namespace RockWeb.Blocks.CheckIn
         {
             foreach ( var groupType in person.GroupTypes )
             {
-                if ( !groupType.PreSelected )
+                if ( !groupType.PreSelected && groupType.AnyGroupsWithLocationsAndSchedules )
                 {
                     return true;
                 }
                 foreach ( var group in groupType.Groups )
                 {
-                    if ( !group.PreSelected )
+                    if ( !group.PreSelected && group.AnyLocationsWithSchedules )
                     {
                         return true;
                     }
                     foreach ( var location in group.Locations )
                     {
-                        if ( !location.PreSelected )
+                        if ( !location.PreSelected && location.AnySchedules )
                         {
                             return true;
                         }
@@ -704,16 +723,21 @@ namespace RockWeb.Blocks.CheckIn
             return false;
         }
 
+        /// <summary>
+        /// Selects the first option based on the order property of Schedule from CheckinPerson.PossibleSchedules.
+        /// If no schedules exists in PossibleSchedules than one is chosen based on the Order property of GroupType, Group, Location, and Schedule.
+        /// </summary>
+        /// <param name="person">The person.</param>
         private void SelectFirstOption( CheckInPerson person )
         {
-            var firstSchedule = person.PossibleSchedules.FirstOrDefault();
+            var firstSchedule = person.PossibleSchedules.OrderBy( s => s.Schedule.Order ).FirstOrDefault();
             if ( firstSchedule != null )
             {
-                foreach ( var groupType in person.GroupTypes.Where( t => t.AvailableForSchedule.Contains( firstSchedule.Schedule.Id ) ) )
+                foreach ( var groupType in person.GroupTypes.Where( t => t.AvailableForSchedule.Contains( firstSchedule.Schedule.Id ) ).OrderBy( t => t.GroupType.Order ) )
                 {
-                    foreach ( var group in groupType.Groups.Where( t => t.AvailableForSchedule.Contains( firstSchedule.Schedule.Id ) ) )
+                    foreach ( var group in groupType.Groups.Where( g => g.AvailableForSchedule.Contains( firstSchedule.Schedule.Id ) ).OrderBy( g => g.Group.Order ) )
                     {
-                        foreach ( var location in group.Locations.Where( t => t.AvailableForSchedule.Contains( firstSchedule.Schedule.Id ) ) )
+                        foreach ( var location in group.Locations.Where( l => l.AvailableForSchedule.Contains( firstSchedule.Schedule.Id ) ).OrderBy( l => l.Order ) )
                         {
                             foreach ( var schedule in location.Schedules.Where( s => s.Schedule.Id == firstSchedule.Schedule.Id ) )
                             {
@@ -732,14 +756,14 @@ namespace RockWeb.Blocks.CheckIn
                 }
             }
 
-            // Couldn't find a match for first schedule, just select first option
-            foreach ( var groupType in person.GroupTypes )
+            // Couldn't find a match for first schedule, just select first available option based on the order property
+            foreach ( var groupType in person.GroupTypes.OrderBy( t => t.GroupType.Order ) )
             {
-                foreach ( var group in groupType.Groups )
+                foreach ( var group in groupType.Groups.OrderBy( g => g.Group.Order ) )
                 {
-                    foreach ( var location in group.Locations )
+                    foreach ( var location in group.Locations.OrderBy( l => l.Order ) )
                     {
-                        foreach ( var schedule in location.Schedules )
+                        foreach ( var schedule in location.Schedules.OrderBy( s => s.Schedule.Order ) )
                         {
                             int scheduleId = schedule.Schedule.Id;
 

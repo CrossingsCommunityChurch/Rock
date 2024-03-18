@@ -66,6 +66,17 @@ namespace Rock.Crm.ConnectionStatusChangeReport
         public string LastName { get; set; }
 
         /// <summary>
+        /// The person's initials
+        /// </summary>
+        public string Initials
+        {
+            get
+            {
+                return $"{FirstName.Truncate( 1, false )}{LastName.Truncate( 1, false )}";
+            }
+        }
+
+        /// <summary>
         /// Indicates if the person is deceased.
         /// </summary>
         public bool IsDeceased { get; set; }
@@ -116,9 +127,19 @@ namespace Rock.Crm.ConnectionStatusChangeReport
         public DateTime? BirthDate { get; set; }
 
         /// <summary>
+        /// Gets or sets the deceased date.
+        /// </summary>
+        public DateTime? DeceasedDate { get; set; }
+
+        /// <summary>
         /// The identifier of the person's Record Type.
         /// </summary>
         public Guid? RecordTypeValueGuid { get; set; }
+
+        /// <summary>
+        /// The id of the person's Record Type.
+        /// </summary>
+        public int? RecordTypeValueId { get; set; }
 
         /// <summary>
         /// Returns a <see cref="System.String" /> that represents this instance.

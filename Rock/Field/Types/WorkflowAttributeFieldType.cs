@@ -17,9 +17,12 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+#if WEBFORMS
 using System.Web.UI;
 using System.Web.UI.WebControls;
-
+#endif
+using Rock.Attribute;
+using Rock.ViewModels.Utility;
 using Rock.Web.Cache;
 using Rock.Web.UI.Controls;
 
@@ -29,14 +32,143 @@ namespace Rock.Field.Types
     /// Field Type used to display a dropdown list of attributes for a specific workflow Type
     /// </summary>
     [Serializable]
+    [RockPlatformSupport( Utility.RockPlatform.WebForms, Utility.RockPlatform.Obsidian )]
+    [Rock.SystemGuid.FieldTypeGuid( Rock.SystemGuid.FieldType.WORKFLOW_ATTRIBUTE )]
     public class WorkflowAttributeFieldType : FieldType
     {
-
         #region Configuration
 
         private const string ATTRIBUTE_FIELD_TYPES_KEY = "attributefieldtypes";
         private const string WORKFLOW_TYPE_ATTRIBUTES_KEY = "WorkflowTypeAttributes";
         private const string ACTIVITY_TYPE_ATTRIBUTES_KEY = "ActivityTypeAttributes";
+        private const string CLIENT_VALUES_KEY = "values";
+
+        /// <inheritdoc />
+        public override Dictionary<string, string> GetPublicConfigurationValues( Dictionary<string, string> privateConfigurationValues, ConfigurationValueUsage usage, string value )
+        {
+            var configurationValues = base.GetPublicConfigurationValues( privateConfigurationValues, usage, value );
+
+            if ( usage != ConfigurationValueUsage.View )
+            {
+                var filteredFieldTypes = new List<string>();
+                var attributeFieldTypes = new List<ListItemBag>();
+
+                if ( configurationValues.ContainsKey( ATTRIBUTE_FIELD_TYPES_KEY ) )
+                {
+                    filteredFieldTypes = configurationValues[ATTRIBUTE_FIELD_TYPES_KEY]
+                        .Split( "|".ToCharArray(), StringSplitOptions.RemoveEmptyEntries ).ToList();
+                }
+
+                var attributes = GetContextAttributes();
+                if ( attributes != null )
+                {
+                    foreach ( var attribute in attributes )
+                    {
+                        var fieldType = FieldTypeCache.Get( attribute.Value.FieldTypeId );
+                        if ( !filteredFieldTypes.Any() || filteredFieldTypes.Contains( fieldType.Class, StringComparer.OrdinalIgnoreCase ) )
+                        {
+                            attributeFieldTypes.Add( new ListItemBag() { Text = attribute.Value.Name, Value = attribute.Key.ToString() } );
+                        }
+                    }
+                }
+
+                configurationValues[CLIENT_VALUES_KEY] = attributeFieldTypes.ToCamelCaseJson( false, true );
+            }
+
+            return configurationValues;
+        }
+
+        /// <inheritdoc />
+        public override Dictionary<string, string> GetPrivateConfigurationValues( Dictionary<string, string> publicConfigurationValues )
+        {
+            var configurationValues = base.GetPrivateConfigurationValues( publicConfigurationValues );
+
+            configurationValues.Remove( CLIENT_VALUES_KEY );
+
+            return configurationValues;
+        }
+
+        #endregion
+
+        #region Formatting
+
+        /// <inheritdoc/>
+        public override string GetTextValue( string privateValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            string formattedValue = string.Empty;
+
+            Guid guid = privateValue.AsGuid();
+            if ( !guid.IsEmpty() )
+            {
+                var attributes = GetContextAttributes();
+                if ( attributes != null && attributes.ContainsKey( guid ) )
+                {
+                    formattedValue = attributes[guid].Name;
+                }
+
+                if ( string.IsNullOrWhiteSpace( formattedValue ) )
+                {
+                    var attributeCache = AttributeCache.Get( guid );
+                    if ( attributeCache != null )
+                    {
+                        formattedValue = attributeCache.Name;
+                    }
+                }
+            }
+
+            return formattedValue;
+        }
+
+        #endregion
+
+        #region Edit Control
+
+        private Dictionary<Guid, Rock.Model.Attribute> GetContextAttributes()
+        {
+            var httpContext = System.Web.HttpContext.Current;
+            if ( httpContext != null && httpContext.Items != null )
+            {
+                var workflowAttributes = httpContext.Items[WORKFLOW_TYPE_ATTRIBUTES_KEY] as Dictionary<Guid, Rock.Model.Attribute>;
+                var activityAttributes = httpContext.Items[ACTIVITY_TYPE_ATTRIBUTES_KEY] as Dictionary<Guid, Rock.Model.Attribute>;
+
+                if ( workflowAttributes != null && activityAttributes != null )
+                {
+                    return workflowAttributes.Concat( activityAttributes ).ToDictionary( x => x.Key, x => x.Value );
+                }
+            }
+
+            return null;
+        }
+
+        #endregion
+
+        #region Filter Control
+
+        /// <summary>
+        /// Determines whether this filter has a filter control
+        /// </summary>
+        /// <returns></returns>
+        public override bool HasFilterControl()
+        {
+            return false;
+        }
+
+        #endregion
+
+        #region Persistence
+
+        /// <inheritdoc/>
+        public override bool IsPersistedValueSupported( Dictionary<string, string> privateConfigurationValues )
+        {
+            // This a special field type that only works within the workflow type
+            // editor. Persistence would not work well in this situation.
+            return false;
+        }
+
+        #endregion
+
+        #region WebForms
+#if WEBFORMS
 
         /// <summary>
         /// Returns a list of the configuration keys
@@ -83,7 +215,7 @@ namespace Rock.Field.Types
             {
                 if ( controls[0] != null && controls[0] is RockTextBox )
                 {
-                    configurationValues[ATTRIBUTE_FIELD_TYPES_KEY].Value = ( (RockTextBox)controls[0] ).Text;
+                    configurationValues[ATTRIBUTE_FIELD_TYPES_KEY].Value = ( ( RockTextBox ) controls[0] ).Text;
                 }
             }
 
@@ -101,14 +233,10 @@ namespace Rock.Field.Types
             {
                 if ( controls[0] != null && controls[0] is RockTextBox && configurationValues.ContainsKey( ATTRIBUTE_FIELD_TYPES_KEY ) )
                 {
-                    ( (RockTextBox)controls[0] ).Text = configurationValues[ATTRIBUTE_FIELD_TYPES_KEY].Value;
+                    ( ( RockTextBox ) controls[0] ).Text = configurationValues[ATTRIBUTE_FIELD_TYPES_KEY].Value;
                 }
             }
         }
-
-        #endregion
-
-        #region Formatting
 
         /// <summary>
         /// Returns the field's current value(s)
@@ -120,34 +248,10 @@ namespace Rock.Field.Types
         /// <returns></returns>
         public override string FormatValue( Control parentControl, string value, Dictionary<string, ConfigurationValue> configurationValues, bool condensed )
         {
-            string formattedValue = string.Empty;
-
-            Guid guid = value.AsGuid();
-            if ( !guid.IsEmpty() )
-            {
-                var attributes = GetContextAttributes();
-                if ( attributes != null && attributes.ContainsKey( guid ) )
-                {
-                    formattedValue = attributes[guid].Name;
-                }
-
-                if ( string.IsNullOrWhiteSpace( formattedValue ) )
-                {
-                    var attributeCache = AttributeCache.Get( guid );
-                    if ( attributeCache != null )
-                    {
-                        formattedValue = attributeCache.Name;
-                    }
-                }
-            }
-
-            return base.FormatValue( parentControl, formattedValue, null, condensed );
-
+            return !condensed
+                ? GetTextValue( value, configurationValues.ToDictionary( cv => cv.Key, cv => cv.Value.Value ) )
+                : GetCondensedTextValue( value, configurationValues.ToDictionary( cv => cv.Key, cv => cv.Value.Value ) );
         }
-
-        #endregion
-
-        #region Edit Control
 
         /// <summary>
         /// Creates the control(s) necessary for prompting user for a new value
@@ -220,27 +324,6 @@ namespace Rock.Field.Types
             }
         }
 
-        private Dictionary<Guid, Rock.Model.Attribute> GetContextAttributes()
-        {
-            var httpContext = System.Web.HttpContext.Current;
-            if ( httpContext != null && httpContext.Items != null )
-            {
-                var workflowAttributes = httpContext.Items[WORKFLOW_TYPE_ATTRIBUTES_KEY] as Dictionary<Guid, Rock.Model.Attribute>;
-                var activityAttributes = httpContext.Items[ACTIVITY_TYPE_ATTRIBUTES_KEY] as Dictionary<Guid, Rock.Model.Attribute>;
-
-                if ( workflowAttributes != null && activityAttributes != null )
-                {
-                    return workflowAttributes.Concat( activityAttributes ).ToDictionary( x => x.Key, x => x.Value );
-                }
-            }
-
-            return null;
-        }
-
-        #endregion
-
-        #region Filter Control
-
         /// <summary>
         /// Creates the control needed to filter (query) values using this field type.
         /// </summary>
@@ -255,16 +338,7 @@ namespace Rock.Field.Types
             return null;
         }
 
-        /// <summary>
-        /// Determines whether this filter has a filter control
-        /// </summary>
-        /// <returns></returns>
-        public override bool HasFilterControl()
-        {
-            return false;
-        }
-
+#endif
         #endregion
-
     }
 }

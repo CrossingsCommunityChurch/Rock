@@ -47,7 +47,13 @@ namespace Rock.Client
         public Rock.Client.Enums.ContentControlType ContentControlType { get; set; }
 
         /// <summary />
+        public string ContentLibraryConfigurationJson { get; set; }
+
+        /// <summary />
         public string Description { get; set; }
+
+        /// <summary />
+        public bool EnablePersonalization { get; set; }
 
         /// <summary />
         public bool EnableRss { get; set; }
@@ -136,7 +142,9 @@ namespace Rock.Client
             this.ChildItemsManuallyOrdered = source.ChildItemsManuallyOrdered;
             this.ContentChannelTypeId = source.ContentChannelTypeId;
             this.ContentControlType = source.ContentControlType;
+            this.ContentLibraryConfigurationJson = source.ContentLibraryConfigurationJson;
             this.Description = source.Description;
+            this.EnablePersonalization = source.EnablePersonalization;
             this.EnableRss = source.EnableRss;
             this.ForeignGuid = source.ForeignGuid;
             this.ForeignKey = source.ForeignKey;

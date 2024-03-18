@@ -19,7 +19,6 @@ using Rock.Lava;
 using Rock.Web.Cache;
 using System;
 using System.Collections.Generic;
-using System.Collections.ObjectModel;
 using System.ComponentModel.DataAnnotations.Schema;
 using System.Linq;
 using System.Runtime.Serialization;
@@ -72,20 +71,6 @@ namespace Rock.Model
             }
             private set { }
         }
-
-        /// <summary>
-        /// Gets or sets a collection containing the <see cref="Rock.Model.WorkflowAction">WorkflowActions</see> that are run by this WorkflowActivity.
-        /// </summary>
-        /// <value>
-        /// A collection containing the <see cref="Rock.Model.WorkflowAction">WorkflowActions</see> that are being run by this WorkflowActivity.
-        /// </value>
-        [DataMember]
-        public virtual ICollection<WorkflowAction> Actions
-        {
-            get { return _actions ?? ( _actions = new Collection<WorkflowAction>() ); }
-            set { _actions = value; }
-        }
-        private ICollection<WorkflowAction> _actions;
 
         /// <summary>
         /// Gets an enumerable collection containing the active <see cref="Rock.Model.WorkflowAction">WorkflowActions</see> for this WorkflowActivity, ordered by their order property.
@@ -159,47 +144,53 @@ namespace Rock.Model
         {
             AddLogEntry( "Processing..." );
 
-            errorMessages = new List<string>();
-
-            foreach ( var action in this.ActiveActions )
+            using ( var diagnosticActivity = Observability.ObservabilityHelper.StartActivity( $"WORKFLOW ACTIVITY {ActivityTypeCache?.Name}" ) )
             {
-                List<string> actionErrorMessages;
-                bool actionSuccess = action.Process( rockContext, entity, out actionErrorMessages );
-                if ( actionErrorMessages.Any() )
+                diagnosticActivity?.AddTag( "rock.workflow.activitytype.id", ActivityTypeId );
+                diagnosticActivity?.AddTag( "rock.workflow.activitytype.name", ActivityTypeCache?.Name ?? string.Empty );
+
+                errorMessages = new List<string>();
+
+                foreach ( var action in this.ActiveActions )
                 {
-                    errorMessages.Add( string.Format( "Error in Activity: {0}; Action: {1} ({2} action type)", this.ActivityTypeCache.Name, action.ActionTypeCache.Name, action.ActionTypeCache.WorkflowAction.EntityType.FriendlyName ) );
-                    errorMessages.AddRange( actionErrorMessages );
+                    List<string> actionErrorMessages;
+                    bool actionSuccess = action.Process( rockContext, entity, out actionErrorMessages );
+                    if ( actionErrorMessages.Any() )
+                    {
+                        errorMessages.Add( string.Format( "Error in Activity: {0}; Action: {1} ({2} action type)", this.ActivityTypeCache.Name, action.ActionTypeCache.Name, action.ActionTypeCache.WorkflowAction.EntityType.FriendlyName ) );
+                        errorMessages.AddRange( actionErrorMessages );
+                    }
+
+                    // If action was not successful, exit
+                    if ( !actionSuccess )
+                    {
+                        break;
+                    }
+
+                    // If action completed this activity, exit
+                    if ( !this.IsActive )
+                    {
+                        break;
+                    }
+
+                    // If action completed this workflow, exit
+                    if ( this.Workflow == null || !this.Workflow.IsActive )
+                    {
+                        break;
+                    }
                 }
 
-                // If action was not successful, exit
-                if ( !actionSuccess )
+                this.LastProcessedDateTime = RockDateTime.Now;
+
+                AddLogEntry( "Processing Complete" );
+
+                if ( !this.ActiveActions.Any() )
                 {
-                    break;
+                    MarkComplete();
                 }
 
-                // If action completed this activity, exit
-                if ( !this.IsActive )
-                {
-                    break;
-                }
-
-                // If action completed this workflow, exit
-                if ( this.Workflow == null || !this.Workflow.IsActive )
-                {
-                    break;
-                }
+                return errorMessages.Count == 0;
             }
-
-            this.LastProcessedDateTime = RockDateTime.Now;
-
-            AddLogEntry( "Processing Complete" );
-
-            if ( !this.ActiveActions.Any() )
-            {
-                MarkComplete();
-            }
-
-            return errorMessages.Count == 0;
         }
 
         /// <summary>

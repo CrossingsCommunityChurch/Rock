@@ -17,12 +17,16 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
+#if WEBFORMS
 using System.Web.UI;
 using System.Web.UI.WebControls;
-
+#endif
+using Rock.Attribute;
 using Rock.Data;
 using Rock.Model;
 using Rock.Reporting;
+using Rock.ViewModels.Utility;
 using Rock.Web.Cache;
 using Rock.Web.UI.Controls;
 
@@ -31,15 +35,324 @@ namespace Rock.Field.Types
     /// <summary>
     /// Field Type used to display a dropdown list of attributes
     /// </summary>
-    public class AttributeFieldType : FieldType, ICachedEntitiesFieldType, IEntityFieldType
+    [FieldTypeUsage( FieldTypeUsage.System )]
+    [RockPlatformSupport( Utility.RockPlatform.WebForms, Utility.RockPlatform.Obsidian )]
+    [Rock.SystemGuid.FieldTypeGuid( Rock.SystemGuid.FieldType.ATTRIBUTE )]
+    public class AttributeFieldType : FieldType, ICachedEntitiesFieldType, IEntityFieldType, IEntityReferenceFieldType
     {
-
         #region Configuration
 
         private const string ENTITY_TYPE_KEY = "entitytype";
         private const string ALLOW_MULTIPLE_KEY = "allowmultiple";
         private const string QUALIFIER_COLUMN_KEY = "qualifierColumn";
         private const string QUALIFIER_VALUE_KEY = "qualifierValue";
+        private const string CLIENT_VALUES = "values";
+
+        /// <inheritdoc />
+        public override Dictionary<string, string> GetPublicConfigurationValues( Dictionary<string, string> privateConfigurationValues, ConfigurationValueUsage usage, string value )
+        {
+            var configurationValues = base.GetPublicConfigurationValues( privateConfigurationValues, usage, value );
+
+            if ( usage != ConfigurationValueUsage.View && configurationValues.TryGetValue( ENTITY_TYPE_KEY, out string entityTypeIdString ) )
+            {
+                Guid? entityTypeGuid = entityTypeIdString.AsGuidOrNull();
+                if ( entityTypeGuid.HasValue )
+                {
+                    var attributes = new List<ListItemBag>();
+                    var entityType = EntityTypeCache.Get( entityTypeGuid.Value );
+                    if ( entityType != null )
+                    {
+                        using ( var rockContext = new RockContext() )
+                        {
+                            Rock.Model.AttributeService attributeService = new Model.AttributeService( rockContext );
+                            IQueryable<Rock.Model.Attribute> attributeQuery;
+                            if ( configurationValues.ContainsKey( QUALIFIER_COLUMN_KEY ) && configurationValues.ContainsKey( QUALIFIER_VALUE_KEY ) )
+                            {
+                                attributeQuery = attributeService
+                                    .GetByEntityTypeQualifier( entityType.Id, configurationValues[QUALIFIER_COLUMN_KEY], configurationValues[QUALIFIER_VALUE_KEY], true );
+                            }
+                            else
+                            {
+                                attributeQuery = attributeService.GetByEntityTypeId( entityType.Id, true );
+                            }
+
+                            List<AttributeCache> attributeList = attributeQuery.ToAttributeCacheList();
+
+                            if ( attributeList.Any() )
+                            {
+                                foreach ( var attribute in attributeList.OrderBy( a => a.Name ) )
+                                {
+                                    attributes.Add( new ListItemBag() { Text = attribute.Name, Value = attribute.Guid.ToString() } );
+                                }
+                            }
+
+                            configurationValues[CLIENT_VALUES] = attributes.ToCamelCaseJson( false, true );
+                            configurationValues[ENTITY_TYPE_KEY] = entityType.ToListItemBag().ToCamelCaseJson( false, true );
+                        }
+                    }
+                }
+            }
+
+            return configurationValues;
+        }
+
+        /// <inheritdoc />
+        public override Dictionary<string, string> GetPrivateConfigurationValues( Dictionary<string, string> publicConfigurationValues )
+        {
+            var configurationValues = base.GetPrivateConfigurationValues( publicConfigurationValues );
+
+            if ( configurationValues.TryGetValue( ENTITY_TYPE_KEY, out string entityTypeJsonString ) )
+            {
+                var jsonValue = entityTypeJsonString.FromJsonOrNull<ListItemBag>();
+                if ( jsonValue != null )
+                {
+                    configurationValues[ENTITY_TYPE_KEY] = jsonValue.Value;
+                }
+            }
+
+            configurationValues.Remove( CLIENT_VALUES );
+
+            return configurationValues;
+        }
+
+        #endregion
+
+        #region Formatting
+
+        /// <inheritdoc/>
+        public override string GetTextValue( string privateValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            if ( privateValue.IsNullOrWhiteSpace() )
+            {
+                return string.Empty;
+            }
+
+            var names = new List<string>();
+            RockContext rockContext = null;
+            AttributeService attributeService = null;
+
+            foreach ( var guid in privateValue.Split( new char[] { ',' }, StringSplitOptions.RemoveEmptyEntries ).AsGuidList() )
+            {
+                // It's possible that this attribute field type is pointing
+                // back to our own attribute which could now cause an infinite
+                // loop. So try to get it from the cache without adding it and
+                // if that fails load from the database.
+                if ( AttributeCache.TryGet( guid, out var attributeCache ) )
+                {
+                    names.Add( attributeCache.Name );
+                }
+                else
+                {
+                    if ( rockContext == null )
+                    {
+                        rockContext = new RockContext();
+                        attributeService = new AttributeService( rockContext );
+                    }
+
+                    var attributeName = attributeService.GetSelect( guid, a => a.Name );
+
+                    if ( attributeName != null )
+                    {
+                        names.Add( attributeName );
+
+                        // Start a task to make sure this attribute gets loaded
+                        // into cache since we'll probably need it in the future.
+                        Task.Run( async () =>
+                        {
+                            // Brief delay to let things settle.
+                            await Task.Delay( 25 );
+                            AttributeCache.Get( guid );
+                        } );
+                    }
+                }
+            }
+
+            // Clean up if we created a context.
+            if ( rockContext != null )
+            {
+                rockContext.Dispose();
+            }
+
+            return names.AsDelimited( ", " );
+        }
+
+        #endregion
+
+        #region ICachedEntitiesFieldType Members
+        /// <summary>
+        /// Gets the cached attributes.
+        /// </summary>
+        /// <param name="value">The value.</param>
+        /// <returns></returns>
+        public List<IEntityCache> GetCachedEntities( string value )
+        {
+            var attributes = new List<IEntityCache>();
+
+            if ( !string.IsNullOrWhiteSpace( value ) )
+            {
+                foreach ( Guid guid in value.Split( new char[] { ',' }, StringSplitOptions.RemoveEmptyEntries ).AsGuidList() )
+                {
+                    var attribute = AttributeCache.Get( guid );
+                    if ( attribute != null )
+                    {
+                        attributes.Add( attribute );
+                    }
+                }
+            }
+
+            return attributes;
+        }
+        #endregion
+
+        #region Edit Control
+
+        /// <inheritdoc/>
+        public override string GetPublicValue( string privateValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            return GetTextValue( privateValue, privateConfigurationValues );
+        }
+
+        /// <inheritdoc/>
+        public override string GetPublicEditValue( string privateValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            var attributes = privateValue.Split( new char[] { ',' }, StringSplitOptions.RemoveEmptyEntries );
+            return attributes.ToCamelCaseJson( false, true );
+        }
+
+        /// <inheritdoc/>
+        public override string GetPrivateEditValue( string publicValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            var jsonValue = publicValue.FromJsonOrNull<List<string>>();
+
+            if ( jsonValue != null )
+            {
+                return jsonValue.JoinStrings( "," );
+            }
+
+            // If value is not an array of string then allowMultiple is probably set to false so save single guid value.
+            return publicValue;
+        }
+
+        #endregion
+
+        #region Filter Control
+
+        /// <summary>
+        /// Gets the type of the filter comparison.
+        /// </summary>
+        /// <value>
+        /// The type of the filter comparison.
+        /// </value>
+        public override ComparisonType FilterComparisonType
+        {
+            get
+            {
+                return ComparisonHelper.ContainsFilterComparisonTypes;
+            }
+        }
+
+        #endregion
+
+        #region IEntityFieldType
+
+        /// <summary>
+        /// Gets the entity.
+        /// </summary>
+        /// <param name="value">The value.</param>
+        /// <returns></returns>
+        public IEntity GetEntity( string value )
+        {
+            return GetEntity( value, null );
+        }
+
+        /// <summary>
+        /// Gets the entity.
+        /// </summary>
+        /// <param name="value">The value.</param>
+        /// <param name="rockContext">The rock context.</param>
+        /// <returns></returns>
+        public IEntity GetEntity( string value, RockContext rockContext )
+        {
+            var guid = value.AsGuidOrNull();
+            if ( guid.HasValue )
+            {
+                rockContext = rockContext ?? new RockContext();
+                return new Model.AttributeService( rockContext ).Get( guid.Value );
+            }
+
+            return null;
+        }
+        #endregion
+
+        #region IEntityReferenceFieldType
+
+        /// <inheritdoc/>
+        List<ReferencedEntity> IEntityReferenceFieldType.GetReferencedEntities( string privateValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            if ( privateValue.IsNullOrWhiteSpace() )
+            {
+                return null;
+            }
+
+            RockContext rockContext = null;
+            AttributeService attributeService = null;
+            var entityReferences = new List<ReferencedEntity>();
+            var attributeEntityTypeId = EntityTypeCache.Get<Rock.Model.Attribute>().Id;
+
+            foreach ( var guid in privateValue.Split( new char[] { ',' }, StringSplitOptions.RemoveEmptyEntries ).AsGuidList() )
+            {
+                // It's possible that this attribute field type is pointing
+                // back to our own attribute which could now cause an infinite
+                // loop. So try to get it from the cache without adding it and
+                // if that fails load from the database.
+                if ( AttributeCache.TryGet( guid, out var attributeCache ) )
+                {
+                    entityReferences.Add( new ReferencedEntity( attributeEntityTypeId, attributeCache.Id ) );
+                }
+                else
+                {
+                    if ( rockContext == null )
+                    {
+                        rockContext = new RockContext();
+                        attributeService = new AttributeService( rockContext );
+                    }
+
+                    var attributeId = attributeService.GetSelect( guid, a => ( int? ) a.Id );
+
+                    if ( attributeId.HasValue )
+                    {
+                        entityReferences.Add( new ReferencedEntity( attributeEntityTypeId, attributeId.Value ) );
+
+                        // Start a task to make sure this attribute gets loaded
+                        // into cache since we'll probably need it in the future.
+                        Task.Run( async () =>
+                        {
+                            // Brief delay to let things settle.
+                            await Task.Delay( 25 );
+                            AttributeCache.Get( guid );
+                        } );
+                    }
+                }
+            }
+
+            return entityReferences;
+        }
+
+        /// <inheritdoc/>
+        List<ReferencedProperty> IEntityReferenceFieldType.GetReferencedProperties( Dictionary<string, string> privateConfigurationValues )
+        {
+            // If the Name property of an Attribute we are referencing changes
+            // then we need to update our persisted values.
+            return new List<ReferencedProperty>
+            {
+                new ReferencedProperty( EntityTypeCache.GetId<Rock.Model.Attribute>().Value, nameof( Rock.Model.Attribute.Name ) )
+            };
+        }
+
+        #endregion
+
+        #region WebForms
+#if WEBFORMS
 
         /// <summary>
         /// Returns a list of the configuration keys
@@ -121,7 +434,7 @@ namespace Rock.Field.Types
                 if ( controls[0] != null && controls[0] is EntityTypePicker )
                 {
                     string value = string.Empty;
-                    int? entityTypeId = ( (EntityTypePicker)controls[0] ).SelectedValue.AsIntegerOrNull();
+                    int? entityTypeId = ( ( EntityTypePicker ) controls[0] ).SelectedValue.AsIntegerOrNull();
                     if ( entityTypeId.HasValue )
                     {
                         var entityType = EntityTypeCache.Get( entityTypeId.Value );
@@ -135,17 +448,17 @@ namespace Rock.Field.Types
 
                 if ( controls[1] != null && controls[1] is CheckBox )
                 {
-                    configurationValues[ALLOW_MULTIPLE_KEY].Value = ( (CheckBox)controls[1] ).Checked.ToString();
+                    configurationValues[ALLOW_MULTIPLE_KEY].Value = ( ( CheckBox ) controls[1] ).Checked.ToString();
                 }
 
                 if ( controls[2] != null && controls[2] is TextBox )
                 {
-                    configurationValues[QUALIFIER_COLUMN_KEY].Value = ( (TextBox)controls[2] ).Text;
+                    configurationValues[QUALIFIER_COLUMN_KEY].Value = ( ( TextBox ) controls[2] ).Text;
                 }
 
                 if ( controls[3] != null && controls[3] is TextBox )
                 {
-                    configurationValues[QUALIFIER_VALUE_KEY].Value = ( (TextBox)controls[3] ).Text;
+                    configurationValues[QUALIFIER_VALUE_KEY].Value = ( ( TextBox ) controls[3] ).Text;
                 }
             }
 
@@ -173,29 +486,25 @@ namespace Rock.Field.Types
                             value = entityType.Id.ToString();
                         }
                     }
-                    ( (EntityTypePicker)controls[0] ).SelectedValue = value;
+                    ( ( EntityTypePicker ) controls[0] ).SelectedValue = value;
                 }
 
                 if ( controls[1] != null && controls[1] is CheckBox && configurationValues.ContainsKey( ALLOW_MULTIPLE_KEY ) )
                 {
-                    ( (CheckBox)controls[1] ).Checked = configurationValues[ALLOW_MULTIPLE_KEY].Value.AsBoolean();
+                    ( ( CheckBox ) controls[1] ).Checked = configurationValues[ALLOW_MULTIPLE_KEY].Value.AsBoolean();
                 }
 
                 if ( controls[2] != null && controls[2] is TextBox && configurationValues.ContainsKey( QUALIFIER_COLUMN_KEY ) )
                 {
-                    ( (TextBox)controls[2] ).Text = configurationValues[QUALIFIER_COLUMN_KEY].Value;
+                    ( ( TextBox ) controls[2] ).Text = configurationValues[QUALIFIER_COLUMN_KEY].Value;
                 }
 
                 if ( controls[3] != null && controls[3] is TextBox && configurationValues.ContainsKey( QUALIFIER_VALUE_KEY ) )
                 {
-                    ( (TextBox)controls[3] ).Text = configurationValues[QUALIFIER_VALUE_KEY].Value;
+                    ( ( TextBox ) controls[3] ).Text = configurationValues[QUALIFIER_VALUE_KEY].Value;
                 }
             }
         }
-
-        #endregion
-
-        #region Formatting
 
         /// <summary>
         /// Returns the field's current value(s)
@@ -207,56 +516,10 @@ namespace Rock.Field.Types
         /// <returns></returns>
         public override string FormatValue( Control parentControl, string value, Dictionary<string, ConfigurationValue> configurationValues, bool condensed )
         {
-            string formattedValue = string.Empty;
-
-            if ( !string.IsNullOrWhiteSpace( value ) )
-            {
-                var names = new List<string>();
-                foreach ( Guid guid in value.Split( new char[] { ',' }, StringSplitOptions.RemoveEmptyEntries ).AsGuidList() )
-                {
-                    var attribute = AttributeCache.Get( guid );
-                    if ( attribute != null )
-                    {
-                        names.Add( attribute.Name );
-                    }
-                }
-
-                formattedValue = names.AsDelimited( ", " );
-            }
-
-            return base.FormatValue( parentControl, formattedValue, null, condensed );
-
+            return !condensed
+                ? GetTextValue( value, configurationValues.ToDictionary( cv => cv.Key, cv => cv.Value.Value ) )
+                : GetCondensedTextValue( value, configurationValues.ToDictionary( cv => cv.Key, cv => cv.Value.Value ) );
         }
-
-        #endregion
-
-        #region ICachedEntitiesFieldType Members
-        /// <summary>
-        /// Gets the cached attributes.
-        /// </summary>
-        /// <param name="value">The value.</param>
-        /// <returns></returns>
-        public List<IEntityCache> GetCachedEntities( string value )
-        {
-            var attributes = new List<IEntityCache>();
-
-            if ( !string.IsNullOrWhiteSpace( value ) )
-            {
-                foreach ( Guid guid in value.Split( new char[] { ',' }, StringSplitOptions.RemoveEmptyEntries ).AsGuidList() )
-                {
-                    var attribute = AttributeCache.Get( guid );
-                    if ( attribute != null )
-                    {
-                        attributes.Add( attribute );
-                    }
-                }
-            }
-
-            return attributes;
-        }
-        #endregion
-
-        #region Edit Control
 
         /// <summary>
         /// Creates the control(s) necessary for prompting user for a new value
@@ -295,7 +558,7 @@ namespace Rock.Field.Types
                         {
                             attributeQuery = attributeService
                                 .GetByEntityTypeQualifier( entityType.Id, configurationValues[QUALIFIER_COLUMN_KEY].Value, configurationValues[QUALIFIER_VALUE_KEY].Value, true );
-                                
+
                         }
                         else
                         {
@@ -333,7 +596,7 @@ namespace Rock.Field.Types
             {
                 if ( control is Rock.Web.UI.Controls.RockDropDownList )
                 {
-                    ids.Add( ( (ListControl)control ).SelectedValue );
+                    ids.Add( ( ( ListControl ) control ).SelectedValue );
                 }
                 else if ( control is Rock.Web.UI.Controls.RockListBox )
                 {
@@ -399,30 +662,12 @@ namespace Rock.Field.Types
                     }
                     else
                     {
-                        if (control is Rock.Web.UI.Controls.RockDropDownList &&  listControl.Items.Count > 0 )
+                        if ( control is Rock.Web.UI.Controls.RockDropDownList && listControl.Items.Count > 0 )
                         {
                             listControl.SelectedIndex = 0;
                         }
                     }
                 }
-            }
-        }
-
-        #endregion
-
-        #region Filter Control
-
-        /// <summary>
-        /// Gets the type of the filter comparison.
-        /// </summary>
-        /// <value>
-        /// The type of the filter comparison.
-        /// </value>
-        public override ComparisonType FilterComparisonType
-        {
-            get
-            {
-                return ComparisonHelper.ContainsFilterComparisonTypes;
             }
         }
 
@@ -442,13 +687,10 @@ namespace Rock.Field.Types
                 overrideConfigValues.Add( keyVal.Key, keyVal.Value );
             }
             overrideConfigValues.AddOrReplace( ALLOW_MULTIPLE_KEY, new ConfigurationValue( "false" ) );
-            
-            return  base.FilterValueControl( overrideConfigValues, id, required, filterMode );
+
+            return base.FilterValueControl( overrideConfigValues, id, required, filterMode );
         }
 
-        #endregion
-
-        #region IEntityFieldType
         /// <summary>
         /// Gets the edit value as the IEntity.Id
         /// </summary>
@@ -475,33 +717,7 @@ namespace Rock.Field.Types
             SetEditValue( control, configurationValues, guidValue );
         }
 
-        /// <summary>
-        /// Gets the entity.
-        /// </summary>
-        /// <param name="value">The value.</param>
-        /// <returns></returns>
-        public IEntity GetEntity( string value )
-        {
-            return GetEntity( value, null );
-        }
-
-        /// <summary>
-        /// Gets the entity.
-        /// </summary>
-        /// <param name="value">The value.</param>
-        /// <param name="rockContext">The rock context.</param>
-        /// <returns></returns>
-        public IEntity GetEntity( string value, RockContext rockContext )
-        {
-            var guid = value.AsGuidOrNull();
-            if ( guid.HasValue )
-            {
-                rockContext = rockContext ?? new RockContext();
-                return new Model.AttributeService( rockContext ).Get( guid.Value );
-            }
-
-            return null;
-        }
+#endif
         #endregion
     }
 }

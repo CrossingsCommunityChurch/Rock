@@ -15,7 +15,11 @@
 // </copyright>
 //
 using System;
+using System.Collections.Generic;
 using System.Linq;
+
+using Microsoft.Extensions.Logging;
+
 using Rock;
 using Rock.Logging;
 using Rock.Model;
@@ -33,6 +37,7 @@ namespace RockWeb.Blocks.Administration
     [System.ComponentModel.Category( "Administration" )]
     [System.ComponentModel.Description( "Block to edit rock log settings." )]
 
+    [Rock.SystemGuid.BlockTypeGuid( "6ABC44FD-C4D7-4E30-8537-3A065B493453" )]
     public partial class LogSettings : RockBlock
     {
         #region Control Methods
@@ -57,6 +62,7 @@ namespace RockWeb.Blocks.Administration
             if ( !IsUserAuthorized( Authorization.EDIT ) )
             {
                 btnEdit.Visible = false;
+                btnDeleteLog.Visible = false;
             }
 
             if ( !Page.IsPostBack )
@@ -67,8 +73,10 @@ namespace RockWeb.Blocks.Administration
         #endregion
 
         #region Control Events
+
         protected void btnLoggingSave_Click( object sender, EventArgs e )
         {
+            Page.Validate();
             if ( !Page.IsValid || !IsUserAuthorized( Authorization.EDIT ) )
             {
                 return;
@@ -78,15 +86,18 @@ namespace RockWeb.Blocks.Administration
 
             var logConfig = new RockLogSystemSettings
             {
-                LogLevel = rblVerbosityLevel.SelectedValue.ConvertToEnum<RockLogLevel>( RockLogLevel.Off ),
-                DomainsToLog = cblDomainsToLog.SelectedValues,
-                MaxFileSize = txtMaxFileSize.Text.AsInteger(),
-                NumberOfLogFiles = txtFilesToRetain.Text.AsInteger()
+                StandardLogLevel = rblVerbosityLevel.SelectedValue.ConvertToEnum<LogLevel>( LogLevel.None ),
+                StandardCategories = rlbCategoriesToLog.SelectedValues,
+                IsLocalLoggingEnabled = cbLogToLocal.Checked,
+                IsObservabilityLoggingEnabled = cbLogToObservability.Checked,
+                AdvancedSettings = ceCustomConfiguration.Text,
+                MaxFileSize = nbMaxFileSize.Text.AsInteger(),
+                NumberOfLogFiles = nbFilesToRetain.Text.AsInteger()
             };
 
             Rock.Web.SystemSettings.SetValue( SystemSetting.ROCK_LOGGING_SETTINGS, logConfig.ToJson() );
 
-            RockLogger.Log.ReloadConfiguration();
+            RockLogger.ReloadConfiguration();
 
             ShowHideEditForm( false, logConfig );
 
@@ -99,47 +110,72 @@ namespace RockWeb.Blocks.Administration
         {
             nbLoggingMessage.Visible = true;
 
-            RockLogger.Log.Delete();
+            RockLogger.RecycleSerilog();
+            ( RockLogger.LogReader as RockSerilogReader ).Delete();
 
-            ShowHideEditForm( false, null );
-
-            nbLoggingMessage.NotificationBoxType = NotificationBoxType.Success;
-            nbLoggingMessage.Title = string.Empty;
-            nbLoggingMessage.Text = "The log files were successfully deleted.";
+            this.NavigateToCurrentPage();
         }
 
         protected void btnEdit_Click( object sender, EventArgs e )
         {
+            // Hide any previous notifications.
+            nbLoggingMessage.Visible = false;
+
             ShowHideEditForm( true, null );
         }
+
+        protected void btnCancel_Click( object sender, EventArgs e )
+        {
+            ShowHideEditForm( false, null );
+        }
+
+        protected void cbLogToLocal_CheckedChanged( object sender, EventArgs e )
+        {
+            wpLocalSettings.Visible = cbLogToLocal.Checked;
+        }
+
         #endregion
 
         #region Internal Methods
+
         private void BindLoggingSettingsEdit()
         {
-            var logLevel = Enum.GetNames( typeof( RockLogLevel ) );
+            var logLevel = Enum.GetNames( typeof( LogLevel ) );
             rblVerbosityLevel.DataSource = logLevel;
             rblVerbosityLevel.DataBind();
 
-            var definedValues = new DefinedValueService( new Rock.Data.RockContext() ).GetByDefinedTypeGuid( Rock.SystemGuid.DefinedType.LOGGING_DOMAINS.AsGuid() );
-
-            cblDomainsToLog.DataSource = definedValues.ToList();
-            cblDomainsToLog.DataTextField = "Value";
-            cblDomainsToLog.DataValueField = "Value";
-            cblDomainsToLog.DataBind();
-
             var rockConfig = Rock.Web.SystemSettings.GetValue( SystemSetting.ROCK_LOGGING_SETTINGS ).FromJsonOrNull<RockLogSystemSettings>();
+
+            var selectedCategories = rockConfig?.StandardCategories ?? new List<string>();
+            var categories = new List<string>( RockLogger.GetStandardCategories() );
+
+            foreach ( var category in selectedCategories )
+            {
+                if ( !categories.Contains( category ) )
+                {
+                    categories.Add( category );
+                }
+            }
+
+            rlbCategoriesToLog.DataSource = categories;
+            rlbCategoriesToLog.DataBind();
 
             if ( rockConfig == null )
             {
                 return;
             }
 
-            rblVerbosityLevel.SelectedValue = rockConfig.LogLevel.ToString();
-            txtFilesToRetain.Text = rockConfig.NumberOfLogFiles.ToString();
-            txtMaxFileSize.Text = rockConfig.MaxFileSize.ToString();
+            rblVerbosityLevel.SelectedValue = rockConfig.StandardLogLevel.ToString();
+            cbLogToLocal.Checked = rockConfig.IsLocalLoggingEnabled;
+            cbLogToObservability.Checked = rockConfig.IsObservabilityLoggingEnabled;
+            nbFilesToRetain.Text = rockConfig.NumberOfLogFiles.ToString();
+            nbMaxFileSize.Text = rockConfig.MaxFileSize.ToString();
 
-            cblDomainsToLog.SetValues( rockConfig.DomainsToLog );
+            rlbCategoriesToLog.SetValues( selectedCategories );
+
+            wpLocalSettings.Visible = cbLogToLocal.Checked;
+
+            ceCustomConfiguration.Text = rockConfig.AdvancedSettings;
         }
 
         private void BindLoggingSettingsView( RockLogSystemSettings rockConfig )
@@ -154,8 +190,19 @@ namespace RockWeb.Blocks.Administration
                 return;
             }
 
-            litVerbosityLevel.Text = rockConfig.LogLevel.ToString();
-            litDomains.Text = "<div class='col-sm-3'>" + rockConfig.DomainsToLog.JoinStrings( "</div><div class='col-sm-3'>" ) + "</div>";
+            litVerbosityLevel.Text = rockConfig.StandardLogLevel.ToString();
+
+            if ( rockConfig.StandardCategories != null && rockConfig.StandardCategories.Any() )
+            {
+                litCategories.Text = rockConfig.StandardCategories.JoinStrings( "<br>" );
+            }
+            else
+            {
+                litCategories.Text = string.Empty;
+            }
+
+            litLocalFileSystem.Text = rockConfig.IsLocalLoggingEnabled ? "Enabled" : "Disabled";
+            litObservability.Text = rockConfig.IsObservabilityLoggingEnabled ? "Enabled" : "Disabled";
         }
 
         private void ShowHideEditForm( bool showEditForm, RockLogSystemSettings rockConfig )
@@ -175,6 +222,7 @@ namespace RockWeb.Blocks.Administration
                 BindLoggingSettingsView( rockConfig );
             }
         }
+
         #endregion
     }
 }

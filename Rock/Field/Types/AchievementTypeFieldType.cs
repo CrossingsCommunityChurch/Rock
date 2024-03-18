@@ -14,11 +14,17 @@
 // limitations under the License.
 // </copyright>
 //
-using System.Collections.Generic;
-using System.Linq;
-using Rock.Model;
 using System;
+using System.Collections.Generic;
+using System.Data.Entity;
+using System.Linq;
+#if WEBFORMS
 using System.Web.UI.WebControls;
+#endif
+using Rock.Attribute;
+using Rock.Data;
+using Rock.Model;
+using Rock.ViewModels.Utility;
 using Rock.Web.Cache;
 
 namespace Rock.Field.Types
@@ -26,8 +32,38 @@ namespace Rock.Field.Types
     /// <summary>
     /// Field Type used to display a dropdown list of achievement types and allow a single selection.
     /// </summary>
-    public class AchievementTypeFieldType : EntitySingleSelectionListFieldTypeBase<AchievementType>
+    [FieldTypeUsage( FieldTypeUsage.System )]
+    [RockPlatformSupport( Utility.RockPlatform.WebForms, Utility.RockPlatform.Obsidian )]
+    [Rock.SystemGuid.FieldTypeGuid( Rock.SystemGuid.FieldType.ACHIEVEMENT_TYPE )]
+    public class AchievementTypeFieldType : EntitySingleSelectionListFieldTypeBase<AchievementType>, IEntityReferenceFieldType
     {
+        private const string VALUES_PUBLIC_KEY = "values";
+
+        #region Configuration
+
+        /// <inheritdoc/>
+        public override Dictionary<string, string> GetPublicConfigurationValues( Dictionary<string, string> privateConfigurationValues, ConfigurationValueUsage usage, string privateValue )
+        {
+            var publicConfigurationValues = base.GetPublicConfigurationValues( privateConfigurationValues, usage, privateValue );
+
+            using ( var rockContext = new RockContext() )
+            {
+                publicConfigurationValues[VALUES_PUBLIC_KEY] = AchievementTypeCache.All()
+                    .Where( s => s.IsActive )
+                    .OrderBy( o => o.Name )
+                    .Select( o => new ListItemBag
+                    {
+                        Value = o.Guid.ToString(),
+                        Text = o.Name
+                    } )
+                    .ToCamelCaseJson( false, true );
+            }
+
+            return publicConfigurationValues;
+        }
+
+        #endregion
+
         /// <summary>
         /// Returns a user-friendly description of the entity.
         /// </summary>
@@ -36,7 +72,7 @@ namespace Rock.Field.Types
         protected override string OnFormatValue( Guid entityGuid )
         {
             var entity = GetEntity( entityGuid.ToString() );
-            return entity.Name;
+            return entity?.Name ?? string.Empty;
         }
 
         /// <summary>
@@ -55,5 +91,43 @@ namespace Rock.Field.Types
                 } )
                 .ToDictionary( s => s.Guid, s => s.Name );
         }
+
+        #region IEntityReferenceFieldType
+
+        /// <inheritdoc/>
+        List<ReferencedEntity> IEntityReferenceFieldType.GetReferencedEntities( string privateValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            var guid = privateValue.AsGuidOrNull();
+
+            if ( !guid.HasValue )
+            {
+                return null;
+            }
+
+            var achievementType = AchievementTypeCache.Get( guid.Value );
+
+            if ( achievementType == null )
+            {
+                return null;
+            }
+
+            return new List<ReferencedEntity>
+            {
+                new ReferencedEntity( EntityTypeCache.GetId<AchievementType>().Value, achievementType.Id )
+            };
+        }
+
+        /// <inheritdoc/>
+        List<ReferencedProperty> IEntityReferenceFieldType.GetReferencedProperties( Dictionary<string, string> privateConfigurationValues )
+        {
+            // This field type references the Name property of a AchievementType and
+            // should have its persisted values updated when changed.
+            return new List<ReferencedProperty>
+            {
+                new ReferencedProperty( EntityTypeCache.GetId<AchievementType>().Value, nameof( AchievementType.Name ) )
+            };
+        }
+
+        #endregion
     }
 }

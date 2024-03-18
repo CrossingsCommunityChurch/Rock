@@ -17,8 +17,12 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+#if WEBFORMS
 using System.Web.UI;
-
+#endif
+using Rock.Attribute;
+using Rock.Security;
+using Rock.ViewModels.Utility;
 using Rock.Web.Cache;
 using Rock.Web.UI.Controls;
 
@@ -28,10 +32,100 @@ namespace Rock.Field.Types
     /// Field Type used to display a checkbox list of MEF Components of a specific type
     /// </summary>
     [Serializable]
+    [FieldTypeUsage( FieldTypeUsage.System )]
+    [RockPlatformSupport( Utility.RockPlatform.WebForms, Utility.RockPlatform.Obsidian )]
+    [Rock.SystemGuid.FieldTypeGuid( Rock.SystemGuid.FieldType.REMOTE_AUTHS )]
     public class RemoteAuthsFieldType : FieldType
     {
+        #region Configuration
+
+        private const string VALUES_PUBLIC_KEY = "values";
+
+        /// <inheritdoc/>
+        public override Dictionary<string, string> GetPublicConfigurationValues( Dictionary<string, string> privateConfigurationValues, ConfigurationValueUsage usage, string value )
+        {
+            var configurationValues = base.GetPublicConfigurationValues( privateConfigurationValues, usage, value );
+
+            var values = new List<ListItemBag>();
+            foreach ( var serviceEntry in AuthenticationContainer.Instance.Components )
+            {
+                var component = serviceEntry.Value.Value;
+
+                if ( component.IsActive && component.RequiresRemoteAuthentication )
+                {
+                    var entityType = EntityTypeCache.Get( component.GetType() );
+                    if ( entityType != null && entityType.Guid != SystemGuid.EntityType.AUTHENTICATION_PIN.AsGuid() )
+                    {
+                        values.Add( new ListItemBag() { Text = entityType.FriendlyName, Value = entityType.Guid.ToString() } );
+                    }
+                }
+            }
+
+            configurationValues[VALUES_PUBLIC_KEY] = values.ToCamelCaseJson( false, true );
+
+            return configurationValues;
+        }
+
+        /// <inheritdoc/>
+        public override Dictionary<string, string> GetPrivateConfigurationValues( Dictionary<string, string> publicConfigurationValues )
+        {
+            var configurationValues = base.GetPrivateConfigurationValues( publicConfigurationValues );
+
+            configurationValues.Remove( VALUES_PUBLIC_KEY );
+
+            return configurationValues;
+        }
+
+        #endregion
 
         #region Formatting
+
+        /// <inheritdoc/>
+        public override string GetTextValue( string privateValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            if ( privateValue.IsNullOrWhiteSpace() )
+            {
+                return string.Empty;
+            }
+
+            var names = new List<string>();
+            var selectedGuids = privateValue
+                .SplitDelimitedValues()
+                .AsGuidList();
+
+            foreach ( Guid guid in selectedGuids )
+            {
+                var entityType = EntityTypeCache.Get( guid );
+                if ( entityType != null )
+                {
+                    names.Add( entityType.FriendlyName );
+                }
+            }
+
+            return names.AsDelimited( ", " );
+        }
+
+        #endregion
+
+        #region Edit Control
+
+        #endregion 
+
+        #region Filter Control
+
+        /// <summary>
+        /// Determines whether this filter has a filter control
+        /// </summary>
+        /// <returns></returns>
+        public override bool HasFilterControl()
+        {
+            return false;
+        }
+
+        #endregion
+
+        #region WebForms
+#if WEBFORMS
 
         /// <summary>
         /// Returns the field's current value(s)
@@ -43,33 +137,11 @@ namespace Rock.Field.Types
         /// <returns></returns>
         public override string FormatValue( Control parentControl, string value, Dictionary<string, ConfigurationValue> configurationValues, bool condensed )
         {
-            string formattedValue = string.Empty;
-
-            var names = new List<string>();
-
-            if ( !string.IsNullOrWhiteSpace( value ) )
-            {
-                var selectedGuids = new List<Guid>();
-                value.SplitDelimitedValues().ToList().ForEach( v => selectedGuids.Add( Guid.Parse( v ) ) );
-
-                foreach( Guid guid in selectedGuids)
-                {
-                    var entityType = EntityTypeCache.Get( guid );
-                    if ( entityType != null )
-                    {
-                        names.Add( entityType.FriendlyName );
-                    }
-                }
-            }
-
-            formattedValue = names.AsDelimited( ", " );
-
-            return base.FormatValue( parentControl, formattedValue, null, condensed );
+            return !condensed
+                ? GetTextValue( value, configurationValues.ToDictionary( cv => cv.Key, cv => cv.Value.Value ) )
+                : GetCondensedTextValue( value, configurationValues.ToDictionary( cv => cv.Key, cv => cv.Value.Value ) );
         }
 
-        #endregion
-
-        #region Edit Control
 
         /// <summary>
         /// Creates the control(s) necessary for prompting user for a new value
@@ -83,7 +155,7 @@ namespace Rock.Field.Types
         {
             try
             {
-                return new RemoteAuthsPicker { ID = id }; 
+                return new RemoteAuthsPicker { ID = id };
             }
             catch ( SystemException ex )
             {
@@ -101,7 +173,7 @@ namespace Rock.Field.Types
         {
             if ( control != null && control is RemoteAuthsPicker )
             {
-                return ( (RemoteAuthsPicker)control ).SelectedValues.AsDelimited( "|" );
+                return ( ( RemoteAuthsPicker ) control ).SelectedValues.AsDelimited( "|" );
             }
             return null;
         }
@@ -122,10 +194,6 @@ namespace Rock.Field.Types
             }
         }
 
-        #endregion 
-
-        #region Filter Control
-
         /// <summary>
         /// Creates the control needed to filter (query) values using this field type.
         /// </summary>
@@ -140,15 +208,7 @@ namespace Rock.Field.Types
             return null;
         }
 
-        /// <summary>
-        /// Determines whether this filter has a filter control
-        /// </summary>
-        /// <returns></returns>
-        public override bool HasFilterControl()
-        {
-            return false;
-        }
-
+#endif
         #endregion
 
     }

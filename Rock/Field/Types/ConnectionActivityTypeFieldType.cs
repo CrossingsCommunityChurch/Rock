@@ -18,11 +18,15 @@ using System;
 using System.Collections.Generic;
 using System.Data.Entity;
 using System.Linq;
+#if WEBFORMS
 using System.Web.UI;
 using System.Web.UI.WebControls;
-
+#endif
+using Rock.Attribute;
 using Rock.Data;
 using Rock.Model;
+using Rock.ViewModels.Utility;
+using Rock.Web.Cache;
 using Rock.Web.UI.Controls;
 
 namespace Rock.Field.Types
@@ -31,15 +35,245 @@ namespace Rock.Field.Types
     /// Field Type used to display a dropdown list of Connection Activity Types.
     /// The selected value is stored as a Guid.
     /// </summary>
-    public class ConnectionActivityTypeFieldType : FieldType, IEntityFieldType
+    [FieldTypeUsage( FieldTypeUsage.System )]
+    [RockPlatformSupport( Utility.RockPlatform.WebForms, Utility.RockPlatform.Obsidian )]
+    [Rock.SystemGuid.FieldTypeGuid( Rock.SystemGuid.FieldType.CONNECTION_ACTIVITY_TYPE )]
+    public class ConnectionActivityTypeFieldType : FieldType, IEntityFieldType, IEntityReferenceFieldType
     {
         #region Configuration
 
         private const string INCLUDE_INACTIVE_KEY = "includeInactive";
         private const string CONNECTION_TYPE_FILTER = "connectionTypeFilter";
+        private const string CONNECTION_TYPE_OPTIONS = "connectionTypeOptions";
+        private const string CLIENT_VALUES = "values";
 
         private const string HELP_TEXT_INCLUDE_INACTIVE = "When set, inactive activity types will be included in the list.";
         private const string HELP_TEXT_CONNECTION_TYPE = "Select a Connection Type to limit selection to a specific connection type. Leave blank to allow selection of activity types from any connection type";
+
+        /// <inheritdoc />
+        public override Dictionary<string, string> GetPublicEditConfigurationProperties( Dictionary<string, string> privateConfigurationValues )
+        {
+            var configurationProperties = base.GetPublicEditConfigurationProperties( privateConfigurationValues );
+
+            if ( !configurationProperties.ContainsKey( CONNECTION_TYPE_OPTIONS ) )
+            {
+                var connectionTypes = ConnectionTypeCache.All().ToListItemBagList();
+                configurationProperties[CONNECTION_TYPE_OPTIONS] = connectionTypes.ToCamelCaseJson(false, true);
+            }
+
+            return configurationProperties;
+        }
+
+        #endregion
+
+        #region Formatting
+
+        /// <inheritdoc />
+        public override string GetTextValue( string privateValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            var guid = privateValue.AsGuidOrNull();
+
+            if ( guid.HasValue )
+            {
+                using ( var rockContext = new RockContext() )
+                {
+                    var activityTypeName = new ConnectionActivityTypeService( rockContext ).GetSelect( guid.Value, cat => cat.Name );
+
+                    return activityTypeName ?? string.Empty;
+                }
+            }
+
+            return string.Empty;
+        }
+
+        #endregion
+
+        #region Edit Control
+
+        /// <inheritdoc />
+        public override string GetPublicValue( string privateValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            return GetTextValue( privateValue, privateConfigurationValues );
+        }
+
+        /// <inheritdoc />
+        public override string GetPublicEditValue( string privateValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            // The default implementation GetPublicEditValue calls GetTextValue which in this case has been overridden to return the
+            // name of the ConnectionActivityType, but what we actually need when editing is the saved Guid for the dropdown clientside,
+            // so the private value(guid) is returned.
+            return privateValue;
+        }
+
+        /// <inheritdoc />
+        public override Dictionary<string, string> GetPublicConfigurationValues( Dictionary<string, string> privateConfigurationValues, ConfigurationValueUsage usage, string value )
+        {
+            var configurationValues = base.GetPublicConfigurationValues( privateConfigurationValues, usage, value );
+
+            if ( usage != ConfigurationValueUsage.View )
+            {
+                using ( var rockContext = new RockContext() )
+                {
+                    if ( configurationValues.ContainsKey( CONNECTION_TYPE_FILTER ) )
+                    {
+                        var connectionTypeFilterId = configurationValues[CONNECTION_TYPE_FILTER].AsIntegerOrNull();
+                        var connectionType = ConnectionTypeCache.Get( connectionTypeFilterId ?? 0 );
+
+                        if ( connectionType != null )
+                        {
+                            configurationValues[CONNECTION_TYPE_FILTER] = connectionType.ToListItemBag().ToCamelCaseJson( false, true );
+                        }
+                    }
+
+                var includeInactive = configurationValues.ContainsKey( INCLUDE_INACTIVE_KEY ) && configurationValues[INCLUDE_INACTIVE_KEY].AsBoolean();
+                var query = new ConnectionActivityTypeService( rockContext )
+                    .Queryable()
+                    .Where( ca => ca.IsActive || includeInactive )
+                    .AsNoTracking();
+
+                    var clientValues = query.OrderBy( o => o.ConnectionType.Name )
+                        .ThenBy( o => o.Name )
+                        .Select( o => new ListItemBag()
+                        {
+                            Value = o.Guid.ToString().ToUpper(),
+                            Text = o.Name,
+                            Category = o.ConnectionType.Name
+                        } )
+                        .ToList();
+
+                    configurationValues[CLIENT_VALUES] = clientValues.ToCamelCaseJson( false, true );
+                }
+            }
+
+            return configurationValues;
+        }
+
+        /// <inheritdoc />
+        public override Dictionary<string, string> GetPrivateConfigurationValues( Dictionary<string, string> publicConfigurationValues )
+        {
+            var configurationValues = base.GetPrivateConfigurationValues( publicConfigurationValues );
+
+            if ( configurationValues.ContainsKey( CONNECTION_TYPE_FILTER ) )
+            {
+                var jsonValue = configurationValues[CONNECTION_TYPE_FILTER].FromJsonOrNull<ListItemBag>();
+                if ( jsonValue != null && Guid.TryParse( jsonValue.Value, out Guid guid ) )
+                {
+                    var connectionType = ConnectionTypeCache.Get( guid );
+                    configurationValues[CONNECTION_TYPE_FILTER] = connectionType?.Id.ToString();
+                }
+            }
+
+            configurationValues.Remove( CLIENT_VALUES );
+
+            return configurationValues;
+        }
+
+        #endregion
+
+        #region Entity Methods
+
+        /// <summary>
+        /// Gets the entity.
+        /// </summary>
+        /// <param name="value">The value.</param>
+        /// <returns></returns>
+        public IEntity GetEntity( string value )
+        {
+            return GetEntity( value, null );
+        }
+
+        /// <summary>
+        /// Gets the entity.
+        /// </summary>
+        /// <param name="value">The value.</param>
+        /// <param name="rockContext">The rock context.</param>
+        /// <returns></returns>
+        public IEntity GetEntity( string value, RockContext rockContext )
+        {
+            var guid = value.AsGuidOrNull();
+
+            if ( guid.HasValue )
+            {
+                rockContext = rockContext ?? new RockContext();
+                return new ConnectionActivityTypeService( rockContext ).Get( guid.Value );
+            }
+
+            return null;
+        }
+
+        #endregion
+
+        #region Persistence
+
+        /// <inheritdoc/>
+        public override PersistedValues GetPersistedValues( string privateValue, Dictionary<string, string> privateConfigurationValues, IDictionary<string, object> cache )
+        {
+            if ( string.IsNullOrWhiteSpace( privateValue ) )
+            {
+                return new PersistedValues
+                {
+                    TextValue = string.Empty,
+                    CondensedTextValue = string.Empty,
+                    HtmlValue = string.Empty,
+                    CondensedHtmlValue = string.Empty
+                };
+            }
+
+            var textValue = GetTextValue( privateValue, privateConfigurationValues );
+            var condensedTextValue = textValue.Truncate( CondensedTruncateLength );
+
+            return new PersistedValues
+            {
+                TextValue = textValue,
+                CondensedTextValue = condensedTextValue,
+                HtmlValue = textValue,
+                CondensedHtmlValue = condensedTextValue
+            };
+        }
+
+        #endregion
+
+        #region IEntityReferenceFieldType
+
+        /// <inheritdoc/>
+        List<ReferencedEntity> IEntityReferenceFieldType.GetReferencedEntities( string privateValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            Guid? guid = privateValue.AsGuidOrNull();
+
+            if ( !guid.HasValue )
+            {
+                return null;
+            }
+
+            using ( var rockContext = new RockContext() )
+            {
+                var opportunityId = new ConnectionActivityTypeService( rockContext ).GetId( guid.Value );
+
+                if ( !opportunityId.HasValue )
+                {
+                    return null;
+                }
+
+                return new List<ReferencedEntity>()
+                {
+                    new ReferencedEntity( EntityTypeCache.GetId<ConnectionActivityType>().Value, opportunityId.Value )
+                };
+            }
+        }
+
+        /// <inheritdoc/>
+        List<ReferencedProperty> IEntityReferenceFieldType.GetReferencedProperties( Dictionary<string, string> privateConfigurationValues )
+        {
+            return new List<ReferencedProperty>
+            {
+                new ReferencedProperty( EntityTypeCache.GetId<ConnectionActivityType>().Value, nameof( ConnectionActivityType.Name ) )
+            };
+        }
+
+        #endregion
+
+        #region WebForms
+#if WEBFORMS
 
         /// <summary>
         /// Returns a list of the configuration keys.
@@ -136,10 +370,6 @@ namespace Rock.Field.Types
             }
         }
 
-        #endregion
-
-        #region Formatting
-
         /// <summary>
         /// Returns the field's current value(s)
         /// </summary>
@@ -150,27 +380,10 @@ namespace Rock.Field.Types
         /// <returns></returns>
         public override string FormatValue( Control parentControl, string value, Dictionary<string, ConfigurationValue> configurationValues, bool condensed )
         {
-            var formattedValue = string.Empty;
-            var guid = value.AsGuidOrNull();
-
-            if ( guid.HasValue )
-            {
-                using ( var rockContext = new RockContext() )
-                {
-                    var activityType = new ConnectionActivityTypeService( rockContext ).GetNoTracking( guid.Value );
-                    if ( activityType != null )
-                    {
-                        formattedValue = activityType.Name;
-                    }
-                }
-            }
-
-            return base.FormatValue( parentControl, formattedValue, configurationValues, condensed );
+            return !condensed
+                ? GetTextValue( value, configurationValues.ToDictionary( cv => cv.Key, cv => cv.Value.Value ) )
+                : GetCondensedTextValue( value, configurationValues.ToDictionary( cv => cv.Key, cv => cv.Value.Value ) );
         }
-
-        #endregion
-
-        #region Edit Control
 
         /// <summary>
         /// Creates the control(s) necessary for prompting user for a new value
@@ -207,7 +420,7 @@ namespace Rock.Field.Types
                 foreach ( var activityType in activityTypes )
                 {
                     if ( connectionTypeFilterId != null
-                         && (activityType.ConnectionType == null || activityType.ConnectionType.Id != connectionTypeFilterId ) )
+                         && ( activityType.ConnectionType == null || activityType.ConnectionType.Id != connectionTypeFilterId ) )
                     {
                         continue;
                     }
@@ -263,10 +476,6 @@ namespace Rock.Field.Types
             }
         }
 
-        #endregion
-
-        #region Entity Methods
-
         /// <summary>
         /// Gets the edit value as the IEntity.Id
         /// </summary>
@@ -296,35 +505,7 @@ namespace Rock.Field.Types
             SetEditValue( control, configurationValues, guidValue );
         }
 
-        /// <summary>
-        /// Gets the entity.
-        /// </summary>
-        /// <param name="value">The value.</param>
-        /// <returns></returns>
-        public IEntity GetEntity( string value )
-        {
-            return GetEntity( value, null );
-        }
-
-        /// <summary>
-        /// Gets the entity.
-        /// </summary>
-        /// <param name="value">The value.</param>
-        /// <param name="rockContext">The rock context.</param>
-        /// <returns></returns>
-        public IEntity GetEntity( string value, RockContext rockContext )
-        {
-            var guid = value.AsGuidOrNull();
-
-            if ( guid.HasValue )
-            {
-                rockContext = rockContext ?? new RockContext();
-                return new ConnectionActivityTypeService( rockContext ).Get( guid.Value );
-            }
-
-            return null;
-        }
-
+#endif
         #endregion
     }
 }

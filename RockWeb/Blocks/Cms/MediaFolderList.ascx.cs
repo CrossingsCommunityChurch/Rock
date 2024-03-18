@@ -45,6 +45,7 @@ namespace RockWeb.Blocks.Cms
         Key = AttributeKey.DetailPage,
         Order = 0 )]
 
+    [Rock.SystemGuid.BlockTypeGuid( "02A91579-9355-45E7-A67A-56E998FB332A" )]
     public partial class MediaFolderList : RockBlock, ICustomGridColumns, ISecondaryBlock
     {
         #region Attribute Keys
@@ -190,7 +191,7 @@ namespace RockWeb.Blocks.Cms
         /// <param name="e">The <see cref="EventArgs" /> instance containing the event data.</param>
         protected void gfFilter_ApplyFilterClick( object sender, EventArgs e )
         {
-            gfFilter.SaveUserPreference( UserPreferenceKey.Name, txtFolderName.Text );
+            gfFilter.SetFilterPreference( UserPreferenceKey.Name, txtFolderName.Text );
 
             BindGrid();
         }
@@ -202,7 +203,7 @@ namespace RockWeb.Blocks.Cms
         /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
         protected void gfFilter_ClearFilterClick( object sender, EventArgs e )
         {
-            gfFilter.DeleteUserPreferences();
+            gfFilter.DeleteFilterPreferences();
             BindFilter();
         }
 
@@ -229,6 +230,42 @@ namespace RockWeb.Blocks.Cms
             if ( _mediaAccount != null )
             {
                 BindGrid();
+            }
+        }
+
+        /// <summary>
+        /// Handles the RowDataBound event of the gFolderList control.
+        /// </summary>
+        /// <param name="sender">The source of the event.</param>
+        /// <param name="e">The <see cref="GridViewRowEventArgs"/> instance containing the event data.</param>
+        protected void gFolderList_RowDataBound( object sender, GridViewRowEventArgs e )
+        {
+            if ( e.Row.RowType != DataControlRowType.DataRow )
+            {
+                return;
+            }
+
+            dynamic folderRow = e.Row.DataItem;
+            if ( folderRow == null )
+            {
+                return;
+            }
+
+            var lWatchCount = e.Row.FindControl( "lWatchCount" ) as Literal;
+            if ( lWatchCount != null )
+            {
+                var folderId = (int)folderRow.Id;
+                var rockContext = new RockContext();
+                var interactionChannelId = InteractionChannelCache.GetId( Rock.SystemGuid.InteractionChannel.MEDIA_EVENTS.AsGuid() );
+                var mediaElementIdQry = new MediaElementService( rockContext ).Queryable().Where( a => a.MediaFolderId == folderId ).Select( a => ( int? ) a.Id );
+                var interactionComponentQry = new InteractionComponentService( rockContext )
+                    .Queryable()
+                    .Where( c => c.InteractionChannelId == interactionChannelId && mediaElementIdQry.Contains( c.EntityId ) )
+                    .Select( a => a.Id );
+                var watchCountQry = new InteractionService( rockContext )
+                    .Queryable()
+                    .Where( a => a.Operation == "Watch" );
+                lWatchCount.Text = watchCountQry.Where( b => interactionComponentQry.Contains( b.InteractionComponentId ) ).Count().ToStringSafe();
             }
         }
 
@@ -297,7 +334,7 @@ namespace RockWeb.Blocks.Cms
         /// </summary>
         private void BindFilter()
         {
-            txtFolderName.Text = gfFilter.GetUserPreference( UserPreferenceKey.Name );
+            txtFolderName.Text = gfFilter.GetFilterPreference( UserPreferenceKey.Name );
         }
 
         /// <summary>
@@ -312,7 +349,7 @@ namespace RockWeb.Blocks.Cms
             var qry = mediaFolderService.Queryable().AsNoTracking().Where( a => a.MediaAccountId == _mediaAccount.Id );
 
             // name filter
-            string nameFilter = gfFilter.GetUserPreference( UserPreferenceKey.Name );
+            string nameFilter = gfFilter.GetFilterPreference( UserPreferenceKey.Name );
             if ( !string.IsNullOrEmpty( nameFilter ) )
             {
                 qry = qry.Where( a => a.Name.Contains( nameFilter ) );

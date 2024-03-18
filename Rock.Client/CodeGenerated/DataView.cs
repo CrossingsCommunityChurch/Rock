@@ -44,6 +44,9 @@ namespace Rock.Client
         public string Description { get; set; }
 
         /// <summary />
+        public bool DisableUseOfReadOnlyContext { get; set; }
+
+        /// <summary />
         public int? EntityTypeId { get; set; }
 
         /// <summary />
@@ -51,6 +54,12 @@ namespace Rock.Client
 
         /// <summary />
         public string ForeignKey { get; set; }
+
+        /// <summary />
+        public string HighlightColor { get; set; }
+
+        /// <summary />
+        public string IconCssClass { get; set; }
 
         /// <summary />
         public bool IncludeDeceased { get; set; }
@@ -74,6 +83,9 @@ namespace Rock.Client
 
         /// <summary />
         public int? PersistedLastRunDurationMilliseconds { get; set; }
+
+        /// <summary />
+        public int? PersistedScheduleId { get; set; }
 
         /// <summary />
         public int? PersistedScheduleIntervalMinutes { get; set; }
@@ -126,9 +138,12 @@ namespace Rock.Client
             this.CategoryId = source.CategoryId;
             this.DataViewFilterId = source.DataViewFilterId;
             this.Description = source.Description;
+            this.DisableUseOfReadOnlyContext = source.DisableUseOfReadOnlyContext;
             this.EntityTypeId = source.EntityTypeId;
             this.ForeignGuid = source.ForeignGuid;
             this.ForeignKey = source.ForeignKey;
+            this.HighlightColor = source.HighlightColor;
+            this.IconCssClass = source.IconCssClass;
             this.IncludeDeceased = source.IncludeDeceased;
             this.IsSystem = source.IsSystem;
             this.LastRunDateTime = source.LastRunDateTime;
@@ -136,6 +151,7 @@ namespace Rock.Client
             this.Name = source.Name;
             this.PersistedLastRefreshDateTime = source.PersistedLastRefreshDateTime;
             this.PersistedLastRunDurationMilliseconds = source.PersistedLastRunDurationMilliseconds;
+            this.PersistedScheduleId = source.PersistedScheduleId;
             this.PersistedScheduleIntervalMinutes = source.PersistedScheduleIntervalMinutes;
             this.RunCount = source.RunCount;
             this.RunCountLastRefreshDateTime = source.RunCountLastRefreshDateTime;
@@ -164,6 +180,9 @@ namespace Rock.Client
 
         /// <summary />
         public EntityType EntityType { get; set; }
+
+        /// <summary />
+        public Schedule PersistedSchedule { get; set; }
 
         /// <summary />
         public EntityType TransformEntityType { get; set; }

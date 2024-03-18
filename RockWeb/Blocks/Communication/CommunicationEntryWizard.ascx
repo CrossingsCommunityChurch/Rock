@@ -52,12 +52,11 @@
                                         </div>
                                         <div class="col-sm-4">
                                             <asp:LinkButton
-                                                ID="btnManualList"
+                                                ID="btnRecipientList"
                                                 CausesValidation="false"
                                                 runat="server"
                                                 CssClass="btn btn-link btn-xs text-primary pull-right"
-                                                Text="Manual List"
-                                                OnClick="btnManualList_Click" />
+                                                OnClick="btnRecipientList_Click" />
                                         </div>
                                     </div>
 
@@ -135,72 +134,103 @@
                             OnClick="btnRecipientSelectionNext_Click" />
                     </div>
 
+                     <%-- Recipient Selection: Communication List Recipients Modal --%>
+                    <Rock:ModalDialog Id="mdCommunicationListRecipients" runat="server" Title="Communication List Recipients">
+                        <Content>
+                            <Rock:NotificationBox ID="nbListWarning" runat="server" NotificationBoxType="Info" />
+                            <Rock:Grid ID="gRecipientList" runat="server" OnRowDataBound="gRecipientList_RowDataBound">
+                                <Columns>
+                                    <asp:BoundField DataField="NickName" HeaderText="First Name" SortExpression="NickName" />
+                                    <asp:BoundField DataField="LastName" HeaderText="Last Name" SortExpression="LastName" />
+                                    <Rock:RockLiteralField ID="lRecipientListAlert" HeaderText="Notes" />
+                                    <Rock:RockLiteralField ID="lRecipientListAlertEmail" HeaderText="Email" />
+                                    <Rock:RockLiteralField ID="lRecipientListAlertSMS" HeaderText="SMS" />
+                                </Columns>
+                            </Rock:Grid>
+                        </Content>
+                    </Rock:ModalDialog>
+
                 </asp:Panel>
 
                 <%-- Recipient List --%>
-                <asp:Panel ID="pnlIndividualRecipientList" CssClass="js-navigation-panel d-flex flex-column h-100" runat="server" Visible="false">
-                                <div>
-                                    <h1 class="step-title text-break">Recipient List</h1>
-                                    <p>Below is a listing of your current recipients. You can add or remove individuals from this list before continuing.</p>
-                                    <hr />
+                <asp:Panel ID="pnlIndividualRecipientPanel" CssClass="js-navigation-panel d-flex flex-column h-100" runat="server" Visible="false">
+                    <div>
+                        <h1 class="step-title text-break">Recipient List</h1>
+                        <p>
+                            <asp:Literal ID="lIndividualRecipientPanelCaption" runat="server" />
+                        </p>
+                        <hr />
 
-                                    <asp:ValidationSummary
-                                        ID="vsIndividualRecipientList"
-                                        runat="server"
-                                        HeaderText="Please correct the following:"
-                                        ValidationGroup="vsIndividualRecipientList"
-                                        CssClass="alert alert-warning" />
+                        <asp:ValidationSummary
+                            ID="vsIndividualRecipientList"
+                            runat="server"
+                            HeaderText="Please correct the following:"
+                            ValidationGroup="vsIndividualRecipientList"
+                            CssClass="alert alert-warning" />
 
-                                    <Rock:NotificationBox
-                                        ID="nbIndividualListWarning"
-                                        runat="server"
-                                        NotificationBoxType="Validation" />
+                        <Rock:NotificationBox
+                            ID="nbIndividualListWarning"
+                            runat="server"
+                            NotificationBoxType="Validation" />
 
-                                    <div class="d-flex margin-b-md">
-                                        <div class="mr-sm-auto">
-                                            <Rock:PersonPicker
-                                                ID="ppAddPerson"
-                                                runat="server"
-                                                CssClass="picker-menu-left"
-                                                Label="Person"
-                                                PersonName="Add Person"
-                                                OnSelectPerson="ppAddPerson_SelectPerson"
-                                                EnableSelfSelection="true" />
-                                        </div>
-                                        <div class="ml-sm-auto mt-auto form-group">
-                                            <asp:Panel ID="pnlIndividualRecipientListCount" runat="server" CssClass="label label-info">
-                                                <asp:Literal ID="lIndividualRecipientListCount" runat="server" Text="" />
-                                            </asp:Panel>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="position-relative flex-fill styled-scroll" style="min-height:200px;">
-                                    <div class="position-absolute inset-0 overflow-auto">
-                                    <Rock:Grid
-                                        ID="gIndividualRecipients"
-                                        runat="server"
-                                        DisplayType="Light"
-                                        OnRowDataBound="gIndividualRecipients_RowDataBound"
-                                        HideDeleteButtonForIsSystem="false"
-                                        ShowConfirmDeleteDialog="false">
-                                        <Columns>
-                                            <Rock:SelectField></Rock:SelectField>
-                                            <asp:BoundField DataField="FullName" HeaderText="Name" SortExpression="FullName" />
-                                            <Rock:RockLiteralField ID="lRecipientAlertEmail" HeaderText="Email" />
-                                            <Rock:RockLiteralField ID="lRecipientAlertSMS" HeaderText="SMS" />
-                                            <Rock:RockLiteralField ID="lRecipientAlert" HeaderText="Notes" />
-                                            <Rock:DeleteField OnClick="gIndividualRecipients_DeleteClick" />
-                                        </Columns>
-                                    </Rock:Grid>
-                                    </div>
-                                </div>
-                                <div class="my-3">
-                                        <asp:LinkButton ID="btnDeleteSelectedRecipients"
-                                            runat="server"
-                                            CssClass="btn btn-xs btn-outline-primary"
-                                            OnClick="btnDeleteSelectedRecipients_Click"
-                                            Text="Remove Selected" />
-                                </div>
+                        <div class="d-flex margin-b-md">
+                            <div class="mr-sm-auto">
+                                <Rock:PersonPicker
+                                    ID="ppAddPerson"
+                                    runat="server"
+                                    CssClass="picker-menu-left"
+                                    Label="Person"
+                                    PersonName="Add Person"
+                                    OnSelectPerson="ppAddPerson_SelectPerson"
+                                    EnableSelfSelection="true" />
+                            </div>
+                            <div class="ml-sm-auto mt-auto form-group">
+                                <asp:Panel ID="pnlIndividualRecipientListCount" runat="server" CssClass="label label-info">
+                                    <asp:Literal ID="lIndividualRecipientListCount" runat="server" Text="" />
+                                </asp:Panel>
+                            </div>
+                        </div>
+                    </div>
+
+                    <%-- Recipient List Panel --%>
+                    <asp:Panel ID="pnlIndividualRecipientList" runat="server" Visible="false">
+                        <div class="position-relative flex-fill styled-scroll" style="min-height: 200px;">
+                            <Rock:Grid
+                                ID="gIndividualRecipients"
+                                runat="server"
+                                DisplayType="Light"
+                                OnRowDataBound="gIndividualRecipients_RowDataBound"
+                                HideDeleteButtonForIsSystem="false"
+                                ShowConfirmDeleteDialog="false">
+                                <Columns>
+                                    <Rock:SelectField></Rock:SelectField>
+                                    <asp:BoundField DataField="FullName" HeaderText="Name" SortExpression="FullName" />
+                                    <Rock:RockLiteralField ID="lRecipientAlertEmail" HeaderText="Email" />
+                                    <Rock:RockLiteralField ID="lRecipientAlertSMS" HeaderText="SMS" />
+                                    <Rock:RockLiteralField ID="lRecipientAlert" HeaderText="Notes" />
+                                    <Rock:DeleteField OnClick="gIndividualRecipients_DeleteClick" />
+                                </Columns>
+                            </Rock:Grid>
+                        </div>
+                        <div class="my-3">
+                            <asp:LinkButton ID="btnDeleteSelectedRecipients"
+                                runat="server"
+                                CssClass="btn btn-xs btn-outline-primary"
+                                OnClick="btnDeleteSelectedRecipients_Click"
+                                Text="Remove Selected" />
+                        </div>
+                    </asp:Panel>
+
+                    <%-- Recipient Summary Panel --%>
+                    <asp:Panel ID="pnlIndividualRecipientSummary" runat="server" Visible="false" CssClass="margin-t-md">
+                        <div class="position-relative flex-fill" style="min-height: 200px;">
+                            
+                                <asp:Literal ID="lRecipientSummary" runat="server" />
+                            
+                        </div>
+                    </asp:Panel>
+
+                    <%-- Panel Actions  --%>
                     <div class="actions panel-actions-bordered">
                         <asp:LinkButton ID="btnRecipientListNext"
                             runat="server"
@@ -239,7 +269,8 @@
                                             label=" "
                                             Checked="false"
                                             FormGroupCssClass="custom-switch-centered hide-label-sm"
-                                            Text="Bulk" />
+                                            Text="Bulk"
+                                            Visible="false" />
                                     </div>
                                 </div>
 
@@ -251,9 +282,11 @@
                                             Label="Communication Medium"
                                             Help="The communication medium that you would like to send your message through."
                                             RepeatDirection="Horizontal"
-                                            CssClass="js-medium-radio" />
+                                            CssClass="js-medium-radio"
+                                            AutoPostBack="true"
+                                            OnSelectedIndexChanged="rblCommunicationMedium_SelectedIndexChanged" />
 
-                                        <span class="small help-block js-medium-recipientpreference-notification" style="display: none">Selecting 'Recipient Preference' will require adding content for email and SMS mediums.</span>
+                                        <span runat="server" ID="spnRecipientPreferenceNotification" class="small help-block js-medium-recipientpreference-notification" Visible="false">Selecting 'Recipient Preference' will require adding content for email and SMS mediums.</span>
                                     </div>
                                 </div>
 
@@ -436,7 +469,31 @@
 
                                         <div class="row">
                                             <div class="col-md-6">
+                                                <div class="btn-group toggle-container">
+                                                    <asp:HyperLink ID="aImagePickerTypeImage" runat="server" CssClass="js-image-picker-type-image btn btn-toggle btn-xs btn-primary">Image</asp:HyperLink>
+                                                    <asp:HyperLink ID="aImagePickerTypeAsset" runat="server" CssClass="js-image-picker-type-asset btn btn-toggle btn-xs btn-default">Asset</asp:HyperLink>
+                                                </div>
                                                 <Rock:ImageUploader ID="componentImageUploader" ClientIDMode="Static" runat="server" Label="Image" UploadAsTemporary="false" DoneFunctionClientScript="handleImageUpdate(e, data)" DeleteFunctionClientScript="handleImageUpdate()" />
+
+                                                <asp:UpdatePanel ID="assetPickerPanel" runat="server">
+                                                    <ContentTemplate>
+                                                    <Rock:ItemFromBlockPicker
+                                                        ID="componentAssetManager"
+                                                        runat="server"
+                                                        BlockTypePath="~/Blocks/CMS/AssetManager.ascx"
+                                                        ShowInModal=true
+                                                        SelectControlCssClass="imageupload-group"
+                                                        CssClass="js-component-asset-manager picker-asset"
+                                                        ModalSaveButtonText="Select"
+                                                        ModalSaveButtonCssClass="js-singleselect aspNetDisabled"
+                                                        ModalCssClass="js-AssetManager-modal"
+                                                        ButtonTextTemplate="Select Asset"
+                                                        ModalTitle="Asset Manager"
+                                                        ShowSelectNoneButton=false>
+                                                    </Rock:ItemFromBlockPicker>
+                                                    </ContentTemplate>
+                                                </asp:UpdatePanel>
+
                                             </div>
                                             <div class="col-md-6">
                                                 <div class="form-group">
@@ -805,7 +862,7 @@
                                         </div>
 
                                         <div class="form-group">
-                                            <label class="control-label" for="component-button-buttonurl">Url</label>
+                                            <label class="control-label" for="component-button-buttonurl">URL</label>
                                             <div class="input-group">
                                                 <span class="input-group-addon"><i class="fa fa-link"></i></span>
                                                 <input class="form-control" id="component-button-buttonurl" placeholder="http://yourlink.com">
@@ -1108,12 +1165,12 @@
                                         <br />
                                         HTML
                                     </div>
-                                    <div class="component component-button v2" data-content="<table class='button-outerwrap' border='0' cellpadding='0' cellspacing='0' width='100%' style='min-width:100%;'><tbody><tr><td valign='top' align='center' class='button-innerwrap'><table border='0' cellpadding='0' cellspacing='0' class='button-shell'><tbody><tr><td align='center' valign='middle' class='button-content' style='border-radius: 3px;background-color:#2baadf' ><a class='button-link' title='Push Me' href='http://' target='_blank' style='display: inline-block; font-weight: bold; letter-spacing: normal; line-height: 100%; text-align: center; text-decoration: none; color: #ffffff;background-color: #2baadf; padding: 15px; border: 1px solid #2baadf; border-radius: 3px;'>Push Me</a></td></tr></tbody></table></td></tr></tbody></table>" data-state="template">
+                                    <div class="component component-button v2" data-content="<table class='button-outerwrap' border='0' cellpadding='0' cellspacing='0' width='100%' style='min-width:100%;'><tbody><tr><td valign='top' align='center' class='button-innerwrap'><table border='0' cellpadding='0' cellspacing='0' class='button-shell'><tbody><tr><td align='center' valign='middle' class='button-content' style='border-radius: 3px;background-color:#2baadf' ><a class='button-link' title='Push Me' href='http://' target='_blank' rel='noopener noreferrer' style='display: inline-block; font-weight: bold; letter-spacing: normal; line-height: 100%; text-align: center; text-decoration: none; color: #ffffff;background-color: #2baadf; padding: 15px; border: 1px solid #2baadf; border-radius: 3px;'>Push Me</a></td></tr></tbody></table></td></tr></tbody></table>" data-state="template">
                                         <i class="fa fa-square-o"></i>
                                         <br />
                                         Button
                                     </div>
-                                    <div class="component component-rsvp" data-content="<table class='rsvp-outerwrap' border='0' cellpadding='0' width='100%' style='min-width:100%;'><tbody><tr><td style='padding-top:0; padding-right:0; padding-bottom:0; padding-left:0;' valign='top' align='center' class='rsvp-innerwrap'><table border='0' cellpadding='0' cellspacing='0'><tr><td><table border='0' cellpadding='0' cellspacing='0' class='accept-button-shell' style='display: inline-table; border-collapse: separate !important; border-radius: 3px; background-color: #16C98D;'><tbody><tr><td align='center' valign='middle' class='rsvp-accept-content' style='font-family: Arial; font-size: 16px; padding: 15px;'><a class='rsvp-accept-link' title='Accept' href='http://' target='_blank' style='font-weight: bold; letter-spacing: normal; line-height: 100%; text-align: center; text-decoration: none; color: #FFFFFF;'>Accept</a></td></tr></tbody></table></td><td style='padding-left: 10px;'><table border='0' cellpadding='0' cellspacing='0' class='decline-button-shell' style='display: inline-table; border-collapse: separate !important; border-radius: 3px; background-color: #D4442E;'><tbody><tr><td align='center' valign='middle' class='rsvp-decline-content' style='font-family: Arial; font-size: 16px; padding: 15px;'><a class='rsvp-decline-link' title='Decline' href='http://' target='_blank' style='font-weight: bold; letter-spacing: normal; line-height: 100%; text-align: center; text-decoration: none; color: #FFFFFF;'>Decline</a></td></tr></tbody></table></td></tr></table></td></tr></tbody></table><input type='hidden' class='rsvp-group-id' /><input type='hidden' class='rsvp-occurrence-value' />" data-state="template">
+                                    <div class="component component-rsvp" data-content="<table class='rsvp-outerwrap' border='0' cellpadding='0' width='100%' style='min-width:100%;'><tbody><tr><td style='padding-top:0; padding-right:0; padding-bottom:0; padding-left:0;' valign='top' align='center' class='rsvp-innerwrap'><table border='0' cellpadding='0' cellspacing='0'><tr><td><table border='0' cellpadding='0' cellspacing='0' class='accept-button-shell' style='display: inline-table; border-collapse: separate !important; border-radius: 3px; background-color: #16C98D;'><tbody><tr><td align='center' valign='middle' class='rsvp-accept-content' style='font-family: Arial; font-size: 16px; padding: 15px;'><a class='rsvp-accept-link' title='Accept' href='http://' target='_blank' rel='noopener noreferrer' style='font-weight: bold; letter-spacing: normal; line-height: 100%; text-align: center; text-decoration: none; color: #FFFFFF;'>Accept</a></td></tr></tbody></table></td><td style='padding-left: 10px;'><table border='0' cellpadding='0' cellspacing='0' class='decline-button-shell' style='display: inline-table; border-collapse: separate !important; border-radius: 3px; background-color: #D4442E;'><tbody><tr><td align='center' valign='middle' class='rsvp-decline-content' style='font-family: Arial; font-size: 16px; padding: 15px;'><a class='rsvp-decline-link' title='Decline' href='http://' target='_blank' style='font-weight: bold; letter-spacing: normal; line-height: 100%; text-align: center; text-decoration: none; color: #FFFFFF;'>Decline</a></td></tr></tbody></table></td></tr></table></td></tr></tbody></table><input type='hidden' class='rsvp-group-id' /><input type='hidden' class='rsvp-occurrence-value' />" data-state="template">
                                         <i class="fa fa-user-check"></i>
                                         <br />
                                         RSVP
@@ -1138,10 +1195,6 @@
                                         <br />
                                         Three
                                     </div>
-                                    <!--
-                                    <div class="component component-section" data-content="<table class='row' width='100%'><tr><td class='dropzone' width='25%' valign='top'></td><td class='dropzone columns large-3 small-3' width='25%' valign='top'></td><td class='dropzone columns large-3 small-3' width='25%' valign='top'></td><td class='dropzone columns large-3 small-3' width='25%' valign='top'></td></tr></table>" data-state="template">
-					                    <i class="rk rk-four-column"></i> <br /> Four
-				                    </div> -->
                                     <div class="component component-section" data-content="<table class='row'width='100%' ><tr><td class='dropzone columns large-4 small-12 first' width='33%' valign='top'></td><td class='dropzone columns large-8 small-12 last' width='67%' valign='top'></td></tr></table>" data-state="template">
                                         <i class="rk rk-left-column"></i>
                                         <br />
@@ -1502,6 +1555,34 @@
             Sys.Application.add_load(function () {
                 Rock.controls.fullScreen.initialize('body');
 
+                if ($('#<%=aImagePickerTypeAsset.ClientID%>').hasClass("btn-primary")) {
+                    $('.js-component-asset-manager').show();
+                    $('#componentImageUploader').hide();
+                } else {
+                    $('.js-component-asset-manager').hide();
+                    $('#componentImageUploader').show();
+                }
+
+                $('.js-image-picker-type-asset').off('click').on('click', function (e) {
+                    $('.js-image-picker-type-asset').removeClass("btn-default");
+                    $('.js-image-picker-type-asset').addClass("btn-primary");
+                    $('.js-image-picker-type-image').removeClass("btn-primary");
+                    $('.js-image-picker-type-image').addClass("btn-default");
+                    $('#componentImageUploader').hide();
+                    $('.js-component-asset-manager').show();
+                    return false;
+                });
+
+                $('.js-image-picker-type-image').off('click').on('click', function (e) {
+                    $('.js-image-picker-type-asset').removeClass("btn-primary");
+                    $('.js-image-picker-type-asset').addClass("btn-default");
+                    $('.js-image-picker-type-image').removeClass("btn-default");
+                    $('.js-image-picker-type-image').addClass("btn-primary");
+                    $('#componentImageUploader').show();
+                    $('.js-component-asset-manager').hide();
+                    return false;
+                });
+
                 if ($('#<%=pnlEmailEditor.ClientID%>').length) {
                     loadEmailEditor()
                 }
@@ -1534,10 +1615,6 @@
                         }
                     });
                 }
-
-                $('.js-medium-radio input').on('click', function (e) {
-                    setActiveMediumTypeButton($(this));
-                });
 
                 $(".js-send-communications-date input").on('change', function (e) {
                     var ctrl = $(this);
@@ -1734,12 +1811,6 @@
                 cssLink.rel = "stylesheet";
                 cssLink.type = "text/css";
 
-                var fontAwesomeLink = document.createElement("link")
-                fontAwesomeLink.className = "js-emaileditor-addon";
-                fontAwesomeLink.href = '<%=RockPage.ResolveRockUrl("~/Themes/Rock/Styles/font-awesome.css", true ) %>';
-                fontAwesomeLink.rel = "stylesheet";
-                fontAwesomeLink.type = "text/css";
-
                 var jqueryLoaderScript = document.createElement("script");
                 jqueryLoaderScript.async = false;
                 jqueryLoaderScript.className = "js-emaileditor-addon";
@@ -1796,6 +1867,8 @@
                 }
             }
 
+            var $currentComponent;
+
             function loadPropertiesPage(componentType, $component) {
                 $currentComponent = $component;
                 var $currentPropertiesPanel = $('.js-propertypanels').find("[data-component='" + componentType + "']");
@@ -1809,31 +1882,32 @@
                 // temp - set text of summernote
                 switch (componentType) {
                     case 'text':
-                        Rock.controls.emailEditor.textComponentHelper.setProperties($currentComponent);
+                        $currentComponent = Rock.controls.emailEditor.textComponentHelper.setProperties($currentComponent);
                         break;
                     case 'rsvp':
-                        Rock.controls.emailEditor.rsvpComponentHelper.setProperties($currentComponent);
+                        $currentComponent = Rock.controls.emailEditor.rsvpComponentHelper.setProperties($currentComponent);
                         break;
                     case 'button':
-                        Rock.controls.emailEditor.buttonComponentHelper.setProperties($currentComponent);
+                        $currentComponent = Rock.controls.emailEditor.buttonComponentHelper.setProperties($currentComponent);
                         break;
                     case 'image':
-                        Rock.controls.emailEditor.imageComponentHelper.setProperties($currentComponent);
+                        $currentComponent = Rock.controls.emailEditor.imageComponentHelper.setProperties($currentComponent);
                         break;
                     case 'video':
-				        Rock.controls.emailEditor.videoComponentHelper.setProperties($currentComponent);
+                        $currentComponent = Rock.controls.emailEditor.videoComponentHelper.setProperties($currentComponent);
 				        break;
                     case 'section':
-                        Rock.controls.emailEditor.sectionComponentHelper.setProperties($currentComponent);
+                        $currentComponent = Rock.controls.emailEditor.sectionComponentHelper.setProperties($currentComponent);
                         break;
                     case 'divider':
-                        Rock.controls.emailEditor.dividerComponentHelper.setProperties($currentComponent);
+                        $currentComponent = Rock.controls.emailEditor.dividerComponentHelper.setProperties($currentComponent);
                         break;
                     case 'code':
-                        Rock.controls.emailEditor.codeComponentHelper.setProperties($currentComponent);
+                        $currentComponent = Rock.controls.emailEditor.codeComponentHelper.setProperties($currentComponent);
                         break;
                     default:
                         clearPropertyPane(null);
+                        $currentComponent = null;
                 }
 
                 // show proper panel
@@ -1875,6 +1949,10 @@
 
             function handleImageUpdate(e, data) {
                 Rock.controls.emailEditor.imageComponentHelper.handleImageUpdate(e, data);
+            }
+
+            function handleAssetUpdate(e, data) {
+                Rock.controls.emailEditor.imageComponentHelper.handleAssetUpdate(e, data);
             }
 
             function handleVideoImageUpdate(e, data)

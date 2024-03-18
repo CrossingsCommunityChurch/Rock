@@ -21,6 +21,8 @@ using System.Data.Entity.Infrastructure;
 using System.Linq;
 using System.Linq.Expressions;
 
+using Rock.Utility.Settings;
+
 namespace Rock.Data
 {
     /// <summary>
@@ -34,13 +36,21 @@ namespace Rock.Data
     /// Operations that write to the database are not allowed.
     /// </para>
     /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         <strong>This is an internal class</strong> that supports the Rock
+    ///         infrastructure and not subject to the same compatibility standards
+    ///         as public classes. It may be changed or removed without notice in any
+    ///         release and should therefore not be directly used in any plug-ins.
+    ///     </para>
+    /// </remarks>
     public class RockContextReadOnly : RockContext
     {
         /// <summary>
         /// Initializes a new instance of the <see cref="RockContextReadOnly"/> class.
         /// </summary>
         public RockContextReadOnly()
-            : this( new RockContext( GetConnectionString<RockContextReadOnly>() ) )
+            : this( new RockContext( RockInstanceConfig.Database.ReadOnlyConnectionString ) )
         {
             /*  2021-09-28 MDP
 
@@ -60,7 +70,7 @@ namespace Rock.Data
         internal protected RockContextReadOnly( RockContext rockContext )
             : base( ( rockContext as IObjectContextAdapter ).ObjectContext, true )
         {
-            // The ObjectContext contructor needs to know whether we own the ObjectContext
+            // The ObjectContext constructor needs to know whether we own the ObjectContext
             // or if it should take care of disposing itself.
             // In this case, we want to use the instance of the ObjectContext
             // that a normal RockContext would use.
@@ -74,36 +84,6 @@ namespace Rock.Data
         {
             base.Dispose( disposing );
             _ownedRockContext?.Dispose();
-        }
-
-        /// <summary>
-        /// Gets the connectionString from web.ConnectionStrings.config that matches the specified RockContext type
-        /// </summary>
-        /// <returns>string.</returns>
-        internal protected static string GetConnectionString<T>() where T : RockContext
-        {
-            var webConfigConnectionName = typeof( T ).Name;
-
-            /* If there is a context connection for this type ( RockContextReadOnly, RockContextAnalytics ) 
-             * defined in web.connectionstring.config, use that. 
-             */
-            var webConfigConnectionString = System.Configuration.ConfigurationManager.ConnectionStrings[webConfigConnectionName]?.ConnectionString;
-            if ( webConfigConnectionString.IsNotNullOrWhiteSpace() )
-            {
-                return webConfigConnectionString;
-            }
-
-            /* If there isn't a RockContextReadOnly/RockContextAnalytics defined in web.ConnectionStrings.config, use the regular RockContext connection string */
-            var readContextConnectionString = System.Configuration.ConfigurationManager.ConnectionStrings["RockContext"]?.ConnectionString;
-            if ( readContextConnectionString.IsNotNullOrWhiteSpace() )
-            {
-                return readContextConnectionString;
-            }
-
-            /* Shouldn't happen, but just in case... */
-            var rockContext = new RockContext();
-            var connectionString = rockContext.Database.Connection.ConnectionString;
-            return connectionString;
         }
 
         /// <summary>

@@ -35,6 +35,15 @@ namespace Rock.Web
         /// <returns></returns>
         public static string Tag( string rootRelativePath )
         {
+            /*
+                 ISSUE #4436 ⁃ Merge Fields Not Populating in Communication Wizard
+                 Fixed the bug that happens when relaxedUrlToFileSystemMapping="false"
+            */
+            if ( rootRelativePath.Contains( "?" ) )
+            {
+                rootRelativePath = rootRelativePath.Remove( rootRelativePath.IndexOf( '?' ) );
+            }
+
             if ( HttpRuntime.Cache[rootRelativePath] == null )
             {
                 string absolute = HostingEnvironment.MapPath( rootRelativePath );
@@ -45,10 +54,16 @@ namespace Rock.Web
                     string result = rootRelativePath + "?v=" + date.Ticks;
                     HttpRuntime.Cache.Insert( rootRelativePath, result, new CacheDependency( absolute ) );
                 }
+                else
+                {
+                    // If the file does not exist at the absolute path, log the failed attempt, and return the requested relative path.
+                    Model.ExceptionLogService.LogException(
+                        new Exception( string.Format( "Could not find the file at '{0}'.  Could not add fingerprint.", absolute ) ) );
+                    return rootRelativePath;
+                }
             }
 
             return HttpRuntime.Cache[rootRelativePath] as string;
         }
     }
-
 }

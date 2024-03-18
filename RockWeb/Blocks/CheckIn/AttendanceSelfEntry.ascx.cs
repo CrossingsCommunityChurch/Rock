@@ -276,6 +276,7 @@ ORDER BY [Text]",
     #endregion Messages Block Attribute Settings
 
     #endregion Block Attributes
+    [Rock.SystemGuid.BlockTypeGuid( Rock.SystemGuid.BlockType.ATTENDANCE_SELF_ENTRY )]
     public partial class AttendanceSelfEntry : RockBlock
     {
         #region Keys
@@ -836,7 +837,30 @@ ORDER BY [Text]",
 
             if ( isAccountRequired )
             {
-                Authorization.SetAuthCookie( txtUserName.Text, false, false );
+                /*
+                    10/20/2023 - JMH
+
+                    If 2FA is required for the person's protection profile,
+                    then 2FA will need to be bypassed here by hard-coding a true value in their auth cookie.
+
+                    If 2FA is not required, then the auth cookie will be created without bypassing 2FA
+                    since there is no need to bypass it.
+
+                    Reason: Two-Factor Authentication
+                 */
+                var isTwoFactorAuthenticated = false;
+                var securitySettings = new SecuritySettingsService().SecuritySettings;
+
+                if ( securitySettings.RequireTwoFactorAuthenticationForAccountProtectionProfiles?.Contains( person.AccountProtectionProfile ) == true )
+                {
+                    isTwoFactorAuthenticated = true;
+                }
+
+                Authorization.SetAuthCookie(
+                    txtUserName.Text,
+                    isPersisted: false,
+                    isImpersonated: false,
+                    isTwoFactorAuthenticated );
             }
 
             pnlAccount.Visible = false;
@@ -895,7 +919,8 @@ ORDER BY [Text]",
                 int? LocationIdParam = PageParameter( PageParameterKey.LocationId ).AsIntegerOrNull();
 
                 // Try to set the locationId to the value specified by the block setting (preferred) or PageParameter. A null is okay here.
-                int? locationId = locationGuid.HasValue ? new LocationService( rockContext ).GetId( locationGuid.Value ) : LocationIdParam;
+                var selectedLocationId = locationGuid.HasValue ? new LocationService( rockContext ).GetId( locationGuid.Value ) : LocationIdParam;
+                int? locationId = null;
                 int? scheduleId = null;
                 var campusCurrentDateTime = RockDateTime.Now;
 
@@ -911,14 +936,19 @@ ORDER BY [Text]",
                     }
 
                     // If we have the location and it is valid then use it
-                    if ( locationId.HasValue && group.GroupLocations.Select( l => l.LocationId == locationId ).Any() )
+                    if ( selectedLocationId.HasValue && group.GroupLocations.Select( l => l.LocationId == selectedLocationId ).Any() )
                     {
-                        GroupLocation groupLocation = group.GroupLocations.Where( l => l.LocationId == locationId ).FirstOrDefault();
-                        var schedule = groupLocation.Schedules.Where( a => a.WasScheduleActive( campusCurrentDateTime ) ).FirstOrDefault();
-                        if ( schedule != null )
+                        GroupLocation groupLocation = group.GroupLocations.Where( l => l.LocationId == selectedLocationId ).FirstOrDefault();
+                        if ( groupLocation != null )
                         {
-                            scheduleId = schedule.Id;
-                            attendanceGroup = group;
+                            var schedule = groupLocation.Schedules.Where( a => a.WasScheduleActive( campusCurrentDateTime ) ).FirstOrDefault();
+                            if ( schedule != null )
+                            {
+                                locationId = selectedLocationId;
+                                scheduleId = schedule.Id;
+                                attendanceGroup = group;
+                                break;
+                            }
                         }
                     }
 
@@ -936,11 +966,6 @@ ORDER BY [Text]",
                                 break;
                             }
                         }
-                    }
-
-                    if ( scheduleId.HasValue )
-                    {
-                        break;
                     }
                 }
 

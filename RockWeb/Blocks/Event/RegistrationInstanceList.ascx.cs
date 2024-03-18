@@ -38,6 +38,7 @@ namespace RockWeb.Blocks.Event
     [Description( "Lists all the instances of the given registration template." )]
 
     [LinkedPage( "Detail Page" )]
+    [Rock.SystemGuid.BlockTypeGuid( "632F63A9-5629-4731-BE6A-AB534EDD9BC9" )]
     public partial class RegistrationInstanceList : RockBlock, ISecondaryBlock, ICustomGridColumns
     {
         #region Private Variables
@@ -146,14 +147,14 @@ namespace RockWeb.Blocks.Event
         /// <param name="e">The <see cref="EventArgs" /> instance containing the event data.</param>
         protected void rFilter_ApplyFilterClick( object sender, EventArgs e )
         {
-            rFilter.SaveUserPreference( "Date Range", drpDates.DelimitedValues );
+            rFilter.SetFilterPreference( "Date Range", drpDates.DelimitedValues );
             if ( ddlActiveFilter.SelectedValue == "all" )
             {
-                rFilter.SaveUserPreference( "Active Status", string.Empty );
+                rFilter.SetFilterPreference( "Active Status", string.Empty );
             }
             else
             {
-                rFilter.SaveUserPreference( "Active Status", ddlActiveFilter.SelectedValue );
+                rFilter.SetFilterPreference( "Active Status", ddlActiveFilter.SelectedValue );
             }
 
             BindInstancesGrid();
@@ -254,10 +255,10 @@ namespace RockWeb.Blocks.Event
         /// </summary>
         private void SetFilter()
         {
-            drpDates.DelimitedValues = rFilter.GetUserPreference( "Date Range" );
+            drpDates.DelimitedValues = rFilter.GetFilterPreference( "Date Range" );
 
             // Set the Active Status
-            var itemActiveStatus = ddlActiveFilter.Items.FindByValue( rFilter.GetUserPreference( "Active Status" ) );
+            var itemActiveStatus = ddlActiveFilter.Items.FindByValue( rFilter.GetFilterPreference( "Active Status" ) );
             if ( itemActiveStatus != null )
             {
                 itemActiveStatus.Selected = true;
@@ -289,7 +290,7 @@ namespace RockWeb.Blocks.Event
 
                 // Date Range
                 var drp = new DateRangePicker();
-                drp.DelimitedValues = rFilter.GetUserPreference( "Date Range" );
+                drp.DelimitedValues = rFilter.GetFilterPreference( "Date Range" );
                 if ( drp.LowerValue.HasValue )
                 {
                     qry = qry.Where( i => i.StartDateTime >= drp.LowerValue.Value );
@@ -301,7 +302,7 @@ namespace RockWeb.Blocks.Event
                     qry = qry.Where( i => i.StartDateTime < upperDate );
                 }
 
-                string statusFilter = rFilter.GetUserPreference( "Active Status" );
+                string statusFilter = rFilter.GetFilterPreference( "Active Status" );
                 if ( !string.IsNullOrWhiteSpace( statusFilter ) )
                 {
                     if ( statusFilter == "inactive" )

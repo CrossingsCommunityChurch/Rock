@@ -14,6 +14,7 @@
 // limitations under the License.
 // </copyright>
 
+using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations.Schema;
 using System.Data.Entity.ModelConfiguration;
 using System.Runtime.Serialization;
@@ -29,6 +30,7 @@ namespace Rock.Model
     [RockDomain( "Event" )]
     [Table( "RegistrationTemplateFormField" )]
     [DataContract]
+    [Rock.SystemGuid.EntityTypeGuid( "A773CAA2-2211-416B-BDD7-D907085B4441")]
     public partial class RegistrationTemplateFormField : Model<RegistrationTemplateFormField>, IOrdered, ICacheable
     {
         #region Entity Properties
@@ -150,18 +152,54 @@ namespace Rock.Model
         [DataMember]
         public bool ShowOnWaitlist { get; set; }
 
+        /// <summary>
+        /// JSON Serialized <see cref="FieldVisibilityRules"/>
+        /// </summary>
+        /// <value>
+        /// The field visibility rules json.
+        /// </value>
+        [DataMember]
+        public string FieldVisibilityRulesJSON
+        {
+            get
+            {
+                return FieldVisibilityRules?.ToJson();
+            }
+
+            set
+            {
+                Field.FieldVisibilityRules rules = null;
+                if ( value.IsNotNullOrWhiteSpace() )
+                {
+                    rules = value.FromJsonOrNull<Rock.Field.FieldVisibilityRules>();
+                    if ( rules == null )
+                    {
+                        // if can't be deserialized as FieldVisibilityRules, it might have been serialized as an array from an earlier version
+                        var rulesList = value.FromJsonOrNull<List<Field.FieldVisibilityRule>>();
+                        if ( rulesList != null )
+                        {
+                            rules = new Field.FieldVisibilityRules();
+                            rules.RuleList.AddRange( rulesList );
+                        }
+                    }
+                }
+
+                this.FieldVisibilityRules = rules ?? new Field.FieldVisibilityRules();
+            }
+        }
+
+        /// <summary>
+        /// Gets or sets a value indicating whether editing the field is restricted when a value is already on the person's record.
+        /// </summary>
+        /// <value>
+        ///   <c>true</c> if editing the field is restricted when a value is already on the person's record; otherwise, <c>false</c>.
+        /// </value>
+        [DataMember]
+        public bool IsLockedIfValuesExist { get; set; }
+
         #endregion Entity Properties
 
         #region Navigation Properties
-
-        /// <summary>
-        /// Gets or sets the field visibility rules.
-        /// </summary>
-        /// <value>
-        /// The field visibility rules.
-        /// </value>
-        [NotMapped]
-        public virtual Rock.Field.FieldVisibilityRules FieldVisibilityRules { get; set; } = new Rock.Field.FieldVisibilityRules();
 
         /// <summary>
         /// Gets or sets the <see cref="Rock.Model.RegistrationTemplateForm"/>.

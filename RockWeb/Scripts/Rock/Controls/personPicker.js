@@ -57,7 +57,6 @@
 
                     // make sure that at least one of the search fields has 3 chars in it
                     if ((search.name.length < 3) && (search.address.length < 3) && (search.phone.length < 3) && (search.email.length < 3)) {
-                        console.log('min length 3')
                         return;
                     }
 
@@ -97,11 +96,11 @@
                         dataType: 'json'
                     });
 
-                    // if it takes more than 1.5 seconds for the search to complete, show a wait indicator
+                    // Display a wait indicator to show that the search is now running.
                     if ($('.js-searching-notification').length == 0) {
                         $searchResults.prepend('<i class="fa fa-refresh fa-spin margin-l-md js-searching-notification" style="display: none; opacity: .4;"></i>');
                     }
-                    $('.js-searching-notification').delay(1500).fadeIn(800);
+                    $('.js-searching-notification').fadeIn(800);
 
                     promise.done(function (data) {
                         $searchResults.html('');
@@ -122,8 +121,10 @@
                         $('.js-searching-notification').remove();
                     });
                 },
-                // set minLength to 0, but check that at least one field as 3 chars before fetching from REST
+                // Set minLength to 0, but check that at least one field has 3 chars before fetching from REST.
+                // To minimize load on the server, don't trigger the search until a reasonable delay after the last keypress.
                 minLength: 0,
+                delay: 750,
                 html: true,
                 appendTo: $searchResults,
                 pickerControlId: controlId,
@@ -254,6 +255,7 @@
 
                         setSelectedPerson(selectedPersonId, selectedText);
 
+                        $pickerSelect.trigger('onclick');
                         // Fire the postBack for the Select button.
                         var postBackUrl = $pickerSelect.prop('href');
                         if (postBackUrl) {
@@ -310,18 +312,14 @@
 
             $pickerControl.on('mouseenter',
                 function () {
-
                     // only show the X if there is something picked
                     if (($pickerPersonId.val() || '0') !== '0') {
-                        $pickerSelectNone.stop().show();
+                        $pickerSelectNone.addClass('show-hover');
                     }
-                }).on('mouseleave',
-                function () {
-                    $pickerSelectNone.fadeOut(500);
                 });
 
             $pickerCancel.on('click', function () {
-                
+
                 clearSearchFields();
                 $pickerMenu.slideUp(function () {
                     exports.personPickers[controlId].updateScrollbar();
@@ -329,12 +327,24 @@
             });
 
             $pickerSelectNone.on('click', function (e) {
+                // prevent the click from bubbling up to the pickerControl click event
+                e.preventDefault();
+                e.stopPropagation();
 
                 var selectedValue = '0',
                     selectedText = defaultText;
 
                 $pickerPersonId.val(selectedValue);
                 $pickerPersonName.val(selectedText);
+                // run onclick event from the button
+                $(this).trigger('onclick');
+            });
+
+            // disable the enter key : this will prevent the enter key from clearing the loaded search query.
+            $pickerControl.on('keypress', function (e) {
+                if (e.which == 13) {
+                    return false;
+                }
             });
 
             var setSelectedPerson = function (selectedValue, selectedText) {
@@ -400,6 +410,7 @@
                 setSelectedPerson(selectedValue, selectedText);
 
                 // fire the postBack of the btnSelect if there is one
+                $pickerSelect.trigger('onclick');
                 var postBackUrl = $pickerSelect.prop('href');
                 if (postBackUrl) {
                     window.location = postBackUrl;
@@ -454,7 +465,6 @@
                 personPicker.initialize();
             }
         };
-
         return exports;
     }());
 }(jQuery));

@@ -23,10 +23,7 @@
 using System;
 using System.Linq;
 
-using Rock.Attribute;
 using Rock.Data;
-using Rock.ViewModel;
-using Rock.Web.Cache;
 
 namespace Rock.Model
 {
@@ -63,46 +60,6 @@ namespace Rock.Model
             return true;
         }
     }
-
-    /// <summary>
-    /// GroupMemberScheduleTemplate View Model Helper
-    /// </summary>
-    [DefaultViewModelHelper( typeof( GroupMemberScheduleTemplate ) )]
-    public partial class GroupMemberScheduleTemplateViewModelHelper : ViewModelHelper<GroupMemberScheduleTemplate, Rock.ViewModel.GroupMemberScheduleTemplateViewModel>
-    {
-        /// <summary>
-        /// Converts the model to a view model.
-        /// </summary>
-        /// <param name="model">The entity.</param>
-        /// <param name="currentPerson">The current person.</param>
-        /// <param name="loadAttributes">if set to <c>true</c> [load attributes].</param>
-        /// <returns></returns>
-        public override Rock.ViewModel.GroupMemberScheduleTemplateViewModel CreateViewModel( GroupMemberScheduleTemplate model, Person currentPerson = null, bool loadAttributes = true )
-        {
-            if ( model == null )
-            {
-                return default;
-            }
-
-            var viewModel = new Rock.ViewModel.GroupMemberScheduleTemplateViewModel
-            {
-                Id = model.Id,
-                Guid = model.Guid,
-                GroupTypeId = model.GroupTypeId,
-                Name = model.Name,
-                ScheduleId = model.ScheduleId,
-                CreatedDateTime = model.CreatedDateTime,
-                ModifiedDateTime = model.ModifiedDateTime,
-                CreatedByPersonAliasId = model.CreatedByPersonAliasId,
-                ModifiedByPersonAliasId = model.ModifiedByPersonAliasId,
-            };
-
-            AddAttributesToViewModel( model, viewModel, currentPerson, loadAttributes );
-            ApplyAdditionalPropertiesAndSecurityToViewModel( model, viewModel, currentPerson, loadAttributes );
-            return viewModel;
-        }
-    }
-
 
     /// <summary>
     /// Generated Extension Methods
@@ -173,20 +130,5 @@ namespace Rock.Model
             target.ForeignId = source.ForeignId;
 
         }
-
-        /// <summary>
-        /// Creates a view model from this entity
-        /// </summary>
-        /// <param name="model">The entity.</param>
-        /// <param name="currentPerson" >The currentPerson.</param>
-        /// <param name="loadAttributes" >Load attributes?</param>
-        public static Rock.ViewModel.GroupMemberScheduleTemplateViewModel ToViewModel( this GroupMemberScheduleTemplate model, Person currentPerson = null, bool loadAttributes = false )
-        {
-            var helper = new GroupMemberScheduleTemplateViewModelHelper();
-            var viewModel = helper.CreateViewModel( model, currentPerson, loadAttributes );
-            return viewModel;
-        }
-
     }
-
 }

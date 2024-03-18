@@ -22,6 +22,7 @@ using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Reflection;
+using System.Threading.Tasks;
 using System.Web;
 using System.Web.Http;
 using System.Web.Http.Results;
@@ -32,6 +33,8 @@ using Newtonsoft.Json.Linq;
 using Rock.Blocks;
 using Rock.Model;
 using Rock.Rest.Filters;
+using Rock.Utility.CaptchaApi;
+using Rock.ViewModels.Blocks;
 using Rock.Web.Cache;
 
 namespace Rock.Rest.v2
@@ -40,7 +43,8 @@ namespace Rock.Rest.v2
     /// API controller for the /api/v2/BlockActions endpoints.
     /// </summary>
     /// <seealso cref="Rock.Rest.ApiControllerBase" />
-    public class BlockActionsController : ApiControllerBase
+    [Rock.SystemGuid.RestControllerGuid( "31D6B6FC-7740-483A-81D2-D62283F67C0A")]
+    public class BlockActionsController : ApiControllerBase 
     {
         #region API Methods
 
@@ -53,10 +57,11 @@ namespace Rock.Rest.v2
         /// <returns></returns>
         [Authenticate]
         [HttpGet]
-        [Route( "api/v2/BlockActions/{pageGuid:guid}/{blockGuid:guid}/{actionName}" )]
-        public IHttpActionResult BlockAction( Guid pageGuid, Guid blockGuid, string actionName )
+        [System.Web.Http.Route( "api/v2/BlockActions/{pageGuid:guid}/{blockGuid:guid}/{actionName}" )]
+        [Rock.SystemGuid.RestActionGuid( "CC3DE0C2-8703-4925-A16C-F47A31FE9C69" )]
+        public async Task<IHttpActionResult> BlockAction( Guid pageGuid, Guid blockGuid, string actionName )
         {
-            return ProcessAction( this, pageGuid, blockGuid, actionName, null );
+            return await ProcessAction( this, pageGuid, blockGuid, actionName, null );
         }
 
         /// <summary>
@@ -69,12 +74,13 @@ namespace Rock.Rest.v2
         /// <returns></returns>
         [Authenticate]
         [HttpPost]
-        [Route( "api/v2/BlockActions/{pageGuid:guid}/{blockGuid:guid}/{actionName}" )]
-        public IHttpActionResult BlockActionAsPost( Guid pageGuid, Guid blockGuid, string actionName, [NakedBody] string parameters )
+        [System.Web.Http.Route( "api/v2/BlockActions/{pageGuid:guid}/{blockGuid:guid}/{actionName}" )]
+        [Rock.SystemGuid.RestActionGuid( "05EAF919-0D36-496E-8924-88DC50A9CD8E" )]
+        public async Task<IHttpActionResult> BlockActionAsPost( Guid pageGuid, Guid blockGuid, string actionName, [NakedBody] string parameters )
         {
             if ( parameters == string.Empty )
             {
-                return ProcessAction( this, pageGuid, blockGuid, actionName, null );
+                return await ProcessAction( this, pageGuid, blockGuid, actionName, null );
             }
 
             //
@@ -90,7 +96,7 @@ namespace Rock.Rest.v2
                 {
                     var parameterToken = JToken.ReadFrom( jsonReader );
 
-                    return ProcessAction( this, pageGuid, blockGuid, actionName, parameterToken );
+                    return await ProcessAction( this, pageGuid, blockGuid, actionName, parameterToken );
                 }
             }
         }
@@ -108,7 +114,7 @@ namespace Rock.Rest.v2
         /// <param name="actionName">Name of the action.</param>
         /// <param name="parameters">The parameters.</param>
         /// <returns></returns>
-        internal static IHttpActionResult ProcessAction( ApiControllerBase controller, Guid? pageGuid, Guid? blockGuid, string actionName, JToken parameters )
+        internal static async Task<IHttpActionResult> ProcessAction( ApiControllerBase controller, Guid? pageGuid, Guid? blockGuid, string actionName, JToken parameters )
         {
             try
             {
@@ -160,6 +166,20 @@ namespace Rock.Rest.v2
                     return new StatusCodeResult( HttpStatusCode.Unauthorized, controller );
                 }
 
+                // Check if we need to apply rate limiting to this request.
+                if ( pageCache.IsRateLimited )
+                {
+                    var canProcess = RateLimiterCache.CanProcessPage( pageCache.Id,
+                        controller.RockRequestContext.ClientInformation.IpAddress,
+                        TimeSpan.FromSeconds( pageCache.RateLimitPeriod.Value ),
+                        pageCache.RateLimitRequestPerPeriod.Value );
+
+                    if ( !canProcess )
+                    {
+                        return new StatusCodeResult( ( HttpStatusCode ) 429, controller );
+                    }
+                }
+
                 //
                 // Get the class that handles the logic for the block.
                 //
@@ -193,15 +213,34 @@ namespace Rock.Rest.v2
                         {
                             if ( kvp.Key == "__context" )
                             {
+                                var actionContext = kvp.Value.ToObject<BlockActionContextBag>();
+
                                 // If we are given any page parameters then
                                 // override the query string parameters. This
                                 // is what allows mobile and obsidian blocks to
                                 // pass in the original page parameters.
-                                if ( kvp.Value["pageParameters"] != null )
+                                if ( actionContext?.PageParameters != null )
                                 {
-                                    var pageParameters = kvp.Value["pageParameters"].ToObject<Dictionary<string, string>>();
+                                    rockBlock.RequestContext.SetPageParameters( actionContext.PageParameters );
+                                }
 
-                                    rockBlock.RequestContext.SetPageParameters( pageParameters );
+                                /*
+                                    02/22/2024 - JSC
+
+                                    It's important that we perform the captcha
+                                    validation even when the actionContext.Captcha
+                                    is whitespace. Null indicates the captcha is
+                                    not in use by the block, but an empty string
+                                    indicates that the global configuration is missing.
+                                    In the latter case we still need to return true
+                                    so captcha doesn't fail when it's not configured.
+                                */
+                                if ( actionContext?.Captcha != null )
+                                {
+                                    var api = new CloudflareApi();
+                                    var ipAddress = rockBlock.RequestContext.ClientInformation.IpAddress;
+
+                                    rockBlock.RequestContext.IsCaptchaValid = await api.IsTurnstileTokenValidAsync( actionContext.Captcha, ipAddress );
                                 }
                             }
                             else
@@ -224,13 +263,15 @@ namespace Rock.Rest.v2
                     actionParameters.AddOrReplace( q.Key, JToken.FromObject( q.Value.ToString() ) );
                 }
 
-                requestContext.AddContextEntitiesForPage( pageCache );
+                requestContext.PrepareRequestForPage( pageCache );
 
-                return InvokeAction( controller, rockBlock, actionName, actionParameters, parameters );
+                return await InvokeAction( controller, rockBlock, actionName, actionParameters, parameters );
             }
             catch ( Exception ex )
             {
-                return new BadRequestErrorMessageResult( ex.Message, controller );
+                ExceptionLogService.LogApiException( ex, controller.Request, GetPerson( controller, null )?.PrimaryAlias );
+
+                return new NegotiatedContentResult<HttpError>( HttpStatusCode.InternalServerError, new HttpError( ex.Message ), controller );
             }
         }
 
@@ -246,7 +287,7 @@ namespace Rock.Rest.v2
         /// <exception cref="ArgumentNullException">actionName
         /// or
         /// actionData</exception>
-        internal static IHttpActionResult InvokeAction( ApiControllerBase controller, Blocks.IRockBlockType block, string actionName, Dictionary<string, JToken> actionParameters, JToken bodyParameters )
+        internal static async Task<IHttpActionResult> InvokeAction( ApiControllerBase controller, Blocks.IRockBlockType block, string actionName, Dictionary<string, JToken> actionParameters, JToken bodyParameters )
         {
             // Parse the body content into our normal parameters.
             if ( bodyParameters != null )
@@ -336,8 +377,10 @@ namespace Rock.Rest.v2
 
                         parameters.Add( actionParameters[key].ToObject( methodParameters[i].ParameterType ) );
                     }
-                    catch
+                    catch ( Exception ex )
                     {
+                        System.Diagnostics.Debug.WriteLine( ex.Message );
+
                         return new BadRequestErrorMessageResult( $"Parameter type mismatch for '{methodParameters[i].Name}'.", controller );
                     }
                 }
@@ -355,6 +398,22 @@ namespace Rock.Rest.v2
             try
             {
                 result = action.Invoke( block, parameters.ToArray() );
+
+                // Check if the result type is a Task.
+                if ( result is Task resultTask )
+                {
+                    await resultTask;
+
+                    // Task<T> is not covariant, so we can't just cast to Task<object>.
+                    if ( resultTask.GetType().GetProperty( "Result" ) != null )
+                    {
+                        result = ( ( dynamic ) resultTask ).Result;
+                    }
+                    else
+                    {
+                        result = null;
+                    }
+                }
             }
             catch ( TargetInvocationException ex )
             {
@@ -367,9 +426,16 @@ namespace Rock.Rest.v2
                 result = new BlockActionResult( HttpStatusCode.InternalServerError, GetMessageForClient( ex ) );
             }
 
-            //
+            var defaultContentNegotiator = new System.Net.Http.Formatting.DefaultContentNegotiator();
+            var validFormatters = new List<System.Net.Http.Formatting.MediaTypeFormatter>()
+            {
+                new Rock.Rest.Utility.ApiPickerJsonMediaTypeFormatter(),
+                new System.Net.Http.Formatting.JsonMediaTypeFormatter(),
+                new System.Net.Http.Formatting.FormUrlEncodedMediaTypeFormatter(),
+                new System.Web.Http.ModelBinding.JQueryMvcFormUrlEncodedFormatter()
+            };
+
             // Handle the result type.
-            //
             if ( result is IHttpActionResult httpActionResult )
             {
                 return httpActionResult;
@@ -380,11 +446,11 @@ namespace Rock.Rest.v2
 
                 if ( isErrorStatusCode && actionResult.Content is string )
                 {
-                    return new NegotiatedContentResult<HttpError>( actionResult.StatusCode, new HttpError( actionResult.Content.ToString() ), controller );
+                    return new NegotiatedContentResult<HttpError>( actionResult.StatusCode, new HttpError( actionResult.Content.ToString() ), defaultContentNegotiator, controller.Request, validFormatters );
                 }
                 else if ( actionResult.Error != null )
                 {
-                    return new NegotiatedContentResult<HttpError>( actionResult.StatusCode, new HttpError( actionResult.Error ), controller );
+                    return new NegotiatedContentResult<HttpError>( actionResult.StatusCode, new HttpError( actionResult.Error ), defaultContentNegotiator, controller.Request, validFormatters );
                 }
                 else if ( actionResult.Content is HttpContent httpContent )
                 {
@@ -408,7 +474,7 @@ namespace Rock.Rest.v2
             }
             else
             {
-                return new OkNegotiatedContentResult<object>( result, controller );
+                return new OkNegotiatedContentResult<object>( result, defaultContentNegotiator, controller.Request, validFormatters );
             }
         }
 

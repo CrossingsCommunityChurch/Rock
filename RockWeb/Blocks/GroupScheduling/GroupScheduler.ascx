@@ -32,7 +32,7 @@
                     </asp:LinkButton>
 
                     <asp:Panel ID="pnlSendNowMultiGroupMode" runat="server" class="btn-group" >
-                        <div class="dropdown-toggle btn btn-xs" data-toggle="dropdown">
+                        <div class="dropdown-toggle btn btn-default btn-xs" data-toggle="dropdown">
                             <i class="fa fa-envelope"></i>
                             Send Now
                         </div>
@@ -55,7 +55,7 @@
                     </asp:LinkButton>
 
                     <asp:Panel ID="pnlAutoScheduleMultiGroupMode" runat="server" class="btn-group" >
-                        <div class="dropdown-toggle btn btn-xs" data-toggle="dropdown">
+                        <div class="dropdown-toggle btn btn-default btn-xs" data-toggle="dropdown">
                             <i class="fa fa-magic"></i>
                             Auto Schedule
                         </div>
@@ -122,7 +122,7 @@
                                 <div class="btn-group">
                                     <div class="dropdown-toggle btn btn-xs btn-tool" data-toggle="dropdown">
                                         <i class="fa fa-list-ul"></i>
-                                        <asp:HiddenField ID="hfSchedulerResourceListSourceType" runat="server" />
+                                        <%--<asp:HiddenField ID="hfSchedulerResourceListSourceType" runat="server" />--%>
                                         List: <asp:Literal ID="lSelectedResourceTypeDropDownText" runat="server" Text="Group Members" />
                                     </div>
 
@@ -152,7 +152,7 @@
                                 <div class="d-flex">
                                     <Rock:GroupPicker ID="gpPickedGroups" runat="server" Label="" AllowMultiSelect="true" OnValueChanged="gpPickedGroups_ValueChanged" CssClass="occurrences-groups-picker" LimitToSchedulingEnabledGroups="true" />
                                     <div>
-                                    <asp:LinkButton ID="btnShowChildGroups" runat="server" CssClass="btn" Text="<i class='fa fa-square'></i> Show Child Groups" AutoPostBack="true" OnClick="btnShowChildGroups_Click" />
+                                    <asp:LinkButton ID="btnShowChildGroups" runat="server" CssClass="btn btn-xs btn-tool" Text="<i class='fa fa-square'></i> Show Child Groups" AutoPostBack="true" OnClick="btnShowChildGroups_Click" />
                                     </div>
                                 </div>
 
@@ -179,7 +179,7 @@
                                     <asp:Panel ID="pnlLocationFilter" CssClass="btn-group" runat="server">
 
                                             <div class="dropdown-toggle btn btn-xs btn-tool" data-toggle="dropdown">
-                                                <asp:HiddenField ID="hfPickedLocationIds" runat="server" />
+                                                <%--<Rock:HiddenFieldWithClass ID="hfPickedLocationIds" runat="server" CssClass="js-attendance-occurrence-location-ids"/>--%>
                                                 <asp:Literal ID="lSelectedLocationFilterText" runat="server" Text="Locations...." />
                                             </div>
 
@@ -259,8 +259,10 @@
                                             <Rock:HiddenFieldWithClass ID="hfOccurrenceScheduleIds" CssClass="js-occurrence-schedule-ids" runat="server" />
                                             <Rock:HiddenFieldWithClass ID="hfResourceGroupId" CssClass="js-resource-group-id" runat="server" />
                                             <Rock:HiddenFieldWithClass ID="hfResourceGroupMemberFilterType" CssClass="js-resource-groupmemberfiltertype" runat="server" />
+                                            <Rock:HiddenFieldWithClass ID="hfSchedulerResourceListSourceType" CssClass="js-resource-scheduler-resource-list-source-type" runat="server" />
                                             <Rock:HiddenFieldWithClass ID="hfResourceDataViewId" CssClass="js-resource-dataview-id" runat="server" />
                                             <Rock:HiddenFieldWithClass ID="hfResourceAdditionalPersonIds" CssClass="js-resource-additional-person-ids" runat="server" />
+                                            <Rock:HiddenFieldWithClass ID="hfPickedLocationIds" runat="server" CssClass="js-attendance-occurrence-location-ids"/>
                                             </div>
                                             <div class="js-unscheduled-resource-template" style="display: none">
                                                 <%-- template that groupScheduler.js uses to populate unscheduled resources, data-status will always be "unscheduled" when it is in the list of unscheduled resources --%>
@@ -269,17 +271,17 @@
                                                     <div class="flex">
                                                         <span class="resource-name js-resource-name flex-grow-1"></span>
                                                         <div class="js-resource-name-meta">
-                                                        <span class="resource-member-role js-resource-member-role"></span>
+                                                            <span class="resource-member-role js-resource-member-role"></span>
                                                         </div>
-                                                        <div class="dropdown js-resource-actions hide-transit">
+                                                        <div class="dropdown js-resource-actions hide-dragging">
                                                             <button class="btn btn-link btn-overflow" type="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false"><i class="fa fa-ellipsis-v"></i></button>
                                                         </div>
                                                     </div>
 
-                                                    <div class="resource-preferences js-resource-preferences hide-transit small text-muted">
+                                                    <div class="resource-preferences js-resource-preferences hide-dragging small text-muted">
                                                     </div>
 
-                                                    <div class="resource-scheduled js-resource-scheduled hide-transit small text-muted">
+                                                    <div class="resource-scheduled js-resource-scheduled hide-dragging small text-muted">
                                                     </div>
 
                                                     <div class="resource-meta">
@@ -330,7 +332,7 @@
                                                 <div class="resource-meta">
                                                     <div class="js-resource-meta text-right"></div>
                                                 </div>
-                                                <div class="dropdown js-resource-actions hide-transit">
+                                                <div class="dropdown js-resource-actions hide-dragging">
                                                     <button class="btn btn-link btn-overflow" type="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false"><i class="fa fa-ellipsis-v"></i></button>
                                                     <ul class="dropdown-menu dropdown-menu-right">
                                                         <li>
@@ -349,7 +351,7 @@
                                                             <button type="button" class="dropdown-item btn-link js-update-preference">Update Preference</button>
                                                         </li>
                                                         <li>
-                                                            <button type="button" class="dropdown-item btn-link js-remove">Remove</button>
+                                                            <button type="button" class="dropdown-item dropdown-item-danger btn-link js-remove">Remove</button>
                                                         </li>
                                                     </ul>
                                                 </div>
@@ -386,7 +388,7 @@
                                                     <%-- Occurrence Column Heading when in Multi-Group mode (show Group name with Checkbox --%>
                                                     <asp:Panel ID="pnlMultiGroupModeColumnHeading" runat="server" CssClass="board-heading mt-3">
                                                         <div class="d-flex justify-content-between">
-                                                            <span class="board-column-title"><asp:Literal ID="lMultiGroupModeColumnGroupNameHtml" runat="server" /></span>
+                                                            <span class="board-column-title flex-fill text-wrap"><asp:Literal ID="lMultiGroupModeColumnGroupNameHtml" runat="server" /></span>
                                                             <asp:LinkButton ID="btnMultiGroupModeColumnSelectedGroup" runat="server"
                                                             CssClass="text-color p-0"
                                                             Text="fa fa-check-square"
@@ -401,7 +403,7 @@
                                                     <asp:Panel ID="pnlSingleGroupModeColumnHeading" runat="server" CssClass="board-heading mt-3">
                                                         <div class="d-flex justify-content-between">
                                                             <span class="board-column-title"><asp:Literal ID="lSingleGroupModeColumnHeadingOccurrenceDate" runat="server" /></span>
-                                                            <asp:Literal ID="lSingleGroupModeColumnHeadingOccurrenceTime" runat="server" />
+                                                            <span class="board-column-schedule-name" data-toggle="tooltip" data-placement="bottom" title="<%# Eval("Schedule.AbbreviatedName") %>"><asp:Literal ID="lSingleGroupModeColumnHeadingOccurrenceScheduleName" runat="server" /></span>
                                                         </div>
                                                         <div class="board-heading-pill mt-2 mb-3" style="background:#C8C8C8"></div>
                                                     </asp:Panel>
@@ -418,14 +420,14 @@
                                                                             <%-- Occurrence Panel Heading when in Multi-Group mode --%>
                                                                             <asp:Panel ID="pnlMultiGroupModePanelHeading" runat="server" CssClass="d-flex justify-content-between align-items-center w-100">
                                                                                 <div class="d-flex flex-column">
-                                                                                <span class="location"><asp:Literal ID="lMultiGroupModeLocationTitle" runat="server" /></span>
-                                                                                <span class="date small text-muted"><asp:Literal runat="server" ID="lMultiGroupModeOccurrenceScheduledDate" /></span>
+                                                                                    <asp:Literal ID="lMultiGroupModeLocationTitle" runat="server" />
+                                                                                    <span class="date small text-nowrap text-muted"><asp:Literal runat="server" ID="lMultiGroupModeOccurrenceScheduledDate" /></span>
                                                                                 </div>
 
-                                                                                <div>
-                                                                                    <span class="scheduled-time"><asp:Literal runat="server" ID="lMultiGroupModeOccurrenceScheduledTime" /></span>
+                                                                                <div class="d-flex text-nowrap overflow-hidden ml-2">
+                                                                                    <span class="board-column-schedule-name text-truncate" data-toggle="tooltip" data-placement="bottom" title="<%# Eval("Schedule.AbbreviatedName") %>"><asp:Literal runat="server" ID="lMultiGroupModeOccurrenceScheduleName" /></span>
 
-                                                                                    <span class="autoscheduler-warning js-autoscheduler-warning" data-placement="bottom" data-original-title="Auto Schedule requires a desired capacity for this location.">
+                                                                                    <span class="autoscheduler-warning ml-1 js-autoscheduler-warning" data-placement="bottom" data-original-title="Auto Schedule requires a desired capacity for this location.">
                                                                                         <i class="fa fa-exclamation-triangle"></i>
                                                                                     </span>
                                                                                 </div>
@@ -502,8 +504,8 @@
                         <asp:Panel ID="pnlGroupPreferenceAssignment" runat="server" >
                             <Rock:DatePicker ID="dpGroupMemberScheduleTemplateStartDate" runat="server" Label="Starting On" />
                             <Rock:RockRadioButtonList ID="rblGroupScheduleAssignmentUpdateOption" runat="server" RepeatDirection="Horizontal" AutoPostBack="true" OnSelectedIndexChanged="rblGroupScheduleAssignmentUpdateOption_SelectedIndexChanged">
-                                <asp:ListItem Text="Update Preference" Value="UpdatePreference" Selected="true" />
-                                <asp:ListItem Text="Append to preference" Value="AppendToPreference" />
+                                <asp:ListItem Text="Replace Preference" Value="UpdatePreference" Selected="true" />
+                                <asp:ListItem Text="Add to Preference" Value="AppendToPreference" />
                             </Rock:RockRadioButtonList>
                         </asp:Panel>
 

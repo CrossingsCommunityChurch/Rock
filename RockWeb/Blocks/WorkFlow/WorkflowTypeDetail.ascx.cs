@@ -19,6 +19,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data.Entity;
 using System.Linq;
+using System.Reflection;
 using System.Web.UI;
 
 using Newtonsoft.Json;
@@ -33,6 +34,7 @@ using Rock.Utility;
 using Rock.Web.Cache;
 using Rock.Web.UI;
 using Rock.Web.UI.Controls;
+using Rock.Workflow;
 using Attribute = Rock.Model.Attribute;
 
 namespace RockWeb.Blocks.WorkFlow
@@ -76,6 +78,7 @@ This {{ Workflow.WorkflowType.WorkTerm }} does not currently require your attent
     </div>
 {% endif %}", "", 3 )]
     [LinkedPage( "Export Workflows Page", "Page used to export workflows.", false, "", "", 4 )]
+    [Rock.SystemGuid.BlockTypeGuid( "E1FF677D-5E52-4259-90C7-5560ECBBD82B" )]
     public partial class WorkflowTypeDetail : RockBlock
     {
         protected static class AuthorizationMisc
@@ -190,6 +193,14 @@ This {{ Workflow.WorkflowType.WorkTerm }} does not currently require your attent
 
             if ( !Page.IsPostBack )
             {
+                // Prevent the Save button from being clicked if already clicked.
+                // This duration ensures the button is only disabled for 5 seconds,
+                // in case an exception is thrown from the server.
+                var disabledDuration = 5000;
+
+                // This needs to be set in OnLoad since ValidationGroup is not available in the OnInit event handler.
+                btnSave.OnClientClick = $"return workflowTypeDetailHelper.onButtonClicked('{btnSave.ClientID}', '{btnSave.ValidationGroup}', {disabledDuration})";
+
                 ShowDetail();
             }
             else
@@ -326,6 +337,7 @@ This {{ Workflow.WorkflowType.WorkTerm }} does not currently require your attent
                 var newWorkflowType = workflowType.CloneWithoutIdentity();
                 newWorkflowType.IsSystem = false;
                 newWorkflowType.Name = workflowType.Name + " - Copy";
+                newWorkflowType.WorkflowIdPrefix = workflowType.WorkflowIdPrefix + " - Copy";
 
                 // Create temporary state objects for the new workflow type
                 var newAttributesState = new List<Attribute>();
@@ -444,6 +456,25 @@ This {{ Workflow.WorkflowType.WorkTerm }} does not currently require your attent
                             {
                                 newWorkflowForm.ActionAttributeGuid = guidXref[actionType.WorkflowForm.ActionAttributeGuid.Value];
                             }
+
+                            if ( actionType.WorkflowForm.PersonEntryFamilyAttributeGuid.HasValue &&
+                                guidXref.ContainsKey( actionType.WorkflowForm.PersonEntryFamilyAttributeGuid.Value ) )
+                            {
+                                newWorkflowForm.PersonEntryFamilyAttributeGuid = guidXref[actionType.WorkflowForm.PersonEntryFamilyAttributeGuid.Value];
+                            }
+
+                            if ( actionType.WorkflowForm.PersonEntryPersonAttributeGuid.HasValue &&
+                                guidXref.ContainsKey( actionType.WorkflowForm.PersonEntryPersonAttributeGuid.Value ) )
+                            {
+                                newWorkflowForm.PersonEntryPersonAttributeGuid = guidXref[actionType.WorkflowForm.PersonEntryPersonAttributeGuid.Value];
+                            }
+
+                            if ( actionType.WorkflowForm.PersonEntrySpouseAttributeGuid.HasValue &&
+                                guidXref.ContainsKey( actionType.WorkflowForm.PersonEntrySpouseAttributeGuid.Value ) )
+                            {
+                                newWorkflowForm.PersonEntrySpouseAttributeGuid = guidXref[actionType.WorkflowForm.PersonEntrySpouseAttributeGuid.Value];
+                            }
+
                             newActionType.WorkflowForm = newWorkflowForm;
 
                             foreach ( var formAttribute in actionType.WorkflowForm.FormAttributes )
@@ -618,6 +649,7 @@ This {{ Workflow.WorkflowType.WorkTerm }} does not currently require your attent
                 workflowType.ProcessingIntervalSeconds = null;
             }
 
+            workflowType.MaxWorkflowAgeDays = tbMaximumWorkflowAge.Text.AsIntegerOrNull();
             workflowType.LogRetentionPeriod = tbLogRetention.Text.AsIntegerOrNull();
             workflowType.CompletedWorkflowRetentionPeriod = tbCompletedRetention.Text.AsIntegerOrNull();
             workflowType.IsPersisted = cbIsPersisted.Checked;
@@ -737,6 +769,8 @@ This {{ Workflow.WorkflowType.WorkTerm }} does not currently require your attent
             }
             rockContext.SaveChanges();
 
+            var formBuilderEntityTypeId = EntityTypeCache.GetId<Rock.Workflow.Action.FormBuilder>();
+
             // add or update WorkflowActivityTypes(and Actions) that are assigned in the UI
             int workflowActivityTypeOrder = 0;
             foreach ( var editorWorkflowActivityType in ActivityTypesState )
@@ -786,14 +820,16 @@ This {{ Workflow.WorkflowType.WorkTerm }} does not currently require your attent
                     workflowActionType.AttributeValues = editorWorkflowActionType.AttributeValues;
                     workflowActionType.Order = workflowActionTypeOrder++;
 
-                    if ( workflowActionType.WorkflowForm != null && editorWorkflowActionType.WorkflowForm == null )
+                    var isFormBuilderAction = workflowActionType.EntityTypeId == formBuilderEntityTypeId;
+
+                    if ( !isFormBuilderAction && workflowActionType.WorkflowForm != null && editorWorkflowActionType.WorkflowForm == null )
                     {
                         // Form removed
                         workflowFormService.Delete( workflowActionType.WorkflowForm );
                         workflowActionType.WorkflowForm = null;
                     }
 
-                    if ( editorWorkflowActionType.WorkflowForm != null )
+                    if ( !isFormBuilderAction && editorWorkflowActionType.WorkflowForm != null )
                     {
                         if ( workflowActionType.WorkflowForm == null )
                         {
@@ -1424,6 +1460,11 @@ This {{ Workflow.WorkflowType.WorkTerm }} does not currently require your attent
             }
 
             SetEditMode( true );
+            nbWarningMessage.Visible = workflowType.IsFormBuilder;
+            if ( workflowType.IsFormBuilder )
+            {
+                nbWarningMessage.Text = "This workflow was created from the Form Builder feature. Care should be taken in editing this as a workflow to ensure that you do not break the native capabilities.";
+            }
 
             cbIsActive.Checked = workflowType.IsActive == true;
             tbName.Text = workflowType.Name;
@@ -1435,13 +1476,14 @@ This {{ Workflow.WorkflowType.WorkTerm }} does not currently require your attent
             if ( workflowType.ProcessingIntervalSeconds.HasValue )
             {
                 int mins = workflowType.ProcessingIntervalSeconds.Value / 60;
-                tbProcessingInterval.Text = mins.ToString( "N0" );
+                tbProcessingInterval.Text = mins.ToString();
             }
             else
             {
                 tbProcessingInterval.Text = string.Empty;
             }
 
+            tbMaximumWorkflowAge.Text = workflowType.MaxWorkflowAgeDays.ToStringSafe();
             tbLogRetention.Text = workflowType.LogRetentionPeriod.ToStringSafe();
             tbCompletedRetention.Text = workflowType.CompletedWorkflowRetentionPeriod.ToStringSafe();
             cbIsPersisted.Checked = workflowType.IsPersisted;
@@ -1684,6 +1726,7 @@ This {{ Workflow.WorkflowType.WorkTerm }} does not currently require your attent
                 bool showInvalid = false )
         {
             var control = new WorkflowActionTypeEditor();
+            control.IsEditable = DetermineIfActionIsEditable( actionType );
             parentControl.Controls.Add( control );
             control.ID = actionType.Guid.ToString( "N" );
             control.ValidationGroup = btnSave.ValidationGroup;
@@ -1755,6 +1798,30 @@ This {{ Workflow.WorkflowType.WorkTerm }} does not currently require your attent
             }
 
             return control;
+        }
+
+        /// <summary>
+        /// Determines if action type is editable.
+        /// </summary>
+        /// <param name="actionType">Type of the action.</param>
+        private bool DetermineIfActionIsEditable( WorkflowActionType actionType )
+        {
+            ActionComponent actionComponent = actionType?.WorkflowAction;
+
+            if ( actionComponent == null )
+            {
+                // probably adding a new workflow action and type hasn't been selected yet
+                return true;
+            }
+
+            var attr = actionComponent.GetType().GetCustomAttribute<ActionCategoryAttribute>( false );
+
+            if ( attr != null && attr.CategoryName == "HideFromUser" )
+            {
+                return false;
+            }
+
+            return true;
         }
 
         /// <summary>
@@ -2073,9 +2140,7 @@ This {{ Workflow.WorkflowType.WorkTerm }} does not currently require your attent
 
         private void SaveAttributeToAttributeState()
         {
-#pragma warning disable 0618 // Type or member is obsolete
-            var attribute = SaveChangesToStateCollection( edtAttributes, AttributesState );
-#pragma warning restore 0618 // Type or member is obsolete
+            var attribute = edtAttributes.SaveChangesToStateCollection( AttributesState );
 
             // Controls will show warnings
             if ( !attribute.IsValid )
@@ -2084,7 +2149,6 @@ This {{ Workflow.WorkflowType.WorkTerm }} does not currently require your attent
             }
 
             ReOrderAttributes( AttributesState );
-
             BindAttributesGrid();
         }
 
@@ -2139,10 +2203,7 @@ This {{ Workflow.WorkflowType.WorkTerm }} does not currently require your attent
             if ( ActivityAttributesState.ContainsKey( activityTypeGuid ) )
             {
                 var attributesState = ActivityAttributesState[activityTypeGuid];
-
-#pragma warning disable 0618 // Type or member is obsolete
-                var attribute = SaveChangesToStateCollection( edtActivityAttributes, attributesState );
-#pragma warning restore 0618 // Type or member is obsolete
+                var attribute = edtActivityAttributes.SaveChangesToStateCollection( attributesState );
 
                 // Controls will show warnings
                 if ( !attribute.IsValid )
@@ -2209,50 +2270,6 @@ This {{ Workflow.WorkflowType.WorkTerm }} does not currently require your attent
         }
 
         #endregion
-
-        #endregion
-
-        #region Obsolete Code
-
-        /// <summary>
-        /// Add or update the saved state of an Attribute using values from the AttributeEditor.
-        /// Non-editable system properties of the existing Attribute state are preserved.
-        /// </summary>
-        /// <param name="editor">The AttributeEditor that holds the updated Attribute values.</param>
-        /// <param name="attributeStateCollection">The stored state collection.</param>
-        [RockObsolete( "1.11" )]
-        [Obsolete( "This method is required for backward-compatibility - new blocks should use the AttributeEditor.SaveChangesToStateCollection() extension method instead." )]
-        private Rock.Model.Attribute SaveChangesToStateCollection( AttributeEditor editor, List<Rock.Model.Attribute> attributeStateCollection )
-        {
-            // Load the editor values into a new Attribute instance.
-            Rock.Model.Attribute attribute = new Rock.Model.Attribute();
-
-            editor.GetAttributeProperties( attribute );
-
-            // Get the stored state of the Attribute, and copy the values of the non-editable properties.
-            var attributeState = attributeStateCollection.Where( a => a.Guid.Equals( attribute.Guid ) ).FirstOrDefault();
-
-            if ( attributeState != null )
-            {
-                attribute.Order = attributeState.Order;
-                attribute.CreatedDateTime = attributeState.CreatedDateTime;
-                attribute.CreatedByPersonAliasId = attributeState.CreatedByPersonAliasId;
-                attribute.ForeignGuid = attributeState.ForeignGuid;
-                attribute.ForeignId = attributeState.ForeignId;
-                attribute.ForeignKey = attributeState.ForeignKey;
-
-                attributeStateCollection.RemoveEntity( attribute.Guid );
-            }
-            else
-            {
-                // Set the Order of the new entry as the last item in the collection.
-                attribute.Order = attributeStateCollection.Any() ? attributeStateCollection.Max( a => a.Order ) + 1 : 0;
-            }
-
-            attributeStateCollection.Add( attribute );
-
-            return attribute;
-        }
 
         #endregion
     }

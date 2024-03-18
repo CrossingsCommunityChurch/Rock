@@ -92,6 +92,11 @@ namespace Rock.Web.UI.Controls
         protected RockTextBox _tbIconCssClass;
 
         /// <summary>
+        /// The attribute color picker
+        /// </summary>
+        protected ColorPicker _attributeColorPicker;
+
+        /// <summary>
         /// Required control
         /// </summary>
         protected RockCheckBox _cbRequired;
@@ -190,6 +195,11 @@ namespace Rock.Web.UI.Controls
         /// Cancel control
         /// </summary>
         protected LinkButton _btnCancel;
+
+        /// <summary>
+        /// Attribute validator
+        /// </summary>
+        protected CustomValidator _cvAttribute;
 
         #endregion Controls
 
@@ -521,13 +531,8 @@ namespace Rock.Web.UI.Controls
                 _lKey.Text = value;
             }
         }
-
-        /// <summary>
-        /// Gets or sets the icon CSS class.
-        /// </summary>
-        /// <value>
-        /// The icon CSS class.
-        /// </value>
+        
+        /// <inheritdoc cref="Rock.Model.Attribute.IconCssClass"/>
         public string IconCssClass
         {
             get
@@ -539,6 +544,21 @@ namespace Rock.Web.UI.Controls
             {
                 EnsureChildControls();
                 _tbIconCssClass.Text = value;
+            }
+        }
+
+        /// <inheritdoc cref="Rock.Model.Attribute.AttributeColor"/>
+        public string AttributeColor
+        {
+            get
+            {
+                EnsureChildControls();
+                return _attributeColorPicker.Text;
+            }
+            set
+            {
+                EnsureChildControls();
+                _attributeColorPicker.Text = value;
             }
         }
 
@@ -1283,10 +1303,16 @@ namespace Rock.Web.UI.Controls
             Controls.Add( _lAttributeActionTitle );
 
             _validationSummary = new ValidationSummary();
-            _validationSummary.ID = "valiationSummary";
+            _validationSummary.ID = "validationSummary";
             _validationSummary.CssClass = "alert alert-validation";
             _validationSummary.HeaderText = "Please correct the following:";
             Controls.Add( _validationSummary );
+
+            _cvAttribute = new CustomValidator();
+            _cvAttribute.ID = "cvAttribute";
+            _cvAttribute.ServerValidate += cvAttribute_ServerValidate;
+            _cvAttribute.Display = ValidatorDisplay.Dynamic;
+            Controls.Add( _cvAttribute );
 
             _tbName = new RockTextBox();
             _tbName.ID = "tbName";
@@ -1415,6 +1441,12 @@ namespace Rock.Web.UI.Controls
             _tbIconCssClass.Label = "Icon CSS Class";
             pnlAdvancedTopRowCol1.Controls.Add( _tbIconCssClass );
 
+            _attributeColorPicker = new ColorPicker();
+            _attributeColorPicker.ID = "_attributeColorPicker";
+            _attributeColorPicker.Label = "Attribute Color";
+            _attributeColorPicker.Help = "The color used to visually distinguish this attribute.";
+            pnlAdvancedTopRowCol1.Controls.Add( _attributeColorPicker );
+
             _cbEnableHistory = new RockCheckBox();
             _cbEnableHistory.ID = "_cbEnableHistory";
             _cbEnableHistory.Label = "Enable History";
@@ -1538,6 +1570,7 @@ namespace Rock.Web.UI.Controls
             // Set the validation group for all controls
             string validationGroup = ValidationGroup;
             _validationSummary.ValidationGroup = validationGroup;
+            _cvAttribute.ValidationGroup = validationGroup;
             _tbName.ValidationGroup = validationGroup;
             _tbAbbreviatedName.ValidationGroup = validationGroup;
             _tbDescription.ValidationGroup = validationGroup;
@@ -1545,6 +1578,7 @@ namespace Rock.Web.UI.Controls
             _tbKey.ValidationGroup = validationGroup;
             _cvKey.ValidationGroup = validationGroup;
             _tbIconCssClass.ValidationGroup = validationGroup;
+            _attributeColorPicker.ValidationGroup = validationGroup;
             _cbRequired.ValidationGroup = validationGroup;
             _cbShowInGrid.ValidationGroup = validationGroup;
             _cbShowOnBulk.ValidationGroup = validationGroup;
@@ -1577,6 +1611,11 @@ namespace Rock.Web.UI.Controls
                 }
             }
 
+
+            // Hide the validation summary if there is already one on the page with the same ValidationGroup.
+            var parentSummary = this.FindFirstInParentContainerWhere( x => x.GetType() == typeof( ValidationSummary ) && ( ( ValidationSummary ) x ).ValidationGroup == validationGroup );
+            _validationSummary.Visible = ( parentSummary == null );
+
             _btnSave.ValidationGroup = validationGroup;
         }
 
@@ -1604,6 +1643,7 @@ namespace Rock.Web.UI.Controls
             _hfExistingKeyNames.RenderControl( writer );
 
             _validationSummary.RenderControl( writer );
+            _cvAttribute.RenderControl( writer );
 
             // row 1
             writer.AddAttribute( HtmlTextWriterAttribute.Class, "row" );
@@ -1717,6 +1757,35 @@ namespace Rock.Web.UI.Controls
         #region Event Handlers
 
         /// <summary>
+        /// Handles the ServerValidate event of the cvAttribute control.
+        /// </summary>
+        /// <param name="source">The source of the event.</param>
+        /// <param name="args">The <see cref="ServerValidateEventArgs"/> instance containing the event data.</param>
+        protected void cvAttribute_ServerValidate( object source, ServerValidateEventArgs args )
+        {
+            // Create an Attribute model instance and validate it.
+            var attribute = new Rock.Model.Attribute();
+            GetAttributeProperties( attribute );
+
+            if ( !attribute.IsValid )
+            {
+                // Create a new validator for each of the validation results, to ensure they are displayed on the page.
+                foreach ( var result in attribute.ValidationResults )
+                {
+                    var validator = new CustomValidator
+                    {
+                        ValidationGroup = this.ValidationGroup,
+                        IsValid = false,
+                        ErrorMessage = result.ErrorMessage
+                    };
+                    this.Page.Validators.Add( validator );
+                }
+            }
+
+            args.IsValid = attribute.IsValid;
+        }
+
+        /// <summary>
         /// Handles the ServerValidate event of the cvKey control.
         /// </summary>
         /// <param name="source">The source of the event.</param>
@@ -1798,6 +1867,7 @@ namespace Rock.Web.UI.Controls
                 this.Name = attribute.Name;
                 this.Key = attribute.Key;
                 this.IconCssClass = attribute.IconCssClass;
+                this.AttributeColor = attribute.AttributeColor;
                 this.CategoryIds = attribute.Categories.Select( c => c.Id ).ToList();
                 this.Description = attribute.Description;
                 this.Required = attribute.IsRequired;
@@ -1849,10 +1919,39 @@ namespace Rock.Web.UI.Controls
                 ObjectPropertyNames = new List<string>();
                 foreach ( var propInfo in objectType.GetProperties() )
                 {
-                    ObjectPropertyNames.Add( propInfo.Name );
+                    // Check to make sure that the property is allowed (some exceptions are allowed)
+                    if ( !IsObjectPropertyAllowedAsAttributeKey( propInfo.Name, this.AttributeId ) )
+                    {
+                        ObjectPropertyNames.Add( propInfo.Name );
+                    }
                 }
             }
 
+        }
+
+        /// <summary>
+        /// As a default object properties are not allowed as attribute keys. There are some exceptions:
+        /// 
+        /// 1. Campus on Workflows and Registration - The need for this came when we added the 'CampusId' property to the Workflow and Registration models.
+        ///    This caused existing workflows with an attribute key of 'Campus' to not be able to save. They ran fine but could not be edited.
+        ///    The virtual navigation property blocks the use as an attribute key. This limitation was added back in the 'Legacy Lava' days but
+        ///    is technically not needed any longer. As a solution we will allow the Campus attribute key on existing workflow attributes but 
+        ///    will not allow them for new attributes.
+        /// </summary>
+        /// <param name="propertyName">Name of the property.</param>
+        /// <param name="attributeId">The entity identifier.</param>
+        /// <returns></returns>
+        private bool IsObjectPropertyAllowedAsAttributeKey( string propertyName, int? attributeId )
+        {
+            var workflowEntityTypeId = EntityTypeCache.Get( SystemGuid.EntityType.WORKFLOW ).Id;
+            var registrationEntityTypeId = EntityTypeCache.Get( SystemGuid.EntityType.REGISTRATION ).Id;
+
+            if ( propertyName == "Campus" && ( this.AttributeEntityTypeId == workflowEntityTypeId || this.AttributeEntityTypeId == registrationEntityTypeId ) && attributeId.HasValue && attributeId != 0 )
+            {
+                return true;
+            }
+
+            return false;
         }
 
         /// <summary>
@@ -1869,6 +1968,7 @@ namespace Rock.Web.UI.Controls
                 attribute.Name = this.Name;
                 attribute.Key = this.Key;
                 attribute.IconCssClass = this.IconCssClass;
+                attribute.AttributeColor = this.AttributeColor;
                 attribute.Description = this.Description;
                 attribute.FieldTypeId = this.AttributeFieldTypeId;
                 attribute.IsMultiValue = false;
@@ -1964,6 +2064,10 @@ namespace Rock.Web.UI.Controls
                 {
                     qualifiers = this.AttributeQualifiers;
                 }
+
+                // Set a configuration flag to indicate that the control is accepting a default value.
+                // Some controls apply different validation rules to default values, such as allowing partial input.
+                qualifiers?.AddOrIgnore( "DataEntryMode", new ConfigurationValue { Name = "DataEntryMode", Value = "DefaultValue" } );
 
                 // make sure each default control has a unique/predictable ID to help avoid viewstate issues
                 var defaultControl = field.EditControl( qualifiers, $"defaultValue_{fieldTypeId}_{this.AttributeGuid.ToString("N")}" );

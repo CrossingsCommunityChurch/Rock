@@ -48,6 +48,7 @@ namespace Rock.Workflow.Action.CheckIn
         Description = "Select 'Yes' if a person a should be removed from a group's scheduled location if they don't meet the 'Attendance Record Required For Check-in' requirement for the group. Select 'No' if they should just be marked as excluded.",
         DefaultBooleanValue = true,
         Order = 2 )]
+    [Rock.SystemGuid.EntityTypeGuid( "24A7E196-B50B-4BD6-A347-07CFC5ABEF9E")]
     public class LoadSchedules : CheckInActionComponent
     {
         /// <summary>
@@ -144,10 +145,23 @@ namespace Rock.Workflow.Action.CheckIn
         /// <param name="checkInState">State of the check in.</param>
         private void LoadPersonSchedules( CheckInPerson person, List<PersonAttendanceScheduled> attendanceScheduledLookup, Dictionary<int, KioskGroupType> kioskGroupTypeLookup, bool loadSelectedOnly, bool remove, CheckInState checkInState )
         {
-            var personGroups = person.GetGroupTypes( loadSelectedOnly ).SelectMany( gt => gt.GetGroups( loadSelectedOnly ) ).ToList();
+            var personGroups = person
+                .GetGroupTypes( loadSelectedOnly )
+                .SelectMany( gt => gt.GetGroups( loadSelectedOnly ), ( gt, g ) => new
+                {
+                    GroupType = gt,
+                    Group = g
+                } )
+                .ToList();
 
-            foreach ( var group in personGroups )
+            var anyAvailableGroups = false;
+            var anyAvailableSchedules = false;
+
+            foreach ( var groupWithType in personGroups )
             {
+                var groupType = groupWithType.GroupType;
+                var group = groupWithType.Group;
+
                 var kioskGroup = kioskGroupTypeLookup.GetValueOrNull( group.Group.GroupTypeId )?.KioskGroups?.Where( g => g.Group.Id == group.Group.Id && g.IsCheckInActive )
                                 .FirstOrDefault();
 
@@ -156,7 +170,9 @@ namespace Rock.Workflow.Action.CheckIn
                     continue;
                 }
 
-                var groupType = GroupTypeCache.Get( group.Group.GroupTypeId );
+                anyAvailableGroups = true;
+
+                var groupTypeCache = GroupTypeCache.Get( group.Group.GroupTypeId );
 
                 foreach ( var location in group.GetLocations( loadSelectedOnly ) )
                 {
@@ -175,7 +191,7 @@ namespace Rock.Workflow.Action.CheckIn
                         var attendanceRecordRequiredForCheckIn = group.Group.AttendanceRecordRequiredForCheckIn;
 
                         // if the groupType currently doesn't have scheduling enabled, ignore the group's AttendanceRecordRequiredForCheckIn setting, and just have it be ScheduleNotRequired
-                        if ( groupType.IsSchedulingEnabled == false )
+                        if ( groupTypeCache.IsSchedulingEnabled == false )
                         {
                             attendanceRecordRequiredForCheckIn = AttendanceRecordRequiredForCheckIn.ScheduleNotRequired;
                         }
@@ -210,6 +226,13 @@ namespace Rock.Workflow.Action.CheckIn
 
                         location.PreSelected = preSelectForOccurrence;
 
+                        // If this location was pre-selected, also pre-select its group and group type.
+                        if ( preSelectForOccurrence )
+                        {
+                            group.PreSelected = true;
+                            groupType.PreSelected = true;
+                        }
+
                         if ( excludeSchedule && remove )
                         {
                             // the schedule doesn't meet requirements, and the option for Excluding vs Removing is remove, so don't add it
@@ -239,8 +262,25 @@ namespace Rock.Workflow.Action.CheckIn
 
                             person.PossibleSchedules.Add( checkInSchedule );
                         }
+
+                        if ( !excludeSchedule )
+                        {
+                            anyAvailableSchedules = true;
+                        }
                     }
                 }
+            }
+
+            // If this person has no groups or schedules available, set their "No Option Reason".
+            if ( !anyAvailableGroups )
+            {
+                person.NoOptionReason = "No Matching Groups Found";
+            }
+            else if ( !anyAvailableSchedules )
+            {
+                // Using "Locations" rather than "Schedules" within this message makes more sense
+                // here, since we're showing this message to individuals attempting to check in.
+                person.NoOptionReason = "No Locations Available";
             }
         }
 

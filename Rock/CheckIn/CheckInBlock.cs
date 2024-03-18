@@ -18,6 +18,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Web;
+using System.Web.UI.HtmlControls;
+
 using Rock.Attribute;
 using Rock.Data;
 using Rock.Model;
@@ -176,7 +178,7 @@ namespace Rock.CheckIn
         /// <summary>
         /// The current theme.
         /// </summary>
-        [Obsolete( "Use LocalDeviceConfig..." )]
+        [Obsolete( "Use LocalDeviceConfig...", true )]
         [RockObsolete( "1.10" )]
         protected string CurrentTheme
         {
@@ -195,7 +197,7 @@ namespace Rock.CheckIn
         /// <summary>
         /// The current kiosk id
         /// </summary>
-        [Obsolete( "Use LocalDeviceConfig..." )]
+        [Obsolete( "Use LocalDeviceConfig...", true )]
         [RockObsolete( "1.10" )]
         protected int? CurrentKioskId
         {
@@ -206,7 +208,7 @@ namespace Rock.CheckIn
         /// <summary>
         /// The current primary checkin-type id
         /// </summary>
-        [Obsolete( "Use LocalDeviceConfig..." )]
+        [Obsolete( "Use LocalDeviceConfig...", true )]
         [RockObsolete( "1.10" )]
         protected int? CurrentCheckinTypeId
         {
@@ -225,7 +227,7 @@ namespace Rock.CheckIn
         /// <summary>
         /// The current group type ids (Checkin Areas)
         /// </summary>
-        [Obsolete( "Use LocalDeviceConfig..." )]
+        [Obsolete( "Use LocalDeviceConfig...", true )]
         [RockObsolete( "1.10" )]
         protected List<int> CurrentGroupTypeIds
         {
@@ -300,7 +302,7 @@ namespace Rock.CheckIn
         /// <summary>
         /// Holds cookie names shared across certain check-in blocks.
         /// </summary>
-        [Obsolete( "Use CheckInCookieKey instead" )]
+        [Obsolete( "Use CheckInCookieKey instead", true )]
         [RockObsolete( "1.10" )]
         public struct CheckInCookie
         {
@@ -921,6 +923,18 @@ namespace Rock.CheckIn
             }
 
             return null;
+        }
+
+        /// <summary>
+        /// Returns true if the current check-in theme supports HTML5 Camera.
+        /// This is determined by themes that have a 'js-camera-supported' class on the 'body' tag.
+        /// </summary>
+        /// <returns><c>true</c> if CurrentThemeSupportsHTML5Camera, <c>false</c> otherwise.</returns>
+        public bool CurrentThemeSupportsHTML5Camera()
+        {
+            var body = this.RockPage.Master.FindControl( "body" ) as HtmlGenericControl;
+            var themeSupportsHTML5Camera = body?.HasCssClass( "js-camera-supported" ) == true;
+            return themeSupportsHTML5Camera;
         }
 
         private static class SessionKey

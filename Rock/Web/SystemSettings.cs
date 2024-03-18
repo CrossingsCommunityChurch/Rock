@@ -20,10 +20,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.Serialization;
 using System.Threading;
-using Rock.Constants;
+
 using Rock.Data;
 using Rock.Model;
-using Rock.Utility.Settings;
 using Rock.Web.Cache;
 
 namespace Rock.Web
@@ -154,11 +153,57 @@ namespace Rock.Web
         }
 
         /// <summary>
-        /// Sets the value.
+        /// Gets the System Settings values for the specified key. This method
+        /// will only use cache and not load anything from the database. This
+        /// is important in cases where accessing the database might cause a
+        /// recursive loop, such as with Observability.
         /// </summary>
+        /// <param name="key">The key.</param>
+        /// <param name="result">On return will contain the setting value.</param>
+        /// <returns><c>true</c> if the cache was valid, otherwise <c>false</c>.</returns>
+        internal static bool TryGetCachedValue( string key, out string result )
+        {
+            // Do not use the Get() method because that would defeat the purpose.
+            var cache = RockCache.Get( CacheKey ) as SystemSettings;
+
+            if ( cache == null )
+            {
+                result = string.Empty;
+
+                return false;
+            }
+
+            if ( cache.SystemSettingsValues.TryGetValue( key, out result ) )
+            {
+                return true;
+            }
+
+            // We found the cache, but the setting wasn't in it. Return true
+            // to indicate we had cache and the value is blank.
+            result = string.Empty;
+
+            return true;
+        }
+
+        /// <summary>
+        /// Updates the default value of the system settings associated with the provided <paramref name="key"/>.
+        /// </summary>
+        /// <remarks>If you are unsure if the system settings exists for the provided <paramref name="key"/>, please use <see cref="SetValue(string, string, Guid)"/> to prevent unintentionally creating duplicates.</remarks>
         /// <param name="key">The key.</param>
         /// <param name="value">The value.</param>
         public static void SetValue( string key, string value )
+        {
+            SetValue( key, value, Guid.NewGuid() );
+        }
+
+        /// <summary>
+        /// Updates the default value of the system settings associated with the provided <paramref name="key"/>
+        /// or adds new system settings with the <paramref name="key"/>, <paramref name="value"/>, and <paramref name="guid"/>.
+        /// </summary>
+        /// <param name="key">The key.</param>
+        /// <param name="value">The value.</param>
+        /// <param name="guid">The guid to use if there are no system settings associated with the provided <paramref name="key"/>.</param>
+        public static void SetValue( string key, string value, Guid guid )
         {
             var rockContext = new Rock.Data.RockContext();
             var attributeService = new AttributeService( rockContext );
@@ -166,13 +211,16 @@ namespace Rock.Web
 
             if ( attribute == null )
             {
-                attribute = new Rock.Model.Attribute();
-                attribute.FieldTypeId = FieldTypeCache.Get( new Guid( SystemGuid.FieldType.TEXT ) ).Id;
-                attribute.EntityTypeQualifierColumn = Rock.Model.Attribute.SYSTEM_SETTING_QUALIFIER;
-                attribute.EntityTypeQualifierValue = string.Empty;
-                attribute.Key = key;
-                attribute.Name = key.SplitCase();
-                attribute.DefaultValue = value;
+                attribute = new Rock.Model.Attribute
+                {
+                    FieldTypeId = FieldTypeCache.Get( new Guid( SystemGuid.FieldType.TEXT ) ).Id,
+                    EntityTypeQualifierColumn = Rock.Model.Attribute.SYSTEM_SETTING_QUALIFIER,
+                    EntityTypeQualifierValue = string.Empty,
+                    Key = key,
+                    Name = key.SplitCase(),
+                    DefaultValue = value,
+                    Guid = guid
+                };
                 attributeService.Add( attribute );
             }
             else
@@ -276,7 +324,18 @@ namespace Rock.Web
             using ( var rockContext = new RockContext() )
             {
                 var systemSettingAttributes = new AttributeService( rockContext ).GetSystemSettings().ToAttributeCacheList();
-                var keyValueLookup = systemSettingAttributes.ToDictionary( k => k.Key, v => v.DefaultValue );
+
+                // Build the settings lookup list and flag any duplicates.
+                var keyValueLookup = new Dictionary<string, string>();
+                foreach ( var attribute in systemSettingAttributes )
+                {
+                    if ( keyValueLookup.ContainsKey( attribute.Key ) )
+                    {
+                        ExceptionLogService.LogException( $"The SystemSettings.LoadSettings action encountered a duplicate key. The entry will be ignored. [Key={attribute.Key}, AttributeId={attribute.Id}]" );
+                        continue;
+                    }
+                    keyValueLookup.Add( attribute.Key, attribute.DefaultValue );
+                }
 
                 // RockInstanceId is not the default value but the Guid. So we'll do that one seperately.
                 keyValueLookup.AddOrReplace( Rock.SystemKey.SystemSetting.ROCK_INSTANCE_ID, systemSettingAttributes.Where( s => s.Key == Rock.SystemKey.SystemSetting.ROCK_INSTANCE_ID ).Select( s => s.Guid ).FirstOrDefault().ToString() );

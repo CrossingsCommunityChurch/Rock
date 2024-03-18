@@ -32,7 +32,8 @@ namespace RockWeb.Blocks.Security.Oidc
     [DisplayName( "OpenID Connect Scope Detail" )]
     [Category( "Security > OIDC" )]
     [Description( "Displays the details of the given OpenID Connect Scope." )]
-    public partial class AuthScopeDetail : Rock.Web.UI.RockBlock, IDetailBlock
+    [Rock.SystemGuid.BlockTypeGuid( Rock.SystemGuid.BlockType.OIDC_SCOPE_DETAIL )]
+    public partial class AuthScopeDetail : Rock.Web.UI.RockBlock
     {
         private class PageParameterKeys
         {

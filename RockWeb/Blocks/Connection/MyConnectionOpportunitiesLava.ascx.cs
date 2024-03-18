@@ -70,6 +70,7 @@ namespace RockWeb.Blocks.Connection
         Key = AttributeKey.Contents,
         Order = 4 )]
     #endregion Block Attributes
+    [Rock.SystemGuid.BlockTypeGuid( "1B8E50A0-7AC4-475F-857C-50D0809A3F04" )]
     public partial class MyConnectionOpportunitiesLava : Rock.Web.UI.RockBlock
     {
         #region Attribute Keys
@@ -160,7 +161,7 @@ namespace RockWeb.Blocks.Connection
 
             connectionRequests = connectionRequests.OrderBy( r => r.PersonAlias.Person.LastName ).ThenBy( r => r.PersonAlias.Person.NickName );
 
-            var mergeFields = Rock.Lava.LavaHelper.GetCommonMergeFields( this.RockPage, this.CurrentPerson, new Rock.Lava.CommonMergeFieldsOptions { GetLegacyGlobalMergeFields = false } );
+            var mergeFields = Rock.Lava.LavaHelper.GetCommonMergeFields( this.RockPage, this.CurrentPerson, new Rock.Lava.CommonMergeFieldsOptions() );
             mergeFields.Add( "ConnectionRequests", connectionRequests.ToList() );
 
             var lastActivityNotes = connectionRequests.Select( r => new

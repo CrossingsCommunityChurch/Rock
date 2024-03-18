@@ -1,4 +1,20 @@
-﻿using System;
+﻿// <copyright>
+// Copyright by the Spark Development Network
+//
+// Licensed under the Rock Community License (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.rockrms.com/license
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+// </copyright>
+//
+using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
@@ -6,6 +22,7 @@ using System.Linq;
 using Rock.Attribute;
 using Rock.Data;
 using Rock.Model;
+using Rock.Model.Connection.ConnectionRequest.Options;
 using Rock.Security;
 
 namespace Rock.Blocks.Types.Mobile.Connection
@@ -13,12 +30,13 @@ namespace Rock.Blocks.Types.Mobile.Connection
     /// <summary>
     /// Displays the list of connection requests for a single opportunity.
     /// </summary>
-    /// <seealso cref="Rock.Blocks.RockMobileBlockType" />
+    /// <seealso cref="Rock.Blocks.RockBlockType" />
 
     [DisplayName( "Connection Request List" )]
     [Category( "Mobile > Connection" )]
     [Description( "Displays the list of connection requests for a single opportunity." )]
     [IconCssClass( "fa fa-list" )]
+    [SupportedSiteTypes( Model.SiteType.Mobile )]
 
     #region Block Attributes
 
@@ -55,7 +73,9 @@ namespace Rock.Blocks.Types.Mobile.Connection
 
     #endregion
 
-    public class ConnectionRequestList : RockMobileBlockType
+    [Rock.SystemGuid.EntityTypeGuid( Rock.SystemGuid.EntityType.MOBILE_CONNECTION_CONNECTION_REQUEST_LIST_BLOCK_TYPE )]
+    [Rock.SystemGuid.BlockTypeGuid( Rock.SystemGuid.BlockType.MOBILE_CONNECTION_CONNECTION_REQUEST_LIST )]
+    public class ConnectionRequestList : RockBlockType
     {
         #region Block Attributes
 
@@ -110,10 +130,7 @@ namespace Rock.Blocks.Types.Mobile.Connection
         #region IRockMobileBlockType Implementation
 
         /// <inheritdoc/>
-        public override int RequiredMobileAbiVersion => 3;
-
-        /// <inheritdoc/>
-        public override string MobileBlockType => "Rock.Mobile.Blocks.Connection.ConnectionRequestList";
+        public override Version RequiredMobileVersion => new Version( 1, 3 );
 
         /// <inheritdoc/>
         public override object GetMobileConfigurationValues()
@@ -128,40 +145,6 @@ namespace Rock.Blocks.Types.Mobile.Connection
         #region Methods
 
         /// <summary>
-        /// Gets the connection requests queryable that will provide the results.
-        /// </summary>
-        /// <param name="connectionOpportunityGuid">The connection opportunity unique identifier.</param>
-        /// <param name="currentPerson">The current person.</param>
-        /// <param name="filter">The filter to apply to the query.</param>
-        /// <param name="rockContext">The Rock database context.</param>
-        /// <returns>A queryable of <see cref="ConnectionRequest"/> objects.</returns>
-        /// <exception cref="System.ArgumentNullException">filter</exception>
-        private static IQueryable<ConnectionRequest> GetConnectionRequestsQuery( Guid connectionOpportunityGuid, Person currentPerson, GetConnectionRequestsFilter filter, RockContext rockContext )
-        {
-            if ( filter == null )
-            {
-                throw new ArgumentNullException( nameof( filter ) );
-            }
-
-            var connectionRequestService = new ConnectionRequestService( rockContext );
-
-            var qry = connectionRequestService.Queryable()
-                .Where( r => r.ConnectionOpportunity.Guid == connectionOpportunityGuid );
-
-            if ( filter.ConnectorPersonIds != null && filter.ConnectorPersonIds.Any() )
-            {
-                qry = qry.Where( r => filter.ConnectorPersonIds.Contains( r.ConnectorPersonAlias.PersonId ) );
-            }
-
-            if ( filter.ConnectionStates != null && filter.ConnectionStates.Any() )
-            {
-                qry = qry.Where( r => filter.ConnectionStates.Contains( r.ConnectionState ) );
-            }
-
-            return qry;
-        }
-
-        /// <summary>
         /// Gets the connection requests view model that can be sent to the client.
         /// </summary>
         /// <param name="connectionOpportunityGuid">The connection opportunity unique identifier.</param>
@@ -172,6 +155,7 @@ namespace Rock.Blocks.Types.Mobile.Connection
         {
             using ( var rockContext = new RockContext() )
             {
+                var connectionRequestService = new ConnectionRequestService( rockContext );
                 var connectionOpportunity = new ConnectionOpportunityService( rockContext ).GetNoTracking( connectionOpportunityGuid );
                 bool hasMore;
                 List<ConnectionRequest> requests;
@@ -183,21 +167,22 @@ namespace Rock.Blocks.Types.Mobile.Connection
                 }
                 else
                 {
-                    var filter = new GetConnectionRequestsFilter
+                    var filterOptions = new ConnectionRequestQueryOptions
                     {
+                        ConnectionOpportunityGuids = new List<Guid> { connectionOpportunityGuid },
                         ConnectionStates = filterViewModel.ConnectionStates
                     };
 
                     if ( filterViewModel.OnlyMyConnections )
                     {
-                        filter.ConnectorPersonIds = new List<int> { RequestContext.CurrentPerson.Id };
+                        filterOptions.ConnectorPersonIds = new List<int> { RequestContext.CurrentPerson.Id };
                     }
 
-                    var qry = GetConnectionRequestsQuery( connectionOpportunityGuid, RequestContext.CurrentPerson, filter, rockContext );
+                    var qry = connectionRequestService.GetConnectionRequestsQuery( filterOptions );
 
-                    // We currently don't support showing inactive connection requests
+                    // We currently don't support showing connected connection requests
                     // since that could end up being a massive list for mobile.
-                    qry = qry.Where( r => r.ConnectionState != ConnectionState.Inactive );
+                    qry = qry.Where( r => r.ConnectionState != ConnectionState.Connected );
 
                     // Put all the requests in memory so we can check security and
                     // then get the current set of requests, plus one. The extra is
@@ -267,29 +252,6 @@ namespace Rock.Blocks.Types.Mobile.Connection
         #endregion
 
         #region Support Classes
-
-        /// <summary>
-        /// The filtering options when getting requests.
-        /// </summary>
-        public class GetConnectionRequestsFilter
-        {
-            /// <summary>
-            /// Gets or sets the connector person identifiers to limit the
-            /// results to.
-            /// </summary>
-            /// <value>
-            /// The connector person identifiers.
-            /// </value>
-            public List<int> ConnectorPersonIds { get; set; }
-
-            /// <summary>
-            /// Gets or sets the states that results will be limited to.
-            /// </summary>
-            /// <value>
-            /// The states that results will be limited to.
-            /// </value>
-            public List<ConnectionState> ConnectionStates { get; set; }
-        }
 
         /// <summary>
         /// The view model that defines the filtering options when getting requests.

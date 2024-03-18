@@ -1,4 +1,4 @@
-﻿// <copyright>
+// <copyright>
 // Copyright by the Spark Development Network
 //
 // Licensed under the Rock Community License (the "License");
@@ -17,6 +17,8 @@
 using Rock.Data;
 using Rock.Lava;
 using Rock.Web.Cache;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using System.Data.Entity.ModelConfiguration;
@@ -30,6 +32,7 @@ namespace Rock.Model
     [RockDomain( "Workflow" )]
     [Table( "WorkflowActivityType" )]
     [DataContract]
+    [Rock.SystemGuid.EntityTypeGuid( "E5FBDBA2-9539-4679-B948-2E06C1BB1E3F")]
     public partial class WorkflowActivityType : Model<WorkflowActivityType>, IOrdered, ICacheable
     {
         #region Entity Properties
@@ -103,6 +106,21 @@ namespace Rock.Model
         /// </value>
         [LavaVisible]
         public virtual WorkflowType WorkflowType { get; set; }
+
+        /// <summary>
+        /// Gets or sets a collection containing the <see cref="Rock.Model.WorkflowActionType">WorkflowActionTypes</see> that are 
+        /// performed by this WorkflowActivityType.
+        /// </summary>
+        /// <value>
+        /// The action types.
+        /// </value>
+        [DataMember]
+        public virtual ICollection<WorkflowActionType> ActionTypes
+        {
+            get { return _actionTypes ?? ( _actionTypes = new Collection<WorkflowActionType>() ); }
+            set { _actionTypes = value; }
+        }
+        private ICollection<WorkflowActionType> _actionTypes;
 
         #endregion Navigation Properties
     }

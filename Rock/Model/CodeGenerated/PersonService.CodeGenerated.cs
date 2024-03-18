@@ -23,10 +23,7 @@
 using System;
 using System.Linq;
 
-using Rock.Attribute;
 using Rock.Data;
-using Rock.ViewModel;
-using Rock.Web.Cache;
 
 namespace Rock.Model
 {
@@ -63,87 +60,6 @@ namespace Rock.Model
             return true;
         }
     }
-
-    /// <summary>
-    /// Person View Model Helper
-    /// </summary>
-    [DefaultViewModelHelper( typeof( Person ) )]
-    public partial class PersonViewModelHelper : ViewModelHelper<Person, Rock.ViewModel.PersonViewModel>
-    {
-        /// <summary>
-        /// Converts the model to a view model.
-        /// </summary>
-        /// <param name="model">The entity.</param>
-        /// <param name="currentPerson">The current person.</param>
-        /// <param name="loadAttributes">if set to <c>true</c> [load attributes].</param>
-        /// <returns></returns>
-        public override Rock.ViewModel.PersonViewModel CreateViewModel( Person model, Person currentPerson = null, bool loadAttributes = true )
-        {
-            if ( model == null )
-            {
-                return default;
-            }
-
-            var viewModel = new Rock.ViewModel.PersonViewModel
-            {
-                Id = model.Id,
-                Guid = model.Guid,
-                AccountProtectionProfile = ( int ) model.AccountProtectionProfile,
-                AgeClassification = ( int ) model.AgeClassification,
-                AnniversaryDate = model.AnniversaryDate,
-                BirthDay = model.BirthDay,
-                BirthMonth = model.BirthMonth,
-                BirthYear = model.BirthYear,
-                CommunicationPreference = ( int ) model.CommunicationPreference,
-                ConnectionStatusValueId = model.ConnectionStatusValueId,
-                ContributionFinancialAccountId = model.ContributionFinancialAccountId,
-                DeceasedDate = model.DeceasedDate,
-                Email = model.Email,
-                EmailNote = model.EmailNote,
-                EmailPreference = ( int ) model.EmailPreference,
-                FirstName = model.FirstName,
-                Gender = ( int ) model.Gender,
-                GivingGroupId = model.GivingGroupId,
-                GivingLeaderId = model.GivingLeaderId,
-                GraduationYear = model.GraduationYear,
-                InactiveReasonNote = model.InactiveReasonNote,
-                IsDeceased = model.IsDeceased,
-                IsEmailActive = model.IsEmailActive,
-                IsLockedAsChild = model.IsLockedAsChild,
-                IsSystem = model.IsSystem,
-                LastName = model.LastName,
-                MaritalStatusValueId = model.MaritalStatusValueId,
-                MiddleName = model.MiddleName,
-                NickName = model.NickName,
-                PhotoId = model.PhotoId,
-                PreferredLanguageValueId = model.PreferredLanguageValueId,
-                PrimaryCampusId = model.PrimaryCampusId,
-                PrimaryFamilyId = model.PrimaryFamilyId,
-                RecordStatusLastModifiedDateTime = model.RecordStatusLastModifiedDateTime,
-                RecordStatusReasonValueId = model.RecordStatusReasonValueId,
-                RecordStatusValueId = model.RecordStatusValueId,
-                RecordTypeValueId = model.RecordTypeValueId,
-                ReviewReasonNote = model.ReviewReasonNote,
-                ReviewReasonValueId = model.ReviewReasonValueId,
-                SuffixValueId = model.SuffixValueId,
-                SystemNote = model.SystemNote,
-                TitleValueId = model.TitleValueId,
-                TopSignalColor = model.TopSignalColor,
-                TopSignalIconCssClass = model.TopSignalIconCssClass,
-                TopSignalId = model.TopSignalId,
-                ViewedCount = model.ViewedCount,
-                CreatedDateTime = model.CreatedDateTime,
-                ModifiedDateTime = model.ModifiedDateTime,
-                CreatedByPersonAliasId = model.CreatedByPersonAliasId,
-                ModifiedByPersonAliasId = model.ModifiedByPersonAliasId,
-            };
-
-            AddAttributesToViewModel( model, viewModel, currentPerson, loadAttributes );
-            ApplyAdditionalPropertiesAndSecurityToViewModel( model, viewModel, currentPerson, loadAttributes );
-            return viewModel;
-        }
-    }
-
 
     /// <summary>
     /// Generated Extension Methods
@@ -204,6 +120,7 @@ namespace Rock.Model
             target.AccountProtectionProfile = source.AccountProtectionProfile;
             target.AgeClassification = source.AgeClassification;
             target.AnniversaryDate = source.AnniversaryDate;
+            target.BirthDateKey = source.BirthDateKey;
             target.BirthDay = source.BirthDay;
             target.BirthMonth = source.BirthMonth;
             target.BirthYear = source.BirthYear;
@@ -214,7 +131,9 @@ namespace Rock.Model
             target.Email = source.Email;
             target.EmailNote = source.EmailNote;
             target.EmailPreference = source.EmailPreference;
+            target.EthnicityValueId = source.EthnicityValueId;
             target.FirstName = source.FirstName;
+            target.FirstNamePronunciationOverride = source.FirstNamePronunciationOverride;
             target.ForeignGuid = source.ForeignGuid;
             target.ForeignKey = source.ForeignKey;
             target.Gender = source.Gender;
@@ -227,17 +146,23 @@ namespace Rock.Model
             target.IsLockedAsChild = source.IsLockedAsChild;
             target.IsSystem = source.IsSystem;
             target.LastName = source.LastName;
+            target.LastNamePronunciationOverride = source.LastNamePronunciationOverride;
             target.MaritalStatusValueId = source.MaritalStatusValueId;
             target.MiddleName = source.MiddleName;
             target.NickName = source.NickName;
+            target.NickNamePronunciationOverride = source.NickNamePronunciationOverride;
             target.PhotoId = source.PhotoId;
             target.PreferredLanguageValueId = source.PreferredLanguageValueId;
+            target.PrimaryAliasId = source.PrimaryAliasId;
             target.PrimaryCampusId = source.PrimaryCampusId;
             target.PrimaryFamilyId = source.PrimaryFamilyId;
+            target.PronunciationNote = source.PronunciationNote;
+            target.RaceValueId = source.RaceValueId;
             target.RecordStatusLastModifiedDateTime = source.RecordStatusLastModifiedDateTime;
             target.RecordStatusReasonValueId = source.RecordStatusReasonValueId;
             target.RecordStatusValueId = source.RecordStatusValueId;
             target.RecordTypeValueId = source.RecordTypeValueId;
+            target.ReminderCount = source.ReminderCount;
             target.ReviewReasonNote = source.ReviewReasonNote;
             target.ReviewReasonValueId = source.ReviewReasonValueId;
             target.SuffixValueId = source.SuffixValueId;
@@ -255,20 +180,5 @@ namespace Rock.Model
             target.ForeignId = source.ForeignId;
 
         }
-
-        /// <summary>
-        /// Creates a view model from this entity
-        /// </summary>
-        /// <param name="model">The entity.</param>
-        /// <param name="currentPerson" >The currentPerson.</param>
-        /// <param name="loadAttributes" >Load attributes?</param>
-        public static Rock.ViewModel.PersonViewModel ToViewModel( this Person model, Person currentPerson = null, bool loadAttributes = false )
-        {
-            var helper = new PersonViewModelHelper();
-            var viewModel = helper.CreateViewModel( model, currentPerson, loadAttributes );
-            return viewModel;
-        }
-
     }
-
 }

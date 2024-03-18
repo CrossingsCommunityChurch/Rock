@@ -39,7 +39,8 @@ namespace RockWeb.Blocks.Security.Oidc
     [DisplayName( "OpenID Connect Client Detail" )]
     [Category( "Security > OIDC" )]
     [Description( "Displays the details of the given OpenID Connect Client." )]
-    public partial class AuthClientDetail : Rock.Web.UI.RockBlock, IDetailBlock
+    [Rock.SystemGuid.BlockTypeGuid( Rock.SystemGuid.BlockType.OIDC_CLIENT_DETAIL )]
+    public partial class AuthClientDetail : Rock.Web.UI.RockBlock
     {
         private const string CLIENT_SECRET_PLACE_HOLDER = "\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022";
 
@@ -170,6 +171,7 @@ namespace RockWeb.Blocks.Security.Oidc
             tbClientId.Text = authClient.ClientId;
             tbRedirectUri.Text = authClient.RedirectUri;
             tbPostLogoutRedirectUri.Text = authClient.PostLogoutRedirectUri;
+            tbScopeApprovalExpiration.Text = authClient.ScopeApprovalExpiration.ToString();
 
             SetClaimsCheckboxValues( authClient.AllowedClaims.FromJsonOrNull<List<string>>() );
             var editAllowed = authClient.IsAuthorized( Authorization.EDIT, CurrentPerson );
@@ -309,6 +311,7 @@ namespace RockWeb.Blocks.Security.Oidc
 
             authClient.RedirectUri = tbRedirectUri.Text;
             authClient.PostLogoutRedirectUri = tbPostLogoutRedirectUri.Text;
+            authClient.ScopeApprovalExpiration = tbScopeApprovalExpiration.Text.AsInteger();
 
             if ( tbClientSecret.Text != CLIENT_SECRET_PLACE_HOLDER )
             {

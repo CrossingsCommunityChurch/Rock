@@ -170,10 +170,18 @@ namespace Rock.CheckIn
             var locations = Locations.Where( t => !t.ExcludedByFilter );
             if ( schedule != null )
             {
-                locations = locations.Where( t => t.AvailableForSchedule.Contains( schedule.Schedule.Id ) );
+                locations = locations
+                    .Where( t => t.AvailableForSchedule.Contains( schedule.Schedule.Id ) )
+                    .Where( t => t.Schedules.Where( s => s.ExcludedByFilter == false && s.Schedule.Id == schedule.Schedule.Id ).Any() );
             }
+
             return locations.ToList();
         }
+
+        /// <summary>
+        /// Gets whether this group has any locations with schedules.
+        /// </summary>
+        public bool AnyLocationsWithSchedules => this.Locations?.Any( l => l.AnySchedules ) == true;
 
         /// <summary>
         /// Returns a <see cref="System.String" /> that represents this instance.

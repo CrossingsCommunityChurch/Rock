@@ -30,7 +30,7 @@
                 <Rock:NotificationBox ID="nbValidationError" runat="server" NotificationBoxType="Danger" EnableViewState="false" />
 
                 <div id="pnlEditDetails" runat="server">
-
+                    <Rock:NotificationBox ID="nbWarningMessage" runat="server" NotificationBoxType="Warning" Visible="false" />
                     <Rock:PanelWidget ID="pwDetails" runat="server" Title="Details" Expanded="true">
                         <div class="row">
                             <div class="col-md-6">
@@ -70,9 +70,15 @@
                         </div>
                         <div class="row">
                             <div class="col-md-6">
+                                <Rock:RockTextBox ID="tbMaximumWorkflowAge" runat="server" Label="Maximum Workflow Age (days)"
+                                    Help="Workflows older than this will be automatically marked completed." />
+                            </div>
+                            <div class="col-md-6">
                                 <Rock:RockTextBox ID="tbCompletedRetention" runat="server" Label="Completed Workflow Retention Period (days)"
                                     Help="The minimum length of time, in days, that completed workflows should be retained for this workflow.  If blank, completed workflows will never be removed." />
                             </div>
+                        </div>
+                        <div class="row">
                             <div class="col-md-6">
                                 <Rock:RockTextBox ID="tbLogRetention" runat="server" Label="Log Retention Period (days)"
                                     Help="The minimum length of time, in days, that the logs will be retained for this workflow. If blank, logs will never be removed." />
@@ -131,7 +137,6 @@
                 </div>
 
                 <fieldset id="fieldsetViewDetails" runat="server">
-
                     <div class="description">
                         <asp:Literal ID="lWorkflowTypeDescription" runat="server" EnableViewState="false"></asp:Literal>
                     </div>
@@ -258,6 +263,40 @@
                 });
 
             });
-        </script>
+
+            var workflowTypeDetailHelper = (function () {
+                function isValid(validationGroup) {
+                    return typeof Page_ClientValidate === "function" && Page_ClientValidate(validationGroup);
+                }
+
+                return {
+                    onButtonClicked(buttonId, validationGroup, disabledDurationMs) {
+                        const buttonElement = document.getElementById(buttonId);
+
+                        if (!buttonElement) {
+                            // Prevent the click since the button is not accessible.
+                            return false;
+                        }
+
+                        if (buttonElement.getAttribute("disabled") === "disabled" || !isValid(validationGroup)) {
+                            // Prevent the click since the button is disabled or the validation group is invalid.
+                            return false;
+                        }
+
+                        // Disable the button and allow the click.
+                        buttonElement.setAttribute("disabled", "disabled");
+
+                        if (disabledDurationMs && disabledDurationMs > 0) {
+                            // Remove the disabled attribute after a specified duration.<%-- If the server throws an exception during postback, the button would remain disabled without this setTimeout. --%>
+                            setTimeout(() => {
+                                buttonElement.removeAttribute("disabled");
+                            }, disabledDurationMs);
+                        }
+
+                        return true;
+                    }
+                };
+            })();
+        </script> 
     </ContentTemplate>
 </asp:UpdatePanel>

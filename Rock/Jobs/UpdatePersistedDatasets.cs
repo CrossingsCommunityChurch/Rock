@@ -17,10 +17,10 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Data.Entity;
 using System.Linq;
 using System.Text;
 
-using Quartz;
 using Rock.Data;
 using Rock.Model;
 
@@ -29,12 +29,10 @@ namespace Rock.Jobs
     /// <summary>
     /// This job will update the persisted data in any Persisted Datasets that need to be refreshed.
     /// </summary>
-    /// <seealso cref="Quartz.IJob" />
     [DisplayName( "Update Persisted Datasets" )]
     [Description( "This job will update the persisted data in any Persisted Datasets that need to be refreshed." )]
 
-    [DisallowConcurrentExecution]
-    public class UpdatePersistedDatasets : IJob
+    public class UpdatePersistedDatasets : RockJob
     {
 
         /// <summary>
@@ -48,80 +46,86 @@ namespace Rock.Jobs
         {
         }
 
-        /// <summary>
-        /// Executes the specified context.
-        /// </summary>
-        /// <param name="context">The context.</param>
-        public void Execute( IJobExecutionContext context )
+        /// <inheritdoc cref="RockJob.Execute()"/>
+        public override void Execute()
         {
-            JobDataMap dataMap = context.JobDetail.JobDataMap;
-            StringBuilder results = new StringBuilder();
+            var warnings = new List<string>();
+            List<PersistedDataset> datasetsToBeUpdated;
             int updatedDatasetCount = 0;
-            int updatedDatasetTotalCount;
-            var errors = new List<string>();
-            List<Exception> exceptions = new List<Exception>();
 
             using ( var rockContext = new RockContext() )
             {
                 var currentDateTime = RockDateTime.Now;
 
-                var persistedDatasetQuery = new PersistedDatasetService( rockContext ).Queryable();
-                updatedDatasetTotalCount = persistedDatasetQuery.Count();
+                // Fetch datasets that are active, not expired, and include their associated schedules
+                var persistedDatasetQuery = new PersistedDatasetService( rockContext )
+                    .Queryable( "PersistedSchedule" )
+                    .Where( a => a.IsActive &&
+                          ( a.ExpireDateTime == null || a.ExpireDateTime > currentDateTime ) &&
+                          ( !a.RefreshIntervalMinutes.HasValue || a.LastRefreshDateTime == null || DbFunctions.AddMinutes( a.LastRefreshDateTime.Value, a.RefreshIntervalMinutes.Value ) < currentDateTime ) );
 
-                // exclude datasets that are no longer active
-                persistedDatasetQuery = persistedDatasetQuery.Where( a => a.IsActive && ( a.ExpireDateTime == null || a.ExpireDateTime > currentDateTime ) );
+                datasetsToBeUpdated = persistedDatasetQuery.ToList()
+                    .Where( dataset =>
+                    {
+                        // Apply schedule-based logic only if the dataset is associated with a schedule
+                        if ( dataset.PersistedScheduleId.HasValue )
+                        {
+                            var schedule = new ScheduleService( rockContext ).Get( dataset.PersistedScheduleId.Value );
+                            var beginDateTime = dataset.LastRefreshDateTime ?? schedule.GetFirstStartDateTime();
+                            if ( !beginDateTime.HasValue )
+                            {
+                                return false;
+                            }
 
-                // exclude datasets that are already up-to-date based on the Refresh Interval and LastRefreshTime
-                persistedDatasetQuery = persistedDatasetQuery
-                    .Where( a =>
-                        a.LastRefreshDateTime == null
-                        || ( System.Data.Entity.SqlServer.SqlFunctions.DateAdd( "mi", a.RefreshIntervalMinutes.Value, a.LastRefreshDateTime.Value ) < currentDateTime ) );
+                            var nextStartDateTimes = schedule.GetScheduledStartTimes( beginDateTime.Value, currentDateTime );
+                            return nextStartDateTimes.Any() && nextStartDateTimes.First() <= currentDateTime;
+                        }
 
-                var expiredPersistedDatasetsList = persistedDatasetQuery.ToList();
-                foreach ( var persistedDataset in expiredPersistedDatasetsList )
+                        // If not associated with a schedule, it's already included in the initial query
+                        return true;
+                    } )
+                    .ToList();
+
+                foreach ( var persistedDataset in datasetsToBeUpdated )
                 {
                     var name = persistedDataset.Name;
+                    this.UpdateLastStatusMessage( FormatStatusMessage( "Updating", name, "success" ) );
                     try
                     {
-                        context.UpdateLastStatusMessage( $"Updating {persistedDataset.Name}" );
                         persistedDataset.UpdateResultData();
-                        rockContext.SaveChanges();
+                        this.UpdateLastStatusMessage( FormatStatusMessage( "Updating", name, "success" ) );
                         updatedDatasetCount++;
                     }
                     catch ( Exception ex )
                     {
-                        // Capture and log the exception because we're not going to fail this job
-                        // unless all the data views fail.
-                        var errorMessage = $"An error occurred while trying to update persisted dataset '{name}' so it was skipped. Error: {ex.Message}";
-                        errors.Add( string.Format( @"{0} failed", name ) );
-                        var ex2 = new Exception( errorMessage, ex );
-                        exceptions.Add( ex2 );
-                        ExceptionLogService.LogException( ex2, null );
-                        continue;
+                        var warningMessage = $"Ran the job with Warnings: {name} was run but could not update due to the following error: {ex.Message}";
+                        warnings.Add( warningMessage );
+                        ExceptionLogService.LogException( ex, null );
+                        this.UpdateLastStatusMessage( FormatStatusMessage( "Warning", name, "warning" ) );
+                    }
+                    finally
+                    {
+                        rockContext.SaveChanges();
                     }
                 }
             }
 
-            int notUpdatedCount = updatedDatasetTotalCount - updatedDatasetCount;
+            var resultMessage = new StringBuilder();
+            resultMessage.AppendLine( $"<i class='fa fa-circle text-success'></i> Updated {updatedDatasetCount} dataset{( updatedDatasetCount == 1 ? "" : "s" )}" );
 
-            // Format the result message
-            results.AppendLine( $"<i class='fa fa-circle text-success'></i> Updated {updatedDatasetCount} {"persisted dataset".PluralizeIf( updatedDatasetCount != 1 )}" );
-            if ( notUpdatedCount > 0 )
+            // If there are warnings, concatenate them into the final result.
+            if ( warnings.Any() )
             {
-                results.AppendLine( $"<i class='fa fa-circle text-success'></i> Skipped {notUpdatedCount} {"up-to-date/inactive dataset".PluralizeIf( updatedDatasetCount != 1 )}" );
+                resultMessage.AppendLine(string.Join( "<br>", warnings ));
             }
-            foreach ( var error in errors )
-            {
-                results.AppendLine( $"<i class='fa fa-circle text-danger'></i> {error}" );
-            }
+            this.Result = resultMessage.ToString();
+        }
 
-            context.Result = results.ToString();
-
-            if ( exceptions.Any() )
-            {
-                var exceptionList = new AggregateException( "One or more exceptions occurred in UpdatePersistedDatasets.", exceptions );
-                throw new RockJobWarningException( "UpdatePersistedDatasets completed with warnings", exceptionList );
-            }
+        private string FormatStatusMessage( string action, string datasetName, string statusType )
+        {
+            string iconClass = statusType == "success" ? "fa-circle text-success" :
+                               statusType == "warning" ? "fa-circle text-warning" : "";
+            return $"<i class='fa {iconClass}'></i> {action}: {datasetName}";
         }
     }
 }

@@ -13,10 +13,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 // </copyright>
+using Microsoft.Extensions.Logging;
+
 using Rock.Bus.Queue;
 using Rock.Logging;
-using Rock.Model;
-using Rock.Utility.Settings;
 
 namespace Rock.Bus.Message
 {
@@ -94,7 +94,6 @@ namespace Rock.Bus.Message
         internal string ToDebugString()
         {
             string debugString;
-            
 
             if ( this.CacheTypeName.IsNotNullOrWhiteSpace() )
             {
@@ -126,6 +125,16 @@ namespace Rock.Bus.Message
                 debugString += $", Region: {this.Region}";
             }
 
+            if ( this.SenderNodeName.IsNotNullOrWhiteSpace() )
+            {
+                debugString += $", SenderNodeName: {this.SenderNodeName}";
+            }
+
+            if ( this.SenderNodeName.IsNotNullOrWhiteSpace() )
+            {
+                debugString += $", IsRockStarted: {RockMessageBus.IsRockStarted}";
+            }
+
             return debugString + ")";
         }
 
@@ -137,6 +146,17 @@ namespace Rock.Bus.Message
         /// <param name="region">The region.</param>
         public static void Publish<T>( string key = null, string region = null )
         {
+            /*  06-07-2022 MP
+
+            In the case of publishing a CacheWasUpdatedMessage, we don't need to check RockMessageBus.IsRockStarted. The Cache publish
+            logic doesn't have a dependency on having Rock fully started.
+
+            Also, we really need to publish these messages regardless of IsRockStarted to prevent caches on other servers from getting stale.
+
+            If we later discover that this isn't OK, we'll revisit this decision and make any updates to make it OK again.
+
+            */
+
             var message = new CacheWasUpdatedMessage
             {
                 Key = key,
@@ -145,28 +165,10 @@ namespace Rock.Bus.Message
                 SenderNodeName = RockMessageBus.NodeName
             };
 
-            if ( !RockMessageBus.IsRockStarted )
-            {
-                // Don't publish cache events until Rock is all the way started
-                var logMessage = $"Cache Update message was not published because Rock is not fully started yet. {message.ToDebugString()}.";
-
-                var elapsedSinceProcessStarted = RockDateTime.Now - RockInstanceConfig.ApplicationStartedDateTime;
-                if ( elapsedSinceProcessStarted.TotalSeconds > RockMessageBus.MAX_SECONDS_SINCE_STARTTIME_LOG_ERROR )
-                {
-                    RockLogger.Log.Error( RockLogDomains.Bus, logMessage );
-                    ExceptionLogService.LogException( new BusException( logMessage ) );
-                }
-                else
-                {
-                    RockLogger.Log.Debug( RockLogDomains.Bus, logMessage );
-                }
-
-                return;
-            }
-
             _ = RockMessageBus.PublishAsync<CacheEventQueue, CacheWasUpdatedMessage>( message );
 
-            RockLogger.Log.Debug( RockLogDomains.Bus, $"Published Cache Update message. {message.ToDebugString()}." );
+            RockLogger.LoggerFactory.CreateLogger<CacheWasUpdatedMessage>()
+                .LogDebug( $"Published Cache Update message. {message.ToDebugString()}." );
         }
     }
 }

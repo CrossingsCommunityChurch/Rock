@@ -18,22 +18,28 @@ using System;
 using System.Collections.Generic;
 using System.Data.Entity;
 using System.Linq;
-using System.Web.UI;
+#if WEBFORMS
 using System.Web.UI.WebControls;
+using System.Web.UI;
+#endif
 
 using Rock;
+using Rock.Attribute;
 using Rock.Constants;
 using Rock.Data;
 using Rock.Model;
 using Rock.Web.Cache;
 using Rock.Web.UI.Controls;
+using Rock.ViewModels.Utility;
 
 namespace Rock.Field.Types
 {
     /// <summary>
     /// Stored as a delimited list of DataView's Guids
     /// </summary>
-    public class DataViewsFieldType : FieldType
+    [RockPlatformSupport( Utility.RockPlatform.WebForms, Utility.RockPlatform.Obsidian )]
+    [Rock.SystemGuid.FieldTypeGuid( Rock.SystemGuid.FieldType.DATAVIEWS )]
+    public class DataViewsFieldType : FieldType, IEntityReferenceFieldType
     {
         #region Configuration
 
@@ -41,6 +47,158 @@ namespace Rock.Field.Types
         /// Entity Type Name Key
         /// </summary>
         protected const string ENTITY_TYPE_NAME_KEY = "entityTypeName";
+
+        /// <summary>
+        /// Display Persisted Only Key
+        /// </summary>
+        protected const string DISPLAY_PERSISTED_ONLY_KEY = "displayPersistedOnly";
+
+        #endregion
+
+        #region Formatting
+
+        /// <inheritdoc/>
+        public override string GetTextValue( string privateValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            if ( privateValue.IsNullOrWhiteSpace() )
+            {
+                return string.Empty;
+            }
+
+            using ( var rockContext = new RockContext() )
+            {
+                var guids = privateValue.SplitDelimitedValues().AsGuidList();
+
+                var names = new DataViewService( rockContext )
+                    .Queryable()
+                    .Where( dv => guids.Contains( dv.Guid ) )
+                    .Select( dv => dv.Name )
+                    .ToList();
+
+                return names.JoinStrings( ", " );
+            }
+        }
+
+        #endregion
+
+        #region Edit Control
+
+        /// <inheritdoc/>
+        public override string GetPublicValue( string privateValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            return GetTextValue( privateValue, privateConfigurationValues );
+        }
+
+        /// <inheritdoc/>
+        public override string GetPrivateEditValue( string publicValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            var dataViewsValues = publicValue.FromJsonOrNull<List<ListItemBag>>();
+
+            if ( dataViewsValues != null && dataViewsValues.Any() )
+            {
+                return string.Join( ",", dataViewsValues.Select( s => s.Value ) );
+            }
+
+            return string.Empty;
+        }
+
+        /// <inheritdoc/>
+        public override string GetPublicEditValue( string privateValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            if ( !string.IsNullOrWhiteSpace( privateValue ) )
+            {
+                var guids = privateValue.SplitDelimitedValues().AsGuidList();
+                var dataViews = new DataViewService( new RockContext() ).Queryable().Where( a => guids.Contains( a.Guid ) ).ToListItemBagList();
+                if ( dataViews.Any() )
+                {
+                    return dataViews.ToCamelCaseJson( false, true );
+                }
+            }
+
+            return string.Empty;
+        }
+
+        #endregion
+
+        #region Filter Control
+
+        /// <summary>
+        /// Formats the filter value value.
+        /// </summary>
+        /// <param name="configurationValues">The configuration values.</param>
+        /// <param name="value">The value.</param>
+        /// <returns></returns>
+        public override string FormatFilterValueValue( Dictionary<string, ConfigurationValue> configurationValues, string value )
+        {
+            string formattedValue = string.Empty;
+
+            if ( !string.IsNullOrWhiteSpace( value ) )
+            {
+                using ( var rockContext = new RockContext() )
+                {
+                    var guids = value.SplitDelimitedValues();
+                    var dataviews = new DataViewService( rockContext ).Queryable().AsNoTracking().Where( a => guids.Contains( a.Guid.ToString() ) );
+                    if ( dataviews.Any() )
+                    {
+                        formattedValue = string.Join( "' AND '", ( from dataview in dataviews select dataview.Name ).ToArray() );
+                    }
+                }
+            }
+
+            return AddQuotes( formattedValue );
+        }
+
+        #endregion
+
+        #region IEntityReferenceFieldType
+
+        /// <inheritdoc/>
+        List<ReferencedEntity> IEntityReferenceFieldType.GetReferencedEntities( string privateValue, Dictionary<string, string> privateConfigurationValues )
+        {
+            var guids = privateValue.SplitDelimitedValues().AsGuidList();
+
+            if ( !guids.Any() )
+            {
+                return null;
+            }
+
+            using ( var rockContext = new RockContext() )
+            {
+                var dataViewIds = new DataViewService( rockContext )
+                    .Queryable().AsNoTracking()
+                    .Where( d => guids.Contains( d.Guid ) )
+                    .Select( d => d.Id )
+                    .ToList();
+
+                if ( !dataViewIds.Any() )
+                {
+                    return null;
+                }
+
+                var referencedEntities = new List<ReferencedEntity>();
+
+                foreach ( var dataViewId in dataViewIds )
+                {
+                    referencedEntities.Add( new ReferencedEntity( EntityTypeCache.GetId<DataView>().Value, dataViewId ) );
+                }
+
+                return referencedEntities;
+            }
+        }
+
+        /// <inheritdoc/>
+        List<ReferencedProperty> IEntityReferenceFieldType.GetReferencedProperties( Dictionary<string, string> privateConfigurationValues )
+        {
+            return new List<ReferencedProperty>
+            {
+                new ReferencedProperty( EntityTypeCache.GetId<DataView>().Value, nameof( DataView.Name ) )
+            };
+        }
+
+        #endregion
+
+        #region WebForms
+#if WEBFORMS
 
         /// <summary>
         /// Returns a list of the configuration keys
@@ -89,7 +247,7 @@ namespace Rock.Field.Types
             {
                 if ( controls[0] != null && controls[0] is EntityTypePicker )
                 {
-                    int? entityTypeId = ( (EntityTypePicker)controls[0] ).SelectedValueAsInt();
+                    int? entityTypeId = ( ( EntityTypePicker ) controls[0] ).SelectedValueAsInt();
                     if ( entityTypeId.HasValue )
                     {
                         var entityType = EntityTypeCache.Get( entityTypeId.Value );
@@ -113,14 +271,10 @@ namespace Rock.Field.Types
                 if ( controls[0] != null && controls[0] is EntityTypePicker && configurationValues.ContainsKey( ENTITY_TYPE_NAME_KEY ) )
                 {
                     var entityType = EntityTypeCache.Get( configurationValues[ENTITY_TYPE_NAME_KEY].Value );
-                    ( (EntityTypePicker)controls[0] ).SetValue( entityType != null ? entityType.Id : (int?)null );
+                    ( ( EntityTypePicker ) controls[0] ).SetValue( entityType != null ? entityType.Id : ( int? ) null );
                 }
             }
         }
-
-        #endregion
-
-        #region Formatting
 
         /// <summary>
         /// Returns the field's current value(s)
@@ -132,27 +286,10 @@ namespace Rock.Field.Types
         /// <returns></returns>
         public override string FormatValue( Control parentControl, string value, Dictionary<string, ConfigurationValue> configurationValues, bool condensed )
         {
-            string formattedValue = string.Empty;
-
-            if ( !string.IsNullOrWhiteSpace( value ) )
-            {
-                using ( var rockContext = new RockContext() )
-                {
-                    var guids = value.SplitDelimitedValues();
-                    var dataviews = new DataViewService( rockContext ).Queryable().AsNoTracking().Where( a => guids.Contains( a.Guid.ToString() ) );
-                    if ( dataviews.Any() )
-                    {
-                        formattedValue = string.Join( ", ", ( from dataview in dataviews select dataview.Name ).ToArray() );
-                    }
-                }
-            }
-
-            return base.FormatValue( parentControl, formattedValue, null, condensed );
+            return !condensed
+                ? GetTextValue( value, configurationValues.ToDictionary( cv => cv.Key, cv => cv.Value.Value ) )
+                : GetCondensedTextValue( value, configurationValues.ToDictionary( cv => cv.Key, cv => cv.Value.Value ) );
         }
-
-        #endregion
-
-        #region Edit Control 
 
         /// <summary>
         /// Creates the control(s) necessary for prompting user for a new value
@@ -166,6 +303,7 @@ namespace Rock.Field.Types
         {
             string entityTypeName = string.Empty;
             int entityTypeId = 0;
+            var displayPersistedOnly = false;
 
             if ( configurationValues != null )
             {
@@ -180,10 +318,15 @@ namespace Rock.Field.Types
                             entityTypeId = entityType.Id;
                         }
                     }
+
+                    if ( configurationValues.ContainsKey( DISPLAY_PERSISTED_ONLY_KEY ) )
+                    {
+                        displayPersistedOnly = configurationValues[DISPLAY_PERSISTED_ONLY_KEY].Value.AsBoolean();
+                    }
                 }
             }
 
-            var editControl = new DataViewsPicker { ID = id, EntityTypeId = entityTypeId };
+            var editControl = new DataViewsPicker { ID = id, EntityTypeId = entityTypeId, DisplayPersistedOnly = displayPersistedOnly };
 
             return editControl;
         }
@@ -253,36 +396,7 @@ namespace Rock.Field.Types
             }
         }
 
-        #endregion
-
-        #region Filter Control
-
-        /// <summary>
-        /// Formats the filter value value.
-        /// </summary>
-        /// <param name="configurationValues">The configuration values.</param>
-        /// <param name="value">The value.</param>
-        /// <returns></returns>
-        public override string FormatFilterValueValue( Dictionary<string, ConfigurationValue> configurationValues, string value )
-        {
-            string formattedValue = string.Empty;
-
-            if ( !string.IsNullOrWhiteSpace( value ) )
-            {
-                using ( var rockContext = new RockContext() )
-                {
-                    var guids = value.SplitDelimitedValues();
-                    var dataviews = new DataViewService( rockContext ).Queryable().AsNoTracking().Where( a => guids.Contains( a.Guid.ToString() ) );
-                    if ( dataviews.Any() )
-                    {
-                        formattedValue = string.Join( "' AND '", ( from dataview in dataviews select dataview.Name ).ToArray() );
-                    }
-                }
-            }
-
-            return AddQuotes( formattedValue );
-        }
-
+#endif
         #endregion
     }
 }

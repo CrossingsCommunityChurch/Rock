@@ -16,6 +16,7 @@
 //
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.ComponentModel.DataAnnotations.Schema;
 using System.Linq;
 using System.Reflection;
@@ -224,9 +225,19 @@ namespace Rock.Reporting
                     entityField.FieldType = FieldTypeCache.Get( SystemGuid.FieldType.SINGLE_SELECT.AsGuid() );
 
                     var list = new List<string>();
-                    foreach ( var value in Enum.GetValues( property.PropertyType ) )
+                    foreach ( var name in Enum.GetNames( property.PropertyType ) )
                     {
-                        list.Add( string.Format( "{0}^{1}", value, value.ToString().SplitCase() ) );
+                        // ignore Obsolete Enum values
+                        object value = Enum.Parse( property.PropertyType, name );
+                        var fieldInfo = value.GetType().GetField( name );
+                        if ( fieldInfo?.GetCustomAttribute<ObsoleteAttribute>() != null )
+                        {
+                            continue;
+                        }
+
+                        // if the Enum has a [Description] attribute, use the description text
+                        var description = fieldInfo.GetCustomAttribute<DescriptionAttribute>()?.Description ?? name.SplitCase();
+                        list.Add( string.Format( "{0}^{1}", value, description ) );
                     }
 
                     var listSource = string.Join( ",", list );
@@ -314,12 +325,13 @@ namespace Rock.Reporting
                 }
                 else if ( entityType == typeof( ConnectionRequest ) )
                 {
-                    // in the case of Connection Requests, show attributes that are entity global, but also ones that are qualified by ConnectionOpportunityId
+                    // in the case of Connection Requests, show attributes that are entity global, but also ones that are qualified by ConnectionOpportunityId or ConnectionTypeId
                     cacheAttributeList = cacheAttributeList
                             .Where( a =>
                                 a.EntityTypeQualifierColumn == null ||
                                 a.EntityTypeQualifierColumn == string.Empty ||
-                                a.EntityTypeQualifierColumn == "ConnectionOpportunityId"
+                                a.EntityTypeQualifierColumn == "ConnectionOpportunityId" ||
+                                a.EntityTypeQualifierColumn == "ConnectionTypeId"
                                 );
                 }
                 else if ( entityType == typeof( Registration ) )
@@ -355,7 +367,7 @@ namespace Rock.Reporting
                 }
                 else if ( entityType == typeof( Note ) )
                 {
-                    // in the case of Connection Requests, show attributes that are entity global, but also ones that are qualified by ConnectionOpportunityId
+                    // in the case of notes, show attributes that are entity global, but also ones that are qualified by ConnectionOpportunityId
                     cacheAttributeList = cacheAttributeList
                             .Where( a =>
                                 a.EntityTypeQualifierColumn == null ||
@@ -368,7 +380,7 @@ namespace Rock.Reporting
                     cacheAttributeList = cacheAttributeList.Where( a => string.IsNullOrEmpty( a.EntityTypeQualifierColumn ) && string.IsNullOrEmpty( a.EntityTypeQualifierValue ) ).ToList();
                 }
 
-                EntityHelper.AddEntityFieldsForAttributeList( entityFields, cacheAttributeList.ToList() );
+                EntityHelper.AddEntityFieldsForAttributeList( entityFields, cacheAttributeList.ToList(), limitToFilterableFields );
 
             }
 
@@ -430,7 +442,7 @@ namespace Rock.Reporting
         /// <param name="entityFields">The entity fields.</param>
         /// <param name="attribute">The attribute.</param>
         /// <param name="limitToFilterableAttributes">if set to <c>true</c> [limit to filterable attributes].</param>
-        [Obsolete( "Use AddEntityFieldsForAttributeList instead" )]
+        [Obsolete( "Use AddEntityFieldsForAttributeList instead", true )]
         [RockObsolete( "1.10" )]
         public static void AddEntityFieldForAttribute( List<EntityField> entityFields, AttributeCache attribute, bool limitToFilterableAttributes = true )
         {

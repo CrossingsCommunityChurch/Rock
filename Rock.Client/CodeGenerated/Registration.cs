@@ -35,6 +35,9 @@ namespace Rock.Client
         public int Id { get; set; }
 
         /// <summary />
+        public int? CampusId { get; set; }
+
+        /// <summary />
         public string ConfirmationEmail { get; set; }
 
         /// <summary />
@@ -71,6 +74,9 @@ namespace Rock.Client
         /// If the ModifiedByPersonAliasId is being set manually and should not be overwritten with current user when saved, set this value to true
         /// </summary>
         public bool ModifiedAuditValuesAlreadyUpdated { get; set; }
+
+        /// <summary />
+        public int? PaymentPlanFinancialScheduledTransactionId { get; set; }
 
         /// <summary />
         public int? PersonAliasId { get; set; }
@@ -111,6 +117,7 @@ namespace Rock.Client
         public void CopyPropertiesFrom( Registration source )
         {
             this.Id = source.Id;
+            this.CampusId = source.CampusId;
             this.ConfirmationEmail = source.ConfirmationEmail;
             this.DiscountAmount = source.DiscountAmount;
             this.DiscountCode = source.DiscountCode;
@@ -123,6 +130,7 @@ namespace Rock.Client
             this.LastName = source.LastName;
             this.LastPaymentReminderDateTime = source.LastPaymentReminderDateTime;
             this.ModifiedAuditValuesAlreadyUpdated = source.ModifiedAuditValuesAlreadyUpdated;
+            this.PaymentPlanFinancialScheduledTransactionId = source.PaymentPlanFinancialScheduledTransactionId;
             this.PersonAliasId = source.PersonAliasId;
             this.RegistrationInstanceId = source.RegistrationInstanceId;
             this.CreatedDateTime = source.CreatedDateTime;
@@ -141,10 +149,16 @@ namespace Rock.Client
     public partial class Registration : RegistrationEntity
     {
         /// <summary />
+        public Campus Campus { get; set; }
+
+        /// <summary />
         public int? CreatedDateKey { get; set; }
 
         /// <summary />
         public AnalyticsSourceDate CreatedSourceDate { get; set; }
+
+        /// <summary />
+        public FinancialScheduledTransaction PaymentPlanFinancialScheduledTransaction { get; set; }
 
         /// <summary />
         public ICollection<RegistrationRegistrant> Registrants { get; set; }

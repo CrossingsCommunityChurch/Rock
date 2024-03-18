@@ -71,7 +71,7 @@ namespace Rock.Client
 
         /// <summary />
         // Made Obsolete in Rock "1.10"
-        [Obsolete( "Use NotificationSystemCommunicationId instead.", false )]
+        [Obsolete( "Use NotificationSystemCommunicationId instead.", true )]
         public int? NotificationSystemEmailId { get; set; }
 
         /// <summary />
@@ -96,7 +96,13 @@ namespace Rock.Client
         public int? PersonEntryConnectionStatusValueId { get; set; }
 
         /// <summary />
+        public string PersonEntryDescription { get; set; }
+
+        /// <summary />
         public Rock.Client.Enums.WorkflowActionFormPersonEntryOption PersonEntryEmailEntryOption { get; set; } = Rock.Client.Enums.WorkflowActionFormPersonEntryOption.Required;
+
+        /// <summary />
+        public Rock.Client.Enums.WorkflowActionFormPersonEntryOption PersonEntryEthnicityEntryOption { get; set; }
 
         /// <summary />
         public Guid? PersonEntryFamilyAttributeGuid { get; set; }
@@ -126,7 +132,19 @@ namespace Rock.Client
         public string PersonEntryPreHtml { get; set; }
 
         /// <summary />
+        public Rock.Client.Enums.WorkflowActionFormPersonEntryOption PersonEntryRaceEntryOption { get; set; }
+
+        /// <summary />
         public int? PersonEntryRecordStatusValueId { get; set; }
+
+        /// <summary />
+        public int? PersonEntrySectionTypeValueId { get; set; }
+
+        /// <summary />
+        public bool PersonEntryShowHeadingSeparator { get; set; }
+
+        /// <summary />
+        public Rock.Client.Enums.WorkflowActionFormShowHideOption PersonEntrySmsOptInEntryOption { get; set; }
 
         /// <summary />
         public Guid? PersonEntrySpouseAttributeGuid { get; set; }
@@ -136,6 +154,9 @@ namespace Rock.Client
 
         /// <summary />
         public string PersonEntrySpouseLabel { get; set; } = @"Spouse";
+
+        /// <summary />
+        public string PersonEntryTitle { get; set; }
 
         /// <summary>
         /// Leave this as NULL to let Rock set this
@@ -181,9 +202,6 @@ namespace Rock.Client
             this.IncludeActionsInNotification = source.IncludeActionsInNotification;
             this.ModifiedAuditValuesAlreadyUpdated = source.ModifiedAuditValuesAlreadyUpdated;
             this.NotificationSystemCommunicationId = source.NotificationSystemCommunicationId;
-            #pragma warning disable 612, 618
-            this.NotificationSystemEmailId = source.NotificationSystemEmailId;
-            #pragma warning restore 612, 618
             this.PersonEntryAddressEntryOption = source.PersonEntryAddressEntryOption;
             this.PersonEntryAutofillCurrentPerson = source.PersonEntryAutofillCurrentPerson;
             this.PersonEntryBirthdateEntryOption = source.PersonEntryBirthdateEntryOption;
@@ -191,7 +209,9 @@ namespace Rock.Client
             this.PersonEntryCampusStatusValueId = source.PersonEntryCampusStatusValueId;
             this.PersonEntryCampusTypeValueId = source.PersonEntryCampusTypeValueId;
             this.PersonEntryConnectionStatusValueId = source.PersonEntryConnectionStatusValueId;
+            this.PersonEntryDescription = source.PersonEntryDescription;
             this.PersonEntryEmailEntryOption = source.PersonEntryEmailEntryOption;
+            this.PersonEntryEthnicityEntryOption = source.PersonEntryEthnicityEntryOption;
             this.PersonEntryFamilyAttributeGuid = source.PersonEntryFamilyAttributeGuid;
             this.PersonEntryGenderEntryOption = source.PersonEntryGenderEntryOption;
             this.PersonEntryGroupLocationTypeValueId = source.PersonEntryGroupLocationTypeValueId;
@@ -201,10 +221,15 @@ namespace Rock.Client
             this.PersonEntryPersonAttributeGuid = source.PersonEntryPersonAttributeGuid;
             this.PersonEntryPostHtml = source.PersonEntryPostHtml;
             this.PersonEntryPreHtml = source.PersonEntryPreHtml;
+            this.PersonEntryRaceEntryOption = source.PersonEntryRaceEntryOption;
             this.PersonEntryRecordStatusValueId = source.PersonEntryRecordStatusValueId;
+            this.PersonEntrySectionTypeValueId = source.PersonEntrySectionTypeValueId;
+            this.PersonEntryShowHeadingSeparator = source.PersonEntryShowHeadingSeparator;
+            this.PersonEntrySmsOptInEntryOption = source.PersonEntrySmsOptInEntryOption;
             this.PersonEntrySpouseAttributeGuid = source.PersonEntrySpouseAttributeGuid;
             this.PersonEntrySpouseEntryOption = source.PersonEntrySpouseEntryOption;
             this.PersonEntrySpouseLabel = source.PersonEntrySpouseLabel;
+            this.PersonEntryTitle = source.PersonEntryTitle;
             this.CreatedDateTime = source.CreatedDateTime;
             this.ModifiedDateTime = source.ModifiedDateTime;
             this.CreatedByPersonAliasId = source.CreatedByPersonAliasId;
@@ -224,6 +249,9 @@ namespace Rock.Client
         public ICollection<WorkflowActionFormAttribute> FormAttributes { get; set; }
 
         /// <summary />
+        public ICollection<WorkflowActionFormSection> FormSections { get; set; }
+
+        /// <summary />
         public DefinedValue PersonEntryCampusStatusValue { get; set; }
 
         /// <summary />
@@ -237,6 +265,9 @@ namespace Rock.Client
 
         /// <summary />
         public DefinedValue PersonEntryRecordStatusValue { get; set; }
+
+        /// <summary />
+        public DefinedValue PersonEntrySectionTypeValue { get; set; }
 
         /// <summary>
         /// NOTE: Attributes are only populated when ?loadAttributes is specified. Options for loadAttributes are true, false, 'simple', 'expanded' 
