@@ -172,6 +172,7 @@ namespace Rock.Lava.Helpers
 
                 if ( mediaItem == null )
                 {
+                    item.MediaId = null;
                     continue;
                 }
 
@@ -255,6 +256,10 @@ namespace Rock.Lava.Helpers
 
                     mediaIds.Add( mediaId.Value );
                 }
+                else
+                {
+                    item.MediaId = null;
+                }
             }
 
             // Get watches for the items
@@ -290,6 +295,10 @@ namespace Rock.Lava.Helpers
                 var mediaWatches = GetWatchInteractions( new List<int> { mediaId.Value }, startDate, currentPerson, rockContext );
 
                 AppendWatchDataToDynamic( source, mediaWatches );
+            }
+            else
+            {
+                source.MediaId = null;
             }
 
             return source;
@@ -446,6 +455,11 @@ namespace Rock.Lava.Helpers
         /// <returns></returns>
         private static List<WatchInteractionSummary> GetWatchInteractions( List<int> mediaIds, DateTime? startDate, Person currentPerson, RockContext rockContext )
         {
+            if ( currentPerson == null )
+            {
+                return new List<WatchInteractionSummary>();
+            }
+
             // Get watches for the items
             var mediaEventsInteractionChannelId = InteractionChannelCache.Get( SystemGuid.InteractionChannel.MEDIA_EVENTS.AsGuid() ).Id;
 

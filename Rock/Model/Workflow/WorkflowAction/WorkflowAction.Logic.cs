@@ -358,20 +358,6 @@ namespace Rock.Model
         }
 
         /// <summary>
-        /// Gets a worklow attribute value.
-        /// </summary>
-        /// <param name="guid">The unique identifier.</param>
-        /// <param name="formatted">if set to <c>true</c> [formatted].</param>
-        /// <param name="condensed">if set to <c>true</c> [condensed].</param>
-        /// <returns></returns>
-        [RockObsolete( "1.11" )]
-        [Obsolete( "Use GetWorkflowAttributeValue instead (the one with the correct spelling)." )]
-        public string GetWorklowAttributeValue( Guid guid, bool formatted = false, bool condensed = false )
-        {
-            return GetWorkflowAttributeValue( guid, formatted, condensed );
-        }
-
-        /// <summary>
         /// Gets the person entry people that should be used for this action.
         /// </summary>
         /// <param name="rockContext">The rock context to use with database operations.</param>
@@ -480,44 +466,52 @@ namespace Rock.Model
                 throw new SystemException( string.Format( "The '{0}' component does not exist, or is not active", actionType.EntityType ) );
             }
 
-            if ( IsCriteriaValid )
+            using ( var diagnosticActivity = Observability.ObservabilityHelper.StartActivity( $"WORKFLOW: Action '{ActionTypeCache.Name}'" ) )
             {
-                bool success = workflowAction.Execute( rockContext, this, entity, out errorMessages );
+                diagnosticActivity?.AddTag( "rock.workflow.actiontype.id", ActionTypeId );
+                diagnosticActivity?.AddTag( "rock.workflow.actiontype.name", ActionTypeCache?.Name ?? string.Empty );
+                diagnosticActivity?.AddTag( "rock.workflow.actiontype.component_name", workflowAction.GetType().FullName );
+                diagnosticActivity?.AddTag( "rock.workflow.actiontype.iscore", workflowAction.GetType().FullName.StartsWith( "Rock." ) );
 
-                this.LastProcessedDateTime = RockDateTime.Now;
-
-                if ( errorMessages.Any() )
+                if ( IsCriteriaValid )
                 {
-                    foreach ( string errorMsg in errorMessages )
+                    bool success = workflowAction.Execute( rockContext, this, entity, out errorMessages );
+
+                    this.LastProcessedDateTime = RockDateTime.Now;
+
+                    if ( errorMessages.Any() )
                     {
-                        AddLogEntry( "Error Occurred: " + errorMsg, true );
+                        foreach ( string errorMsg in errorMessages )
+                        {
+                            AddLogEntry( "Error Occurred: " + errorMsg, true );
+                        }
                     }
+
+                    AddLogEntry( string.Format( "Processing Complete (Success:{0})", success.ToString() ) );
+
+                    if ( success )
+                    {
+                        if ( actionType.IsActionCompletedOnSuccess )
+                        {
+                            this.MarkComplete();
+                        }
+
+                        if ( actionType.IsActivityCompletedOnSuccess )
+                        {
+                            this.Activity.MarkComplete();
+                        }
+                    }
+
+                    return success;
                 }
-
-                AddLogEntry( string.Format( "Processing Complete (Success:{0})", success.ToString() ) );
-
-                if ( success )
+                else
                 {
-                    if ( actionType.IsActionCompletedOnSuccess )
-                    {
-                        this.MarkComplete();
-                    }
+                    errorMessages = new List<string>();
 
-                    if ( actionType.IsActivityCompletedOnSuccess )
-                    {
-                        this.Activity.MarkComplete();
-                    }
+                    AddLogEntry( "Criteria test failed. Action was not processed. Processing continued." );
+
+                    return true;
                 }
-
-                return success;
-            }
-            else
-            {
-                errorMessages = new List<string>();
-
-                AddLogEntry( "Criteria test failed. Action was not processed. Processing continued." );
-
-                return true;
             }
         }
 

@@ -141,7 +141,7 @@ namespace Rock.Lava.DotLiquid
             {
                 foreach ( var item in scope )
                 {
-                    fields.AddOrIgnore( item.Key, item.Value );
+                    fields.TryAdd( item.Key, item.Value );
                 }
             }
 
@@ -150,7 +150,7 @@ namespace Rock.Lava.DotLiquid
             {
                 foreach ( var item in environment )
                 {
-                    fields.AddOrIgnore( item.Key, item.Value );
+                    fields.TryAdd( item.Key, item.Value );
                 }
             }
 
@@ -168,13 +168,9 @@ namespace Rock.Lava.DotLiquid
             int scopeIndex;
 
             // DotLiquid Scopes are ordered with the current level first.
-            if ( scope == LavaContextRelativeScopeSpecifier.Root )
+            if ( scope == LavaContextRelativeScopeSpecifier.Parent && _context.Scopes.Count > 1 )
             {
                 scopeIndex = _context.Scopes.Count - 1;
-            }
-            else if ( scope == LavaContextRelativeScopeSpecifier.Parent && _context.Scopes.Count > 1 )
-            {
-                scopeIndex = 1;
             }
             else
             {
@@ -278,7 +274,7 @@ namespace Rock.Lava.DotLiquid
             }
 
             // Check if the type is decorated with the LavaType attribute.
-            var lavaInfo = LavaDataObjectHelper.GetLavaTypeInfo( valueType );
+            var lavaInfo = LavaDataHelper.GetLavaTypeInfo( valueType );
 
             return new DropProxy( value, lavaInfo.VisiblePropertyNames.ToArray() );
         }

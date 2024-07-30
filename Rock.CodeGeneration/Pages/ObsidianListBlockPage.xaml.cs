@@ -280,7 +280,7 @@ namespace Rock.CodeGeneration.Pages
             };
 
             // Generate the <Entity>ListOptionsBag.cs file.
-            var content = generator.GenerateOptionsBag( $"{options.EntityType.Name}ListOptionsBag", bagNamespace );
+            var content = generator.GenerateOptionsBag( $"{options.EntityType.Name}ListOptionsBag", bagNamespace, $"The additional configuration options for the {options.EntityType.Name.SplitCase()} List block." );
             files.Add( new GeneratedFile( $"{options.EntityType.Name}ListOptionsBag.cs", bagPath, content ) );
 
             // Generate the main <Entity>List.cs file.
@@ -347,7 +347,7 @@ namespace Rock.CodeGeneration.Pages
                         var file = createdFiles[i];
                         var filename = Path.Combine( solutionPath, file.SolutionRelativePath );
 
-                        if ( filename.EndsWith( ".cs" ) || filename.EndsWith( ".ts" ) || filename.EndsWith( ".obs" ) )
+                        if ( filename.EndsWith( ".cs" ) )
                         {
                             var projectName = file.SolutionRelativePath.Split( '\\' )[0];
 
