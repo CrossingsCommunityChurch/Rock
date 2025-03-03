@@ -262,8 +262,6 @@ namespace RockWeb.Blocks.Communication
         /// <param name="e">The <see cref="T:System.EventArgs" /> object that contains the event data.</param>
         protected override void OnLoad( EventArgs e )
         {
-            base.OnLoad( e );
-
             nbTemplateCreated.Visible = false;
 
             if ( Page.IsPostBack )
@@ -342,6 +340,8 @@ namespace RockWeb.Blocks.Communication
                     }
                 }
             }
+
+            base.OnLoad( e );
         }
 
         /// <summary>
@@ -1963,7 +1963,7 @@ namespace RockWeb.Blocks.Communication
 
             if ( showEmailTab )
             {
-                sb.AppendLine( "<div id='emailTabContent' class='tab-pane h-100 d-flex flex-column active'>" );
+                sb.AppendLine( "<div id='emailTabContent' class='tab-pane h-100 active'>" );
                 sb.AppendLine( "<div class='row'>" );
 
                 AppendStaticControlMediumData( sb, "From",

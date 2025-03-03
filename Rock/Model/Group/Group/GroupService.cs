@@ -31,6 +31,14 @@ using Z.EntityFramework.Plus;
 
 namespace Rock.Model
 {
+    /*
+    12/16/2024 - DSH
+
+    The Group model participates in the the TPT (Table-Per-Type) pattern. This
+    can cause some rare unexpected results. See the engineering note above the
+    Group class for details.
+    */
+
     /// <summary>
     /// Data access/service class for <see cref="Rock.Model.Group"/> objects.
     /// </summary>
@@ -125,6 +133,32 @@ namespace Rock.Model
         public IQueryable<Group> GetByParentGroupIdAndName( int? parentGroupId, string name )
         {
             return Queryable().Where( t => ( t.ParentGroupId == parentGroupId || ( parentGroupId == null && t.ParentGroupId == null ) ) && t.Name == name );
+        }
+
+        /// <summary>
+        /// Gets a queryable collection of <see cref="Group"/>s that are chat-enabled.
+        /// </summary>
+        /// <param name="shouldTrack">Whether entity framework should track these <see cref="Group"/>s.</param>
+        /// <returns>A queryable collection of <see cref="Group"/>s that are chat-enabled.</returns>
+        public IQueryable<Group> GetChatEnabled( bool shouldTrack = false )
+        {
+            var qry = Queryable().Where( g =>
+                g.GroupType.IsChatAllowed
+                && (
+                    g.GroupType.IsChatEnabledForAllGroups
+                    || (
+                        g.IsChatEnabledOverride.HasValue
+                        && g.IsChatEnabledOverride.Value
+                    )
+                )
+            );
+
+            if ( !shouldTrack )
+            {
+                qry = qry.AsNoTracking();
+            }
+
+            return qry;
         }
 
         #region Geospatial Queries

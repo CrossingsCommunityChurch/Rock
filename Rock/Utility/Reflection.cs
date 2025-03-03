@@ -95,7 +95,28 @@ namespace Rock
         /// <returns></returns>
         public static Dictionary<string, Type> SearchAssembly( Assembly assembly, Type baseType )
         {
-            Dictionary<string, Type> types = new Dictionary<string, Type>();
+            var cacheKey = $"{assembly.FullName}:{baseType.FullName}";
+
+            // Searching an assembly is relatively slow. Every single type has
+            // to be enumerated and checked. Because some assemblies can have
+            // tens of thousands of types, caching the results provides a
+            // significant boost to performance. This is especially true when
+            // it is being called inside a loop such as when registering REST
+            // controllers and actions.
+            return ( Dictionary<string, Type> ) RockCache.GetOrAddExisting( cacheKey, () => SearchAssemblyInternal( assembly, baseType ) );
+        }
+
+        /// <summary>
+        /// Searches the assembly.
+        /// </summary>
+        /// <param name="assembly">The assembly.</param>
+        /// <param name="baseType">Type of the base.</param>
+        /// <returns></returns>
+        private static Dictionary<string, Type> SearchAssemblyInternal( Assembly assembly, Type baseType )
+        {
+            // Pre-allocate for up to 32 types. It's probably safe to assume
+            // we will find close to that many for a given base type.
+            Dictionary<string, Type> types = new Dictionary<string, Type>( 32 );
 
             try
             {
@@ -354,6 +375,28 @@ namespace Rock
             var getMethod = serviceInstance?.GetType().GetMethod( "Get", new Type[] { typeof( Guid ) } );
             var entity = getMethod?.Invoke( serviceInstance, new object[] { entityGuid } ) as IEntity;
             return entity;
+        }
+
+        /// <summary>
+        /// Gets the specified entity.
+        /// </summary>
+        /// <param name="entityTypeId">The entity type identifier.</param>
+        /// <param name="entityId">The entity identifier.</param>
+        /// <param name="dbContext">The database context.</param>
+        /// <returns></returns>
+        public static IEntity GetIEntityForEntityType( int entityTypeId, int entityId, Data.DbContext dbContext = null )
+        {
+            var type = EntityTypeCache.Get( entityTypeId )?.GetEntityType();
+
+            if ( type == null )
+            {
+                return null;
+            }
+
+            var serviceInstance = GetServiceForEntityType( type, dbContext ?? new RockContext() );
+            var getMethod = serviceInstance?.GetType().GetMethod( "Get", new Type[] { typeof( int ) } );
+
+            return getMethod?.Invoke( serviceInstance, new object[] { entityId } ) as IEntity;
         }
 
         /// <summary>

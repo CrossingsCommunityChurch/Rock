@@ -1,8 +1,8 @@
 <!-- Copyright by the Spark Development Network; Licensed under the Rock Community License -->
 <template>
-    <NotificationBox v-if="blockError" alertType="warning">{{ blockError }}</NotificationBox>
+    <NotificationBox v-if="blockError" alertType="warning" v-html="blockError"></NotificationBox>
 
-    <NotificationBox v-if="errorMessage" alertType="danger">{{ errorMessage }}</NotificationBox>
+    <NotificationBox v-if="errorMessage" alertType="danger" v-html="errorMessage"></NotificationBox>
 
     <DetailBlock v-if="!blockError"
                  v-model:mode="panelMode"
@@ -18,6 +18,7 @@
                  :isFullScreenVisible="false"
                  :isSecurityHidden="true"
                  @cancelEdit="onCancelEdit"
+                 @edit="onEdit"
                  @save="onSave">
         <template #view>
             <ViewPanel :modelValue="learningActivityCompletionViewBag" :options="options" />
@@ -67,7 +68,9 @@
         entity: learningActivityCompletionEditBag
     });
 
-    const gradingScales = ref(config.options?.gradingScales?.sort((a,b) => b.thresholdPercentage - a.thresholdPercentage) ?? []);
+    const gradingScales = ref(config.options?.gradingScales?.sort((a, b) => b.thresholdPercentage - a.thresholdPercentage) ?? []);
+    const requiresScoring = ref(learningActivityCompletionViewBag.value?.requiresScoring);
+    const isLate = ref(learningActivityCompletionViewBag.value?.isLate);
 
     // #endregion
 
@@ -103,28 +106,30 @@
 
         const pointsEarned = learningActivityCompletionEditBag.value?.bag?.pointsEarned ?? 0;
         const pointsPossible = learningActivityCompletionViewBag.value?.activityBag?.points ?? 0;
-        const percentEarned = pointsPossible > 0 ? pointsEarned / pointsPossible * 100 : 0;
+        const percentEarned = pointsPossible > 0 ? Math.round(pointsEarned / pointsPossible * 100) : 0;
         const grade = gradingScales.value?.find(s => percentEarned >= s.thresholdPercentage);
         const hasGradeScale = grade != null;
-        const isGradePassing = hasGradeScale ? grade.isPassing : false;
 
-        const gradeText = hasGradeScale ? `${grade.name} (${percentEarned}%)` : `${percentEarned}%`;
+        // If there's a grade scale then use the grade otherwise assume it's incomplete.
+        const isGradePassing = hasGradeScale ? grade.isPassing : true;
 
-        if (gradeText.length > 0) {
+        const gradeText = hasGradeScale ? (grade.name?.trim() ? `${grade.name} (${percentEarned}%)` : `${percentEarned}%`) : `${percentEarned}%`;
+
+        if (pointsPossible > 0 && gradeText.length > 0) {
             labels.push({
                 title: gradeText,
                 type: isGradePassing ? "success" : "warning"
             });
         }
 
-        if (!learningActivityCompletionViewBag.value?.wasCompletedOnTime) {
+        if (isLate.value) {
             labels.push({
                 title: "Late",
                 type: "warning"
             });
         }
 
-        if (!learningActivityCompletionViewBag.value?.isFacilitatorCompleted) {
+        if (requiresScoring.value) {
             labels.push({
                 title: "Requires Scoring",
                 type: "warning"
@@ -165,6 +170,28 @@
     }
 
     /**
+     * Event handler for the Edit button being clicked. Request the edit
+     * details from the server and then enter edit mode.
+     *
+     * @returns true if the panel should enter edit mode; otherwise false.
+     */
+    async function onEdit(): Promise<boolean> {
+        const result = await invokeBlockAction<ValidPropertiesBox<LearningActivityCompletionBag>>("Edit", {
+            key: learningActivityCompletionViewBag.value?.idKey
+        });
+
+        if (result.isSuccess && result.data && result.data.bag) {
+            learningActivityCompletionEditBag.value = result.data;
+
+            return true;
+        }
+        else {
+            blockError.value = result.errorMessage ?? "Unknown error while trying to edit learning activity completion.";
+            return false;
+        }
+    }
+
+    /**
      * Event handler for the panel's Save event. Send the data to the server
      * to be saved and then leave edit mode or redirect to target page.
      *
@@ -173,12 +200,17 @@
     async function onSave(): Promise<boolean | string> {
         errorMessage.value = "";
 
+        if (!learningActivityCompletionEditBag.value || !learningActivityCompletionEditBag.value.bag) {
+            return false;
+        }
+
+        learningActivityCompletionEditBag.value.bag.isFacilitatorCompleted = true;
         const result = await invokeBlockAction<string>("Save", {
             box: learningActivityCompletionEditBag.value
         });
 
         if (result.isSuccess && result.data) {
-            if (result.statusCode === 200 && typeof result.data === "string") {
+            if (typeof result.data === "string") {
                 return result.data;
             }
         }
@@ -196,9 +228,5 @@
     }
     else if (!config.entity) {
         blockError.value = "The specified learning activity completion could not be viewed.";
-    }
-    else if (!config.entity.idKey) {
-        learningActivityCompletionEditBag.value = { bag: config.entity };
-        panelMode.value = DetailPanelMode.Add;
     }
 </script>

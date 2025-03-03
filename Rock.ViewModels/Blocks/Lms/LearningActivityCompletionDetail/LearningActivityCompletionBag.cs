@@ -16,8 +16,8 @@
 //
 
 using System;
+using System.Collections.Generic;
 
-using Rock.Enums.Lms;
 using Rock.ViewModels.Blocks.Lms.LearningActivityComponent;
 using Rock.ViewModels.Blocks.Lms.LearningActivityDetail;
 using Rock.ViewModels.Utility;
@@ -35,9 +35,9 @@ namespace Rock.ViewModels.Blocks.Lms.LearningActivityCompletionDetail
         public LearningActivityBag ActivityBag { get; set; }
 
         /// <summary>
-        /// Gets or sets the completion json for the activity component.
+        /// The values available when displaying non-configuration screens.
         /// </summary>
-        public string ActivityComponentCompletionJson { get; set; }
+        public Dictionary<string, string> CompletionValues { get; set; }
 
         /// <summary>
         /// Gets or sets the available date for the activity instance.
@@ -48,6 +48,11 @@ namespace Rock.ViewModels.Blocks.Lms.LearningActivityCompletionDetail
         /// Gets or sets the binary file of the completion for use by the activity component.
         /// </summary>
         public ListItemBag BinaryFile { get; set; }
+
+        /// <summary>
+        /// Gets or sets the security grant for the facilitator to view the binary file.
+        /// </summary>
+        public string BinaryFileSecurityGrant { get; set; }
 
         /// <summary>
         /// Gets or sets the date the student
@@ -66,9 +71,24 @@ namespace Rock.ViewModels.Blocks.Lms.LearningActivityCompletionDetail
         public string FacilitatorComment { get; set; }
 
         /// <summary>
-        /// Gets or sets the text for the achieved grade.
+        /// Gets or sets the PersonAlias of the Person who graded the activity.
+        /// </summary>
+        public ListItemBag GradedByPersonAlias { get; set; }
+
+        /// <summary>
+        /// Gets or sets the text of the grade earned by the student.
+        /// </summary>
+        public string GradeName { get; set; }
+
+        /// <summary>
+        /// Gets or sets the text for the achieved grade. For example, "B (87%).
         /// </summary>
         public string GradeText { get; set; }
+
+        /// <summary>
+        /// Gets or sets the highlight color of the achieved grade.
+        /// </summary>
+        public string GradeColor { get; set; }
 
         /// <summary>
         /// Indicates whether or not the activity is currently available.
@@ -91,14 +111,9 @@ namespace Rock.ViewModels.Blocks.Lms.LearningActivityCompletionDetail
         public bool IsFacilitatorCompleted { get; set; }
 
         /// <summary>
-        /// Indicates whether or not the related activity instance for the student is currently past due.
+        /// Indicates whether or not the activity was completed late or is late (if incomplete).
         /// </summary>
-        public bool IsPastDue => DueDate != null && DueDate <= DateTime.Now;
-
-        /// <summary>
-        /// Indicates whether or not student commenting is enabled for this activity.
-        /// </summary>
-        public bool IsStudentCommentingEnabled { get; set; }
+        public bool IsLate { get; set; }
 
         /// <summary>
         /// Indicates whether or not the related activity instance has been completed by the student.
@@ -106,9 +121,24 @@ namespace Rock.ViewModels.Blocks.Lms.LearningActivityCompletionDetail
         public bool IsStudentCompleted { get; set; }
 
         /// <summary>
+        /// Gets or sets the IdKey of the <see cref="ActivityBag"/>.
+        /// </summary>
+        public string LearningActivityIdKey { get; set; }
+
+        /// <summary>
         /// Gets or sets the number of points the student earned by completing the activity.
         /// </summary>
-        public int PointsEarned { get; set; }
+        public int? PointsEarned { get; set; }
+
+        /// <summary>
+        /// Gets or sets whether the activity requires a facilitator to grade/score it.
+        /// </summary>
+        public bool RequiresScoring { get; set; }
+
+        /// <summary>
+        /// Gets or sets whether the facilitator must complete the activity.
+        /// </summary>
+        public bool RequiresFacilitatorCompletion { get; set; }
 
         /// <summary>
         /// Gets or sets the student's comment.

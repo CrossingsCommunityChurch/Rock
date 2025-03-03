@@ -1,15 +1,15 @@
 <!-- Copyright by the Spark Development Network; Licensed under the Rock Community License -->
 <template>
-    <Grid :definition="config.gridDefinition ?? undefined"
+    <Grid v-if="hasLoadedData"
+          :definition="config.gridDefinition ?? undefined"
           :data="gridDataSource"
           :class="visibleCssClass"
-          keyField="idKey"
+          keyField="key"
           title="Learning Plan Completion Status"
           :entityTypeGuid="EntityType.LearningActivityCompletion"
           :isCountMessageVisible="false"
           stickyHeader
           liveUpdates
-          :onAddItem="config.isAddEnabled ? onAddCompletionClick : undefined"
           @selectItem="onSelectItem">
         <SelectColumn />
 
@@ -38,18 +38,19 @@
             <template #format="{ row }">
                 <span :class="{ 'text-warning': row.hadExtension }">
                     {{ RockDateTime.parseISO(row.dueDate as string)?.toLocaleString({
-        dateStyle: "short"
-    }) }}</span>
+                        dateStyle: "short"
+                    }) }}</span>
             </template>
         </DateColumn>
 
-        <Column name="grade"
+        <Column v-if="canViewGrades"
+                name="grade"
                 title="Grade"
                 field="grade"
                 width="10%"
                 :filter="numberValueFilter"
                 :filterValue="getGradePercentFilterValue"
-                visiblePriority="xs">
+                visiblePriority="sm">
             <template #format="{ row }">
                 <span v-if="!row.isCompleted"></span>
                 <span v-else-if="row.isPassingGrade" class="label label-success">{{ row.grade }}</span>
@@ -60,11 +61,12 @@
                 title="Statuses"
                 field="statuses"
                 width="15%"
-                :filter="textValueFilter"
+                :filter="pickExistingValueFilter"
                 :filterValue="getRowStatusesFilterValue"
-                visiblePriority="xs">
+                visiblePriority="sm">
             <template #format="{ row }">
-                <div v-html="getRowStatusLabels(row)"></div>
+                <span v-if="row.requiresScoring" class="mr-1 mb-1 label label-warning">Requires Scoring</span>
+                <span v-if="row.isLate" class="mr-1 mb-1 label label-warning">Late</span>
             </template>
         </Column>
 
@@ -74,26 +76,13 @@
                 width="10%"
                 :filter="textValueFilter"
                 :filterValue="getRowCommentsFilterValue"
-                visiblePriority="xs">
+                visiblePriority="md">
             <template #format="{ row }">
-                <div v-html="getRowCommentLabels(row)"></div>
+                <span v-if="hasValue(row.studentComment)" class="mr-1 mb-1 label label-info">Student</span>
+                <span v-if="hasValue(row.facilitatorComment)" class="mr-1 mb-1 label label-default">Facilitator</span>
             </template>
         </Column>
     </Grid>
-
-    <Modal v-model="isAddCompletionModalVisible"
-           title="Add Activity"
-           @save="onSaveCompletionClick"
-           saveText="Add"
-           cancelText="Cancel"
-           @close="onCloseCompletionModal">
-
-        <DropDownList v-model="studentGuidToAdd"
-                      :items="studentsWithoutActivity"
-                      label="For Student"
-                      help="Select the student to add the activity for." />
-
-    </Modal>
 </template>
 
 <script setup lang="ts">
@@ -101,14 +90,12 @@
     import { RockDateTime } from "@Obsidian/Utility/rockDateTime";
     import { EntityType } from "@Obsidian/SystemGuids/entityType";
     import Grid, { numberValueFilter, dateValueFilter, textValueFilter, Column, DateColumn, DateTimeColumn, PersonColumn, SelectColumn, pickExistingValueFilter } from "@Obsidian/Controls/grid";
-    import Modal from "@Obsidian/Controls/modal.obs";
     import { ListBlockBox } from "@Obsidian/ViewModels/Blocks/listBlockBox";
     import { LearningActivityCompletionListOptionsBag } from "@Obsidian/ViewModels/Blocks/Lms/LearningActivityCompletionList/learningActivityCompletionListOptionsBag";
     import { GridDataBag } from "@Obsidian/ViewModels/Core/Grid/gridDataBag";
     import { NavigationUrlKey } from "./LearningActivityCompletionList/types.partial";
-    import { computed, reactive, ref } from "vue";
+    import { computed, onMounted, reactive, ref } from "vue";
     import { PersonFieldBag } from "@Obsidian/ViewModels/Core/Grid/personFieldBag";
-    import DropDownList from "@Obsidian/Controls/dropDownList.obs";
     import { BlockMessages } from "@Obsidian/Utility/browserBus";
 
     const config = useConfigurationValues<ListBlockBox<LearningActivityCompletionListOptionsBag>>();
@@ -118,6 +105,7 @@
 
     // Use the browser bus to listen for changes to edit mode for any blocks on the page.
     const browserBus = useBlockBrowserBus();
+    const hasLoadedData = ref(false);
     const visibleCssClass = ref("show");
 
     // When another block on the page begins editing hide this block.
@@ -128,6 +116,9 @@
     // When another block begins editing show this block.
     browserBus.subscribe(BlockMessages.EndEdit, () => {
         visibleCssClass.value = "show";
+        if (!hasLoadedData.value) {
+            gridDataSource.value = loadGridData();
+        }
     });
 
     // #region Values
@@ -135,28 +126,15 @@
     const gridDataSource = ref<Promise<GridDataBag>>();
     let gridData: GridDataBag | undefined;
 
-    const isAddCompletionModalVisible = ref(false);
-
-    const allStudents = ref(config.options?.students ?? []);
-    const studentGuidToAdd = ref<string>("");
-
     // #endregion
 
     // #region Computed Functions
 
-    const studentsWithoutActivity = computed(() =>
-        allStudents.value.filter(s =>
-            !gridData?.rows?.find(r => s.value === r["studentGuid"])
-        )
-    );
+    const canViewGrades = computed((): boolean => config.options?.canViewGrades ?? false);
 
     // #endregion
 
     // #region Functions
-
-    function getLabelHtml(type: string, text: string): string {
-        return `<span class="mr-1 mb-1 label label-${type}">${text}</span>`;
-    }
 
     /**
      * Gets the filter value text to use for the statuses column.
@@ -184,29 +162,9 @@
      */
     function getRowStatusesFilterValue(row: Record<string, unknown>): string {
         return [
-            row.isFacilitatorCompleted === false && !!row.completionDate ? "requires scoring" : "",
-            !row.wasCompletedOnTime ? "late: " : "",
+            row.requiresScoring ? "requires scoring" : "",
+            row.isLate ? "late: " : "",
         ].join(" ");
-    }
-
-    function getRowStatusLabels(row: Record<string, unknown>): string {
-        if (!row.completionDate) {
-            return "";
-        }
-
-        const isFacilitatorCompleted = row.isFacilitatorCompleted === true ?? false;
-        const wasCompletedOnTime = row.wasCompletedOnTime === true ?? false;
-
-        let labels = "";
-        if (!isFacilitatorCompleted) {
-            labels += getLabelHtml("warning", "Requires Scoring");
-        }
-
-        if (!wasCompletedOnTime) {
-            labels += getLabelHtml("warning", "Late");
-        }
-
-        return labels;
     }
 
     /**
@@ -222,22 +180,6 @@
         ].join(" ");
     }
 
-    function getRowCommentLabels(row: Record<string, unknown>): string {
-        const facilitatorComment = row.facilitatorComment as string ?? "";
-        const studentComment = row.studentComment as string ?? "";
-
-        let labels = "";
-        if (hasValue(studentComment)) {
-            labels += getLabelHtml("info", "Student");
-        }
-
-        if (hasValue(facilitatorComment)) {
-            labels += getLabelHtml("default", "Facilitator");
-        }
-
-        return labels;
-    }
-
     function hasValue(text: string): boolean {
         return text?.length > 0;
     }
@@ -250,6 +192,7 @@
 
         if (result.isSuccess && result.data) {
             gridData = reactive(result.data);
+            hasLoadedData.value = true;
 
             return gridData;
         }
@@ -263,48 +206,48 @@
     // #region Event Handlers
 
     /**
-     * Called when the Add button has been clicked by the individual.
-     */
-    function onAddCompletionClick(): void {
-        isAddCompletionModalVisible.value = true;
-    }
-
-    /**
-     * Called when the Add button has been clicked in the Add Student modal.
-     */
-    async function onSaveCompletionClick(): Promise<void> {
-        const result = await invokeBlockAction<GridDataBag>("AddStudent", {
-            participantGuid: studentGuidToAdd.value
-        });
-
-        if (result.isSuccess) {
-            isAddCompletionModalVisible.value = false;
-            reloadBlock();
-        }
-        else {
-            throw new Error(result.errorMessage ?? "Unknown error while trying to add student.");
-        }
-    }
-
-    /**
-     * Called when the Cancel button of the Add Completion modal has been clicked by the individual.
-     */
-    function onCloseCompletionModal(): void {
-        isAddCompletionModalVisible.value = true;
-    }
-
-    /**
      * Called when a row has been selected by the individual.
      *
      * @param key The key of the row that was selected.
      */
     function onSelectItem(key: string): void {
-        if (config.navigationUrls?.[NavigationUrlKey.DetailPage]) {
-            window.location.href = config.navigationUrls[NavigationUrlKey.DetailPage].replace("((Key))", key);
+        // IdKey|KeyType => "7QVlZw9PZW|Key" or 223|LearningParticipantId.
+        const keyParts = key.split("|");
+        if (keyParts.length === 2) {
+            if (config.navigationUrls?.[NavigationUrlKey.DetailPage]) {
+                // The idKey of the LearningActivityCompletion or LearningParticipant
+                const idKey = keyParts[0];
+
+                // "LearningParticipant" or "Key".
+                const keyType = keyParts[1];
+
+                if (keyType === "LearningParticipantId") {
+                    // If the activity completion doesn't yet exist we'll need the participantId
+                    // in addition to the other parameters in order to create one.
+                    window.location.href = config.navigationUrls[NavigationUrlKey.DetailPage]
+                        .replace("((Key))", "0")
+                        .replace("((LearningParticipantId))", idKey);
+                }
+                else {
+                    // If the activity completion does exist we can use the normal behavior
+                    // of setting the key.
+                    window.location.href = config.navigationUrls[NavigationUrlKey.DetailPage].replace("((Key))", idKey);
+                }
+            }
         }
     }
 
     // #endregion
 
-    gridDataSource.value = loadGridData();
+    onMounted(() => {
+        // Because the grid may be hidden when a primary block is hidden
+        // only load the grid data if visible. Additionally we need to
+        // give time for the autoEdit of detail blocks to emit browserBus events.
+        setTimeout(() => {
+            if (visibleCssClass.value === "show") {
+                gridDataSource.value = loadGridData();
+            }
+        }, 450);
+    });
+
 </script>

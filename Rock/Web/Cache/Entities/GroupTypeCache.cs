@@ -20,8 +20,10 @@ using System.Data.Entity;
 using System.Linq;
 using System.Runtime.Serialization;
 
+using Rock.Attribute;
 using Rock.CheckIn.v2;
 using Rock.Data;
+using Rock.Enums.CheckIn;
 using Rock.Enums.Group;
 using Rock.Model;
 
@@ -174,6 +176,10 @@ namespace Rock.Web.Cache
         /// </value>
         [DataMember]
         public AttendanceRule AttendanceRule { get; private set; }
+
+        /// <inheritdoc cref="GroupType.AlreadyEnrolledMatchingLogic"/>
+        [DataMember]
+        public AlreadyEnrolledMatchingLogic AlreadyEnrolledMatchingLogic { get; private set; }
 
         /// <summary>
         /// Gets or sets the group capacity rule.
@@ -382,9 +388,12 @@ namespace Rock.Web.Cache
         /// <param name="groupType">Type of the group.</param>
         /// <param name="purposeGuid">The purpose unique identifier.</param>
         /// <param name="startingGroup">Starting group is used to avoid circular references.</param>
+        /// <param name="processedGroupTypeIds">A collection of unique identifiers representing specific group types already processed by the method. This parameter filters the operation to include only the specified group types.</param>
         /// <returns></returns>
-        private GroupTypeCache GetParentPurposeGroupType( GroupTypeCache groupType, Guid purposeGuid, GroupTypeCache startingGroup )
+        private GroupTypeCache GetParentPurposeGroupType( GroupTypeCache groupType, Guid purposeGuid, GroupTypeCache startingGroup, List<int> processedGroupTypeIds = null )
         {
+            processedGroupTypeIds = processedGroupTypeIds ?? new List<int>();
+
             if ( groupType != null &&
                 groupType.GroupTypePurposeValue != null &&
                 groupType.GroupTypePurposeValue.Guid.Equals( purposeGuid ) )
@@ -397,12 +406,15 @@ namespace Rock.Web.Cache
                 // skip if parent group type and current group type are the same (a situation that should not be possible) to prevent stack overflow
                 if ( groupType.Id == parentGroupType.Id ||
                      // also skip if the parent group type and starting group type are the same as this is a circular reference and can cause a stack overflow
-                     startingGroup.Id == parentGroupType.Id )
+                     startingGroup.Id == parentGroupType.Id ||
+                     processedGroupTypeIds.Contains( parentGroupType.Id ) )
                 {
                     continue;
                 }
 
-                var testGroupType = GetParentPurposeGroupType( parentGroupType, purposeGuid, startingGroup );
+                processedGroupTypeIds.Add( parentGroupType.Id );
+
+                var testGroupType = GetParentPurposeGroupType( parentGroupType, purposeGuid, startingGroup, processedGroupTypeIds );
                 if ( testGroupType != null )
                 {
                     return testGroupType;
@@ -629,6 +641,13 @@ namespace Rock.Web.Cache
         public ScheduleConfirmationLogic ScheduleConfirmationLogic { get; set; }
 
         /// <summary>
+        /// Gets a value that groups in this area should not be available
+        /// when a person already has a check-in for the same schedule.
+        /// </summary>
+        [DataMember]
+        public bool IsConcurrentCheckInPrevented { get; private set; }
+
+        /// <summary>
         /// Gets or sets the roles.
         /// </summary>
         /// <value>
@@ -643,12 +662,17 @@ namespace Rock.Web.Cache
                 {
                     using ( var rockContext = new RockContext() )
                     {
-                        _roles = new GroupTypeRoleService( rockContext )
-                            .Queryable().AsNoTracking()
+                        var roleIds = new GroupTypeRoleService( rockContext )
+                            .Queryable()
                             .Where( r => r.GroupTypeId == Id )
+                            .Select( r => r.Id )
+                            .ToList();
+
+                        // GroupTypeRole invalidates the GroupTypeCache object
+                        // when it is changed, so it is safe to cache the full
+                        // GroupTypeRoleCache objects instead of just the Ids.
+                        _roles = GroupTypeRoleCache.GetMany( roleIds, rockContext )
                             .OrderBy( r => r.Order )
-                            .ToList()
-                            .Select( r => new GroupTypeRoleCache( r ) )
                             .ToList();
                     }
                 }
@@ -842,6 +866,70 @@ namespace Rock.Web.Cache
         /// </value>
         public DefinedTypeCache GroupStatusDefinedType => GroupStatusDefinedTypeId.HasValue ? DefinedTypeCache.Get( this.GroupStatusDefinedTypeId.Value ) : null;
 
+        /// <inheritdoc cref="Rock.Model.Group.ScheduleCoordinatorNotificationTypes" />
+        [DataMember]
+        public ScheduleCoordinatorNotificationType? ScheduleCoordinatorNotificationTypes { get; private set; }
+
+        /// <inheritdoc cref="GroupType.IsPeerNetworkEnabled"/>
+        [DataMember]
+        public bool IsPeerNetworkEnabled { get; private set; }
+
+        /// <inheritdoc cref="GroupType.RelationshipGrowthEnabled"/>
+        [DataMember]
+        public bool RelationshipGrowthEnabled { get; private set; }
+
+        /// <inheritdoc cref="GroupType.RelationshipStrength"/>
+        [DataMember]
+        public int RelationshipStrength { get; private set; }
+
+        /// <inheritdoc cref="GroupType.LeaderToLeaderRelationshipMultiplier"/>
+        [DataMember]
+        [DecimalPrecision( 8, 2 )]
+        public decimal LeaderToLeaderRelationshipMultiplier { get; private set; }
+
+        /// <inheritdoc cref="GroupType.LeaderToNonLeaderRelationshipMultiplier"/>
+        [DataMember]
+        [DecimalPrecision( 8, 2 )]
+        public decimal LeaderToNonLeaderRelationshipMultiplier { get; private set; }
+
+        /// <inheritdoc cref="GroupType.NonLeaderToNonLeaderRelationshipMultiplier"/>
+        [DataMember]
+        [DecimalPrecision( 8, 2 )]
+        public decimal NonLeaderToNonLeaderRelationshipMultiplier { get; private set; }
+
+        /// <inheritdoc cref="GroupType.NonLeaderToLeaderRelationshipMultiplier"/>
+        [DataMember]
+        [DecimalPrecision( 8, 2 )]
+        public decimal NonLeaderToLeaderRelationshipMultiplier { get; private set; }
+
+        /// <inheritdoc cref="GroupType.AreAnyRelationshipMultipliersCustomized"/>
+        [RockInternal( "17.0" )]
+        public bool AreAnyRelationshipMultipliersCustomized =>
+            LeaderToLeaderRelationshipMultiplier != 1m
+            || LeaderToNonLeaderRelationshipMultiplier != 1m
+            || NonLeaderToLeaderRelationshipMultiplier != 1m
+            || NonLeaderToNonLeaderRelationshipMultiplier != 1m;
+
+        /// <inheritdoc cref="GroupType.IsChatAllowed"/>
+        [DataMember]
+        public bool IsChatAllowed { get; private set; }
+
+        /// <inheritdoc cref="GroupType.IsChatEnabledForAllGroups"/>
+        [DataMember]
+        public bool IsChatEnabledForAllGroups { get; private set; }
+
+        /// <inheritdoc cref="GroupType.IsLeavingChatChannelAllowed"/>
+        [DataMember]
+        public bool IsLeavingChatChannelAllowed { get; private set; }
+
+        /// <inheritdoc cref="GroupType.IsChatChannelPublic"/>
+        [DataMember]
+        public bool IsChatChannelPublic { get; private set; }
+
+        /// <inheritdoc cref="GroupType.IsChatChannelAlwaysShown"/>
+        [DataMember]
+        public bool IsChatChannelAlwaysShown { get; private set; }
+
         #endregion
 
         #region Public Methods
@@ -857,6 +945,19 @@ namespace Rock.Web.Cache
         {
             var groupTypeIds = GetInheritedGroupTypeIds();
 
+            return GetInheritedAttributesForQualifier( groupTypeIds, entityTypeId, entityTypeQualifierColumn );
+        }
+
+        /// <summary>
+        /// Gets a list of all attributes defined for the GroupTypes specified that
+        /// match the entityTypeQualifierColumn and the GroupType Ids.
+        /// </summary>
+        /// <param name="groupTypeIds">The list of group type ids that must be matched.</param>
+        /// <param name="entityTypeId">The Entity Type Id for which Attributes to load.</param>
+        /// <param name="entityTypeQualifierColumn">The EntityTypeQualifierColumn value to match against.</param>
+        /// <returns>A list of attributes defined in the inheritance tree.</returns>
+        internal static List<AttributeCache> GetInheritedAttributesForQualifier( List<int> groupTypeIds, int entityTypeId, string entityTypeQualifierColumn )
+        {
             var inheritedAttributes = new Dictionary<int, List<AttributeCache>>();
             groupTypeIds.ForEach( g => inheritedAttributes.Add( g, new List<AttributeCache>() ) );
 
@@ -997,6 +1098,7 @@ namespace Rock.Web.Cache
             SendAttendanceReminder = groupType.SendAttendanceReminder;
             ShowConnectionStatus = groupType.ShowConnectionStatus;
             AttendanceRule = groupType.AttendanceRule;
+            AlreadyEnrolledMatchingLogic = groupType.AlreadyEnrolledMatchingLogic;
             GroupCapacityRule = groupType.GroupCapacityRule;
             AttendancePrintTo = groupType.AttendancePrintTo;
             Order = groupType.Order;
@@ -1034,6 +1136,20 @@ namespace Rock.Web.Cache
             ScheduleConfirmationLogic = groupType.ScheduleConfirmationLogic;
             IsCapacityRequired = groupType.IsCapacityRequired;
             GroupsRequireCampus = groupType.GroupsRequireCampus;
+            ScheduleCoordinatorNotificationTypes = groupType.ScheduleCoordinatorNotificationTypes;
+            IsConcurrentCheckInPrevented = groupType.IsConcurrentCheckInPrevented;
+            IsPeerNetworkEnabled = groupType.IsPeerNetworkEnabled;
+            RelationshipGrowthEnabled = groupType.RelationshipGrowthEnabled;
+            RelationshipStrength = groupType.RelationshipStrength;
+            LeaderToLeaderRelationshipMultiplier = groupType.LeaderToLeaderRelationshipMultiplier;
+            LeaderToNonLeaderRelationshipMultiplier = groupType.LeaderToNonLeaderRelationshipMultiplier;
+            NonLeaderToLeaderRelationshipMultiplier = groupType.NonLeaderToLeaderRelationshipMultiplier;
+            NonLeaderToNonLeaderRelationshipMultiplier = groupType.NonLeaderToNonLeaderRelationshipMultiplier;
+            IsChatAllowed = groupType.IsChatAllowed;
+            IsChatEnabledForAllGroups = groupType.IsChatEnabledForAllGroups;
+            IsLeavingChatChannelAllowed = groupType.IsLeavingChatChannelAllowed;
+            IsChatChannelPublic = groupType.IsChatChannelPublic;
+            IsChatChannelAlwaysShown = groupType.IsChatChannelAlwaysShown;
         }
 
         /// <summary>
@@ -1103,137 +1219,5 @@ namespace Rock.Web.Cache
         }
 
         #endregion
-    }
-
-    /// <summary>
-    /// Cached version of GroupTypeRole
-    /// </summary>
-    [Serializable]
-    [DataContract]
-    public class GroupTypeRoleCache
-    {
-        /// <summary>
-        /// Gets or sets the identifier.
-        /// </summary>
-        /// <value>
-        /// The identifier.
-        /// </value>
-        [DataMember]
-        public int Id { get; private set; }
-
-        /// <summary>
-        /// Gets or sets the unique identifier.
-        /// </summary>
-        /// <value>
-        /// The unique identifier.
-        /// </value>
-        [DataMember]
-        public Guid Guid { get; private set; }
-
-        /// <summary>
-        /// Gets or sets the name.
-        /// </summary>
-        /// <value>
-        /// The name.
-        /// </value>
-        [DataMember]
-        public string Name { get; private set; }
-
-        /// <summary>
-        /// Gets or sets the order.
-        /// </summary>
-        /// <value>
-        /// The order.
-        /// </value>
-        [DataMember]
-        public int Order { get; private set; }
-
-        /// <summary>
-        /// Gets or sets the maximum count.
-        /// </summary>
-        /// <value>
-        /// The maximum count.
-        /// </value>
-        [DataMember]
-        public int? MaxCount { get; private set; }
-
-        /// <summary>
-        /// Gets or sets the minimum count.
-        /// </summary>
-        /// <value>
-        /// The minimum count.
-        /// </value>
-        [DataMember]
-        public int? MinCount { get; private set; }
-
-        /// <summary>
-        /// Gets or sets a value indicating whether this instance is leader.
-        /// </summary>
-        /// <value>
-        ///   <c>true</c> if this instance is leader; otherwise, <c>false</c>.
-        /// </value>
-        [DataMember]
-        public bool IsLeader { get; private set; }
-
-        /// <summary>
-        /// Gets or sets a value indicating whether this instance can view.
-        /// </summary>
-        /// <value>
-        ///   <c>true</c> if this instance can view; otherwise, <c>false</c>.
-        /// </value>
-        [DataMember]
-        public bool CanView { get; private set; }
-
-        /// <summary>
-        /// Gets or sets a value indicating whether this instance can edit.
-        /// </summary>
-        /// <value>
-        ///   <c>true</c> if this instance can edit; otherwise, <c>false</c>.
-        /// </value>
-        [DataMember]
-        public bool CanEdit { get; private set; }
-
-        /// <summary>
-        /// Gets or sets a value indicating whether this instance can manage members.
-        /// </summary>
-        /// <value>
-        ///   <c>true</c> if this instance can manage members; otherwise, <c>false</c>.
-        /// </value>
-        [DataMember]
-        public bool CanManageMembers { get; private set; }
-
-        /// <summary>
-        /// Initializes a new instance of the <see cref="GroupTypeRoleCache"/> class.
-        /// </summary>
-        /// <param name="role">The role.</param>
-        public GroupTypeRoleCache( GroupTypeRole role )
-        {
-            if ( role == null )
-            {
-                return;
-            }
-
-            Id = role.Id;
-            Guid = role.Guid;
-            Name = role.Name;
-            Order = role.Order;
-            MaxCount = role.MaxCount;
-            MinCount = role.MinCount;
-            IsLeader = role.IsLeader;
-            CanView = role.CanView;
-            CanEdit = role.CanEdit;
-            CanManageMembers = role.CanManageMembers;
-        }
-
-        /// <summary>
-        /// Returns a <see cref="System.String" /> that represents this instance.
-        /// </summary>
-        /// <returns>
-        /// A <see cref="System.String" /> that represents this instance.
-        /// </returns>
-        public override string ToString()
-        {
-            return Name;
-        }
     }
 }

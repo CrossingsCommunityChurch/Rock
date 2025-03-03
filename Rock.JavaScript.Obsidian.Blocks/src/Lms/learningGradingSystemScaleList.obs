@@ -1,6 +1,9 @@
 <!-- Copyright by the Spark Development Network; Licensed under the Rock Community License -->
 <template>
-    <Grid :definition="config.gridDefinition ?? undefined"
+    <Grid
+          v-if="hasLoadedData"
+          :class="visibleCssClass"
+          :definition="config.gridDefinition ?? undefined"
           :data="gridDataSource"
           keyField="idKey"
           itemTerm="Grading Scale"
@@ -19,7 +22,7 @@
                 :filterValue="getRowScaleFilterValue"
                 visiblePriority="xs">
             <template #format="{ row }">
-                <div class="d-flex flex-column text-muted">
+                <div class="d-flex flex-column">
                     <div class="text-semibold">{{ row.name }}</div>
 
                     <div>{{ row.description }}</div>
@@ -27,12 +30,13 @@
             </template>
         </Column>
 
-        <NumberColumn name="threshold"
+        <NumberColumn name="thresholdPercentage"
                       title="Threshold %"
-                      field="threshold"
+                      field="thresholdPercentage"
+                      class="text-right"
                       :filter="numberValueFilter"
                       width="15%"
-                      visiblePriority="xs" />
+                      visiblePriority="sm" />
 
         <BooleanColumn name="isPassing"
                        title="Passing"
@@ -42,22 +46,21 @@
 
         <AttributeColumns :attributes="config.gridDefinition?.attributeFields ?? []" />
 
-        <SecurityColumn />
-
         <DeleteColumn v-if="config.isDeleteEnabled" @click="onDeleteClick" />
     </Grid>
 </template>
 
 <script setup lang="ts">
-    import { onConfigurationValuesChanged, useConfigurationValues, useInvokeBlockAction, useReloadBlock } from "@Obsidian/Utility/block";
+    import { useBlockBrowserBus, onConfigurationValuesChanged, useConfigurationValues, useInvokeBlockAction, useReloadBlock } from "@Obsidian/Utility/block";
     import { EntityType } from "@Obsidian/SystemGuids/entityType";
-    import Grid, { numberValueFilter, textValueFilter, AttributeColumns, BooleanColumn, NumberColumn, Column, DeleteColumn, ReorderColumn, SecurityColumn } from "@Obsidian/Controls/grid";
+    import Grid, { numberValueFilter, textValueFilter, AttributeColumns, BooleanColumn, NumberColumn, Column, DeleteColumn, ReorderColumn } from "@Obsidian/Controls/grid";
     import { alert } from "@Obsidian/Utility/dialogs";
     import { ListBlockBox } from "@Obsidian/ViewModels/Blocks/listBlockBox";
     import { LearningGradingSystemScaleListOptionsBag } from "@Obsidian/ViewModels/Blocks/Lms/LearningGradingSystemScaleList/learningGradingSystemScaleListOptionsBag";
     import { GridDataBag } from "@Obsidian/ViewModels/Core/Grid/gridDataBag";
     import { NavigationUrlKey } from "./LearningGradingSystemScaleList/types.partial";
-    import { reactive, ref } from "vue";
+    import { onMounted, reactive, ref } from "vue";
+    import { BlockMessages } from "@Obsidian/Utility/browserBus";
 
     const config = useConfigurationValues<ListBlockBox<LearningGradingSystemScaleListOptionsBag>>();
     const invokeBlockAction = useInvokeBlockAction();
@@ -65,8 +68,28 @@
 
     // #region Values
 
+    const learningGradingSystemId = config.options?.learningGradingSystemIdKey ?? "0";
+
     const gridDataSource = ref<Promise<GridDataBag>>();
     let gridData: GridDataBag | undefined;
+
+    // Use the browser bus to listen for changes to edit mode for any blocks on the page.
+    const browserBus = useBlockBrowserBus();
+    const hasLoadedData = ref(false);
+    const visibleCssClass = ref(learningGradingSystemId === "0" ? "hidden" : "show");
+
+    // When another block on the page begins editing hide this block.
+    browserBus.subscribe(BlockMessages.BeginEdit, () => {
+        visibleCssClass.value = "hidden";
+    });
+
+    // When another block begins editing show this block.
+    browserBus.subscribe(BlockMessages.EndEdit, () => {
+        visibleCssClass.value = "show";
+        if (!hasLoadedData.value) {
+            gridDataSource.value = loadGridData();
+        }
+    });
 
     // #endregion
 
@@ -89,6 +112,8 @@
 
         if (result.isSuccess && result.data) {
             gridData = reactive(result.data);
+            hasLoadedData.value = true;
+
             return gridData;
         }
         else {
@@ -107,7 +132,7 @@
      */
     function onSelectItem(key: string): void {
         if (config.navigationUrls?.[NavigationUrlKey.DetailPage]) {
-            window.location.href = config.navigationUrls[NavigationUrlKey.DetailPage].replace("((Key))", key);
+            window.location.href = config.navigationUrls[NavigationUrlKey.DetailPage].replace("((Key))", key) + "?autoEdit=true&returnUrl=" + encodeURIComponent(window.location.href);
         }
     }
 
@@ -139,7 +164,7 @@
      */
     function onAddItem(): void {
         if (config.navigationUrls?.[NavigationUrlKey.DetailPage]) {
-            window.location.href = config.navigationUrls[NavigationUrlKey.DetailPage].replace("((Key))", "0");
+            window.location.href = config.navigationUrls[NavigationUrlKey.DetailPage].replace("((Key))", "0") + "?autoEdit=true&returnUrl=" + encodeURIComponent(window.location.href);
         }
     }
 
@@ -162,5 +187,15 @@
 
     // #endregion
 
-    gridDataSource.value = loadGridData();
+    onMounted(() => {
+        // Because the grid may be hidden when a primary block is hidden
+        // only load the grid data if visible. Additionally we need to
+        // give time for the autoEdit of detail blocks to emit browserBus events.
+        setTimeout(() => {
+            if (visibleCssClass.value === "show") {
+                gridDataSource.value = loadGridData();
+            }
+        }, 250);
+    });
+
 </script>

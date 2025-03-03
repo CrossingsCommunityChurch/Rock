@@ -27,14 +27,18 @@ export const FieldType = {
     AchievementType: "593132CF-BA5D-462F-97F6-94DCC0BFFE6F",
     /** Address field type */
     Address: "0A495222-23B7-41D3-82C8-D484CDB75D17",
+    /** AI provider field type. */
+    AiProvider: "2BAA190B-3EF7-47CE-AF70-C7613ED344AB",
     /** Assessment field type */
     AssessmentType: "C263513A-30BE-4823-ABF1-AC12A56F9644",
     /** Asset field type */
-    Asset: "FC27D395-8F57-467E-91FF-E648F807110E",
+    Asset: "4E4E8692-23B4-49EA-88B4-2AB07899E0EE",
     /** Asset storage provider field type */
     AssetStorageProvider: "1596F562-E8D0-4C5F-9A00-23B5594F17E2",
     /** Asset Storage System field type */
     AssetStorageSystem: "A57109EE-35A2-45D0-A575-02DBBDFBC0D0",
+    /** Attribute field type */
+    Attendance: "45F2BE0A-43C2-40D6-9888-68A2E72ACD06",
     /** Attribute field type */
     Attribute: "99B090AA-4D7E-46D8-B393-BF945EA1BA8B",
     /** Audio File field type */
@@ -47,6 +51,8 @@ export const FieldType = {
     Badges: "602F273B-7EC2-42E6-9AA7-A36A268192A3",
     /** Benevolence Request field type */
     BenevolenceRequest: "44EEC881-3C07-4A58-ACC4-0F21D873DBE0",
+    /** Benevolence Type field type */
+    BenevolenceType: "7BD3C3A3-DF4A-41EB-BF13-29EDB166078B",
     /** Binary File field type */
     BinaryFile: "C403E219-A56B-439E-9D50-9302DFE760CF",
     /** Binary File Type field type */
@@ -171,6 +177,8 @@ export const FieldType = {
     FinancialAccounts: "17033CDD-EF97-4413-A483-7B85A787A87F",
     /** Financial Gateway field type */
     FinancialGateway: "7B34F9D8-6BBA-423E-B50E-525ABB3A1013",
+    /** Financial Statement Template field type */
+    FinancialStatementTemplate: "9E0CD807-D69F-4888-A9BE-BCD11DD083FE",
     /** Gender field type */
     Gender: "2E28779B-4C76-4142-AE8D-49EA31DDB503",
     /** Group field type */
@@ -181,6 +189,8 @@ export const FieldType = {
     GroupLocationType: "48624B0B-6A58-45B8-9E47-B67B67898D25",
     /** Group Member field type */
     GroupMember: "D092B5BB-A7F4-45B7-AB01-72CC4FC589A9",
+    /** Group Member Requirement field type */
+    GroupMemberRequirement: "C0797A18-B489-46C7-8C30-F5E4F8246E23",
     /** Group Role field type */
     GroupRole: "3BB25568-E793-4D12-AE80-AC3FDA6FD8A8",
     /** Group Type field type */
@@ -237,6 +247,8 @@ export const FieldType = {
     MetricEntity: "3A7FB32E-1CCD-4F79-B085-BDBADEB56CCF",
     /** Metrics field type */
     Metrics: "3AF9AD35-9F3E-4497-BFDE-60C6C1827653",
+    /** Mobile Navigation Action field type */
+    MobileNavigationAction: "8AF3E49F-4FF1-47D8-BCD2-150201B7F1B8",
     /** Month Day field type */
     MonthDay: "8BED8DD8-8167-4052-B807-A1E72C133611",
     /** Multi-Select field type */
@@ -245,6 +257,8 @@ export const FieldType = {
     NoteType: "E3FF88AC-13F6-4DF8-8371-FC0D7FD9A571",
     /** Note Types field type */
     NoteTypes: "276CCA63-5670-48CA-8B5A-2AAC97E8EE5E",
+    /** Open AI Provider field type */
+    OpenAiProvider: "A0243B67-1F55-4C94-93D4-E21E8DA785C2",
     /** Page Reference field type */
     PageReference: "BD53F9C9-EBA9-4D3F-82EA-DE5DD34A8108",
     /** Persisted Dataset field type */
@@ -281,6 +295,8 @@ export const FieldType = {
     Schedule: "E9C12C59-98EA-4977-8318-647435BE9A9C",
     /** Schedules field type */
     Schedules: "EC6A5CAF-F6A2-47A4-9CBA-6E1C53D7E59B",
+    /** Secondary auths field type */
+    SecondaryAuths: "98F57599-2DC3-4022-BE33-14A22C3043E1",
     /** Security Role field type */
     SecurityRole: "7BD25DC9-F34A-478D-BEF9-0C787F5D39B8",
     /** Single-Select field type */

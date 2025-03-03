@@ -21,6 +21,7 @@ using System.ComponentModel;
 using System.Linq;
 
 using Rock.Attribute;
+using Rock.Communication;
 using Rock.Constants;
 using Rock.Data;
 using Rock.Model;
@@ -41,7 +42,7 @@ namespace Rock.Blocks.Lms
     [Category( "LMS" )]
     [Description( "Displays the details of a particular learning class announcement." )]
     [IconCssClass( "fa fa-question" )]
-    // [SupportedSiteTypes( Model.SiteType.Web )]
+    [SupportedSiteTypes( Model.SiteType.Web )]
 
     #region Block Attributes
 
@@ -74,6 +75,14 @@ namespace Rock.Blocks.Lms
             public const string ParentPage = "ParentPage";
         }
 
+        /// <summary>
+        /// Keys to use for SMS Medium Attributes.
+        /// </summary>
+        private static class SmsMediumAttributeKey
+        {
+            public const string CharacterLimit = "CharacterLimit";
+        }
+
         #endregion Keys
 
         #region Methods
@@ -99,6 +108,9 @@ namespace Rock.Blocks.Lms
         /// <returns>The options that provide additional details to the block.</returns>
         private LearningClassAnnouncementDetailOptionsBag GetBoxOptions( bool isEditable )
         {
+            var options = new LearningClassAnnouncementDetailOptionsBag();
+            var smsMedium = MediumContainer.GetActiveMediumComponentsWithActiveTransports()?.FirstOrDefault( c => c.CommunicationType == CommunicationType.SMS );
+            options.SmsCharacterLimit = smsMedium?.GetAttributeValue( SmsMediumAttributeKey.CharacterLimit ).AsIntegerOrNull() ?? 160;
             return new LearningClassAnnouncementDetailOptionsBag();
         }
 
@@ -308,7 +320,7 @@ namespace Rock.Blocks.Lms
 
             if ( !entity.IsAuthorized( Authorization.EDIT, RequestContext.CurrentPerson ) )
             {
-                error = ActionBadRequest( $"Not authorized to edit ${LearningClassAnnouncement.FriendlyTypeName}." );
+                error = ActionBadRequest( $"Not authorized to edit {LearningClassAnnouncement.FriendlyTypeName}." );
                 return false;
             }
 
@@ -318,22 +330,23 @@ namespace Rock.Blocks.Lms
         /// <inheritdoc/>
         public BreadCrumbResult GetBreadCrumbs( PageReference pageReference )
         {
-            using ( var rockContext = new RockContext() )
+            var entityKey = pageReference.GetPageParameter( PageParameterKey.LearningClassAnnouncementId ) ?? "";
+
+            // Exclude the auto edit and return URL parameters from the page reference parameters (if any).
+            var excludedParamKeys = new[] { PageParameterKey.AutoEdit.ToLower(), PageParameterKey.ReturnUrl.ToLower() };
+            var paramsToInclude = pageReference.Parameters.Where( kv => !excludedParamKeys.Contains( kv.Key.ToLower() ) ).ToDictionary( kv => kv.Key, kv => kv.Value );
+
+            var entityName = entityKey.Length > 0 ? new Service<LearningClassAnnouncement>( RockContext ).GetSelect( entityKey, p => p.Title ) : "New Announcement";
+            var breadCrumbPageRef = new PageReference( pageReference.PageId, pageReference.RouteId, paramsToInclude );
+            var breadCrumb = new BreadCrumbLink( entityName ?? "New Announcement", breadCrumbPageRef );
+
+            return new BreadCrumbResult
             {
-                var entityKey = pageReference.GetPageParameter( PageParameterKey.LearningClassAnnouncementId ) ?? "";
-
-                var entityName = entityKey.Length > 0 ? new Service<LearningClassAnnouncement>( rockContext ).GetSelect( entityKey, p => p.Title ) : "New Announcement";
-                var breadCrumbPageRef = new PageReference( pageReference.PageId, pageReference.RouteId, pageReference.Parameters );
-                var breadCrumb = new BreadCrumbLink( entityName ?? "New Announcement", breadCrumbPageRef );
-
-                return new BreadCrumbResult
-                {
-                    BreadCrumbs = new List<IBreadCrumb>
+                BreadCrumbs = new List<IBreadCrumb>
                     {
                         breadCrumb
                     }
-                };
-            }
+            };
         }
 
         #endregion
@@ -371,8 +384,6 @@ namespace Rock.Blocks.Lms
         [BlockAction]
         public BlockActionResult Save( ValidPropertiesBox<LearningClassAnnouncementBag> box )
         {
-            var entityService = new LearningClassAnnouncementService( RockContext );
-
             if ( !TryGetEntityForEditAction( box.Bag.IdKey, out var entity, out var actionError ) )
             {
                 return actionError;

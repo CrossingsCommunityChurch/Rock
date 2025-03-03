@@ -87,16 +87,19 @@
         },
 
         /**
+         * Limit the results to the given site type
+         */
+        siteType: {
+            type: Number as PropType<SiteType>,
+            default: null
+        },
+
+        /**
          * Whether to allow multi-select or single-select
          */
         multiple: {
             type: Boolean as PropType<boolean>,
             default: false
-        },
-
-        siteType: {
-            type: Number as PropType<SiteType | undefined>,
-            default: undefined
         },
 
         ...standardRockFormFieldProps
@@ -176,6 +179,8 @@
         // If cached, don't re-fetch
         if (currentPage) {
             updatePage(props.multiple ? [currentPage] : currentPage);
+            // Wait until internalPageValue is updated before retrieving the tree again.
+            await nextTick();
             refreshProvider();
             return;
         }

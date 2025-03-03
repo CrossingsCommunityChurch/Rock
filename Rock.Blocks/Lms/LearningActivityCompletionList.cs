@@ -18,31 +18,28 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
-using System.Data.Entity;
 using System.Linq;
 
 using Rock.Attribute;
+using Rock.Blocks.Administration;
 using Rock.Data;
 using Rock.Model;
 using Rock.Obsidian.UI;
 using Rock.Security;
-using Rock.Utility;
 using Rock.ViewModels.Blocks;
 using Rock.ViewModels.Blocks.Lms.LearningActivityCompletionList;
 using Rock.ViewModels.Utility;
-using Rock.Web.Cache;
 
 namespace Rock.Blocks.Lms
 {
     /// <summary>
     /// Displays a list of learning activity completions.
     /// </summary>
-
     [DisplayName( "Learning Activity Completion List" )]
     [Category( "LMS" )]
     [Description( "Displays a list of learning activity completions." )]
     [IconCssClass( "fa fa-list" )]
-    // [SupportedSiteTypes( Model.SiteType.Web )]
+    [SupportedSiteTypes( Model.SiteType.Web )]
 
     [LinkedPage( "Detail Page",
         Description = "The page that will show the learning activity completion details.",
@@ -74,6 +71,7 @@ namespace Rock.Blocks.Lms
             public const string LearningProgramId = "LearningProgramId";
             public const string LearningCourseId = "LearningCourseId";
             public const string LearningClassId = "LearningClassId";
+            public const string LearningParticipantId = "LearningParticipantId";
         }
 
         #endregion Keys
@@ -104,8 +102,11 @@ namespace Rock.Blocks.Lms
         {
             var options = new LearningActivityCompletionListOptionsBag();
 
-            var classId = RequestContext.PageParameterAsId( PageParameterKey.LearningClassId );
-            options.Students = new LearningParticipantService( RockContext ).GetParticipantBags( classId )
+            var learningClass = new LearningClassService( RockContext )
+                .Get( PageParameter( PageParameterKey.LearningClassId ), !PageCache.Layout.Site.DisablePredictableIds );
+
+            options.CanViewGrades = learningClass.IsAuthorized( Authorization.VIEW_GRADES, GetCurrentPerson() );
+            options.Students = new LearningParticipantService( RockContext ).GetParticipantBags( learningClass.Id )
                 .Where( p => !p.IsFacilitator )
                 .Select( p => new ListItemBag
                 {
@@ -122,7 +123,8 @@ namespace Rock.Blocks.Lms
         /// <returns>A boolean value that indicates if the add button should be enabled.</returns>
         private bool GetIsAddEnabled()
         {
-            return BlockCache.IsAuthorized( Authorization.EDIT, RequestContext.CurrentPerson );
+            var learningClass = new LearningClassService( RockContext ).Get( PageParameter( PageParameterKey.LearningClassId ) );
+            return learningClass.IsAuthorized( Authorization.EDIT, RequestContext.CurrentPerson );
         }
 
         /// <summary>
@@ -138,7 +140,8 @@ namespace Rock.Blocks.Lms
                 [PageParameterKey.LearningProgramId] = PageParameter( PageParameterKey.LearningProgramId ),
                 [PageParameterKey.LearningCourseId] = PageParameter( PageParameterKey.LearningCourseId ),
                 [PageParameterKey.LearningClassId] = PageParameter( PageParameterKey.LearningClassId ),
-                [PageParameterKey.LearningActivityId] = PageParameter( PageParameterKey.LearningActivityId )
+                [PageParameterKey.LearningActivityId] = PageParameter( PageParameterKey.LearningActivityId ),
+                [PageParameterKey.LearningParticipantId] = "((LearningParticipantId))"
             };
 
             return new Dictionary<string, string>
@@ -150,36 +153,48 @@ namespace Rock.Blocks.Lms
         /// <inheritdoc/>
         protected override IQueryable<LearningActivityCompletion> GetListQueryable( RockContext rockContext )
         {
-            var activityId = IdHasher.Instance.GetId( PageParameter( PageParameterKey.LearningActivityId ) );
+            var activity = new LearningActivityService( rockContext ).Get(
+                PageParameter( PageParameterKey.LearningActivityId ),
+                !this.PageCache.Layout.Site.DisablePredictableIds );
 
-            return base.GetListQueryable( rockContext )
-                .Include( a => a.Student )
-                .Include( a => a.LearningActivity )
-                .Include( a => a.Student.Person )
-                .Include( a => a.LearningActivity.LearningClass.LearningSemester )
-                .Include( a => a.Student.LearningClass.LearningGradingSystem.LearningGradingSystemScales )
-                .Where( a => a.LearningActivityId == activityId );
+            // Ensure the current person is authorized to view the class.
+            return activity?.IsAuthorized( Authorization.VIEW, GetCurrentPerson() ) == true ?
+                new LearningParticipantService( rockContext ).GetActivityCompletions( activity.Id ) :
+                default;
+        }
+
+        /// <inheritdoc/>
+        protected override IQueryable<LearningActivityCompletion> GetOrderedListQueryable( IQueryable<LearningActivityCompletion> queryable, RockContext rockContext )
+        {
+            return queryable
+                .OrderBy( c => c.Student.Person.NickName )
+                .ThenBy( c => c.Student.Person.LastName );
         }
 
         /// <inheritdoc/>
         protected override GridBuilder<LearningActivityCompletion> GetGridBuilder()
         {
+            var learningClass = new LearningClassService( RockContext ).Get( PageParameter(PageParameterKey.LearningClassId ) );
+
+            var canViewGrades = learningClass != null && learningClass.IsAuthorized( Authorization.VIEW_GRADES, GetCurrentPerson() );
+
             return new GridBuilder<LearningActivityCompletion>()
                 .WithBlock( this )
                 .AddTextField( "idKey", a => a.IdKey )
+                .AddTextField( "key", a => a.Id == 0 ? $"{a.StudentId}|LearningParticipantId" : $"{a.IdKey}|Key" )
                 .AddPersonField( "student", a => a.Student?.Person )
                 .AddField( "studentGuid", a => a.Student.Guid )
                 .AddField( "completionDate", a => a.CompletedDateTime )
                 .AddField( "dueDate", a => a.DueDate )
-                .AddField( "pointsEarned", a => a.PointsEarned )
-                .AddField( "points", a => a.LearningActivity.Points )
-                .AddField( "grade", a => a.GradeText() )
-                .AddField( "gradePercent", a => a.GradePercent )
-                .AddField( "isPassingGrade", a => a.Grade()?.IsPassing )
-                .AddField( "isFacilitatorCompleted", a => a.IsFacilitatorCompleted )
-                .AddField( "wasCompletedOnTime", a => a.WasCompletedOnTime )
+                .AddField( "pointsEarned", a => canViewGrades ? a.PointsEarned : null )
+                .AddField( "points", a => !canViewGrades ? 0 : a.LearningActivity.Points )
+                .AddField( "grade", a => !canViewGrades || a.RequiresGrading || a.LearningActivity.Points == 0 ? null : a.GetGradeText() )
+                .AddField( "gradePercent", a => !canViewGrades ? 0 : a.GradePercent.ToIntSafe() )
+                .AddField( "requiresScoring", a => a.RequiresGrading )
+                .AddField( "isPassingGrade", a => !canViewGrades ? null : a.GetGrade()?.IsPassing )
+                .AddField( "isLate", a => a.IsLate )
                 .AddField( "isCompleted", a => a.CompletedDateTime.HasValue )
-                .AddField( "hadExtension", a => a.LearningActivity.DueDateCalculated != null && a.DueDate != a.LearningActivity.DueDateCalculated )
+                .AddField( "hadExtension", a => a.HadExtension )
                 .AddField( "dueDateCalculated", a => a.LearningActivity.DueDateCalculated )
                 .AddTextField( "facilitatorComment", a => a.FacilitatorComment )
                 .AddTextField( "studentComment", a => a.StudentComment );
@@ -232,7 +247,7 @@ namespace Rock.Blocks.Lms
             }
 
             var programCommunicationId = new LearningProgramService( RockContext ).GetSelect( PageParameter( PageParameterKey.LearningProgramId ), p => p.SystemCommunicationId );
-            var completion = completionService.GetNew( activity, participant.Id, participant.EnrollmentDate, programCommunicationId );
+            var completion = LearningActivityCompletionService.GetNew( activity, participant.Id, participant.EnrollmentDate, programCommunicationId );
             completionService.Add( completion );
 
             RockContext.SaveChanges();

@@ -29,6 +29,9 @@ import { ListItemBag } from "@Obsidian/ViewModels/Utility/listItemBag";
 
 /** Box containing initialization information for the Communication Entry block. */
 export type CommunicationEntryInitializationBox = {
+    /** Gets or sets a value indicating whether additional email recipients are allowed. */
+    areAdditionalEmailRecipientsAllowed: boolean;
+
     /** Gets or sets a value indicating whether the email metrics reminder options are shown. */
     areEmailMetricsReminderOptionsShown: boolean;
 
@@ -46,6 +49,9 @@ export type CommunicationEntryInitializationBox = {
 
     /** Gets or sets a value indicating whether CC/BCC entry is allowed. */
     isCcBccEntryAllowed: boolean;
+
+    /** Gets or sets a value indicating whether the duplicate prevention option is shown. */
+    isDuplicatePreventionOptionShown: boolean;
 
     /** Gets or sets a value indicating whether the block is in edit mode. */
     isEditMode: boolean;

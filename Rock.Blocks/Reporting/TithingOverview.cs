@@ -38,7 +38,7 @@ namespace Rock.Blocks.Reporting
     [Category( "Reporting" )]
     [Description( "Shows high-level statistics of the tithing overview." )]
     [IconCssClass( "fa fa-question" )]
-    //[SupportedSiteTypes( SiteType.Web )]
+    [SupportedSiteTypes( SiteType.Web )]
 
     #region Block Attributes
 
@@ -176,7 +176,8 @@ namespace Rock.Blocks.Reporting
                 Datasets = GetTimeSeriesDataset( rockContext ),
                 ChartStyle = ChartJsTimeSeriesChartStyleSpecifier.Line,
                 TimeScale = ChartJsTimeSeriesTimeScaleSpecifier.Day,
-                AreaFillOpacity = 0
+                AreaFillOpacity = 0,
+                DateFormatString = "o"
             };
 
             return chartFactory;
@@ -396,7 +397,7 @@ namespace Rock.Blocks.Reporting
                     .Select( x => new ChartDatasetInfo
                     {
                         MetricValueCampusIds = x.Key.MetricValuePartitionEntityIds,
-                        DateTime = x.Key.DateKey.GetDateKeyDate(), // +1 to get first day of month
+                        DateTime = x.Key.DateKey.GetDateKeyDate(),
                         CampusId = x.PartitionEntityId,
                         Value = x.Value.FirstOrDefault(),
                     } )
@@ -425,7 +426,7 @@ namespace Rock.Blocks.Reporting
                 .Select( c => c.Id )
                 .ToList();
 
-            _tithingOverviewMetricValues = _tithingOverviewMetricValues.Where( m => !m.CampusId.HasValue || filteredCampusIds.Contains( m.CampusId.Value ) ).ToList();
+            _tithingOverviewMetricValues = _tithingOverviewMetricValues.Where( m => m.CampusId.HasValue && filteredCampusIds.Contains( m.CampusId.Value ) ).ToList();
 
             return _tithingOverviewMetricValues;
         }
@@ -526,7 +527,7 @@ namespace Rock.Blocks.Reporting
             // We already know partitions are by campus , if partition entity type changes an update will be required.
             foreach ( var entityTypeEntity in entityTypeEntityIdList )
             {
-                var campus = CampusCache.Get( entityTypeEntity.EntityId.Value );
+                var campus = CampusCache.Get( entityTypeEntity.EntityId ?? 0 );
                 if ( campus != null )
                 {
                     var partitionValue = string.IsNullOrWhiteSpace( campus.ShortCode ) ? campus.Name : campus.ShortCode;
@@ -561,7 +562,7 @@ namespace Rock.Blocks.Reporting
                 }
                 else
                 {
-                    return FillColorSource().Skip( campus.Id ).FirstOrDefault();
+                    return FillColorSource().Skip( campus?.Id ?? 0 ).FirstOrDefault();
                 }
             }
             else
@@ -667,7 +668,7 @@ namespace Rock.Blocks.Reporting
         /// <returns></returns>
         private int? GetCampusAge( CampusCache campus )
         {
-            if ( !campus.OpenedDate.HasValue )
+            if ( campus == null || !campus.OpenedDate.HasValue )
             {
                 return null;
             }

@@ -94,12 +94,12 @@ namespace RockWeb.Blocks.Finance
         /// <param name="e">The <see cref="T:System.EventArgs" /> object that contains the event data.</param>
         protected override void OnLoad( EventArgs e )
         {
-            base.OnLoad( e );
-
             if ( !Page.IsPostBack )
             {
                 DisplayResults();
             }
+
+            base.OnLoad( e );
         }
 
         /// <summary>
@@ -206,6 +206,20 @@ namespace RockWeb.Blocks.Finance
             };
 
             var result = FinancialStatementGeneratorHelper.GetStatementGeneratorRecipientResult( financialStatementGeneratorRecipientRequest, this.CurrentPerson );
+
+            if ( !string.IsNullOrWhiteSpace( result.FooterHtmlFragment ) )
+            {
+                // Insert the footer text before the closing body tag
+                var insertPosition = result.Html.IndexOf( "</body>" );
+                if ( insertPosition >= 0 )
+                {
+                    result.Html = result.Html.Insert( insertPosition, result.FooterHtmlFragment );
+                }
+                else
+                {
+                    result.Html += result.FooterHtmlFragment;
+                }
+            }
 
             Response.Write( result.Html );
             Response.End();

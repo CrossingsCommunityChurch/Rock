@@ -28,6 +28,7 @@ import { ValidPropertiesBox } from "@Obsidian/ViewModels/Utility/validProperties
 import { IEntity } from "@Obsidian/ViewModels/entity";
 import { debounce } from "./util";
 import { BrowserBus, useBrowserBus } from "./browserBus";
+import { ICancellationToken } from "./cancellation";
 
 const blockReloadSymbol = Symbol();
 const configurationValuesChangedSymbol = Symbol();
@@ -67,6 +68,21 @@ export function useInvokeBlockAction(): InvokeBlockActionFunc {
 }
 
 /**
+ * Gets the function that will return the URL for a block action.
+ *
+ * @returns A function that can be called to determine the URL for a block action.
+ */
+export function useBlockActionUrl(): (actionName: string) => string {
+    const result = inject<(actionName: string) => string>("blockActionUrl");
+
+    if (result === undefined) {
+        throw "Attempted to access block action URL outside of a RockBlock.";
+    }
+
+    return result;
+}
+
+/**
  * Creates a function that can be provided to the block that allows calling
  * block actions.
  *
@@ -79,8 +95,8 @@ export function useInvokeBlockAction(): InvokeBlockActionFunc {
  *
  * @returns A function that can be used to provide the invoke block action.
  */
-export function createInvokeBlockAction(post: HttpPostFunc, pageGuid: Guid, blockGuid: Guid, pageParameters: Record<string, string>): InvokeBlockActionFunc {
-    async function invokeBlockAction<T>(actionName: string, data: HttpBodyData | undefined = undefined, actionContext: BlockActionContextBag | undefined = undefined): Promise<HttpResult<T>> {
+export function createInvokeBlockAction(post: HttpPostFunc, pageGuid: Guid, blockGuid: Guid, pageParameters: Record<string, string>, interactionGuid: Guid): InvokeBlockActionFunc {
+    async function invokeBlockAction<T>(actionName: string, data: HttpBodyData | undefined = undefined, actionContext: BlockActionContextBag | undefined = undefined, cancellationToken?: ICancellationToken): Promise<HttpResult<T>> {
         let context: BlockActionContextBag = {};
 
         if (actionContext) {
@@ -88,11 +104,16 @@ export function createInvokeBlockAction(post: HttpPostFunc, pageGuid: Guid, bloc
         }
 
         context.pageParameters = pageParameters;
+        context.interactionGuid = interactionGuid;
 
-        return await post<T>(`/api/v2/BlockActions/${pageGuid}/${blockGuid}/${actionName}`, undefined, {
-            __context: context,
-            ...data
-        });
+        return await post<T>(
+            `/api/v2/BlockActions/${pageGuid}/${blockGuid}/${actionName}`,
+            undefined,
+            {
+                __context: context,
+                ...data
+            },
+            cancellationToken);
     }
 
     return invokeBlockAction;

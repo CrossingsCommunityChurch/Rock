@@ -190,7 +190,7 @@ namespace Rock.Blocks.Engagement
 
             if ( achievementType != null )
             {
-                queryParams.Add( PageParameterKey.AchievementTypeId, achievementType.Id.ToString() );
+                queryParams.Add( PageParameterKey.AchievementTypeId, achievementType.IdKey );
             }
 
             return new Dictionary<string, string>
@@ -326,7 +326,8 @@ namespace Rock.Blocks.Engagement
         /// <returns><see cref="AchievementTypeCache"/></returns>
         private AchievementTypeCache GetAchievementTypeCache()
         {
-            var achievementTypeId = PageParameter( PageParameterKey.AchievementTypeId ).AsIntegerOrNull();
+            var key = PageParameter( PageParameterKey.AchievementTypeId );
+            var achievementTypeId = Rock.Utility.IdHasher.Instance.GetId( key ) ?? key.AsIntegerOrNull();
 
             if ( achievementTypeId.HasValue )
             {

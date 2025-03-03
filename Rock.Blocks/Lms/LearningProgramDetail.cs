@@ -47,36 +47,33 @@ namespace Rock.Blocks.Lms
 
     #region Block Attributes
 
-    [CategoryField(
-        "Category",
-        Description = "Optional category for the Program.",
-        Key = AttributeKey.Category,
-        AllowMultiple = false,
-        EntityType = typeof( Rock.Model.LearningProgram ),
-        IsRequired = false,
+    [BooleanField( "Show KPIs",
+        Description = "Determines if the KPIs are visible.",
+        DefaultBooleanValue = true,
+        Key = AttributeKey.ShowKPIs,
         Order = 1 )]
 
     [CustomDropdownListField(
         "Display Mode",
         Key = AttributeKey.DisplayMode,
-        Description = "Select 'Summary' to show only attributes that are 'Show on Grid'. Select 'Full' to show all attributes.",
-        ListSource = "Full,Summary",
+        Description = "Select 'Summary' to show the summary page with (optional) KPIs and the gear icon that navigates to the traditional 'Detail' view.",
+        ListSource = "Summary,Detail",
         IsRequired = true,
         DefaultValue = "Summary",
         Order = 2 )]
 
-    [BooleanField( "Show KPIs",
-        Description = "Determines if the KPIs are visible.",
-        DefaultBooleanValue = true,
-        Key = AttributeKey.ShowKPIs )]
+    [CustomDropdownListField(
+        "Attribute Display Mode",
+        Key = AttributeKey.AttributeDisplayMode,
+        Description = "Select 'Is Grid Column' to show only attributes that are 'Show on Grid'. Select 'All' to show all attributes.",
+        ListSource = "Is Grid Column,All",
+        IsRequired = true,
+        DefaultValue = "Is Grid Column",
+        Order = 3 )]
 
-    [LinkedPage( "Courses Page",
-        Description = "The page that will show the courses for the learning program.",
-        Key = AttributeKey.CoursesPage, IsRequired = false, Order = 4 )]
-
-    [LinkedPage( "Completion Detail Page",
-        Description = "The page that will show the program completion detail.",
-        Key = AttributeKey.CompletionDetailPage, IsRequired = false, Order = 5 )]
+    [LinkedPage( "Alternate Detail Page",
+        Description = "The page that will show the Detail view when in 'Summary' mode and the 'Summary' view when in 'Detail' mode.",
+        Key = AttributeKey.DetailPage, IsRequired = false, Order = 4 )]
 
     #endregion
 
@@ -88,33 +85,53 @@ namespace Rock.Blocks.Lms
 
         private static class AttributeKey
         {
-            public const string Category = "Category";
-            public const string CompletionDetailPage = "CompletionDetailPage";
-            public const string CoursesPage = "CoursesPage";
+            public const string AttributeDisplayMode = "AttributeDisplayMode";
+            public const string DetailPage = "DetailPage";
             public const string DisplayMode = "DisplayMode";
             public const string ShowKPIs = "ShowKPIs";
+        }
+
+        private static class AttributeDisplayMode
+        {
+            public const string All = "All";
+            public const string IsGridColumn = "Is Grid Column";
         }
 
         private static class DisplayMode
         {
             public const string Summary = "Summary";
-            public const string Full = "Full";
+            public const string Detail = "Detail";
         }
 
         private static class PageParameterKey
         {
             public const string LearningProgramId = "LearningProgramId";
-            public const string LearningProgramCompletionId = "LearningProgramCompletionId";
+            public const string ReturnUrl = "returnUrl";
         }
 
         private static class NavigationUrlKey
         {
             public const string ParentPage = "ParentPage";
-            public const string CoursesPage = "CoursesPage";
-            public const string CompletionDetailPage = "CompletionDetailPage";
+            public const string DetailPage = "DetailPage";
         }
 
         #endregion Keys
+
+        #region Properties
+
+        /// <summary>
+        /// <c>true</c> if the block is configured to show only <see cref="Attribute"/> records
+        /// where IsShowOnGrid is <c>true</c>; otherwise <c>false</c>.
+        /// </summary>
+        private bool OnlyShowIsGridColumnAttributes =>
+            GetAttributeValue( AttributeKey.AttributeDisplayMode ) == AttributeDisplayMode.IsGridColumn;
+
+        /// <summary>
+        /// <c>true</c> if the block is in Detail Mode; otherwise <c>false</c>.
+        /// </summary>
+        private bool IsDetailMode => GetAttributeValue( AttributeKey.DisplayMode ) == DisplayMode.Detail;
+
+        #endregion
 
         #region Methods
 
@@ -125,7 +142,7 @@ namespace Rock.Blocks.Lms
 
             SetBoxInitialEntityState( box );
 
-            box.NavigationUrls = GetBoxNavigationUrls( box.Entity.IdKey );
+            box.NavigationUrls = GetBoxNavigationUrls( box.Entity?.IdKey );
             box.Options = GetBoxOptions( box.IsEditable );
 
             return box;
@@ -141,7 +158,12 @@ namespace Rock.Blocks.Lms
         {
             var options = new LearningProgramDetailOptionsBag();
 
+            options.DisplayMode = GetAttributeValue( AttributeKey.DisplayMode );
             options.SystemCommunications = isEditable ? GetCommunicationTemplates() : new List<ListItemBag>();
+            options.GradingSystems = new LearningGradingSystemService( RockContext ).Queryable()
+                .Where( g => g.IsActive )
+                .OrderBy( g => g.Name )
+                .ToListItemBagList();
 
             return options;
         }
@@ -214,8 +236,7 @@ namespace Rock.Blocks.Lms
                 // Existing entity was found, prepare for view mode by default.
                 if ( isViewable )
                 {
-                    var onlyShowIsGridColumn = GetAttributeValue( AttributeKey.DisplayMode ) == DisplayMode.Summary;
-                    box.Entity = GetEntityBagForView( entity, onlyShowIsGridColumn );
+                    box.Entity = GetEntityBagForView( entity, OnlyShowIsGridColumnAttributes );
                 }
                 else
                 {
@@ -264,7 +285,8 @@ namespace Rock.Blocks.Lms
                 CompletionWorkflowType = entity.CompletionWorkflowType.ToListItemBag(),
                 CompletionWorkflowTypeId = entity.CompletionWorkflowTypeId,
                 Completions = kpis.Completions,
-                ConfigurationMode = entity.ConfigurationMode,
+                ConfigurationMode = entity.Id > 0 ? ( ConfigurationMode? ) entity.ConfigurationMode : null,
+                DefaultGradingSystem = entity.DefaultLearningGradingSystem?.ToListItemBag(),
                 Description = entity.Description,
                 HighlightColor = entity.HighlightColor,
                 IconCssClass = entity.IconCssClass,
@@ -289,12 +311,12 @@ namespace Rock.Blocks.Lms
             if ( onlyShowIsGridColumn )
             {
                 bag.LoadAttributesAndValuesForPublicView( entity, RequestContext.CurrentPerson,
-                    attributeFilter: a => a.IsGridColumn
-                    );
+                    enforceSecurity: true,
+                    attributeFilter: a => a.IsGridColumn );
             }
             else
             {
-                bag.LoadAttributesAndValuesForPublicView( entity, RequestContext.CurrentPerson );
+                bag.LoadAttributesAndValuesForPublicView( entity, RequestContext.CurrentPerson, enforceSecurity: true );
             }
 
             return bag;
@@ -331,7 +353,7 @@ namespace Rock.Blocks.Lms
 
             var bag = GetCommonEntityBag( entity );
 
-            bag.LoadAttributesAndValuesForPublicEdit( entity, RequestContext.CurrentPerson );
+            bag.LoadAttributesAndValuesForPublicEdit( entity, RequestContext.CurrentPerson, enforceSecurity: true );
 
             return bag;
         }
@@ -364,18 +386,21 @@ namespace Rock.Blocks.Lms
             box.IfValidProperty( nameof( box.Bag.CompletionWorkflowType ),
                 () => entity.CompletionWorkflowTypeId = box.Bag.CompletionWorkflowType.GetEntityId<WorkflowType>( RockContext ) );
 
-            var isMovingToOnDemandMode =
-                box.Bag.ConfigurationMode != entity.ConfigurationMode &&
-                box.Bag.ConfigurationMode == Enums.Lms.ConfigurationMode.OnDemandLearning;
-
             // We're unable to move to academic calendar mode from On-Demand due to the fact that none of the current participants will have records.
+            var isMovingToOnDemandMode =
+                entity.Id > 0 &&
+                entity.ConfigurationMode == ConfigurationMode.AcademicCalendar &&
+                box.Bag.ConfigurationMode == ConfigurationMode.OnDemandLearning;
             if ( isMovingToOnDemandMode )
             {
                 throw new ApplicationException( "Unable to move from Academic Calendar mode to On-Demand mode." );
             }
 
             box.IfValidProperty( nameof( box.Bag.ConfigurationMode ),
-                () => entity.ConfigurationMode = box.Bag.ConfigurationMode );
+                () => entity.ConfigurationMode = box.Bag.ConfigurationMode.Value );
+
+            box.IfValidProperty( nameof( box.Bag.DefaultGradingSystem ),
+                () => entity.DefaultLearningGradingSystemId = box.Bag.DefaultGradingSystem.GetEntityId<LearningGradingSystem>( RockContext ) );
 
             box.IfValidProperty( nameof( box.Bag.Description ),
                 () => entity.Description = box.Bag.Description );
@@ -415,7 +440,7 @@ namespace Rock.Blocks.Lms
                 {
                     entity.LoadAttributes( RockContext );
 
-                    entity.SetPublicAttributeValues( box.Bag.AttributeValues, RequestContext.CurrentPerson );
+                    entity.SetPublicAttributeValues( box.Bag.AttributeValues, RequestContext.CurrentPerson, enforceSecurity: true );
                 } );
 
             return true;
@@ -428,7 +453,22 @@ namespace Rock.Blocks.Lms
         /// <returns>The <see cref="LearningProgram"/> to be viewed or edited on the page.</returns>
         protected override LearningProgram GetInitialEntity()
         {
-            return GetInitialEntity<LearningProgram, LearningProgramService>( RockContext, PageParameterKey.LearningProgramId );
+            var disablePredicatbleIds = this.PageCache.Layout.Site.DisablePredictableIds;
+            var initialEntity = new LearningProgramService( RockContext )
+                .GetInclude( PageParameter( PageParameterKey.LearningProgramId ), p => p.DefaultLearningGradingSystem, !disablePredicatbleIds )
+                ?? new LearningProgram();
+
+            if ( initialEntity.Id == 0 )
+            {
+                const string infoColor = "#007aff";
+                initialEntity.IsActive = true;
+                var defaultSystemCommunication = new SystemCommunicationService( RockContext ).Get( SystemGuid.SystemCommunication.LEARNING_ACTIVITY_NOTIFICATIONS.AsGuid() );
+                initialEntity.SystemCommunicationId = defaultSystemCommunication.Id;
+                initialEntity.SystemCommunication = defaultSystemCommunication;
+                initialEntity.HighlightColor = infoColor;
+            }
+            
+            return initialEntity;
         }
 
         /// <summary>
@@ -437,22 +477,10 @@ namespace Rock.Blocks.Lms
         /// <returns>A dictionary of key names and URL values.</returns>
         private Dictionary<string, string> GetBoxNavigationUrls( string idKey )
         {
-            var queryParams = new Dictionary<string, string>
-            {
-                [PageParameterKey.LearningProgramId] = idKey
-            };
-
-            var completionDetailPageParams = new Dictionary<string, string>()
-            {
-                [PageParameterKey.LearningProgramId] = idKey,
-                [PageParameterKey.LearningProgramCompletionId] = "((Key))"
-            };
-
             return new Dictionary<string, string>
             {
-                [NavigationUrlKey.ParentPage] = this.GetParentPageUrl(),
-                [NavigationUrlKey.CoursesPage] = this.GetLinkedPageUrl( AttributeKey.CoursesPage, queryParams ),
-                [NavigationUrlKey.CompletionDetailPage] = this.GetLinkedPageUrl( AttributeKey.CompletionDetailPage, completionDetailPageParams ),
+                [NavigationUrlKey.ParentPage] = PageParameter(PageParameterKey.ReturnUrl) ?? this.GetParentPageUrl(),
+                [NavigationUrlKey.DetailPage] = this.GetLinkedPageUrl( AttributeKey.DetailPage, PageParameterKey.LearningProgramId, idKey ),
             };
         }
 
@@ -474,7 +502,7 @@ namespace Rock.Blocks.Lms
             {
                 // If editing an existing entity then load it and make sure it
                 // was found and can still be edited.
-                entity = entityService.Get( idKey, !PageCache.Layout.Site.DisablePredictableIds );
+                entity = entityService.GetInclude( idKey, p => p.DefaultLearningGradingSystem, !PageCache.Layout.Site.DisablePredictableIds );
             }
             else
             {
@@ -491,7 +519,7 @@ namespace Rock.Blocks.Lms
 
             if ( !entity.IsAuthorized( Authorization.EDIT, RequestContext.CurrentPerson ) )
             {
-                error = ActionBadRequest( $"Not authorized to edit ${LearningProgram.FriendlyTypeName}." );
+                error = ActionBadRequest( $"Not authorized to edit {LearningProgram.FriendlyTypeName}." );
                 return false;
             }
 
@@ -501,22 +529,24 @@ namespace Rock.Blocks.Lms
         /// <inheritdoc/>
         public BreadCrumbResult GetBreadCrumbs( PageReference pageReference )
         {
-            using ( var rockContext = new RockContext() )
+            var entityKey = pageReference.GetPageParameter( PageParameterKey.LearningProgramId ) ?? "";
+            var pageParams = pageReference.Parameters.Where( p => p.Key == PageParameterKey.LearningProgramId ).ToDictionary( p => p.Key, p => p.Value );
+
+            // Intentionally omit !this.PageCache.Layout.Site.DisablePredictableIds
+            // since the cache is not available in GetBreadCrumbs.
+            var entityName = entityKey.Length > 0 ?
+                new LearningProgramService( RockContext ).GetSelect( entityKey, p => p.Name ) :
+                "New Program";
+            var breadCrumbPageRef = new PageReference( pageReference.PageId, pageReference.RouteId, pageParams );
+            var breadCrumb = new BreadCrumbLink( entityName ?? "New Program", breadCrumbPageRef );
+
+            return new BreadCrumbResult
             {
-                var entityKey = pageReference.GetPageParameter( PageParameterKey.LearningProgramId ) ?? "";
-
-                var entityName = entityKey.Length > 0 ? new LearningProgramService( rockContext ).GetSelect( entityKey, p => p.Name ) : "New Program";
-                var breadCrumbPageRef = new PageReference( pageReference.PageId, pageReference.RouteId, pageReference.Parameters );
-                var breadCrumb = new BreadCrumbLink( entityName ?? "New Program", breadCrumbPageRef );
-
-                return new BreadCrumbResult
-                {
-                    BreadCrumbs = new List<IBreadCrumb>
+                BreadCrumbs = new List<IBreadCrumb>
                 {
                     breadCrumb
                 }
-                };
-            }
+            };
         }
 
         #endregion
@@ -530,7 +560,7 @@ namespace Rock.Blocks.Lms
         /// <returns>A box that contains the entity and any other information required.</returns>
         [BlockAction]
         public BlockActionResult GetEntityBagWithAllAttributes()
-    {
+        {
             var entity = GetInitialEntity();
 
             // Reload attributes based on the new property values.
@@ -550,20 +580,20 @@ namespace Rock.Blocks.Lms
         [BlockAction]
         public BlockActionResult Edit( string key )
         {
-                if ( !TryGetEntityForEditAction( key, out var entity, out var actionError ) )
-                {
-                    return actionError;
-                }
+            if ( !TryGetEntityForEditAction( key, out var entity, out var actionError ) )
+            {
+                return actionError;
+            }
 
-                entity.LoadAttributes( RockContext );
+            entity.LoadAttributes( RockContext );
 
             var bag = GetEntityBagForEdit( entity );
 
-                return ActionOk( new ValidPropertiesBox<LearningProgramBag>
-                {
-                    Bag = bag,
-                    ValidProperties = bag.GetType().GetProperties().Select( p => p.Name ).ToList()
-                } );
+            return ActionOk( new ValidPropertiesBox<LearningProgramBag>
+            {
+                Bag = bag,
+                ValidProperties = bag.GetType().GetProperties().Select( p => p.Name ).ToList()
+            } );
         }
 
         /// <summary>
@@ -603,19 +633,32 @@ namespace Rock.Blocks.Lms
 
             if ( isNew )
             {
-                return ActionContent( System.Net.HttpStatusCode.Created, this.GetCurrentPageUrl( new Dictionary<string, string>
+                /*
+	                12/18/2024 - JC
+
+	                Detail mode allows creating a new Course; while the Summary
+                    mode does not. If this is a new Program route to the Detail
+                    mode so that a new Course can be created without having to
+                    click on 'Program Settings' first.
+
+	                Reason: Better User Experience.
+                */
+                var queryParams = new Dictionary<string, string>
                 {
                     [PageParameterKey.LearningProgramId] = entity.IdKey
-                } ) );
+                };
+                var pageUrl = !IsDetailMode && GetAttributeValue( AttributeKey.DetailPage ).IsNotNullOrWhiteSpace() ?
+                    this.GetLinkedPageUrl( AttributeKey.DetailPage, queryParams ) :
+                    this.GetCurrentPageUrl( queryParams );
+
+                 return ActionContent( System.Net.HttpStatusCode.Created, pageUrl );
             }
 
             // Ensure navigation properties will work now.
             entity = entityService.Get( entity.Id );
             entity.LoadAttributes( RockContext );
 
-            var onlyShowIsGridColumn = GetAttributeValue( AttributeKey.DisplayMode ) == DisplayMode.Summary;
-
-            var bag = GetEntityBagForView( entity, onlyShowIsGridColumn );
+            var bag = GetEntityBagForView( entity, OnlyShowIsGridColumnAttributes );
 
             return ActionOk( new ValidPropertiesBox<LearningProgramBag>
             {
@@ -632,22 +675,17 @@ namespace Rock.Blocks.Lms
         [BlockAction]
         public BlockActionResult Delete( string key )
         {
-                var entityService = new LearningProgramService( RockContext );
+            var entityService = new LearningProgramService( RockContext );
 
-                if ( !TryGetEntityForEditAction( key, out var entity, out var actionError ) )
-                {
-                    return actionError;
-                }
+            if ( !TryGetEntityForEditAction( key, out var entity, out var actionError ) )
+            {
+                return actionError;
+            }
 
-                if ( !entityService.CanDelete( entity, out var errorMessage ) )
-                {
-                    return ActionBadRequest( errorMessage );
-                }
+            entityService.Delete( entity.Id );
+            RockContext.SaveChanges();
 
-                entityService.Delete( entity );
-                RockContext.SaveChanges();
-
-                return ActionOk( this.GetParentPageUrl() );
+            return ActionOk( this.GetParentPageUrl() );
         }
 
         /// <summary>
@@ -668,7 +706,7 @@ namespace Rock.Blocks.Lms
 
             if ( !entity.IsAuthorized( Authorization.EDIT, RequestContext.CurrentPerson ) )
             {
-                return ActionBadRequest( $"Not authorized to delete ${LearningSemester.FriendlyTypeName}." );
+                return ActionBadRequest( $"Not authorized to delete {LearningSemester.FriendlyTypeName}." );
             }
 
             if ( !entityService.CanDelete( entity, out var errorMessage ) )
@@ -755,7 +793,7 @@ namespace Rock.Blocks.Lms
         }
 
         /// <summary>
-        /// Gets the Learning Smester Queryable for semesters grid.
+        /// Gets the Learning Semester Queryable for semesters grid.
         /// </summary>
         /// <returns>A Queryable of LearningSemester.</returns>
         private IQueryable<LearningSemester> GetSemesterListQueryable()

@@ -78,6 +78,12 @@ namespace Rock.Core
 
         #region Interaction Properties
 
+        /// <inheritdoc cref="Guid"/>
+        /// <remarks>
+        /// If this is not specified then a new Guid will be created.
+        /// </remarks>
+        public Guid? InteractionGuid { get; set; }
+
         /// <inheritdoc cref="Interaction.InteractionDateTime"/>
         public DateTime InteractionDateTime { get; set; }
 
@@ -196,10 +202,11 @@ namespace Rock.Core
 
             #region Set Interaction Properties
 
+            this.InteractionGuid = info.InteractionGuid;
             this.InteractionDateTime = info.InteractionDateTime;
             this.Operation = info.InteractionOperation;
             this.InteractionComponentId = info.InteractionComponentId ?? 0;
-            this.EntityId = info.ComponentEntityId;
+            this.EntityId = info.InteractionEntityId;
             this.RelatedEntityTypeId = info.InteractionRelatedEntityTypeId;
             this.RelatedEntityId = info.InteractionRelatedEntityId;
             this.PersonAliasId = info.PersonAliasId;

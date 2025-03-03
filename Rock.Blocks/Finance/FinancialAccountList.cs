@@ -40,7 +40,7 @@ namespace Rock.Blocks.Finance
     [Category( "Finance" )]
     [Description( "Displays a list of financial accounts." )]
     [IconCssClass( "fa fa-list" )]
-    // [SupportedSiteTypes( Model.SiteType.Web )]
+    [SupportedSiteTypes( Model.SiteType.Web )]
 
     [LinkedPage( "Detail Page",
         Description = "The page that will show the financial account details.",
@@ -66,30 +66,19 @@ namespace Rock.Blocks.Finance
         private static class PageParameterKey
         {
             public const string AccountId = "AccountId";
+            public const string ParentAccountId = "ParentAccountId";
+            public const string ExpandedIds = "ExpandedIds";
             public const string TopLevel = "TopLevel";
         }
 
         private static class PreferenceKey
         {
-            public const string FilterAccountName = "filter-account-name";
             public const string FilterCampus = "filter-campus";
-            public const string FilterIsPublic = "filter-is-public";
-            public const string FilterIsActive = "filter-is-active";
-            public const string FilterIsTaxDeductible = "filter-is-tax-deductible";
         }
 
         #endregion Keys
 
         #region Properties
-
-        /// <summary>
-        /// Gets the name of the account(s) to include in the result.
-        /// </summary>
-        /// <value>
-        /// The name of the account.
-        /// </value>
-        protected string FilterAccountName => GetBlockPersonPreferences()
-            .GetValue( PreferenceKey.FilterAccountName );
 
         /// <summary>
         /// Gets the name of the associated campus of account(s) to include in the result.
@@ -99,33 +88,6 @@ namespace Rock.Blocks.Finance
         /// </value>
         protected string FilterCampus=> GetBlockPersonPreferences()
             .GetValue( PreferenceKey.FilterCampus ).FromJsonOrNull<ListItemBag>()?.Value;
-
-        /// <summary>
-        /// If true only public accounts are included in the result.
-        /// </summary>
-        /// <value>
-        /// The name of the account.
-        /// </value>
-        protected string FilterIsPublic => GetBlockPersonPreferences()
-            .GetValue( PreferenceKey.FilterIsPublic );
-
-        /// <summary>
-        /// If true only active accounts are included in the result.
-        /// </summary>
-        /// <value>
-        /// The name of the account.
-        /// </value>
-        protected string FilterIsActive => GetBlockPersonPreferences()
-            .GetValue( PreferenceKey.FilterIsActive );
-
-        /// <summary>
-        /// If true only tax deductible accounts are included in the result.
-        /// </summary>
-        /// <value>
-        /// The name of the account.
-        /// </value>
-        protected string FilterIsTaxDeductible => GetBlockPersonPreferences()
-            .GetValue( PreferenceKey.FilterIsTaxDeductible );
 
         #endregion
 
@@ -153,11 +115,14 @@ namespace Rock.Blocks.Finance
         /// <returns>The options that provide additional details to the block.</returns>
         private FinancialAccountListOptionsBag GetBoxOptions()
         {
-            int? parentAccountId = PageParameter( PageParameterKey.AccountId ).AsIntegerOrNull();
+            var accountIdParameter = PageParameter( PageParameterKey.AccountId );
+            var parentAccountId = accountIdParameter.AsIntegerOrNull() ?? Rock.Utility.IdHasher.Instance.GetId( accountIdParameter );
+            var topLevelOnly = PageParameter( PageParameterKey.TopLevel ).AsBoolean();
 
             var options = new FinancialAccountListOptionsBag
             {
-                GridTitle = parentAccountId.HasValue ? "Child Accounts".FormatAsHtmlTitle() : "Accounts".FormatAsHtmlTitle()
+                GridTitle = parentAccountId.HasValue ? "Child Accounts".FormatAsHtmlTitle() : "Accounts".FormatAsHtmlTitle(),
+                IsBlockVisible = (parentAccountId.HasValue && parentAccountId > 0) || topLevelOnly
             };
 
             return options;
@@ -178,9 +143,13 @@ namespace Rock.Blocks.Finance
         /// <returns>A dictionary of key names and URL values.</returns>
         private Dictionary<string, string> GetBoxNavigationUrls()
         {
+            Dictionary<string, string> queryParams = new Dictionary<string, string>();
+            queryParams.Add( PageParameterKey.AccountId, "((Key))" );
+            queryParams.Add( PageParameterKey.ParentAccountId, PageParameter( PageParameterKey.AccountId ) );
+            queryParams.Add( PageParameterKey.ExpandedIds, PageParameter( PageParameterKey.ExpandedIds ) );
             return new Dictionary<string, string>
             {
-                [NavigationUrlKey.DetailPage] = this.GetLinkedPageUrl( AttributeKey.DetailPage, "FinancialAccountId", "((Key))" )
+                [NavigationUrlKey.DetailPage] = this.GetLinkedPageUrl( AttributeKey.DetailPage, queryParams )
             };
         }
 
@@ -203,7 +172,8 @@ namespace Rock.Blocks.Finance
         /// <returns></returns>
         private IQueryable<FinancialAccount> GetAccounts( RockContext rockContext )
         {
-            var parentAccountId = PageParameter( PageParameterKey.AccountId ).AsIntegerOrNull();
+            var key = PageParameter( PageParameterKey.AccountId );
+            var parentAccountId = Rock.Utility.IdHasher.Instance.GetId( key ) ?? key.AsIntegerOrNull();
             var topLevelOnly = PageParameter( PageParameterKey.TopLevel ).AsBoolean();
 
             var accountService = new FinancialAccountService( rockContext );
@@ -218,30 +188,10 @@ namespace Rock.Blocks.Finance
                 accountQuery = accountQuery.Where( account => account.ParentAccountId == null );
             }
 
-            if ( !string.IsNullOrEmpty( FilterAccountName ) )
-            {
-                accountQuery = accountQuery.Where( account => account.Name.Contains( FilterAccountName ) );
-            }
-
             var campusGuid = FilterCampus.AsGuidOrNull();
             if ( campusGuid.HasValue )
             {
                 accountQuery = accountQuery.Where( account => account.Campus.Guid == campusGuid );
-            }
-
-            if ( !string.IsNullOrWhiteSpace( FilterIsPublic ) )
-            {
-                accountQuery = accountQuery.Where( account => ( account.IsPublic ?? false ) == ( FilterIsPublic == "Yes" ) );
-            }
-
-            if ( !string.IsNullOrWhiteSpace( FilterIsActive ) )
-            {
-                accountQuery = accountQuery.Where( account => account.IsActive == ( FilterIsActive == "Yes" ) );
-            }
-
-            if ( !string.IsNullOrWhiteSpace( FilterIsTaxDeductible ) )
-            {
-                accountQuery = accountQuery.Where( account => account.IsTaxDeductible == ( FilterIsTaxDeductible == "Yes" ) );
             }
 
             return accountQuery;

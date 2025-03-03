@@ -1,4 +1,4 @@
-// <copyright>
+﻿// <copyright>
 // Copyright by the Spark Development Network
 //
 // Licensed under the Rock Community License (the "License");
@@ -86,7 +86,7 @@ namespace Rock.Model
                                     {
                                         LogError( $"PersistedDataset (Id: {this.Id}) build script created invalid result data: {output}" );
                                         result.IsSuccess = false;
-                                        result.WarningMessage = $"Invalid result data for dataset {this.Id}";
+                                        result.WarningMessage = $"Unable to parse dataset {this.Id} JSON:\n{output}";
                                     }
                                     else
                                     {
@@ -126,7 +126,7 @@ namespace Rock.Model
                 }
 
                 activity?.AddTag( "rock.persisted_dataset.build_duration", ( int ) Math.Floor( timeToBuildStopwatch.Elapsed.TotalMilliseconds ) );
-                activity?.AddTag( "rock.persisted_dataset.result_size", ResultData.Length );
+                activity?.AddTag( "rock.persisted_dataset.result_size", ResultData?.Length ?? 0 );
 
                 return result;
             }

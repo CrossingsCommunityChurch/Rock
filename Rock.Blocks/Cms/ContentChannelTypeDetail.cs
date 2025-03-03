@@ -42,7 +42,7 @@ namespace Rock.Blocks.Cms
     [Category( "CMS" )]
     [Description( "Displays the details for a content channel type." )]
     [IconCssClass( "fa fa-question" )]
-    // [SupportedSiteTypes( Model.SiteType.Web )]
+    [SupportedSiteTypes( Model.SiteType.Web )]
 
     #region Block Attributes
 
@@ -462,35 +462,6 @@ namespace Rock.Blocks.Cms
                     entityTypeId = EntityTypeCache.Get( typeof( ContentChannelItem ) ).Id;
                     SaveAttributes( entity.Id, entityTypeId, box.Entity.ItemAttributes, rockContext );
                 } );
-
-                return ActionOk( this.GetParentPageUrl() );
-            }
-        }
-
-        /// <summary>
-        /// Deletes the specified entity.
-        /// </summary>
-        /// <param name="key">The identifier of the entity to be deleted.</param>
-        /// <returns>A string that contains the URL to be redirected to on success.</returns>
-        [BlockAction]
-        public BlockActionResult Delete( string key )
-        {
-            using ( var rockContext = new RockContext() )
-            {
-                var entityService = new ContentChannelTypeService( rockContext );
-
-                if ( !TryGetEntityForEditAction( key, rockContext, out var entity, out var actionError ) )
-                {
-                    return actionError;
-                }
-
-                if ( !entityService.CanDelete( entity, out var errorMessage ) )
-                {
-                    return ActionBadRequest( errorMessage );
-                }
-
-                entityService.Delete( entity );
-                rockContext.SaveChanges();
 
                 return ActionOk( this.GetParentPageUrl() );
             }

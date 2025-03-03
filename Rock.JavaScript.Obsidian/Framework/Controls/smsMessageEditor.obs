@@ -46,6 +46,12 @@
                                     ref="toolbarCountDownPlugin"
                                     :modelValue="internalValue"
                                     :countDownMaxChars="countDownMaxChars" />
+
+            <ToolbarCharCountPlugin v-if="isCharacterCountShown"
+                                    ref="toolbarCharCountPlugin"
+                                    :modelValue="internalValue" />
+
+            <EmojisPlugin ref="emojisPlugin" />
         </template>
     </RockFormField>
 </template>
@@ -55,12 +61,34 @@
     border: none;
 }
 
+:deep(.tox-tinymce) {
+    border: none;
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+}
+
 .note-editable {
     height: v-bind(editorHeightCss);
 }
 
 .note-editor-container {
     position: relative;
+}
+
+.note-editor {
+    border: 1px solid var(--input-border);
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+    border-radius: var(--input-border-radius);
+    transition: border-color ease-in-out .15s, box-shadow ease-in-out .15s;
+}
+
+.note-editor:focus,
+.note-editor.focused,
+.note-editor:focus-within {
+    border-color: var(--focus-state-border-color);
+    border: var(--focus-state-border);
+    box-shadow: var(--focus-state-shadow);
 }
 
 .note-editor .note-toolbar {
@@ -79,7 +107,8 @@
 <script setup lang="ts">
     import { PropType, computed, onMounted, onUnmounted, ref, watch, watchEffect } from "vue";
     import MergeFieldPlugin from "./NoteEditor/mergeFieldPlugin.partial.obs";
-    import CountDownPlugin from "./NoteEditor/countDownPlugin.partial.obs";
+    import EmojisPlugin from "./NoteEditor/emojisPlugin.partial.obs";
+    import ToolbarCharCountPlugin from "./NoteEditor/toolbarCharCountPlugin.partial.obs";
     import ToolbarCountDownPlugin from "./NoteEditor/toolbarCountDownPlugin.partial.obs";
     import ToolbarLabelPlugin from "./NoteEditor/toolbarLabelPlugin.partial.obs";
     import ToolbarSpacerPlugin from "./NoteEditor/toolbarSpacerPlugin.partial.obs";
@@ -152,6 +181,11 @@
             required: false
         },
 
+        isCharacterCountShown: {
+            type: Boolean as PropType<boolean>,
+            default: false
+        },
+
         isCountDownShown: {
             type: Boolean as PropType<boolean>,
             default: false
@@ -187,7 +221,9 @@
     const mergeFieldPlugin = ref<InstanceType<typeof MergeFieldPlugin> | undefined>();
     const toolbarLabelPlugin = ref<InstanceType<typeof ToolbarLabelPlugin> | undefined>();
     const toolbarSpacerPlugin = ref<InstanceType<typeof ToolbarSpacerPlugin> | undefined>();
+    const toolbarCharCountPlugin = ref<InstanceType<typeof ToolbarCharCountPlugin> | undefined>();
     const toolbarCountDownPlugin = ref<InstanceType<typeof ToolbarCountDownPlugin> | undefined>();
+    const emojisPlugin = ref<InstanceType<typeof EmojisPlugin> | undefined>();
     const pluginManager = providePluginsFeature({
         editorInstance: computed(() => tinyMceInstance.value),
         toolbarElement: computed(() => toolbarElement.value)
@@ -320,7 +356,7 @@
                 resize: "both",
 
                 // Only include the built-in plugins that are needed to keep TinyMCE leaner.
-                plugins: "searchreplace emoticons",
+                plugins: "searchreplace",
 
                 // Define the toolbar buttons.
                 // They are displayed in the order in which they are defined
@@ -330,7 +366,7 @@
                 // }
                 // If necessary, don't forget to add the related built-in plugins to the `plugins` option above
                 // or composed as child components if using custom plugins.
-                toolbar: `${toolbarLabelPlugin.value?.id} ${toolbarSpacerPlugin.value?.id} ${mergeFieldPlugin.value?.id} emoticons ${toolbarCountDownPlugin.value?.id}`,
+                toolbar: `${toolbarLabelPlugin.value?.id} ${toolbarSpacerPlugin.value?.id} ${mergeFieldPlugin.value?.id} ${emojisPlugin.value?.id} ${props.isCharacterCountShown ? toolbarCharCountPlugin.value?.id : ""} ${props.isCountDownShown ? toolbarCountDownPlugin.value?.id : ""}`,
 
                 // The callback that is executed when the editor is initialized.
                 setup: (editor): void => {

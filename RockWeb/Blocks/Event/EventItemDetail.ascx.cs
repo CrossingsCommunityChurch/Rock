@@ -172,8 +172,6 @@ namespace RockWeb.Blocks.Event
         /// <param name="e">The <see cref="T:System.EventArgs" /> object that contains the event data.</param>
         protected override void OnLoad( EventArgs e )
         {
-            base.OnLoad( e );
-
             nbValidation.Visible = false;
             int eventItemId = PageParameter( "EventItemId" ).AsInteger();
 
@@ -192,6 +190,8 @@ namespace RockWeb.Blocks.Event
 
                 ShowDialog();
             }
+
+            base.OnLoad( e );
         }
 
         /// <summary>
@@ -571,7 +571,7 @@ namespace RockWeb.Blocks.Event
             if ( definedType != null )
             {
                 ddlAudience.DataSource = definedType.DefinedValues
-                    .Where( v => !AudiencesState.Contains( v.Id ) )
+                    .Where( v => v.IsActive && !AudiencesState.Contains( v.Id ) )
                     .ToList();
                 ddlAudience.DataBind();
             }

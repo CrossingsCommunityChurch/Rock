@@ -173,26 +173,7 @@ namespace RockWeb.Blocks.Crm.PersonDetail
         {
             get
             {
-                string state = ViewState["DefaultState"] as string;
-                if ( state == null )
-                {
-                    string orgLocGuid = GlobalAttributesCache.Value( "OrganizationAddress" );
-                    if ( !string.IsNullOrWhiteSpace( orgLocGuid ) )
-                    {
-                        Guid locGuid = Guid.Empty;
-                        if ( Guid.TryParse( orgLocGuid, out locGuid ) )
-                        {
-                            var location = new Rock.Model.LocationService( new RockContext() ).Get( locGuid );
-                            if ( location != null )
-                            {
-                                state = location.State;
-                                ViewState["DefaultState"] = state;
-                            }
-                        }
-                    }
-                }
-
-                return state;
+                return GlobalAttributesCache.Get().OrganizationState;
             }
         }
 
@@ -200,8 +181,7 @@ namespace RockWeb.Blocks.Crm.PersonDetail
         {
             get
             {
-                var globalAttributesCache = GlobalAttributesCache.Get();
-                return globalAttributesCache.OrganizationCountry;
+                return GlobalAttributesCache.Get().OrganizationCountry;
             }
         }
 
@@ -337,8 +317,6 @@ namespace RockWeb.Blocks.Crm.PersonDetail
         /// <param name="e">The <see cref="T:System.EventArgs" /> object that contains the event data.</param>
         protected override void OnLoad( EventArgs e )
         {
-            base.OnLoad( e );
-
             nbAddPerson.Visible = false;
 
             if ( Page.IsPostBack )
@@ -479,6 +457,8 @@ namespace RockWeb.Blocks.Crm.PersonDetail
                     nbRoleLimitWarning.Text = roleLimitWarnings;
                 }
             }
+
+            base.OnLoad( e );
         }
 
         /// <summary>
@@ -1974,8 +1954,6 @@ namespace RockWeb.Blocks.Crm.PersonDetail
         {
             Id = -1; // Adding
             LocationIsDirty = true;
-
-            string orgLocGuid = GlobalAttributesCache.Value( "OrganizationAddress" );
         }
 
         public string FormattedAddress

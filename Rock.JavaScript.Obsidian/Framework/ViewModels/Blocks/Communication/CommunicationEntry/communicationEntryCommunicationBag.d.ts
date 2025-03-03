@@ -30,6 +30,9 @@ import { ListItemBag } from "@Obsidian/ViewModels/Utility/listItemBag";
 
 /** Bag containing the communication information for the Communication Entry block. */
 export type CommunicationEntryCommunicationBag = {
+    /** Gets or sets the additional email addresses to receive the communication. */
+    additionalEmailAddresses?: string[] | null;
+
     /** Gets or sets the BCC email addresses. */
     bccAddresses?: string | null;
 
@@ -39,11 +42,26 @@ export type CommunicationEntryCommunicationBag = {
     /** Gets or sets the communication unique identifier. */
     communicationGuid: Guid;
 
+    /** Gets or sets the communication list group unique identifier. */
+    communicationListGroupGuid?: Guid | null;
+
+    /** Gets or sets the communication list name. */
+    communicationListName?: string | null;
+
+    /** Gets or sets the number of recipients in the communication list. */
+    communicationListRecipientCount?: number | null;
+
     /** Gets or sets the communication template unique identifier. */
     communicationTemplateGuid?: Guid | null;
 
     /** Gets or sets the email attachment binary files. */
     emailAttachmentBinaryFiles?: ListItemBag[] | null;
+
+    /**
+     * Option to prevent communications from being sent to people with the same email/SMS addresses.
+     * This will mean two people who share an address will not receive a personalized communication, only one of them will.
+     */
+    excludeDuplicateRecipientAddress: boolean;
 
     /** Gets or sets from email address. */
     fromAddress?: string | null;

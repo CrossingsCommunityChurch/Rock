@@ -16,55 +16,23 @@
 //
 using System;
 using System.Collections.Generic;
-using System.Data.Entity;
 using System.Linq;
-
-using Rock.Utility;
 
 namespace Rock.Model
 {
     public partial class LearningActivityCompletionService
     {
         /// <summary>
-        /// Updates the NotificationCommunicationId property of <see cref="LearningActivityCompletion"/>
+        /// Updates the <see cref="LearningActivityCompletion.SentNotificationCommunicationId"/> property
         /// for the provided <paramref name="activityCompletionIds"/>.
         /// </summary>
         /// <param name="activityCompletionIds">List of <see cref="LearningActivityCompletion"/> identifiers to update.</param>
-        /// <param name="systemCommunicationId">The system communication id to set for the given identifiers.</param>
-        public void UpdateNotificationCommunicationProperties( List<int> activityCompletionIds, int systemCommunicationId )
+        /// <param name="communicationId">The communication id to set for the given identifiers.</param>
+        public void UpdateSentNotificationCommunicationIdProperty( List<int> activityCompletionIds, int communicationId )
         {
             var activityCompletions = Queryable().Where( c => activityCompletionIds.Contains( c.Id ) );
 
-            Context.BulkUpdate( activityCompletions, a => new LearningActivityCompletion { NotificationCommunicationId = systemCommunicationId } );
-        }
-
-        /// <summary>
-        /// Gets a list of class activies for the specified person and class.
-        /// </summary>
-        /// <param name="personId">The identifier of the person for whom to get the activities.</param>
-        /// <param name="classIdKey">The hashed identifier of the class for which to get the activities.</param>
-        /// <returns>An IQueryable of <see cref="LearningActivityCompletion"/> records for the specified person and class.</returns>
-        public IQueryable<LearningActivityCompletion> GetClassActivities( int personId, string classIdKey )
-        {
-            var classId = IdHasher.Instance.GetId( classIdKey );
-            return classId.HasValue ?
-                GetClassActivities( personId, classId.Value ) :
-                new List<LearningActivityCompletion>().AsQueryable();
-        }
-
-        /// <summary>
-        /// Gets a list of class activies for the specified person and class.
-        /// </summary>
-        /// <param name="personId">The identifier of the person for whom to get the activities.</param>
-        /// <param name="classId">The identifier of the class for which to get the activities.</param>
-        /// <returns>An IQueryable of <see cref="LearningActivityCompletion"/> records for the specified person and class.</returns>
-        public IQueryable<LearningActivityCompletion> GetClassActivities( int personId, int classId )
-        {
-            return Queryable()
-                .Include( c => c.LearningActivity )
-                .Include( c => c.Student )
-                .Where( c => c.Student.LearningClassId == classId )
-                .Where( c => c.Student.PersonId == personId );
+            Context.BulkUpdate( activityCompletions, a => new LearningActivityCompletion { SentNotificationCommunicationId = communicationId } );
         }
 
         /// <summary>
@@ -77,9 +45,9 @@ namespace Rock.Model
         /// <param name="activity">The <see cref="LearningActivity"/> the completion record is for.</param>
         /// <param name="participantId">The identifier of the <see cref="LearningParticipant"/> the completion record is for.</param>
         /// <param name="enrollmentDate">The date the participant enrolled in the <see cref="LearningClass"/>.</param>
-        /// <param name="progamCommuncationId">The SystemCommunicationId of the <see cref="LearningProgram"/> the completion record is for.</param>
+        /// <param name="programCommunicationId">The SystemCommunicationId of the <see cref="LearningProgram"/> the completion record is for.</param>
         /// <returns>A new untracked <see cref="LearningActivityCompletion"/>.</returns>
-        public LearningActivityCompletion GetNew( LearningActivity activity, int participantId, DateTime? enrollmentDate, int? progamCommuncationId )
+        public static LearningActivityCompletion GetNew( LearningActivity activity, int participantId, DateTime? enrollmentDate, int? programCommunicationId )
         {
             var semesterStartDate = activity.LearningClass.LearningSemester.StartDate;
 
@@ -88,18 +56,49 @@ namespace Rock.Model
                 StudentId = participantId,
                 LearningActivityId = activity.Id,
                 AvailableDateTime = LearningActivity.CalculateAvailableDate(
-                          activity.AvailableDateCalculationMethod,
+                          activity.AvailabilityCriteria,
                           activity.AvailableDateDefault,
                           activity.AvailableDateOffset,
                           semesterStartDate,
                           enrollmentDate ),
                 DueDate = LearningActivity.CalculateDueDate(
-                    activity.DueDateCalculationMethod,
+                    activity.DueDateCriteria,
                     activity.DueDateDefault,
                     activity.DueDateOffset,
                     semesterStartDate,
+                    enrollmentDate )
+            };
+        }
+
+        /// <summary>
+        /// Gets a new <see cref="LearningActivityCompletion"/> using default values based on the provided parameters.
+        /// </summary>
+        /// <param name="activity">The <see cref="LearningActivity"/> this <see cref="LearningActivityCompletion"/> is for.</param>
+        /// <param name="student">The <see cref="LearningParticipant"/> this <see cref="LearningActivityCompletion"/> is for.</param>
+        /// <returns>A new <see cref="LearningActivityCompletion"/> record with default values.</returns>
+        public static LearningActivityCompletion GetNew( LearningActivity activity, LearningParticipant student )
+        {
+            var enrollmentDate = student?.CreatedDateTime;
+            var classStartDate = student.LearningClass?.LearningSemester?.StartDate;
+
+            return new LearningActivityCompletion
+            {
+                LearningActivity = activity,
+                LearningActivityId = activity.Id,
+                StudentId = student.Id,
+                Student = student,
+                AvailableDateTime = LearningActivity.CalculateAvailableDate(
+                    activity.AvailabilityCriteria,
+                    activity.AvailableDateDefault,
+                    activity.AvailableDateOffset,
+                    classStartDate,
                     enrollmentDate ),
-                NotificationCommunicationId = activity.SendNotificationCommunication ? progamCommuncationId : null
+                DueDate = LearningActivity.CalculateDueDate(
+                    activity.DueDateCriteria,
+                    activity.DueDateDefault,
+                    activity.DueDateOffset,
+                    classStartDate,
+                    enrollmentDate )
             };
         }
     }

@@ -18,20 +18,21 @@
                 <DropDownList v-model="visiblePriority"
                               :items="visiblePriorityItems"
                               :disableLabel="true"
-                              blankValue="Priority"
+                              blankValue="Responsive Visibility"
                               :disabled="disabled" />
             </div>
             <div class="form-group">
                 <TextBox v-model="width"
                          :disableLabel="true"
-                         placeholder="Width"
+                         placeholder="Width (end with px or %)"
                          :rules="widthPattern"
                          :disabled="disabled" />
             </div>
         </div>
         <div class="col-md-6">
             <div class="form-group">
-                <CheckBox v-model="enableFiltering"
+                <CheckBox v-if="isFilteringAvailable"
+                          v-model="enableFiltering"
                           label=""
                           text="Enable Filtering"
                           :disabled="disabled" />
@@ -125,9 +126,15 @@
         }
     });
 
+    const isFilteringAvailable = computed((): boolean => {
+        return columnType.value !== "html";
+    });
+
     const enableFiltering = computed<boolean>({
         get() {
-            return props.config.enableFiltering;
+            return isFilteringAvailable.value
+                ? props.config.enableFiltering
+                : false;
         },
         set(newValue: boolean) {
             props.config.enableFiltering = newValue;
@@ -179,12 +186,12 @@
             return true;
         }
 
-        if (/^\d*\.?\d+ *%?$/.test(String(value)?.trim())) {
+        if (/^\d+(px|%)$/.test(String(value)?.trim())) {
             return true;
         }
 
         const name = props.config?.splitCaseName;
-        return `${(isNullOrWhiteSpace(name) ? "Width" : `${name} column width`)} must be a number (for pixels) or end in %`;
+        return `${(isNullOrWhiteSpace(name) ? "Width" : `${name} column width`)} must be a number ending with "px" or "%"`;
     }
 
     // #endregion Functions

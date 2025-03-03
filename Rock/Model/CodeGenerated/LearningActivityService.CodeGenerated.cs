@@ -21,6 +21,7 @@
 // </copyright>
 
 using System;
+using System.Collections.Generic;
 using System.Linq;
 
 using Rock.Data;
@@ -52,6 +53,24 @@ namespace Rock.Model
         {
             errorMessage = string.Empty;
             return true;
+        }
+    }
+
+    [HasQueryableAttributes( typeof( LearningActivity.LearningActivityQueryableAttributeValue ), nameof( LearningActivityAttributeValues ) )]
+    public partial class LearningActivity
+    {
+        /// <summary>
+        /// Gets the entity attribute values. This should only be used inside
+        /// LINQ statements when building a where clause for the query. This
+        /// property should only be used inside LINQ statements for filtering
+        /// or selecting values. Do <b>not</b> use it for accessing the
+        /// attributes after the entity has been loaded.
+        /// </summary>
+        public virtual ICollection<LearningActivityQueryableAttributeValue> LearningActivityAttributeValues { get; set; } 
+
+        /// <inheritdoc/>
+        public class LearningActivityQueryableAttributeValue : QueryableAttributeValue
+        {
         }
     }
 
@@ -114,12 +133,12 @@ namespace Rock.Model
             target.ActivityComponentId = source.ActivityComponentId;
             target.ActivityComponentSettingsJson = source.ActivityComponentSettingsJson;
             target.AssignTo = source.AssignTo;
-            target.AvailableDateCalculationMethod = source.AvailableDateCalculationMethod;
+            target.AvailabilityCriteria = source.AvailabilityCriteria;
             target.AvailableDateDefault = source.AvailableDateDefault;
             target.AvailableDateOffset = source.AvailableDateOffset;
             target.CompletionWorkflowTypeId = source.CompletionWorkflowTypeId;
             target.Description = source.Description;
-            target.DueDateCalculationMethod = source.DueDateCalculationMethod;
+            target.DueDateCriteria = source.DueDateCriteria;
             target.DueDateDefault = source.DueDateDefault;
             target.DueDateOffset = source.DueDateOffset;
             target.ForeignGuid = source.ForeignGuid;

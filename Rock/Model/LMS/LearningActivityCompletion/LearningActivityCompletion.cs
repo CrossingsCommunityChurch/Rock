@@ -29,6 +29,7 @@ namespace Rock.Model
     [RockDomain( "LMS" )]
     [Table( "LearningActivityCompletion" )]
     [DataContract]
+    [CodeGenerateRest]
     [Rock.SystemGuid.EntityTypeGuid( SystemGuid.EntityType.LEARNING_ACTIVITY_COMPLETION )]
     public partial class LearningActivityCompletion : Model<LearningActivityCompletion>
     {
@@ -53,16 +54,18 @@ namespace Rock.Model
         public int StudentId { get; set; }
 
         /// <summary>
-        /// Gets or sets the id of the <see cref="Rock.Model.PersonAlias"/> related to this completion.
+        /// Gets or sets the id of the <see cref="Rock.Model.PersonAlias"/> that completed this activity.
         /// </summary>
         /// <value>
-        /// The identifier of the <see cref="Rock.Model.PersonAlias"/> related to this completion.
+        /// The identifier of the <see cref="Rock.Model.PersonAlias"/> that completed this activity.
         /// </value>
         [DataMember]
         public int? CompletedByPersonAliasId { get; set; }
 
         /// <summary>
         /// Gets or sets the completion json for the activity component.
+        /// This is the JSON configuration for the activity component including
+        /// the responses and configuration at the time of completion.
         /// </summary>
         /// <value>
         /// A <see cref="System.String"/> representing the completion json for the activity component.
@@ -121,12 +124,13 @@ namespace Rock.Model
 
         /// <summary>
         /// Gets or sets the number of points the student earned by completing the activity.
+        /// This will be <c>null</c> if no score has been set yet.
         /// </summary>
         /// <value>
         /// The <see cref="System.Int32" /> representing the number of points earned for the activity.
         /// </value>
         [DataMember]
-        public int PointsEarned { get; set; }
+        public int? PointsEarned { get; set; }
 
         /// <summary>
         /// Indicates whether or not the related activity instance has been completed by the <see cref="Rock.Model.LearningParticipant">student</see>.
@@ -156,13 +160,14 @@ namespace Rock.Model
         public bool WasCompletedOnTime { get; set; }
 
         /// <summary>
-        /// Gets or sets the id of the <see cref="Rock.Model.SystemCommunication"/> that's used for notifications.
+        /// Gets or sets the id of the <see cref="Rock.Model.Communication"/> that
+        /// was sent as a notification that this activity is available.
         /// </summary>
         /// <value>
-        /// The <see cref="Rock.Model.SystemCommunication"/> identifier.
+        /// The <see cref="Rock.Model.Communication"/> identifier.
         /// </value>
         [DataMember]
-        public int? NotificationCommunicationId { get; set; }
+        public int? SentNotificationCommunicationId { get; set; }
 
         /// <summary>
         /// Gets or sets the binary file id for use by the activity component.
@@ -172,6 +177,21 @@ namespace Rock.Model
         /// </value>
         [DataMember]
         public int? BinaryFileId { get; set; }
+
+        /// <summary>
+        /// Gets or sets the <see cref="PersonAlias"/> identifier of the facilitator who graded the activity.
+        /// </summary>
+        [DataMember]
+        public int? GradedByPersonAliasId { get; set; }
+
+        /// <summary>
+        /// Indicates whether or not the activity completion needs to be graded by a Facilitator.
+        /// </summary>
+        /// <value>
+        ///   <c>true</c> if the LearningActivityCompletion needs to be graded by a Facilitator; otherwise, <c>false</c>.
+        /// </value>
+        [DataMember]
+        public bool RequiresGrading { get; set; }
 
         #endregion
 
@@ -184,10 +204,10 @@ namespace Rock.Model
         public virtual LearningActivity LearningActivity { get; set; }
 
         /// <summary>
-        /// Gets or sets the <see cref="SystemCommunication"/> used for notifications by the student activity instance.
+        /// Gets or sets the <see cref="Communication"/> used for notifications by the student activity instance.
         /// </summary>
         [DataMember]
-        public virtual SystemCommunication NotificationCommunication { get; set; }
+        public virtual Communication SentNotificationCommunication { get; set; }
 
         /// <summary>
         /// Gets or sets the <see cref="LearningParticipant">student</see> the activity instance is for.
@@ -195,10 +215,16 @@ namespace Rock.Model
         public virtual LearningParticipant Student { get; set; }
 
         /// <summary>
-        /// Gets or sets the <see cref="Rock.Model.PersonAlias"/> related to this completion.
+        /// Gets or sets the <see cref="Rock.Model.PersonAlias"/> of the person who completed this.
         /// </summary>
         [DataMember]
         public virtual PersonAlias CompletedByPersonAlias { get; set; }
+
+        /// <summary>
+        /// Gets or sets the <see cref="Rock.Model.PersonAlias"/> of the faciltator that graded this completion.
+        /// </summary>
+        [DataMember]
+        public virtual PersonAlias GradedByPersonAlias { get; set; }
 
         #endregion
 
@@ -222,6 +248,7 @@ namespace Rock.Model
             this.HasRequired( a => a.LearningActivity ).WithMany( a => a.LearningActivityCompletions ).HasForeignKey( a => a.LearningActivityId ).WillCascadeOnDelete( true );
             this.HasRequired( a => a.Student ).WithMany( a => a.LearningActivities ).HasForeignKey( a => a.StudentId ).WillCascadeOnDelete( true );
             this.HasOptional( a => a.CompletedByPersonAlias ).WithMany().HasForeignKey( a => a.CompletedByPersonAliasId ).WillCascadeOnDelete( false );
+            this.HasOptional( a => a.SentNotificationCommunication ).WithMany().HasForeignKey( a => a.SentNotificationCommunicationId ).WillCascadeOnDelete( false );
         }
     }
 

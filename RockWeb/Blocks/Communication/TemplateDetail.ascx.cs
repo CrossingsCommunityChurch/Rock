@@ -97,8 +97,6 @@ namespace RockWeb.Blocks.Communication
         /// <param name="e">The <see cref="T:System.EventArgs" /> object that contains the event data.</param>
         protected override void OnLoad( EventArgs e )
         {
-            base.OnLoad( e );
-
             if ( !Page.IsPostBack )
             {
                 ShowDetail( PageParameter( "TemplateId" ).AsInteger() );
@@ -114,6 +112,8 @@ namespace RockWeb.Blocks.Communication
                 CommunicationTemplateHelper.CreateDynamicLavaValueControls( lavaFieldsTemplateDictionary, lavaFieldsDefaultDictionary, phLavaFieldsControls );
                 btnUpdateTemplatePreview.Visible = lavaFieldsTemplateDictionary.Any();
             }
+
+            base.OnLoad( e );
         }
 
         /// <summary>
@@ -186,6 +186,7 @@ namespace RockWeb.Blocks.Communication
 
             communicationTemplate.Name = tbName.Text;
             communicationTemplate.IsActive = cbIsActive.Checked;
+            communicationTemplate.IsStarter = cbIsStarter.Checked;
             communicationTemplate.Description = tbDescription.Text;
 
             if ( communicationTemplate.ImageFileId != imgTemplatePreview.BinaryFileId )
@@ -416,6 +417,7 @@ namespace RockWeb.Blocks.Communication
 
             tbName.Text = communicationTemplate.Name;
             cbIsActive.Checked = communicationTemplate.IsActive;
+            cbIsStarter.Checked = communicationTemplate.IsStarter;
             tbDescription.Text = communicationTemplate.Description;
             cpCategory.SetValue( communicationTemplate.CategoryId );
 
@@ -467,6 +469,7 @@ namespace RockWeb.Blocks.Communication
 
             tbName.ReadOnly = restrictedEdit;
             cbIsActive.Enabled = !restrictedEdit;
+            cbIsStarter.Enabled = !restrictedEdit;
 
             tbFromName.ReadOnly = restrictedEdit;
             tbName.ReadOnly = restrictedEdit;

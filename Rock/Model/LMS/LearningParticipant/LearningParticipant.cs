@@ -27,13 +27,26 @@ using Rock.Utility;
 
 namespace Rock.Model
 {
+    /*
+    12/16/2024 - DSH
+
+    The LearningParticipant model participates in the the TPT (Table-Per-Type) pattern. This
+    can cause some rare unexpected results. See the engineering note above the
+    Group class for details.
+    */
+
     /// <summary>
     /// Represents a participant in a <see cref="Rock.Model.LearningClass"/>.
     /// </summary>
+    /// <remarks>
+    /// WARNING - This class inherits from another model, GroupMember, but this Table-Per-Type
+    /// (TPT) inheritance strategy should not be used and is not supported for plugins.
+    /// </remarks>
     [CodeGenExclude( CodeGenFeature.DefaultRestController )] // Due to inheritance from GroupMember.
     [RockDomain( "LMS" )]
     [Table( "LearningParticipant" )]
     [DataContract]
+    [CodeGenerateRest]
     [Rock.SystemGuid.EntityTypeGuid( SystemGuid.EntityType.LEARNING_PARTICIPANT )]
     public partial class LearningParticipant : GroupMember
     {
@@ -140,6 +153,7 @@ namespace Rock.Model
         /// <value>
         /// A <see cref="System.String"/> that represents the entity object type's friendly name.
         /// </value>
+        [NotAudited]
         public new static string FriendlyTypeName
         {
             get

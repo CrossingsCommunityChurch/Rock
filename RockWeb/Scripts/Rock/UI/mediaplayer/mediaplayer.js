@@ -199,11 +199,16 @@ var Rock;
             translateWellKnownUrls(url) {
                 const youTubePattern = /https?:\/\/(?:www\.)youtube\.com\/watch(?:[?&]v=([^&]+))/i;
                 const vimeoPattern = /https?:\/\/vimeo\.com\/([0-9]+)/i;
+                const vimeoHLSPattern = /https?:\/\/player\.vimeo\.com\/external\/([0-9]+)\.m3u8(\?.*)?/i;
                 let match = youTubePattern.exec(url);
                 if (match !== null) {
                     return `https://www.youtube.com/embed/${match[1]}`;
                 }
                 match = vimeoPattern.exec(url);
+                if (match !== null) {
+                    return `https://player.vimeo.com/video/${match[1]}`;
+                }
+                match = vimeoHLSPattern.exec(url);
                 if (match !== null) {
                     return `https://player.vimeo.com/video/${match[1]}`;
                 }
@@ -247,9 +252,13 @@ var Rock;
                     }
                 }
                 if (startPosition < this.watchBits.length) {
-                    this.player.currentTime = startPosition;
+                    // Setting the currentTime sometimes results on the audio of a video not playing (issue with plyr library(https://github.com/sampotts/plyr/issues/1527))
+                    // only set the value when absolutely necessary.
+                    if (this.player.currentTime !== startPosition) {
+                        this.player.currentTime = startPosition;
+                    }
                 }
-                else {
+                else if (this.player.currentTime != 0) {
                     this.player.currentTime = 0;
                 }
                 this.writeDebugMessage(`Set starting position at: ${startPosition}`);

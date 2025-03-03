@@ -266,6 +266,26 @@ export class RockDateTime {
     }
 
     /**
+     * The raw date with no offset applied to it. Use this method when you only
+     * care about comparing explicit dates without the time zone, as we do within
+     * the grid's date column filter.
+     *
+     * This API is internal to Rock, and is not subject to the same compatibility
+     * standards as public APIs. It may be changed or removed without notice in any
+     * release. You should not use this API directly in any plug-ins. Doing so can
+     * result in application failures when updating to a new Rock release.
+     */
+    public get rawDate(): RockDateTime {
+        const date = RockDateTime.fromParts(this.year, this.month, this.day, 0, 0, 0, 0);
+
+        if (date === null) {
+            throw "Could not convert to date instance.";
+        }
+
+        return date;
+    }
+
+    /**
      * The day of the month represented by this instance.
      */
     public get day(): number {
@@ -610,7 +630,7 @@ export class RockDateTime {
      */
     public toElapsedString(currentDateTime?: RockDateTime): string {
         const msPerSecond = 1000;
-        const msPerMinute= 1000 * 60;
+        const msPerMinute = 1000 * 60;
         const msPerHour = 1000 * 60 * 60;
         const hoursPerDay = 24;
         const daysPerYear = 365;
@@ -753,6 +773,7 @@ export class RockDateTime {
     }
 
     /**
+     * Obsolete. Use toElapsedString instead.
      * Calculates the elapsed time between this date and the reference date and
      * returns that difference in a human friendly way.
      *

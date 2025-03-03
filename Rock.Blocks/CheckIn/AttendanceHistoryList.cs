@@ -40,7 +40,7 @@ namespace Rock.Blocks.CheckIn
     [Category( "Check-in" )]
     [Description( "Block for displaying the attendance history of a person or a group." )]
     [IconCssClass( "fa fa-list" )]
-    // [SupportedSiteTypes( Model.SiteType.Web )]
+    [SupportedSiteTypes( Model.SiteType.Web )]
 
     [BooleanField( "Filter Attendance By Default",
         Key = AttributeKey.FilterAttendanceByDefault,
@@ -338,11 +338,11 @@ namespace Rock.Blocks.CheckIn
             return new GridBuilder<Attendance>()
                 .WithBlock( this )
                 .AddTextField( "idKey", a => a.IdKey )
-                .AddTextField( "location", a => a.Occurrence.Location?.Name )
+                .AddTextField( "location", a => a.Occurrence.Location?.Name ?? "" )
                 .AddTextField( "locationPath", a => GetLocationPath( a.Occurrence.LocationId ) )
-                .AddTextField( "campus", a => a.Campus?.Name )
-                .AddTextField( "schedule", a => a.Occurrence.Schedule?.Name )
-                .AddTextField( "groupName", a => a.Occurrence.Group?.Name )
+                .AddTextField( "campus", a => a.Campus?.Name ?? "" )
+                .AddTextField( "schedule", a => a.Occurrence.Schedule?.Name ?? "" )
+                .AddTextField( "groupName", a => a.Occurrence.Group?.Name ?? "" )
                 .AddTextField( "checkInAreaPath", a => CheckInAreaPath( a.Occurrence.Group?.GroupTypeId ) )
                 .AddPersonField( "person", a => a.PersonAlias?.Person )
                 .AddDateTimeField( "startDateTime", a => a.StartDateTime )

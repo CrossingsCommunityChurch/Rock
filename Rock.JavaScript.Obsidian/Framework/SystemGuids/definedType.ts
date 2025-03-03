@@ -29,6 +29,8 @@ export const DefinedType = {
     AppleDeviceModels: "DAE31F78-7AB9-4ACE-9EE1-C1E6A734562C",
     /** Guid for the Conflict Profile assessment. */
     AssessmentConflictProfile: "EE7E089E-DF81-4407-8BFA-AD865FA5427A",
+    /** Guid for Attendance record SourceValueId. */
+    AttendanceSource: "A27BF9DD-7AF0-47B4-8FE4-0B5E510381DB",
     /** Background check package types */
     BackgroundCheckTypes: "BC2FDF9A-93B8-4325-8DE9-2F7B1943BFDF",
     /** Guid for the types of Benevolence Request status (e.g. pending, active, answered, etc.) */
@@ -66,6 +68,8 @@ export const DefinedType = {
      * The DefinedValue.Description will just be any description, such as 'Rock Solid Church SMS Number'.
      */
     CommunicationSmsFrom: "611BDE1F-7405-4D16-8626-CCFEDB0E62BE",
+    /** Guid for the Communication Topic. */
+    CommunicationTopic: "A798492C-F0A4-496E-9142-97D9336C3E99",
     /** Guid for Content Channel Audience Type */
     ContentChannelAudienceType: "799301A3-2026-4977-994E-45DC68502559",
     /** The content component template */
@@ -201,12 +205,19 @@ export const DefinedType = {
      * of saved configuration settings for quickly starting up kiosks.
      */
     SavedCheckinConfigurations: "F986008C-99BB-4C48-8A6E-38C8A121D75B",
+    /**
+     * The "Saved Check-in Configurations" defined type that provides a list
+     * of saved configuration settings for quickly starting up kiosks.
+     */
+    SavedKioskTemplates: "F986008C-99BB-4C48-8A6E-38C8A121D75B",
     /** The schedule type */
     ScheduleType: "831648D4-2E2C-4940-8358-9B426AEDB460",
     /** The school grades defined type, which has values that determine which grade the person is based. The Value of the DefinedValue is the GradeOffset. */
     SchoolGrades: "24E5A79F-1E62-467A-AD5D-0D10A2328B4D",
     /** The section types defined type, which has values that determine the CSS class to apply to the section div. */
     SectionType: "A72D940B-2A69-44B8-931C-7FE99824D84C",
+    /** List of possible sentiments for classification. */
+    SentimentEmotions: "C9751C20-DA81-4521-81DE-0099D6F598BA",
     /** Used to manage the topic options for small groups. */
     SmallGroupTopic: "D4111631-6B42-1CBD-4019-427D6BC6F475",
     /** The Spiritual Gifts */

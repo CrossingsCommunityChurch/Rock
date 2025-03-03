@@ -65,13 +65,13 @@
      *   });
      * (/script)
      */
-    import { PropType, ref, watch } from "vue";
+    import { computed, PropType, ref, watch } from "vue";
     import { getToolbarButton, setEditorEnabled, usePluginHelper } from "./utils.partial";
     import CodeEditor from "@Obsidian/Controls/codeEditor.obs";
     import { RockColor } from "@Obsidian/Core/Utilities/rockColor";
     import { Editor, Ui } from "@Obsidian/Libs/tinymce";
     import { useVModelPassthrough } from "@Obsidian/Utility/component";
-    import { hasLavaCommandFields } from "@Obsidian/Utility/lava";
+    import { hasLavaCommandFields, hasLavaShortcodeFields } from "@Obsidian/Utility/lava";
 
     const props = defineProps({
         modelValue: {
@@ -97,6 +97,14 @@
         startInCodeEditorMode: {
             type: Boolean as PropType<boolean>,
             default: false
+        },
+        /**
+         * When set to true, the code editor allows toggling even if the content includes Lava commands,
+         * bypassing any usual restrictions related to such content.
+         */
+        isTogglableCodeEditorForced: {
+            type: Boolean,
+            default: false
         }
     });
 
@@ -108,8 +116,10 @@
     });
 
     const emit = defineEmits<{
-        (e: "update:isShown", value: boolean): void,
-        (e: "update:modelValue", value: string): void,
+        (e: "update:isShown", value: boolean): void;
+        (e: "update:modelValue", value: string): void;
+        /** Emitted when the code editor is prevented from being toggled off. */
+        (e: "preventToggleOff", value: { isPrevented: boolean; }): void;
     }>();
 
     //#region Values
@@ -125,6 +135,11 @@
     //#endregion
 
     //#region Computed Values
+
+    /** Determines whether the code editor should be forced to display. */
+    const isCodeEditorForced = computed<boolean>(() => {
+        return (hasLavaCommandFields(internalValue.value) || hasLavaShortcodeFields(internalValue.value)) && !props.isTogglableCodeEditorForced;
+    });
 
     //#endregion
 
@@ -152,6 +167,15 @@
             tooltip: tooltip,
             onAction: (api: Ui.Toolbar.ToolbarToggleButtonInstanceApi): void => {
                 doIfEnabled(() => {
+                    // Prevent switching out of code editor mode if forced.
+                    if (internalIsShown.value && isCodeEditorForced.value) {
+                        emit("preventToggleOff", { isPrevented: true });
+                        return;
+                    }
+                    else {
+                        emit("preventToggleOff", { isPrevented: false });
+                    }
+
                     // Make sure the value is up-to-date before showing the code editor.
                     // internalIsShown.value is the old value before the toolbar button is clicked.
                     const isAboutToShowEditor = !internalIsShown.value;
@@ -181,7 +205,7 @@
 
                 // Start in code editor mode based on the supplied prop
                 // or if the text has lava commands on initialization.
-                const shouldStartInCodeEditorMode = props.startInCodeEditorMode || hasLavaCommandFields(internalValue.value);
+                const shouldStartInCodeEditorMode = props.startInCodeEditorMode || isCodeEditorForced.value;
                 if (shouldStartInCodeEditorMode) {
                     internalIsShown.value = true;
                 }
@@ -190,6 +214,47 @@
                 return disposeTooltipButton;
             },
         });
+    }
+
+    function hideEditArea(): void {
+        if (editorInstance.value) {
+            const editorContainer = editorInstance.value.getContainer();
+            editorContainer.dataset.editSourceCode = "true";
+            const toolbarContainer = editorContainer.querySelector(".tox-editor-header");
+
+            if (toolbarContainer) {
+                const editAreaContainer = toolbarContainer.nextElementSibling as HTMLElement;
+
+                if (editAreaContainer) {
+                    const editAreaContainerHeight = editAreaContainer.clientHeight;
+                    const editorHeightBeforeHidden = editorContainer.style.height;
+                    const heightBeforeAsNumber = editorHeightBeforeHidden.endsWith("px") ? parseInt(editorHeightBeforeHidden) : 0;
+
+                    if (heightBeforeAsNumber > editAreaContainerHeight) {
+                        editorContainer.style.height = `${heightBeforeAsNumber - editAreaContainerHeight}px`;
+                    }
+
+                    editAreaContainer.style.display = "none";
+                }
+            }
+        }
+    }
+
+    function showEditArea(): void {
+        if (editorInstance.value) {
+            const editorContainer = editorInstance.value.getContainer();
+            editorContainer.style.height = `${props.editorHeight}px`;
+            delete editorContainer.dataset.editSourceCode;
+            const toolbarContainer = editorContainer.querySelector(".tox-editor-header");
+
+            if (toolbarContainer) {
+                const editAreaContainer = toolbarContainer.nextElementSibling as HTMLElement;
+
+                if (editAreaContainer) {
+                    editAreaContainer.style.display = "";
+                }
+            }
+        }
     }
 
     //#endregion
@@ -243,10 +308,16 @@
                 if (!props.disabled) {
                     toolbarButtonApi.value?.setEnabled(true);
                 }
+
+                // Hide the editor's content area.
+                hideEditArea();
             }
             else {
                 // Disable the toolbar but keep the edit source code toolbar button enabled.
                 setEditorEnabled(editorInstance.value, true);
+
+                // Show the editor's content area.
+                showEditArea();
             }
 
             // Always update the button UI based on whether the editor is shown.

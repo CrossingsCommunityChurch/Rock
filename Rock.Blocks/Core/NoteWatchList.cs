@@ -40,7 +40,7 @@ namespace Rock.Blocks.Core
     [Category( "Core" )]
     [Description( "Displays a list of note watches." )]
     [IconCssClass( "fa fa-list" )]
-    // [SupportedSiteTypes( Model.SiteType.Web )]
+    [SupportedSiteTypes( Model.SiteType.Web )]
 
     [LinkedPage( "Detail Page",
         Description = "The page that will show the note watch details.",
@@ -129,7 +129,7 @@ namespace Rock.Blocks.Core
         {
             return new Dictionary<string, string>
             {
-                [NavigationUrlKey.DetailPage] = this.GetLinkedPageUrl( AttributeKey.DetailPage, "NoteWatchId", "((Key))" )
+                [NavigationUrlKey.DetailPage] = this.GetLinkedPageUrl( AttributeKey.DetailPage, new Dictionary<string, string> { ["NoteWatchId"] = "((Key))", ["autoEdit"] = "true", ["returnUrl"] = this.GetCurrentPageUrl() } )
             };
         }
 

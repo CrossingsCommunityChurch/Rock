@@ -5,7 +5,14 @@
             <div class="col-md-3">
                 <NumberBox v-model="pointsEarned"
                            label="Points Earned"
+                           :minimumValue="0"
+                           disabled
                            :rules="'required|lte:' + pointsPossible">
+                    <template #inputGroupAppend>
+                        <span class="input-group-addon">
+                            out of {{ pointsPossible }}
+                        </span>
+                    </template>
                 </NumberBox>
             </div>
 
@@ -15,8 +22,12 @@
             </div>
 
         </div>
-        <div class="student-comments-section" v-if="isStudentCommentingEnabled">
-            {{ studentComment }}
+
+        <div class="student-comments-section" v-if="isStudentCommentingEnabled && studentComment">
+            <div class="form-group">
+                <RockLabel>Student Comment</RockLabel>
+                <div>{{ studentComment }}</div>
+            </div>
         </div>
 
         <div class="facilitator-comments-section">
@@ -31,24 +42,42 @@
                                    v-model:activityBag="activityBag"
                                    v-model:completionBag="completionBag"
                                    :screenToShow="screenToShow"
+                                   @completionValuesChanged="onCompletionValuesChanged"
                                    @completed="onFacilitatorCompleted" />
+        </div>
+
+        <div ref="buttonsContainer" class="activity-footer-actions d-flex justify-content-end">
+            <RockButton
+                        v-if="screenToShow === ComponentScreen.Scoring"
+                        btnType="link"
+                        @click="switchToScreen(ComponentScreen.Summary)">
+                View Summary
+            </RockButton>
+            <RockButton
+                        v-if="screenToShow === ComponentScreen.Summary"
+                        btnType="primary"
+                        @click="switchToScreen(ComponentScreen.Scoring)">
+                Score
+            </RockButton>
         </div>
     </fieldset>
 </template>
 
 <script setup lang="ts">
-    import { Component, PropType, computed, ref, watch } from "vue";
+    import { Component, nextTick, PropType, ref, watch } from "vue";
     import { setPropertiesBoxValue } from "@Obsidian/Utility/block";
     import { defineAsyncComponent, propertyRef, updateRefValue } from "@Obsidian/Utility/component";
     import NumberBox from "@Obsidian/Controls/numberBox.obs";
     import TextBox from "@Obsidian/Controls/textBox.obs";
     import DatePicker from "@Obsidian/Controls/datePicker.obs";
-    import { ComponentScreen } from "@Obsidian/Controls/Internal/LearningActivity/learningActivity";
+    import { CompletionExtraValues, ComponentScreen } from "@Obsidian/Controls/Internal/LearningActivity/learningActivity";
     import { LearningActivityCompletionBag } from "@Obsidian/ViewModels/Blocks/Lms/LearningActivityCompletionDetail/learningActivityCompletionBag";
     import { LearningActivityCompletionDetailOptionsBag } from "@Obsidian/ViewModels/Blocks/Lms/LearningActivityCompletionDetail/learningActivityCompletionDetailOptionsBag";
     import { ValidPropertiesBox } from "@Obsidian/ViewModels/Utility/validPropertiesBox";
     import { LearningActivityBag } from "@Obsidian/ViewModels/Blocks/Lms/LearningActivityDetail/learningActivityBag";
-    import { deepEqual } from "@Obsidian/Utility/util";
+    import { AssignTo } from "@Obsidian/Enums/Lms/assignTo";
+    import RockButton from "@Obsidian/Controls/rockButton.obs";
+    import RockLabel from "@Obsidian/Controls/rockLabel.obs";
 
     const props = defineProps({
         modelValue: {
@@ -75,51 +104,82 @@
     const completionBag = ref(props.modelValue.bag ?? {} as LearningActivityCompletionBag);
 
     const dueDate = ref(completionBag.value.dueDate);
-    const isStudentCommentingEnabled = ref(completionBag.value.isStudentCommentingEnabled ?? false);
+    const isStudentCommentingEnabled = ref(activityBag.value.isStudentCommentingEnabled ?? false);
     const studentComment = ref(completionBag.value.studentComment ?? "");
     const pointsPossible = ref(activityBag.value?.points);
-    const isStudentCompleted = ref(completionBag.value.isStudentCompleted ?? false);
-    const isPastDue = ref(completionBag.value.isPastDue ?? false);
     const isFacilitatorCompleted = propertyRef(completionBag.value.isFacilitatorCompleted ?? false, "IsFacilitatorCompleted");
     const facilitatorComment = propertyRef(completionBag.value.facilitatorComment ?? "", "FacilitatorComments");
     const pointsEarned = propertyRef(completionBag.value.pointsEarned, "PointsEarned");
-    const completionJson = propertyRef(completionBag.value.activityComponentCompletionJson, "ActivityComponentCompletionJson");
+    const completionValues = propertyRef(completionBag.value.completionValues ?? {}, "ActivityComponentCompletionJson");
+    const wasCompletedOnTime = propertyRef(completionBag.value.wasCompletedOnTime ?? true, "WasCompletedOnTime");
+
+    const isAssignedToFacilitatorAndUngraded =
+        activityBag.value.assignTo === AssignTo.Facilitator
+        && !completionBag.value.gradedByPersonAlias?.value;
+
+    // Default to the scoring screen when the activity requires scoring
+    // or when assigned to the facilitator and not yet graded.
+    const screenToShow = ref(
+        completionBag.value.requiresScoring || isAssignedToFacilitatorAndUngraded ?
+            ComponentScreen.Scoring :
+            ComponentScreen.Summary);
+
+    const buttonsContainer = ref<HTMLDivElement>();
 
     // The properties that are being edited. This should only contain
     // objects returned by propertyRef().
     const propRefs = [
-        completionJson
+        completionValues
         , dueDate
         , isFacilitatorCompleted
         , facilitatorComment
         , pointsEarned
+        , wasCompletedOnTime
     ];
 
     // #endregion
 
     // #region Computed Values
 
-    const requiresScoring = computed(() =>
-        isStudentCompleted.value === true && isFacilitatorCompleted.value === false
-    );
-
-    const screenToShow = computed(() => {
-        return [isPastDue.value, requiresScoring.value].includes(true) ?
-            ComponentScreen.Scoring :
-            ComponentScreen.Summary;
-    });
-
     // #endregion
 
     // #region Functions
+
+    function switchToScreen(toScreen: ComponentScreen): void {
+        screenToShow.value = toScreen;
+        nextTick(() => {
+            // Scroll to the clicked button to prevent the screen from jumping.
+            if (buttonsContainer.value) {
+                buttonsContainer.value.scrollIntoView({ behavior: "auto", block: "center" });
+            }
+        });
+    }
 
     // #endregion
 
     // #region Event Handlers
 
+    /**
+     *  The event handler for an activity that's completed by a Facilitator
+     *  This should apply only to the completion screen - when an activity
+     *  is assigned to a Facilitator rather than a student.
+     */
     function onFacilitatorCompleted(successful: boolean): void {
-        if (successful) {
+        if (successful && activityBag.value.assignTo === AssignTo.Facilitator) {
             isFacilitatorCompleted.value = true;
+        }
+    }
+
+    function onCompletionValuesChanged(newValues: Record<string, string>, extra?: CompletionExtraValues): void {
+        completionValues.value = newValues;
+
+        if (extra) {
+            if (extra.pointsEarned !== undefined) {
+                pointsEarned.value = extra.pointsEarned;
+            }
+
+            // Binary file cannot be changed by facilitator so we don't check
+            // for it in the extra values.
         }
     }
 
@@ -127,7 +187,7 @@
 
     // Watch for parental changes in our model value and update all our values.
     watch(() => props.modelValue, () => {
-        updateRefValue(completionJson, props.modelValue.bag?.activityComponentCompletionJson ?? "");
+        updateRefValue(completionValues, props.modelValue.bag?.completionValues ?? {});
         updateRefValue(isFacilitatorCompleted, props.modelValue.bag?.isFacilitatorCompleted ?? false);
         updateRefValue(facilitatorComment, props.modelValue.bag?.facilitatorComment ?? "");
         updateRefValue(pointsEarned, props.modelValue.bag?.pointsEarned ?? 0);
@@ -141,7 +201,7 @@
             bag: { ...props.modelValue.bag } as LearningActivityCompletionBag
         };
 
-        setPropertiesBoxValue(newValue, "activityComponentCompletionJson", completionJson.value);
+        setPropertiesBoxValue(newValue, "completionValues", completionValues.value);
         setPropertiesBoxValue(newValue, "isFacilitatorCompleted", isFacilitatorCompleted.value);
         setPropertiesBoxValue(newValue, "facilitatorComment", facilitatorComment.value);
         setPropertiesBoxValue(newValue, "pointsEarned", pointsEarned.value);
@@ -151,14 +211,7 @@
     });
 
     watch(completionBag, () => {
-        if (!deepEqual(completionBag.value.activityComponentCompletionJson, completionJson.value, true)) {
-            completionJson.value = completionBag.value.activityComponentCompletionJson;
-
-            // Allow the component to update the points earned for the activity completion.
-            if (completionBag.value.pointsEarned !== pointsEarned.value) {
-                pointsEarned.value = completionBag.value.pointsEarned;
-            }
-        }
+        updateRefValue(completionValues, completionBag.value.completionValues ?? {});
     });
 
     const componentUrl = activityBag.value.activityComponent?.componentUrl ?? "";

@@ -41,7 +41,7 @@ namespace Rock.Blocks.Core
     [Category( "Core" )]
     [Description( "Displays the details of the given device." )]
     [IconCssClass( "fa fa-question" )]
-    //[SupportedSiteTypes( Model.SiteType.Web )]
+    [SupportedSiteTypes( Model.SiteType.Web )]
 
     #region Block Attributes
 
@@ -258,7 +258,7 @@ namespace Rock.Blocks.Core
 
             var bag = GetCommonEntityBag( entity );
 
-            bag.LoadAttributesAndValuesForPublicView( entity, RequestContext.CurrentPerson );
+            bag.LoadAttributesAndValuesForPublicView( entity, RequestContext.CurrentPerson, enforceSecurity: false );
 
             return bag;
         }
@@ -277,7 +277,7 @@ namespace Rock.Blocks.Core
 
             var bag = GetCommonEntityBag( entity );
 
-            bag.LoadAttributesAndValuesForPublicEdit( entity, RequestContext.CurrentPerson );
+            bag.LoadAttributesAndValuesForPublicEdit( entity, RequestContext.CurrentPerson, enforceSecurity: false );
 
             bag.Locations = GetLocations( entity );
 
@@ -350,6 +350,12 @@ namespace Rock.Blocks.Core
             box.IfValidProperty( nameof( box.Entity.HasCamera ),
                 () => entity.HasCamera = box.Entity.HasCamera );
 
+            box.IfValidProperty( nameof( box.Entity.GeoPoint ),
+                () => SaveGeoPoint( entity, box.Entity ) );
+
+            box.IfValidProperty( nameof( box.Entity.GeoFence ),
+                () => SaveGeoFence( entity, box.Entity ) );
+
             box.IfValidProperty( nameof( box.Entity.Locations ),
                 () => SaveLocations( box.Entity, entity, rockContext ) );
 
@@ -358,10 +364,36 @@ namespace Rock.Blocks.Core
                 {
                     entity.LoadAttributes( rockContext );
 
-                    entity.SetPublicAttributeValues( box.Entity.AttributeValues, RequestContext.CurrentPerson );
+                    entity.SetPublicAttributeValues( box.Entity.AttributeValues, RequestContext.CurrentPerson, enforceSecurity: false );
                 } );
 
             return true;
+        }
+
+        /// <summary>
+        /// Saves the geo fence.
+        /// </summary>
+        /// <param name="entity">The entity.</param>
+        /// <param name="bag">The bag.</param>
+        private void SaveGeoFence( Device entity, DeviceBag bag )
+        {
+            if ( entity.Location != null )
+            {
+                entity.Location.GeoFence = bag.GeoFence.IsNullOrWhiteSpace() ? null : DbGeography.PolygonFromText( bag.GeoFence, DbGeography.DefaultCoordinateSystemId );
+            }
+        }
+
+        /// <summary>
+        /// Saves the geo point.
+        /// </summary>
+        /// <param name="entity">The entity.</param>
+        /// <param name="bag">The bag.</param>
+        private void SaveGeoPoint( Device entity, DeviceBag bag )
+        {
+            if ( entity.Location != null )
+            {
+                entity.Location.GeoPoint = bag.GeoPoint.IsNullOrWhiteSpace() ? null : DbGeography.FromText( bag.GeoPoint );
+            }
         }
 
         /// <summary>

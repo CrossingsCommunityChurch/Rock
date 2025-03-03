@@ -1,4 +1,20 @@
-﻿using System;
+﻿// <copyright>
+// Copyright by the Spark Development Network
+//
+// Licensed under the Rock Community License (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.rockrms.com/license
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+// </copyright>
+//
+using System;
 using System.Collections.Generic;
 
 using Rock.Enums.Blocks.Communication.CommunicationEntry;
@@ -16,6 +32,21 @@ namespace Rock.ViewModels.Blocks.Communication.CommunicationEntry
         /// Internal for server-side processing only.
         /// </summary>
         internal int CommunicationId { get; set; }
+
+        /// <summary>
+        /// Gets or sets the communication list group unique identifier.
+        /// </summary>
+        public Guid? CommunicationListGroupGuid { get; set; }
+
+        /// <summary>
+        /// Gets or sets the communication list name.
+        /// </summary>
+        public string CommunicationListName { get; set; }
+
+        /// <summary>
+        /// Gets or sets the number of recipients in the communication list.
+        /// </summary>
+        public int? CommunicationListRecipientCount { get; set; }
 
         /// <summary>
         /// Gets or sets the communication unique identifier.
@@ -224,5 +255,19 @@ namespace Rock.ViewModels.Blocks.Communication.CommunicationEntry
         /// The status.
         /// </value>
         public CommunicationStatus Status { get; set; }
+
+        /// <summary>
+        /// Gets or sets the additional email addresses to receive the communication.
+        /// </summary>
+        public List<string> AdditionalEmailAddresses { get; set; }
+
+        /// <summary>
+        /// Option to prevent communications from being sent to people with the same email/SMS addresses.
+        /// This will mean two people who share an address will not receive a personalized communication, only one of them will.
+        /// </summary>
+        /// <value>
+        ///   <c>true</c> if [exclude duplicate recipient address]; otherwise, <c>false</c>.
+        /// </value>
+        public bool ExcludeDuplicateRecipientAddress { get; set; }
     }
 }

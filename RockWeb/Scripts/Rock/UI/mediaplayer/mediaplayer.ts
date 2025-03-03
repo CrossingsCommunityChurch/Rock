@@ -585,6 +585,7 @@ namespace Rock.UI {
             // https://www.youtube.com/watch?v=uQpLrumQP0E
             const youTubePattern = /https?:\/\/(?:www\.)youtube\.com\/watch(?:[?&]v=([^&]+))/i;
             const vimeoPattern = /https?:\/\/vimeo\.com\/([0-9]+)/i;
+            const vimeoHLSPattern = /https?:\/\/player\.vimeo\.com\/external\/([0-9]+)\.m3u8(\?.*)?/i;
 
             // Check if this URL looks like a standard YouTube link from the browser.
             let match = youTubePattern.exec(url);
@@ -594,6 +595,12 @@ namespace Rock.UI {
 
             // Check if this URL looks like a standard Vimeo link from the browser.
             match = vimeoPattern.exec(url);
+            if (match !== null) {
+                return `https://player.vimeo.com/video/${match[1]}`;
+            }
+
+            // Check if this URL looks like a standard Vimeo HLS link from the browser.
+            match = vimeoHLSPattern.exec(url);
             if (match !== null) {
                 return `https://player.vimeo.com/video/${match[1]}`;
             }
@@ -676,9 +683,13 @@ namespace Rock.UI {
             }
 
             if (startPosition < this.watchBits.length) {
-                this.player.currentTime = startPosition;
+                // Setting the currentTime sometimes results on the audio of a video not playing (issue with plyr library(https://github.com/sampotts/plyr/issues/1527))
+                // only set the value when absolutely necessary.
+                if (this.player.currentTime !== startPosition) {
+                    this.player.currentTime = startPosition;
+                }
             }
-            else {
+            else if (this.player.currentTime != 0) {
                 this.player.currentTime = 0;
             }
 

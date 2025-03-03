@@ -35,7 +35,7 @@ namespace Rock.Blocks.Reporting
     [Category( "Reporting" )]
     [Description( "Presents the details of a interaction using Lava" )]
     [IconCssClass( "fa fa-question" )]
-    // [SupportedSiteTypes( Model.SiteType.Web )]
+    [SupportedSiteTypes( Model.SiteType.Web )]
 
     #region Block Attributes
 
@@ -134,40 +134,60 @@ namespace Rock.Blocks.Reporting
         /// <inheritdoc/>
         public override object GetObsidianBlockInitialization()
         {
-            using ( var rockContext = new RockContext() )
-            {
-                var box = GetInitializationBox( rockContext );
+            var box = GetInitializationBox();
 
-                box.NavigationUrls = GetBoxNavigationUrls();
+            box.NavigationUrls = GetBoxNavigationUrls();
 
-                return box;
-            }
+            return box;
+        }
+
+        /// <inheritdoc/>
+        protected override string GetInitialHtmlContent()
+        {
+            return GetInteractionContent();
         }
 
         /// <summary>
         /// Gets the initialization box.
         /// </summary>
-        /// <param name="rockContext">The rock context.</param>
         /// <returns></returns>
-        private InteractionDetailInitializationBox GetInitializationBox( RockContext rockContext )
+        private InteractionDetailInitializationBox GetInitializationBox()
+        {
+            var box = new InteractionDetailInitializationBox
+            {
+                Content = GetInteractionContent()
+            };
+
+            if ( box.Content.IsNullOrWhiteSpace() )
+            {
+                box.ErrorMessage = "<strong>Missing Interaction Information</strong> <span> <p> Make sure you have navigated to this page correctly. </p> </span>";
+            }
+
+            return box;
+        }
+
+        /// <summary>
+        /// Gets the Interaction HTML Content
+        /// </summary>
+        /// <returns>A string of the Interaction HTML Content</returns>
+        private string GetInteractionContent()
         {
             var interactionId = PageParameter( PageParameterKey.InteractionId ).AsInteger();
-            var interaction = new InteractionService( rockContext ).Get( interactionId );
-            var box = new InteractionDetailInitializationBox();
+            var interaction = new InteractionService( RockContext ).Get( interactionId );
 
             if ( interaction != null )
             {
                 IEntity interactionEntity = null;
                 if ( interaction.EntityId.HasValue )
                 {
-                    interactionEntity = GetInteractionEntity( rockContext, interaction );
+                    interactionEntity = GetInteractionEntity( interaction );
                 }
 
                 if ( BlockCache.IsAuthorized( Authorization.EDIT, GetCurrentPerson() ) || interaction.IsAuthorized( Authorization.VIEW, GetCurrentPerson() ) )
                 {
                     var mergeFields = RequestContext.GetCommonMergeFields( GetCurrentPerson() );
                     mergeFields.TryAdd( MergeFieldKeys.Person, GetCurrentPerson() );
-                    mergeFields.Add( MergeFieldKeys.InteractionDetailPage,  LinkedPageRoute( MergeFieldKeys.InteractionDetailPage ) );
+                    mergeFields.Add( MergeFieldKeys.InteractionDetailPage, LinkedPageRoute( MergeFieldKeys.InteractionDetailPage ) );
                     mergeFields.Add( MergeFieldKeys.InteractionChannel, interaction.InteractionComponent.InteractionChannel );
                     mergeFields.Add( MergeFieldKeys.InteractionComponent, interaction.InteractionComponent );
                     mergeFields.Add( MergeFieldKeys.InteractionEntity, interactionEntity );
@@ -183,33 +203,31 @@ namespace Rock.Blocks.Reporting
 
                     mergeFields.Add( MergeFieldKeys.Interaction, interaction );
 
-                    box.Content = interaction.InteractionComponent.InteractionChannel.InteractionDetailTemplate.IsNotNullOrWhiteSpace() ?
+                    return interaction.InteractionComponent.InteractionChannel.InteractionDetailTemplate.IsNotNullOrWhiteSpace() ?
                         interaction.InteractionComponent.InteractionChannel.InteractionDetailTemplate.ResolveMergeFields( mergeFields ) :
                         GetAttributeValue( AttributeKey.DefaultTemplate ).ResolveMergeFields( mergeFields );
                 }
             }
-            else
-            {
-                box.ErrorMessage = "<strong>Missing Interaction Information</strong> <span> <p> Make sure you have navigated to this page correctly. </p> </span>";
-            }
-
-            return box;
+            return string.Empty;
         }
 
         /// <summary>
         /// Gets the Component Entity
         /// </summary>
-        /// <param name="rockContext">The db context.</param>
         /// <param name="interaction">The interaction .</param>
-        private IEntity GetInteractionEntity( RockContext rockContext, Interaction interaction )
+        private IEntity GetInteractionEntity( Interaction interaction )
         {
             IEntity interactionEntity = null;
-            var interactionEntityType = EntityTypeCache.Get( interaction.InteractionComponent.InteractionChannel.InteractionEntityTypeId.Value ).GetEntityType();
-            IService serviceInstance = Reflection.GetServiceForEntityType( interactionEntityType, rockContext );
-            if ( serviceInstance != null )
+            var interactionEntityTypeId = interaction.InteractionComponent?.InteractionChannel?.InteractionEntityTypeId;
+            if ( interactionEntityTypeId.HasValue )
             {
-                System.Reflection.MethodInfo getMethod = serviceInstance.GetType().GetMethod( "Get", new Type[] { typeof( int ) } );
-                interactionEntity = getMethod.Invoke( serviceInstance, new object[] { interaction.EntityId.Value } ) as Rock.Data.IEntity;
+                var interactionEntityType = EntityTypeCache.Get( interactionEntityTypeId.Value ).GetEntityType();
+                IService serviceInstance = Reflection.GetServiceForEntityType( interactionEntityType, RockContext );
+                if ( serviceInstance != null )
+                {
+                    System.Reflection.MethodInfo getMethod = serviceInstance.GetType().GetMethod( "Get", new Type[] { typeof( int ) } );
+                    interactionEntity = getMethod.Invoke( serviceInstance, new object[] { interaction.EntityId.Value } ) as Rock.Data.IEntity;
+                }
             }
 
             return interactionEntity;

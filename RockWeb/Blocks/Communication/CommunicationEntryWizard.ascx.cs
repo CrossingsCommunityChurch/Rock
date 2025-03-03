@@ -367,10 +367,13 @@ namespace RockWeb.Blocks.Communication
 </div>";
 
             componentAssetManager.JsScriptToRegister = @"
-    Sys.Application.add_load(function (e) {
-        var data = '{{ SelectedValue }}';
-        handleAssetUpdate(e, data);
-    });";
+function communicationEntryWizardHandleAssetUpdateOnLoad(e) {
+    Sys.Application.remove_load(communicationEntryWizardHandleAssetUpdateOnLoad);
+
+    var data = '{{ SelectedValue }}';
+    handleAssetUpdate(e, data);
+}
+Sys.Application.add_load(communicationEntryWizardHandleAssetUpdateOnLoad);";
 
             var videoProviders = Rock.Communication.VideoEmbed.VideoEmbedContainer.Instance.Dictionary.Select( c => c.Value.Key );
             lbVideoUrlHelpText.Attributes["data-original-title"] += ( videoProviders.Count() > 1 ? string.Join( ", ", videoProviders.Take( videoProviders.Count() - 1 ) ) + " and " + videoProviders.Last() : videoProviders.FirstOrDefault() ) + ".";
@@ -445,8 +448,6 @@ function onTaskCompleted( resultData )
         /// <param name="e">The <see cref="T:System.EventArgs" /> object that contains the event data.</param>
         protected override void OnLoad( EventArgs e )
         {
-            base.OnLoad( e );
-
             this.OnPropertyChanged -= CommunicationEntryWizard_OnPropertyChanged;
             this.OnPropertyChanged += CommunicationEntryWizard_OnPropertyChanged;
 
@@ -469,6 +470,8 @@ function onTaskCompleted( resultData )
 
             // Reset the Task Activity controls on the page.
             SignalRTaskActivityUiHelper.SetTaskActivityControlMode( this.RockPage, SignalRTaskActivityUiHelper.ControlModeSpecifier.Hidden );
+
+            base.OnLoad( e );
         }
 
         /// <summary>
@@ -638,6 +641,8 @@ function onTaskCompleted( resultData )
             lTitle.Text = ( communication.Name ?? communication.Subject ?? "New Communication" ).FormatAsHtmlTitle();
             cbDuplicatePreventionOption.Visible = this.GetAttributeValue( AttributeKey.ShowDuplicatePreventionOption ).AsBoolean();
             cbDuplicatePreventionOption.Checked = communication.ExcludeDuplicateRecipientAddress;
+            cbRecipientListDuplicatePreventionOption.Visible = this.GetAttributeValue( AttributeKey.ShowDuplicatePreventionOption ).AsBoolean();
+            cbRecipientListDuplicatePreventionOption.Checked = communication.ExcludeDuplicateRecipientAddress;
             tbCommunicationName.Text = communication.Name;
             swBulkCommunication.Checked = _isBulkCommunicationForced || communication.IsBulkCommunication;
 
@@ -1316,6 +1321,8 @@ function onTaskCompleted( resultData )
 
             pnlIndividualRecipientSummary.Visible = showIndividualRecipientsSummary;
             pnlIndividualRecipientList.Visible = !showIndividualRecipientsSummary;
+
+            cbRecipientListDuplicatePreventionOption.Visible = GetAttributeValue( AttributeKey.ShowDuplicatePreventionOption ).AsBoolean();
         }
 
         /// <summary>
@@ -1506,6 +1513,7 @@ function onTaskCompleted( resultData )
             {
                 pnlHeadingLabels.Visible = false;
                 pnlListSelection.Visible = false;
+                cbRecipientListDuplicatePreventionOption.Checked = cbDuplicatePreventionOption.Checked;
                 ShowManualList();
             }
             else
@@ -1524,6 +1532,7 @@ function onTaskCompleted( resultData )
         {
             pnlHeadingLabels.Visible = false;
             nbRecipientsAlert.Visible = false;
+            cbDuplicatePreventionOption.Checked = cbRecipientListDuplicatePreventionOption.Checked;
 
             if ( !this.IndividualRecipientPersonIds.Any() )
             {
@@ -1574,7 +1583,7 @@ function onTaskCompleted( resultData )
             var emailTransportEnabled = _emailTransportEnabled && allowedCommunicationTypes.Contains( CommunicationType.Email );
             var smsTransportEnabled = _smsTransportEnabled && allowedCommunicationTypes.Contains( CommunicationType.SMS );
             var pushTransportEnabled = _pushTransportEnabled && allowedCommunicationTypes.Contains( CommunicationType.PushNotification );
-            var recipientPreferenceEnabled = allowedCommunicationTypes.Contains( CommunicationType.RecipientPreference );
+            var recipientPreferenceEnabled = ( emailTransportEnabled || smsTransportEnabled || pushTransportEnabled ) && allowedCommunicationTypes.Contains( CommunicationType.RecipientPreference );
 
             // only prompt for Medium Type if more than one will be visible
             if ( emailTransportEnabled )
@@ -3430,6 +3439,10 @@ function onTaskCompleted( resultData )
             {
                 communication = UpdateCommunication( rockContext );
                 var sampleCommunicationRecipient = GetSampleCommunicationRecipient( communication, rockContext );
+                if ( communication.Id != default( int ) )
+                {
+                    hfCommunicationId.Value = communication.Id.ToString();
+                }
 
                 Person currentPerson;
                 if ( communication.CreatedByPersonAlias != null && communication.CreatedByPersonAlias.Person != null )
@@ -4187,7 +4200,13 @@ function onTaskCompleted( resultData )
                 // Add new recipients
                 ReportProgress( progressReporter, 5, activityMessage: "Creating Recipients List..." );
 
-                var recipientPersonIdQuery = GetRecipientPersonIdPersistedList( recipientPersonIdList, rockContext );
+                /*
+                 SK - 12/6/2024
+                 A new RockContext is created in the lines below because GetRecipientPersonIdPersistedList internally calls RockContext.SaveChanges.
+                 However, the goal is to prevent the Communication entity, created through the original RockContext, from being saved.
+                */
+                var newRockContext = new RockContext();
+                var recipientPersonIdQuery = GetRecipientPersonIdPersistedList( recipientPersonIdList, newRockContext );
 
                 if ( recipientPersonIdQuery == null )
                 {
@@ -4196,7 +4215,7 @@ function onTaskCompleted( resultData )
 
                 using ( var recipientPersonLookupActivity = ObservabilityHelper.StartActivity( "COMMUNICATION: Entry Wizard > Update Communication Recipients > Create Recipient Person Lookup Dictionary" ) )
                 {
-                    var recipientPersonsLookup = new PersonService( rockContext ).Queryable().Where( a => recipientPersonIdQuery.Contains( a.Id ) )
+                    var recipientPersonsLookup = new PersonService( newRockContext ).Queryable().Where( a => recipientPersonIdQuery.Contains( a.Id ) )
                         .Select( a => new
                         {
                             PersonId = a.Id,

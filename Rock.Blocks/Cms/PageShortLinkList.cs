@@ -64,24 +64,7 @@ namespace Rock.Blocks.Cms
             public const string DetailPage = "DetailPage";
         }
 
-        private static class PreferenceKey
-        {
-            public const string FilterToken = "filter-token";
-            public const string FilterSite = "filter-site";
-        }
-
         #endregion Keys
-
-        #region Properties
-
-        protected string FilterToken => GetBlockPersonPreferences()
-            .GetValue( PreferenceKey.FilterToken );
-
-        protected int? FilterSite => GetBlockPersonPreferences()
-            .GetValue( PreferenceKey.FilterSite )
-            .AsIntegerOrNull();
-
-        #endregion
 
         #region Methods
 
@@ -132,7 +115,7 @@ namespace Rock.Blocks.Cms
         {
             return new Dictionary<string, string>
             {
-                [NavigationUrlKey.DetailPage] = this.GetLinkedPageUrl( AttributeKey.DetailPage, "ShortLinkId", "((Key))" )
+                [NavigationUrlKey.DetailPage] = this.GetLinkedPageUrl( AttributeKey.DetailPage, new Dictionary<string, string> { ["ShortLinkId"] = "((Key))" } )
             };
         }
 
@@ -140,16 +123,6 @@ namespace Rock.Blocks.Cms
         protected override IQueryable<PageShortLink> GetListQueryable( RockContext rockContext )
         {
             var queryable = base.GetListQueryable( rockContext );
-
-            if ( !string.IsNullOrWhiteSpace( FilterToken ) )
-            {
-                queryable = queryable.Where( s => s.Token.Contains( FilterToken ) );
-            }
-
-            if ( FilterSite.HasValue )
-            {
-                queryable = queryable.Where( s => s.SiteId == FilterSite.Value );
-            }
 
             return queryable;
         }

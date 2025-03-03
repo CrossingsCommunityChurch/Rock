@@ -32,7 +32,6 @@ using Rock.Security.Authentication.Passwordless;
 using Rock.ViewModels.Blocks.Security.AccountEntry;
 using Rock.Web;
 using Rock.Web.Cache;
-using Rock.Web.UI;
 using Rock.Web.UI.Controls;
 
 namespace Rock.Blocks.Security
@@ -174,11 +173,13 @@ namespace Rock.Blocks.Security
         DefaultValue = "283999EC-7346-42E3-B807-BCE9B2BABB49",
         Order = 14 )]
 
-    [BooleanField(
-        "Show Address",
-        Key = AttributeKey.ShowAddress,
-        Description = "Allows showing the address field.",
-        DefaultBooleanValue = false,
+    [CustomDropdownListField(
+        "Address",
+        Key = AttributeKey.Address,
+        Description = "How should Address be displayed.",
+        ListSource = ListSource.HIDE_OPTIONAL_REQUIRED,
+        IsRequired = false,
+        DefaultValue = "Optional",
         Order = 15 )]
 
     [GroupLocationTypeField(
@@ -189,13 +190,6 @@ namespace Rock.Blocks.Security
         IsRequired = false,
         DefaultValue = Rock.SystemGuid.DefinedValue.GROUP_LOCATION_TYPE_HOME,
         Order = 16 )]
-
-    [BooleanField(
-        "Address Required",
-        Key = AttributeKey.AddressRequired,
-        Description = "Whether the address is required.",
-        DefaultBooleanValue = false,
-        Order = 17 )]
 
     [BooleanField(
         "Show Phone Numbers",
@@ -231,11 +225,18 @@ namespace Rock.Blocks.Security
         Order = 21 )]
 
     [BooleanField(
+        "Require Campus",
+        Key = AttributeKey.RequireCampus,
+        Description = "Require that a campus be selected. The campus will not be displayed if there is only one available campus, in which case if this is set to true then the single campus is automatically used.",
+        DefaultBooleanValue = false,
+        Order = 22 )]
+
+    [BooleanField(
         "Show Campus",
         Key = AttributeKey.ShowCampusSelector,
         Description = "Allows selection of primary a campus. If there is only one active campus then the campus field will not show.",
         DefaultBooleanValue = false,
-        Order = 22 )]
+        Order = 23 )]
 
     [TextField(
         "Campus Selector Label",
@@ -243,7 +244,7 @@ namespace Rock.Blocks.Security
         Description = "The label for the campus selector (only effective when \"Show Campus Selector\" is enabled).",
         IsRequired = false,
         DefaultValue = "Campus",
-        Order = 23 )]
+        Order = 24 )]
 
     [DefinedValueField(
         "Campus Types",
@@ -252,7 +253,7 @@ namespace Rock.Blocks.Security
         IsRequired = false,
         DefinedTypeGuid = Rock.SystemGuid.DefinedType.CAMPUS_TYPE,
         AllowMultiple = true,
-        Order = 24 )]
+        Order = 25 )]
 
     [DefinedValueField(
         "Campus Statuses",
@@ -261,21 +262,23 @@ namespace Rock.Blocks.Security
         IsRequired = false,
         DefinedTypeGuid = Rock.SystemGuid.DefinedType.CAMPUS_STATUS,
         AllowMultiple = true,
-        Order = 25 )]
+        Order = 26 )]
 
     [BooleanField( "Save Communication History",
         Key = AttributeKey.CreateCommunicationRecord,
         Description = "Should a record of communication from this block be saved to the recipient's profile?",
         DefaultBooleanValue = false,
         ControlType = Rock.Field.Types.BooleanFieldType.BooleanControlType.Checkbox,
-        Order = 26 )]
-
-    [BooleanField(
-        "Show Gender",
-        Key = AttributeKey.ShowGender,
-        Description = "Determines if the gender selection field should be shown.",
-        DefaultBooleanValue = true,
         Order = 27 )]
+
+    [CustomDropdownListField(
+        "Gender",
+        Key = AttributeKey.Gender,
+        Description = "How should Gender be displayed.",
+        ListSource = ListSource.HIDE_OPTIONAL_REQUIRED,
+        IsRequired = false,
+        DefaultValue = "Optional",
+        Order = 28 )]
 
     [AttributeCategoryField(
         "Attribute Categories",
@@ -284,14 +287,14 @@ namespace Rock.Blocks.Security
         AllowMultiple = true,
         EntityTypeName = "Rock.Model.Person",
         IsRequired = false,
-        Order = 28 )]
+        Order = 29 )]
 
     [BooleanField(
         "Disable Username Availability Checking",
         Key = AttributeKey.DisableUsernameAvailabilityCheck,
         Description = "Disables username availability checking.",
         DefaultBooleanValue = false,
-        Order = 29 )]
+        Order = 30 )]
 
     [SystemCommunicationField(
         "Confirm Account (Passwordless)",
@@ -300,7 +303,7 @@ namespace Rock.Blocks.Security
         IsRequired = false,
         DefaultValue = Rock.SystemGuid.SystemCommunication.SECURITY_CONFIRM_ACCOUNT_PASSWORDLESS,
         Category = "Email Templates",
-        Order = 30 )]
+        Order = 31 )]
 
     [TextField(
         "Confirm Caption (Passwordless)",
@@ -308,19 +311,12 @@ namespace Rock.Blocks.Security
         IsRequired = false,
         DefaultValue = "Because you've selected an existing person, we need to have you confirm the email address you entered belongs to you. We’ve sent you an email that contains a code for confirming.  Please enter the code from your email to continue.",
         Category = "Captions",
-        Order = 31 )]
+        Order = 32 )]
 
     [BooleanField(
         "Disable Captcha Support",
         Key = AttributeKey.DisableCaptchaSupport,
         Description = "If set to 'Yes' the CAPTCHA verification step will not be performed.",
-        DefaultBooleanValue = false,
-        Order = 32 )]
-
-    [BooleanField(
-        "Require Campus",
-        Key = AttributeKey.RequireCampus,
-        Description = "Require that a campus be selected. The campus will not be displayed if there is only one available campus, in which case if this is set to true then the single campus is automatically used.",
         DefaultBooleanValue = false,
         Order = 33 )]
 
@@ -337,7 +333,7 @@ namespace Rock.Blocks.Security
     [Rock.SystemGuid.BlockTypeGuid( "E5C34503-DDAD-4881-8463-0E1E20B1675D" )]
     public class AccountEntry : RockBlockType
     {
-        #region Keys
+        #region Keys and Values
 
         private static class AttributeKey
         {
@@ -356,9 +352,8 @@ namespace Rock.Blocks.Security
             public const string AccountCreatedTemplate = "AccountCreatedTemplate";
             public const string ConnectionStatus = "ConnectionStatus";
             public const string RecordStatus = "RecordStatus";
-            public const string ShowAddress = "ShowAddress";
+            public const string Address = "Address";
             public const string LocationType = "LocationType";
-            public const string AddressRequired = "AddressRequired";
             public const string ShowPhoneNumbers = "ShowPhoneNumbers";
             public const string MinimumAge = "MinimumAge";
             public const string PhoneTypes = "PhoneTypes";
@@ -368,7 +363,7 @@ namespace Rock.Blocks.Security
             public const string CampusTypes = "CampusTypes";
             public const string CampusStatuses = "CampusStatuses";
             public const string CreateCommunicationRecord = "CreateCommunicationRecord";
-            public const string ShowGender = "ShowGender";
+            public const string Gender = "Gender";
             public const string AttributeCategories = "AttributeCategories";
             public const string DisableUsernameAvailabilityCheck = "DisableUsernameAvailabilityCheck";
             public const string ConfirmAccountPasswordlessTemplate = "ConfirmAccountPasswordlessTemplate";
@@ -384,6 +379,11 @@ namespace Rock.Blocks.Security
             public const string State = "State";
             public const string AreUsernameAndPasswordRequired = "AreUsernameAndPasswordRequired";
             public const string ReturnUrl = "returnurl";
+        }
+
+        private static class ListSource
+        {
+            public const string HIDE_OPTIONAL_REQUIRED = "Hide,Optional,Required";
         }
 
         #endregion
@@ -925,9 +925,12 @@ namespace Rock.Blocks.Security
                 return Enumerable.Empty<Person>().AsQueryable();
             }
 
+            var accountProtectionLevelsToIgnore = new SecuritySettingsService().SecuritySettings.AccountProtectionProfilesForDuplicateDetectionToIgnore;
+
             return personService.Queryable()
                 .Where( p => p.Email.ToLower() == email.ToLower() )
-                .Where( p => p.LastName.ToLower() == lastName.ToLower() );
+                .Where( p => p.LastName.ToLower() == lastName.ToLower() )
+                .Where( p => !accountProtectionLevelsToIgnore.Contains( p.AccountProtectionProfile ) );
         }
 
         /// <summary>
@@ -1095,8 +1098,8 @@ namespace Rock.Blocks.Security
                 currentPerson.LoadAttributes( rockContext );
 
                 accountEntryPersonInfoBag = accountEntryPersonInfoBag ?? new AccountEntryPersonInfoBag();
-                accountEntryPersonInfoBag.Attributes = currentPerson.GetPublicAttributesForEdit( currentPerson, attributeFilter: a1 => personAttributes.Any( a => a.Guid == a1.Guid ), enforceSecurity: false );
-                accountEntryPersonInfoBag.AttributeValues = currentPerson.GetPublicAttributeValuesForEdit( currentPerson, attributeFilter: a1 => personAttributes.Any( a => a.Guid == a1.Guid ), enforceSecurity: false );
+                accountEntryPersonInfoBag.Attributes = currentPerson.GetPublicAttributesForEdit( currentPerson, enforceSecurity: false, attributeFilter: a1 => personAttributes.Any( a => a.Guid == a1.Guid ) );
+                accountEntryPersonInfoBag.AttributeValues = currentPerson.GetPublicAttributeValuesForEdit( currentPerson, enforceSecurity: false, attributeFilter: a1 => personAttributes.Any( a => a.Guid == a1.Guid ) );
             }
 
             return new AccountEntryInitializationBox
@@ -1110,8 +1113,8 @@ namespace Rock.Blocks.Security
                 // Account info (username and password) should only be hidden if registering through the passwordless
                 // authentication flow AND if username and password are not required.
                 IsAccountInfoHidden = passwordlessLoginState != null && !areUsernameAndPasswordRequired,
-                IsAddressRequired = GetAttributeValue( AttributeKey.AddressRequired ).AsBoolean(),
-                IsAddressShown = GetAttributeValue( AttributeKey.ShowAddress ).AsBoolean(),
+                IsAddressRequired = string.Equals( GetAttributeValue( AttributeKey.Address ), "Required", StringComparison.OrdinalIgnoreCase ),
+                IsAddressShown = !string.Equals( GetAttributeValue( AttributeKey.Address ), "Hide", StringComparison.OrdinalIgnoreCase ),
                 IsBirthDateShown = showBirthDate,
                 IsCampusRequired = GetAttributeValue( AttributeKey.RequireCampus ).AsBoolean(),
                 IsCampusPickerShown = GetAttributeValue( AttributeKey.ShowCampusSelector ).AsBoolean(),
@@ -1128,7 +1131,8 @@ namespace Rock.Blocks.Security
                 UsernameRegex = isEmailRequiredForUsername ? @"\w+([-+.]\w+)*@\w+([-.]\w+)*\.\w+([-.]\w+)*" : Rock.Web.Cache.GlobalAttributesCache.Get().GetValue( "core.ValidUsernameRegularExpression" ),
                 UsernameRegexDescription = isEmailRequiredForUsername ? string.Empty : GlobalAttributesCache.Get().GetValue( "core.ValidUsernameCaption" ),
                 AccountEntryRegisterStepBox = accountEntryRegisterStepBox,
-                IsGenderPickerShown = GetAttributeValue( AttributeKey.ShowGender ).AsBoolean(),
+                IsGenderPickerShown = !string.Equals( GetAttributeValue( AttributeKey.Gender ), "Hide", StringComparison.OrdinalIgnoreCase ),
+                IsGenderPickerRequired = string.Equals( GetAttributeValue( AttributeKey.Gender ), "Required", StringComparison.OrdinalIgnoreCase ),
                 AccountEntryPersonInfoBag = accountEntryPersonInfoBag,
                 DisableCaptchaSupport = GetAttributeValue( AttributeKey.DisableCaptchaSupport ).AsBoolean(),
                 CampusStatusFilter = GetAttributeValue( AttributeKey.CampusStatuses ).SplitDelimitedValues( true ).AsGuidList(),
@@ -1258,6 +1262,29 @@ namespace Rock.Blocks.Security
         }
 
         /// <summary>
+        /// Determines if the gender is valid.
+        /// </summary>
+        /// <param name="box">The register request box.</param>
+        /// <param name="config">The block initialization box.</param>
+        /// <returns><c>true</c> if the gender is not required or if it is valid; otherwise, <c>false</c>.</returns>
+        private bool IsGenderValidIfRequired( AccountEntryRegisterRequestBox box, AccountEntryInitializationBox config )
+        {
+            if ( !config.IsGenderPickerShown || !config.IsGenderPickerRequired )
+            {
+                return true;
+            }
+
+            var gender = box.PersonInfo.Gender;
+
+            if ( gender == null || gender == Gender.Unknown )
+            {
+                return false;
+            }
+
+            return true;
+        }
+
+        /// <summary>
         /// Determines if an campus is valid.
         /// </summary>
         /// <param name="box">The register request box.</param>
@@ -1270,9 +1297,20 @@ namespace Rock.Blocks.Security
                 return true;
             }
 
+            var selectableCampusesCount = CampusCache.All()
+                .Where( c => c.IsActive.HasValue && c.IsActive.Value
+                        && config.CampusTypeFilter.ContainsOrEmpty( DefinedValueCache.GetGuid( c.CampusTypeValueId ?? -1 ) ?? Guid.Empty )
+                        && config.CampusStatusFilter.ContainsOrEmpty( DefinedValueCache.GetGuid( c.CampusStatusValueId ?? -1 ) ?? Guid.Empty )
+                ).Count();
+
+            if ( selectableCampusesCount == 0 )
+            {
+                return true;
+            }
+
             var campus = box.PersonInfo.Campus;
 
-            if ( !(campus.HasValue && campus.Value != Guid.Empty) )
+            if ( !( campus.HasValue && campus.Value != Guid.Empty ) )
             {
                 return false;
             }
@@ -1389,7 +1427,7 @@ namespace Rock.Blocks.Security
 
             if ( !IsOldEnough( box, config ) )
             {
-                errorMessage = $"We are sorry, you must be at least {( config.MinimumAge == 1 ? "year" : "years" )} old to create an account.";
+                errorMessage = $"We are sorry, you must be at least {config.MinimumAge} {( config.MinimumAge == 1 ? "year" : "years" )} old to create an account.";
                 return false;
             }
 
@@ -1420,6 +1458,12 @@ namespace Rock.Blocks.Security
             if ( !IsAddressValidIfRequired( box, config ) )
             {
                 errorMessage = "Address is required";
+                return false;
+            }
+
+            if ( !IsGenderValidIfRequired( box, config ) )
+            {
+                errorMessage = "Gender is required";
                 return false;
             }
 

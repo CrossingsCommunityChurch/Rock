@@ -16,11 +16,16 @@
 //
 
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
+using System.Threading.Tasks;
 
 using Microsoft.Extensions.Logging;
 
+using Rock.Communication.Chat;
+using Rock.Communication.Chat.Sync;
+using Rock.Constants;
 using Rock.Data;
 using Rock.Logging;
 using Rock.Transactions;
@@ -150,6 +155,11 @@ namespace Rock.Model
                     this.Entity.FirstName = this.Entity.FirstName.StandardizeQuotes();
                     this.Entity.LastName = this.Entity.LastName.StandardizeQuotes();
                     this.Entity.NickName = this.Entity.NickName.StandardizeQuotes();
+
+                    this.Entity.FirstName = this.Entity.FirstName != null ? Regex.Replace( this.Entity.FirstName, RegexPatterns.EmojiAndSpecialFontRemovalPattern, string.Empty ) : null;
+                    this.Entity.LastName = this.Entity.LastName != null ? Regex.Replace( this.Entity.LastName, RegexPatterns.EmojiAndSpecialFontRemovalPattern, string.Empty ) : null;
+                    this.Entity.NickName = this.Entity.NickName != null ? Regex.Replace( this.Entity.NickName, RegexPatterns.EmojiAndSpecialFontRemovalPattern, string.Empty ) : null;
+                    this.Entity.MiddleName = this.Entity.MiddleName != null ? Regex.Replace( this.Entity.MiddleName, RegexPatterns.EmojiAndSpecialFontRemovalPattern, string.Empty ) : null;
 
                     // Remove extra spaces between words (Issue #2990)
                     this.Entity.FirstName = this.Entity.FirstName != null ? Regex.Replace( this.Entity.FirstName, @"\s+", " " ).Trim() : null;
@@ -379,9 +389,9 @@ namespace Rock.Model
 
                 // If the person was just added then the _primaryAliasId will be null ergo the value will be null
                 // in the database so update.
-                if ( !this.Entity._primaryAliasId.HasValue )
+                if ( !this.Entity._primaryAliasId.HasValue || !this.Entity._primaryAliasGuid.HasValue )
                 {
-                    PersonService.UpdatePrimaryAlias( this.Entity.Id, this.Entity.PrimaryAliasId.Value, RockContext );
+                    PersonService.UpdatePrimaryAlias( this.Entity.Id, this.Entity.PrimaryAliasId.Value, this.Entity.PrimaryAliasGuid.Value, RockContext );
                 }
 
                 if ( this.Entity.Age.HasValue && ( this.PreSaveState == EntityContextState.Added || this.Entity.Age != Entry.OriginalValues[nameof( Person.Age )].ToStringSafe().AsIntegerOrNull() ) )
@@ -394,6 +404,28 @@ namespace Rock.Model
                 PersonService.UpdatePrimaryFamily( this.Entity.Id, RockContext );
                 PersonService.UpdateGivingLeaderId( this.Entity.Id, RockContext );
                 PersonService.UpdateGroupSalutations( this.Entity.Id, RockContext );
+
+                if ( ChatHelper.IsChatEnabled )
+                {
+                    Task.Run( async () =>
+                    {
+                        using ( var chatHelper = new ChatHelper() )
+                        {
+                            var syncCommand = new SyncPersonToChatCommand
+                            {
+                                PersonId = Entity.Id,
+                                ShouldEnsureChatAliasExists = false
+                            };
+
+                            // Enforce a "full" sync of the chat user when saving an individual person. BUT take note
+                            // that because of the `ShouldEnsureChatAliasExists` flag above, this person will only be
+                            // synced to the external chat system if they have already been synced at least once before.
+                            chatHelper.RockToChatSyncConfig.ShouldEnsureChatUsersExist = true;
+
+                            await chatHelper.CreateOrUpdateChatUsersAsync( new List<SyncPersonToChatCommand> { syncCommand } );
+                        }
+                    } );
+                }
             }
         }
     }

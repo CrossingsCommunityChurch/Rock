@@ -1,4 +1,4 @@
-﻿// <copyright>
+// <copyright>
 // Copyright by the Spark Development Network
 //
 // Licensed under the Rock Community License (the "License");
@@ -219,6 +219,11 @@ namespace Rock.SystemGuid
         public const string DEFINED_VALUE = "53D4BF38-C49E-4A52-8B0E-5E016FB9574E";
 
         /// <summary>
+        /// The guid for Rock.Model.EntitySearch entity.
+        /// </summary>
+        public const string ENTITY_SEARCH = "080374B4-C765-4F90-8B85-BC2635164275";
+
+        /// <summary>
         /// The guid for Rock.Model.EntityType entity.
         /// </summary>
         public const string ENTITY_TYPE = "A2277FBA-D09F-4D07-B0AB-1C650C25A7A7";
@@ -277,6 +282,11 @@ namespace Rock.SystemGuid
         /// The guid for <see cref="Rock.Model.Interaction"/>
         /// </summary>
         public const string INTERACTION = "3BB4B095-2DE4-4009-8FA2-705BF284F7B7";
+
+        /// <summary>
+        /// The guid for the <see cref="Rock.Model.InteractionEntity"/> entity.
+        /// </summary>
+        public const string INTERACTION_ENTITY = "AB3AC547-CCEF-4662-9646-64F16813DAC4";
 
         /// <summary>
         /// The EntityType Guid for <see cref="Rock.Model.InteractiveExperience"/>
@@ -508,6 +518,16 @@ namespace Rock.SystemGuid
         public const string MOBILE_CORE_SMART_SEARCH_BLOCK_TYPE = "45BE4816-3F5B-4AD1-BA89-819325D7E8CF";
 
         /// <summary>
+        /// The GUID for the entity <see cref="Rock.Blocks.Types.Mobile.Core.QuickNote" />.
+        /// </summary>
+        public const string MOBILE_CORE_QUICK_NOTE_BLOCK_TYPE = "9AA328FB-8FBB-4C5D-A898-C9B355051ADD";
+
+        /// <summary>
+        /// The GUID for the entity <see cref="Rock.Blocks.Types.Mobile.Core.MyNotes" />.
+        /// </summary>
+        public const string MOBILE_CORE_MY_NOTES_BLOCK_TYPE = "1CCC09C4-2994-4009-813F-2F4B86C13BFE";
+
+        /// <summary>
         /// The GUID for the entity Rock.Blocks.Types.Mobile.Events.CalendarEventList
         /// </summary>
         public const string MOBILE_EVENTS_CALENDAREVENTLIST_BLOCK_TYPE = "6FB9F1F4-5F24-4A22-A6EB-A7FA499179A9";
@@ -670,9 +690,24 @@ namespace Rock.SystemGuid
         public const string MOBILE_CRM_GROUP_MEMBERS = "592242ED-7536-49EA-94DE-7B4EBA7E87A6";
 
         /// <summary>
-        /// The GUID for the mobile check-in block
+        /// The GUID for the entity Rock.Blocks.Types.Mobile.CheckIn.CheckIn.
         /// </summary>
         public const string MOBILE_CHECKIN_CHECKIN = "BC0A4B6C-9F6D-4D39-8FFE-B6F9FA4B2F49";
+
+        /// <summary>
+        /// The GUID for the entity Rock.Blocks.Types.Mobile.Finance.ScheduledTransactionList.
+        /// </summary>
+        public const string MOBILE_FINANCE_SCHEDULED_TRANSACTION_LIST_BLOCK_TYPE = "7698E529-6834-46B0-BC5A-D466A6BCE4F6";
+
+        /// <summary>
+        /// The GUID for the entity Rock.Blocks.Types.Mobile.Finance.TransactionDetail.
+        /// </summary>
+        public const string MOBILE_FINANCE_TRANSACTION_DETAIL_BLOCK_TYPE = "3355006B-4C1F-4F85-8390-7C83C26D5C4A";
+
+        /// <summary>
+        /// The GUID for the entity Rock.Blocks.Types.Mobile.Finance.TransactionList.
+        /// </summary>
+        public const string MOBILE_FINANCE_TRANSACTION_LIST_BLOCK_TYPE = "4196280F-0204-4268-A19F-773336B8BEA2";
 
         /// <summary>
         /// The obsidian event registration entry
@@ -1635,6 +1670,11 @@ namespace Rock.SystemGuid
         public const string PERSONALIZATION_SEGMENT = "368A3581-C8C4-4960-901A-9587864226F3";
 
         /// <summary>
+        /// The EntityType Guid for PersonalizationSegmentCategory 'joiner' table <see cref="Rock.Model.PersonalizationSegment"/>
+        /// </summary>
+        public const string PERSONALIZATION_SEGMENT_CATEGORY = "D2026C0C-6C5F-4BB8-B085-9928E373812D";
+
+        /// <summary>
         /// The EntityType Guid for <see cref="Rock.Model.PersonalLink"/> 
         /// </summary>
         public const string PERSONAL_LINK = "F858CF72-ECCC-4DC6-AD72-7B82467B3466";
@@ -1977,8 +2017,23 @@ namespace Rock.SystemGuid
         public const string ADAPTIVE_MESSAGE_ADAPTATION_SEGMENT = "40EDF82B-EFF5-4253-A129-965F7BC90033";
 
         /// <summary>
+        /// The EntityType Guid for <see cref="Rock.Model.AdaptiveMessageCategory"/> 
+        /// </summary>
+        public const string ADAPTIVE_MESSAGE_CATEGORY = "D47BDA25-03A3-46EE-A0A6-F8B220E39E4A";
+
+        /// <summary>
         /// The EntityType Guid for <see cref="Rock.Model.CheckInLabel"/> 
         /// </summary>
         public const string CHECK_IN_LABEL = "8B651EB1-492F-46D0-821B-CA7355C6E6E7";
+
+        /// <summary>
+        /// The EntityType Guid for <see cref="Rock.Model.AIProvider"/> 
+        /// </summary>
+        public const string AI_PROVIDER = "945A994F-F15E-43AC-B503-A54BDE70F77F";
+
+        /// <summary>
+        /// The EntityType Guid for <see cref="Rock.Model.EmailSection"/> 
+        /// </summary>
+        public const string EMAIL_SECTION = "86B2CE94-9DC3-463C-B2B1-DEECAB70474E";
     }
 }
