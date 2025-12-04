@@ -162,6 +162,8 @@ namespace Crossings.UniversalSearch
                                 // index the page
                                 CccSitePageIndex sitePage = new CccSitePageIndex();
 
+                                string test = "group, test, announcement";
+
                                 sitePage.Content = GetPageText( htmlDoc );
                                 sitePage.Tags = GetTagText(htmlDoc);
                                 sitePage.Url = url;
@@ -173,6 +175,9 @@ namespace Crossings.UniversalSearch
                                 sitePage.SiteId = _site.Id;
                                 sitePage.LastIndexedDateTime = RockDateTime.Now;
 
+                                string[] sampleKeys = test.Split(new char[] { ',', ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                                sitePage.PageSampleKey = sampleKeys;
+
                                 HtmlNode metaDescription = htmlDoc.DocumentNode.SelectSingleNode( "//meta[@name='description']" );
                                 if ( metaDescription != null && metaDescription.Attributes["content"] != null )
                                 {
@@ -183,6 +188,22 @@ namespace Crossings.UniversalSearch
                                 if ( metaKeynotes != null && metaKeynotes.Attributes["content"] != null )
                                 {
                                     sitePage.PageKeywords = metaKeynotes.Attributes["content"].Value;
+                                }
+
+                                // HtmlNode metaPageContentType = htmlDoc.DocumentNode.SelectSingleNode("//meta[@data-content-type='user-defined-type']");
+                                // if (metaPageContentType != null && metaPageContentType.Attributes["content"] != null)
+                                // {
+                                // string pageContentTypeString = metaPageContentType.Attributes["content"].Value;
+                                // string[] pageContentType = pageContentTypeString.Split(new char[] { ',', ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                                // sitePage.PageContentType = pageContentType;
+                                // }
+
+                                HtmlNode stringPageContentType = htmlDoc.DocumentNode.SelectSingleNode("//div[@id='userDefinedPageContentType']");
+                                if (stringPageContentType != null)
+                                {
+                                    string pageContentTypeString = stringPageContentType.InnerText;
+                                    string[] pageContentType = pageContentTypeString.Split(new char[] { ',', ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                                    sitePage.PageContentType = pageContentType;
                                 }
 
                                 // Get a hash of the content and check it against a list of to see if page has already been indexed, if not then index it and add it to the list.
