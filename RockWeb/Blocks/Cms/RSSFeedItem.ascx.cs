@@ -31,7 +31,6 @@ using Rock.Web.UI;
 using Rock.Web.UI.Controls;
 using Rock.Web.Cache;
 using Rock.Lava;
-using DotLiquid;
 
 namespace RockWeb.Blocks.Cms
 {
@@ -66,7 +65,6 @@ namespace RockWeb.Blocks.Cms
         "Template",
         Description = "The Lava template to use for rendering. This template would typically be in the theme's \"Assets/Lava\" folder.",
         EditorMode = CodeEditorMode.Lava,
-        EditorTheme = CodeEditorTheme.Rock,
         EditorHeight = 200,
         IsRequired = true,
         DefaultValue = @"{% include '~~/Assets/Lava/RSSFeedItem.lava' %}",
@@ -161,41 +159,7 @@ namespace RockWeb.Blocks.Cms
         {
             SyndicationFeedHelper.ClearCachedFeed( GetAttributeValue( AttributeKey.RSSFeedUrl ) );
 
-            if ( LavaService.RockLiquidIsEnabled )
-            {
-#pragma warning disable CS0618 // Type or member is obsolete
-                LavaTemplateCache.Remove( this.TemplateCacheKey );
-#pragma warning restore CS0618 // Type or member is obsolete
-            }
-
             LavaService.RemoveTemplateCacheEntry( this.TemplateCacheKey );
-        }
-
-        [RockObsolete( "1.13" )]
-        [Obsolete( "This method is only required for the DotLiquid Lava implementation." )]
-        private Template GetTemplate()
-        {
-            var cacheTemplate = LavaTemplateCache.Get( TemplateCacheKey, GetAttributeValue( AttributeKey.Template ) );
-
-            LavaHelper.VerifyParseTemplateForCurrentEngine( GetAttributeValue( AttributeKey.Template ) );
-
-            return cacheTemplate != null ? cacheTemplate.Template as DotLiquid.Template : null;
-        }
-
-        private string LoadDebugData( Dictionary<string, object> feedDictionary )
-        {
-            System.Text.StringBuilder sb = new System.Text.StringBuilder();
-
-            if ( feedDictionary != null && feedDictionary.Count > 0 )
-            {
-                sb.AppendLine( "<ul id=\"debugFeed\">" );
-                foreach ( var kvp in feedDictionary )
-                {
-                    sb.Append( FeedDebugNode( kvp ) );
-                }
-                sb.AppendLine( "</ul>" );
-            }
-            return sb.ToString();
         }
 
         private string FeedDebugNode( KeyValuePair<string, object> node )
@@ -308,24 +272,15 @@ namespace RockWeb.Blocks.Cms
                     {
                         string content;
 
-                        if ( LavaService.RockLiquidIsEnabled )
+                        var renderParameters = new LavaRenderParameters
                         {
-#pragma warning disable CS0618 // Type or member is obsolete
-                            content = GetTemplate().Render( Hash.FromDictionary( feedFinal ) );
-#pragma warning restore CS0618 // Type or member is obsolete
-                        }
-                        else
-                        {
-                            var renderParameters = new LavaRenderParameters
-                            {
-                                Context = LavaService.NewRenderContext( feedFinal ),
-                                CacheKey = this.TemplateCacheKey
-                            };
+                            Context = LavaService.NewRenderContext( feedFinal ),
+                            CacheKey = this.TemplateCacheKey
+                        };
 
-                            var result = LavaService.RenderTemplate( GetAttributeValue( AttributeKey.Template ), renderParameters );
+                        var result = LavaService.RenderTemplate( GetAttributeValue( AttributeKey.Template ), renderParameters );
 
-                            content = result.Text;
-                        }
+                        content = result.Text;
 
                         if ( content.Contains( "No such template" ) )
                         {

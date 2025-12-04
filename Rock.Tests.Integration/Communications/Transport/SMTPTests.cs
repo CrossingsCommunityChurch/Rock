@@ -6,7 +6,6 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Rock.Communication;
 using Rock.Model;
 using Rock.Tests.Integration.TestData;
-using Rock.Tests.Shared;
 using Rock.Tests.Shared.TestFramework;
 
 namespace Rock.Tests.Integration.Communications.Transport
@@ -31,6 +30,11 @@ namespace Rock.Tests.Integration.Communications.Transport
         [ClassCleanup]
         public static void Cleanup()
         {
+            if ( IsContainersEnabled )
+            {
+                return;
+            }
+
             if ( !_newServerAttributeValueGuid.IsEmpty() )
             {
                 // Delete it.
@@ -68,7 +72,7 @@ namespace Rock.Tests.Integration.Communications.Transport
             smtp.Send( rockEmailMessage, 0, new Dictionary<string, string>(), out List<string> errorMessages );
 
             // Assert
-            Assert.That.AreEqual( 0, errorMessages.Count, errorMessages.JoinStrings(", ") );
+            Assert.IsEmpty( errorMessages, errorMessages.JoinStrings( ", " ) );
         }
 
         #endregion

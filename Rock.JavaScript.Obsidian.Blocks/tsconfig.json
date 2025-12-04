@@ -2,6 +2,8 @@
   "files": [],
   "include": [],
   "references": [
+    { "path": "./src/Administration" },
+    { "path": "./src/AI" },
     { "path": "./src/Bus" },
     { "path": "./src/CheckIn" },
     { "path": "./src/Cms" },
@@ -14,6 +16,7 @@
     { "path": "./src/Example" },
     { "path": "./src/Finance" },
     { "path": "./src/Group" },
+    { "path": "./src/Lms" },
     { "path": "./src/Mobile" },
     { "path": "./src/Prayer" },
     { "path": "./src/Reporting" },

@@ -22,11 +22,12 @@ import { ICancellationToken } from "@Obsidian/Utility/cancellation";
 import { CommunicationEntryWizardCommunicationBag } from "@Obsidian/ViewModels/Blocks/Communication/CommunicationEntryWizard/communicationEntryWizardCommunicationBag";
 import { CommunicationEntryWizardCommunicationTemplateDetailBag } from "@Obsidian/ViewModels/Blocks/Communication/CommunicationEntryWizard/communicationEntryWizardCommunicationTemplateDetailBag";
 import { CommunicationEntryWizardSaveCommunicationTemplateResponseBag } from "@Obsidian/ViewModels/Blocks/Communication/CommunicationEntryWizard/communicationEntryWizardSaveCommunicationTemplateResponseBag";
-import { CommunicationEntryWizardGetEmailPreviewHtmlBag } from "@Obsidian/ViewModels/Blocks/Communication/CommunicationEntryWizard/communicationEntryWizardGetEmailPreviewHtmlBag";
+import { CommunicationEntryWizardGetPreviewBag } from "@Obsidian/ViewModels/Blocks/Communication/CommunicationEntryWizard/communicationEntryWizardGetPreviewBag";
 import { CommunicationEntryWizardRecipientBag } from "@Obsidian/ViewModels/Blocks/Communication/CommunicationEntryWizard/communicationEntryWizardRecipientBag";
 import { CommunicationEntryWizardSaveResponseBag } from "@Obsidian/ViewModels/Blocks/Communication/CommunicationEntryWizard/communicationEntryWizardSaveResponseBag";
 import { CommunicationEntryWizardSendResponseBag } from "@Obsidian/ViewModels/Blocks/Communication/CommunicationEntryWizard/communicationEntryWizardSendResponseBag";
 import { ListItemBag } from "@Obsidian/ViewModels/Utility/listItemBag";
+import { CommunicationEntryWizardCheckShortLinkTokenBag } from "@Obsidian/ViewModels/Blocks/Communication/CommunicationEntryWizard/communicationEntryWizardCheckShortLinkTokenBag";
 
 export type SendTimePreference = "now" | "later";
 
@@ -72,8 +73,12 @@ export type PersonPreferencesHelper = {
 
 export type InvokeBlockActionHelper = {
     cancelMetricsReminder(communicationGuid: Guid): Promise<HttpResult<void>>;
+    checkShortLinkToken(bag: CommunicationEntryWizardCheckShortLinkTokenBag): Promise<HttpResult<string>>;
+    getShortLinkPageId(pageGuid: Guid): Promise<HttpResult<number | null | undefined>>;
     getCommunicationTemplate(communicationTemplateGuid: Guid): Promise<HttpResult<CommunicationEntryWizardCommunicationTemplateDetailBag>>;
-    getEmailPreviewHtml(bag: CommunicationEntryWizardCommunicationBag): Promise<HttpResult<CommunicationEntryWizardGetEmailPreviewHtmlBag | null | undefined>>;
+    getEmailPreviewHtml(bag: CommunicationEntryWizardCommunicationBag, previewAsPersonAliasGuid?: Guid | null | undefined, previewAsPersonalizationSegmentId?: number | null | undefined): Promise<HttpResult<CommunicationEntryWizardGetPreviewBag | null | undefined>>;
+    getPushPreview(bag: CommunicationEntryWizardCommunicationBag, previewAsPersonAliasGuid?: Guid | null | undefined, previewAsPersonalizationSegmentId?: number | null | undefined): Promise<HttpResult<CommunicationEntryWizardGetPreviewBag | null | undefined>>;
+    getSmsPreview(bag: CommunicationEntryWizardCommunicationBag, previewAsPersonAliasGuid?: Guid | null | undefined, previewAsPersonalizationSegmentId?: number | null | undefined): Promise<HttpResult<CommunicationEntryWizardGetPreviewBag | null | undefined>>;
     getRecipient(personAliasGuid: Guid): Promise<HttpResult<CommunicationEntryWizardRecipientBag>>;
     getRecipients(bag: CommunicationEntryWizardCommunicationBag, cancellationToken: ICancellationToken): Promise<HttpResult<CommunicationEntryWizardRecipientBag[]>>;
     getSegmentDataViews(communicationListGroupGuid: Guid | null | undefined): Promise<HttpResult<ListItemBag[]>>;
@@ -88,3 +93,20 @@ export type InvokeBlockActionHelper = {
     saveAsCommunicationTemplate(bag: CommunicationEntryWizardCommunicationTemplateDetailBag): Promise<HttpResult<CommunicationEntryWizardSaveCommunicationTemplateResponseBag>>;
     saveCommunicationTemplate(bag: CommunicationEntryWizardCommunicationTemplateDetailBag): Promise<HttpResult<CommunicationEntryWizardSaveCommunicationTemplateResponseBag>>;
 };
+
+export type Cache<T> = {
+    has(key: string): boolean;
+    get(key: string): T | undefined;
+    set(key: string, value: T): void;
+    remove(key: string): void;
+    clear(): void;
+};
+
+export type CacheOptions = {
+    maxSize: number;
+};
+
+export enum PreviewAsType {
+    Person = "Preview As Person",
+    Segment = "Preview As Segment"
+}

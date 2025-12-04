@@ -109,7 +109,7 @@
                                             <asp:PlaceHolder ID="phForms" runat="server" />
                                         </div>
                                         <div class="pull-right">
-                                            <asp:LinkButton ID="lbAddForm" runat="server" CssClass="btn btn-action btn-xs" OnClick="lbAddForm_Click" CausesValidation="false"><i class="fa fa-plus"></i> Add Form</asp:LinkButton>
+                                            <asp:LinkButton ID="lbAddForm" runat="server" CssClass="btn btn-action btn-xs" OnClick="lbAddForm_Click" CausesValidation="false"><i class="ti ti-plus"></i> Add Form</asp:LinkButton>
                                         </div>
 
                                     </div>
@@ -141,9 +141,9 @@
                             Help="Should a value for this attribute be required?" />
                     </div>
                 </div>
-                <Rock:CodeEditor ID="ceAttributePreHtml" runat="server" Label="Pre-HTML" EditorMode="Lava" EditorTheme="Rock" EditorHeight="100" ValidationGroup="Field"
+                <Rock:CodeEditor ID="ceAttributePreHtml" runat="server" Label="Pre-HTML" EditorMode="Lava" EditorHeight="100" ValidationGroup="Field"
                     Help="Any HTML to display directly above this field <span class='tip tip-lava'></span>." />
-                <Rock:CodeEditor ID="ceAttributePostHtml" runat="server" Label="Post-HTML" EditorMode="Lava" EditorTheme="Rock" EditorHeight="100" ValidationGroup="Field"
+                <Rock:CodeEditor ID="ceAttributePostHtml" runat="server" Label="Post-HTML" EditorMode="Lava" EditorHeight="100" ValidationGroup="Field"
                     Help="Any HTML to display directly below this field <span class='tip tip-lava'></span>." />
             </Content>
         </Rock:ModalDialog>

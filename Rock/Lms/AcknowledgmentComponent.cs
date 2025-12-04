@@ -62,7 +62,7 @@ namespace Rock.Lms
         public override string HighlightColor => "#644a88";
 
         /// <inheritdoc/>
-        public override string IconCssClass => "far fa-check-square";
+        public override string IconCssClass => "ti ti-checkbox";
 
         /// <inheritdoc/>
         public override string Name => "Acknowledgment";
@@ -71,7 +71,7 @@ namespace Rock.Lms
         public override string ComponentUrl => @"/Obsidian/Controls/Internal/LearningActivity/acknowledgmentLearningActivity.obs";
 
         /// <inheritdoc/>
-        public override Dictionary<string, string> GetActivityConfiguration( LearningActivity activity, Dictionary<string, string> componentData, PresentedFor presentation, RockContext rockContext, RockRequestContext requestContext )
+        public override Dictionary<string, string> GetActivityConfiguration( LearningClassActivity activity, Dictionary<string, string> componentData, PresentedFor presentation, RockContext rockContext, RockRequestContext requestContext )
         {
             if ( presentation == PresentedFor.Configuration )
             {
@@ -99,6 +99,19 @@ namespace Rock.Lms
                     [SettingKey.IsConfirmationRequired] = componentData.GetValueOrNull( SettingKey.IsConfirmationRequired )
                 };
             }
+        }
+
+        /// <inheritdoc/>
+        public override Dictionary<string, string> GetComponentData( LearningClassActivity activity, Dictionary<string, string> componentSettings, RockContext rockContext, RockRequestContext requestContext )
+        {
+            // This is a cheat, we shouldn't really be trying to access the original
+            // JSON this way, but we don't have a better way to do it.
+            var oldData = activity.LearningActivity?.ActivityComponentSettingsJson?.FromJsonOrNull<Dictionary<string, string>>();
+
+            new StructuredContentHelper( componentSettings?.GetValueOrNull( SettingKey.Content ) )
+                .DetectAndApplyDatabaseChanges( oldData?.GetValueOrNull( SettingKey.Content ), rockContext );
+
+            return base.GetComponentData( activity, componentSettings, rockContext, requestContext );
         }
     }
 }

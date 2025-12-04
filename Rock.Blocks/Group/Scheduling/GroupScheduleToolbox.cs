@@ -40,7 +40,7 @@ namespace Rock.Blocks.Group.Scheduling
     [DisplayName( "Group Schedule Toolbox" )]
     [Category( "Group Scheduling" )]
     [Description( "Allows management of group scheduling for a specific person (worker)." )]
-    [IconCssClass( "fa fa-calendar-alt" )]
+    [IconCssClass( "ti ti-calendar-month" )]
     [SupportedSiteTypes( Model.SiteType.Web )]
     [ContextAware( typeof( Person ) )]
 
@@ -68,7 +68,6 @@ namespace Rock.Blocks.Group.Scheduling
         Key = AttributeKey.AdditionalTimeSignUpHeader,
         Description = "Header content to show above the Additional Time Sign-Up panel. <span class='tip tip-lava'></span>",
         EditorMode = CodeEditorMode.Lava,
-        EditorTheme = CodeEditorTheme.Rock,
         EditorHeight = 200,
         Category = AttributeCategory.AdditionalTimeSignUp,
         Order = 2,
@@ -155,7 +154,6 @@ namespace Rock.Blocks.Group.Scheduling
         Key = AttributeKey.CurrentScheduleHeader,
         Description = "Header content to show above the Current Schedule panel. <span class='tip tip-lava'></span>",
         EditorMode = CodeEditorMode.Lava,
-        EditorTheme = CodeEditorTheme.Rock,
         EditorHeight = 200,
         Category = AttributeCategory.CurrentSchedule,
         Order = 1,
@@ -226,7 +224,6 @@ namespace Rock.Blocks.Group.Scheduling
         Key = AttributeKey.UpdateSchedulePreferencesHeader,
         Description = "Header content to show above the Update Schedule Preferences panel. <span class='tip tip-lava'></span>",
         EditorMode = CodeEditorMode.Lava,
-        EditorTheme = CodeEditorTheme.Rock,
         EditorHeight = 200,
         Category = AttributeCategory.SchedulePreferences,
         Order = 2,
@@ -256,7 +253,6 @@ namespace Rock.Blocks.Group.Scheduling
         Key = AttributeKey.ScheduleUnavailabilityHeader,
         Description = "Header content to show above the Schedule Unavailability panel. <span class='tip tip-lava'></span>",
         EditorMode = CodeEditorMode.Lava,
-        EditorTheme = CodeEditorTheme.Rock,
         EditorHeight = 200,
         Category = AttributeCategory.ScheduleUnavailability,
         Order = 2,
@@ -270,7 +266,6 @@ namespace Rock.Blocks.Group.Scheduling
         Key = AttributeKey.ActionHeaderLavaTemplate,
         Description = "Header content to show above the action buttons. <span class='tip tip-lava'></span>",
         EditorMode = CodeEditorMode.Lava,
-        EditorTheme = CodeEditorTheme.Rock,
         EditorHeight = 200,
         DefaultValue = AttributeDefault.ActionHeaderLavaTemplate,
         Category = AttributeCategory.SharedSettings,
@@ -966,13 +961,22 @@ namespace Rock.Blocks.Group.Scheduling
             var includeGroupTypeGuids = GetAttributeValue( AttributeKey.IncludeGroupTypes ).SplitDelimitedValues().AsGuidList();
             var excludeGroupTypeGuids = GetAttributeValue( AttributeKey.ExcludeGroupTypes ).SplitDelimitedValues().AsGuidList();
 
+            /*
+                 7/29/2025 - MSE
+
+                 Group can be null for Unavailability entries that apply to "All Groups". These should always be included in the results
+                 for completeness and to prevent null reference exceptions when filtering by Group Type.
+
+                 Fixes: https://github.com/SparkDevNetwork/Rock/issues/6390
+            */
+
             if ( includeGroupTypeGuids.Any() )
             {
-                rows = rows.Where( gm => includeGroupTypeGuids.Contains( gm.Group.GroupType.Guid ) ).ToList();
+                rows = rows.Where( gm => gm.Group == null || includeGroupTypeGuids.Contains( gm.Group.GroupType.Guid ) ).ToList();
             }
             else if ( excludeGroupTypeGuids.Any() )
             {
-                rows = rows.Where( gm => !excludeGroupTypeGuids.Contains( gm.Group.GroupType.Guid ) ).ToList();
+                rows = rows.Where( gm => gm.Group == null || !excludeGroupTypeGuids.Contains( gm.Group.GroupType.Guid ) ).ToList();
             }
 
             // Sort and project all of the above into a final collection of rows.
@@ -1202,19 +1206,26 @@ namespace Rock.Blocks.Group.Scheduling
                 }
                 else // ToolboxScheduleRowActionType.Cancel || ToolboxScheduleRowActionType.Decline
                 {
-                    if ( !attendance.IsScheduledPersonDeclined() )
+                    response.IsDeclineReasonRequired = attendance.Occurrence?.Group?.GroupType?.RequiresReasonIfDeclineSchedule == true;
+                    if ( !response.IsDeclineReasonRequired && !attendance.IsScheduledPersonDeclined() )
                     {
+                        // If a decline reason is not required, go ahead and save the attendance and try sending
+                        // "scheduled person response" emails now. Otherwise, we'll wait to send them after the
+                        // decline reason is saved.
+
                         attendanceService.ScheduledPersonDecline( attendance.Id, null );
                         rockContext.SaveChanges();
+
+                        shouldTrySendingResponseEmails = !response.IsDeclineReasonRequired;
+                        response.NewStatus = ToolboxScheduleRowConfirmationStatus.Declined;
+                    }
+                    else
+                    {
+                        shouldTrySendingResponseEmails = false;
+                        response.NewStatus = bag.ExistingConfirmationStatus;
                     }
 
-                    response.NewStatus = ToolboxScheduleRowConfirmationStatus.Declined;
                     response.WasSchedulePreviouslyConfirmed = bag.ActionType == ToolboxScheduleRowActionType.Cancel;
-                    response.IsDeclineReasonRequired = attendance.Occurrence?.Group?.GroupType?.RequiresReasonIfDeclineSchedule == true;
-
-                    // If a decline reason is not required, go ahead and try sending "scheduled person response" emails now.
-                    // Otherwise, we'll wait to send them after the decline reason is saved.
-                    shouldTrySendingResponseEmails = !response.IsDeclineReasonRequired;
 
                     var declineReasonNote = GetAttributeValue( AttributeKey.DeclineReasonNote );
                     response.IsDeclineNoteRequired = declineReasonNote.ToLower() == "required";
@@ -1368,10 +1379,11 @@ namespace Rock.Blocks.Group.Scheduling
                 return;
             }
 
+            int? declineReasonValueId = null;
             var declineReasonValueGuid = bag.DeclineReason?.Value.AsGuidOrNull();
             if ( declineReasonValueGuid.HasValue )
             {
-                var declineReasonValueId = DefinedValueCache.GetId( declineReasonValueGuid.Value );
+                declineReasonValueId = DefinedValueCache.GetId( declineReasonValueGuid.Value );
                 if ( declineReasonValueId.HasValue )
                 {
                     attendance.DeclineReasonValueId = declineReasonValueId;
@@ -1382,6 +1394,8 @@ namespace Rock.Blocks.Group.Scheduling
             {
                 attendance.Note = bag.DeclineReasonNote;
             }
+
+            attendanceService.ScheduledPersonDecline( attendance.Id, declineReasonValueId );
 
             rockContext.SaveChanges();
 

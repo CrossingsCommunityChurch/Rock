@@ -46,22 +46,17 @@
  * - timeIntervalPicker
  */
 
-import { Component, computed, defineComponent, onMounted, onUnmounted, ref } from "vue";
-import { convertComponentName, getTemplateImportPath } from "./ControlGallery/common/utils.partial";
+import { Component, computed, defineComponent, onMounted, onUnmounted, ref, watch } from "vue";
+import { convertComponentName } from "./ControlGallery/common/utils.partial";
 import { getSecurityGrant, provideSecurityGrant, useConfigurationValues, onConfigurationValuesChanged, useReloadBlock } from "@Obsidian/Utility/block";
 import { ControlGalleryInitializationBox } from "@Obsidian/ViewModels/Blocks/Example/ControlGallery/controlGalleryInitializationBox";
-import { EntityType } from "@Obsidian/SystemGuids/entityType";
-import { PanelAction } from "@Obsidian/Types/Controls/panelAction";
-import { sleep } from "@Obsidian/Utility/promiseUtils";
 import { upperCaseFirstCharacter } from "@Obsidian/Utility/stringUtils";
 import GalleryAndResult from "./ControlGallery/common/galleryAndResult.partial.obs";
 import TextBox from "@Obsidian/Controls/textBox.obs";
-import CheckBox from "@Obsidian/Controls/checkBox.obs";
-import CheckBoxList from "@Obsidian/Controls/checkBoxList.obs";
 import Panel from "@Obsidian/Controls/panel.obs";
-import DetailBlock from "@Obsidian/Templates/detailBlock";
 import SectionHeader from "@Obsidian/Controls/sectionHeader.obs";
 import NotificationBox from "@Obsidian/Controls/notificationBox.obs";
+import DetailBlockGallery from "./ControlGallery/detailBlockGallery.partial.obs";
 import DropDownMenuGallery from "./ControlGallery/dropDownMenuGallery.partial.obs";
 import DropDownContentGallery from "./ControlGallery/dropDownContentGallery.partial.obs";
 import ButtonDropDownListGallery from "./ControlGallery/buttonDropDownListGallery.partial.obs";
@@ -69,7 +64,7 @@ import CampusAccountAmountPickerGallery from "./ControlGallery/campusAccountAmou
 import PersonPickerGallery from "./ControlGallery/personPickerGallery.partial.obs";
 import ImageEditorGallery from "./ControlGallery/imageEditorGallery.partial.obs";
 import HighlightLabelGallery from "./ControlGallery/highlightLabelGallery.partial.obs";
-import LightGridGallery from "./ControlGallery/lightGridGallery.partial.obs";
+import GridGallery from "./ControlGallery/gridGallery.partial.obs";
 import PdfViewerGallery from "./ControlGallery/pdfViewerGallery.partial.obs";
 import ChartGallery from "./ControlGallery/chartGallery.partial.obs";
 import EntityPickerGallery from "./ControlGallery/entityPickerGallery.partial.obs";
@@ -248,6 +243,22 @@ import ValueListGallery from "./ControlGallery/valueListGallery.partial.obs";
 import BlockTemplatePickerGallery from "./ControlGallery/blockTemplatePickerGallery.partial.obs";
 import AdaptiveMessagePickerGallery from "./ControlGallery/adaptiveMessagePickerGallery.partial.obs";
 import EmailEditorGallery from "./ControlGallery/emailEditorGallery.partial.obs";
+import KpiGallery from "./ControlGallery/kpiGallery.partial.obs";
+import LearningClassPickerGallery from "./ControlGallery/learningClassPickerGallery.partial.obs";
+import LearningClassActivityPickerGallery from "./ControlGallery/learningClassActivityPickerGallery.partial.obs";
+import DisplayCardGallery from "./ControlGallery/displayCardGallery.partial.obs";
+import DisplayCardContainerGallery from "./ControlGallery/displayCardContainerGallery.partial.obs";
+import IconPickerGallery from "./ControlGallery/iconPickerGallery.partial.obs";
+import ContentStackGallery from "./ControlGallery/contentStackGallery.partial.obs";
+import ContentSectionGallery from "./ControlGallery/contentSectionGallery.partial.obs";
+import ContentSectionContainerGallery from "./ControlGallery/contentSectionContainerGallery.partial.obs";
+import LineChartGallery from "./ControlGallery/lineChartGallery.partial.obs";
+import ContextSlicerGallery from "./ControlGallery/contextSlicerGallery.partial.obs";
+import CampusContextPickerGallery from "./ControlGallery/campusContextPickerGallery.partial.obs";
+import BarChartGallery from "./ControlGallery/barChartGallery.partial.obs";
+import PieChartGallery from "./ControlGallery/pieChartGallery.partial.obs";
+import ExperieceModePickerGallery from "./ControlGallery/experienceModePickerGallery.partial.obs";
+import PageTreeGallery from "./ControlGallery/pageTreeGallery.partial.obs";
 
 const controlGalleryComponents: Record<string, Component> = [
     NotificationBoxGallery,
@@ -404,7 +415,7 @@ const controlGalleryComponents: Record<string, Component> = [
     DropDownContentGallery,
     ButtonDropDownListGallery,
     CampusAccountAmountPickerGallery,
-    LightGridGallery,
+    GridGallery,
     ImageEditorGallery,
     HighlightLabelGallery,
     PdfViewerGallery,
@@ -435,7 +446,23 @@ const controlGalleryComponents: Record<string, Component> = [
     PageNavButtonsGallery,
     SearchFieldGallery,
     AdaptiveMessagePickerGallery,
-    EmailEditorGallery
+    EmailEditorGallery,
+    KpiGallery,
+    LearningClassPickerGallery,
+    LearningClassActivityPickerGallery,
+    DisplayCardGallery,
+    DisplayCardContainerGallery,
+    IconPickerGallery,
+    ContentStackGallery,
+    ContentSectionGallery,
+    ContentSectionContainerGallery,
+    LineChartGallery,
+    ContextSlicerGallery,
+    CampusContextPickerGallery,
+    BarChartGallery,
+    PieChartGallery,
+    ExperieceModePickerGallery,
+    PageTreeGallery,
 ]
     // Fix vue 3 SFC putting name in __name.
     .map(a => {
@@ -452,236 +479,8 @@ const controlGalleryComponents: Record<string, Component> = [
 
 // #region Template Gallery
 
-/** Demonstrates the detailPanel component. */
-const detailBlockGallery = defineComponent({
-    name: "DetailBlockGallery",
-    components: {
-        GalleryAndResult,
-        CheckBox,
-        CheckBoxList,
-        DetailBlock
-    },
-
-    setup() {
-        const simulateValues = ref<string[]>([]);
-
-        const headerActions = computed((): PanelAction[] => {
-            if (!simulateValues.value.includes("headerActions")) {
-                return [];
-            }
-
-            return [
-                {
-                    iconCssClass: "fa fa-user",
-                    title: "Action 1",
-                    type: "default",
-                    handler: () => alert("Action 1 selected.")
-                },
-                {
-                    iconCssClass: "fa fa-group",
-                    title: "Action 2",
-                    type: "success",
-                    handler: () => alert("Action 2 selected.")
-                }
-            ];
-        });
-
-        const labels = computed((): PanelAction[] => {
-            if (!simulateValues.value.includes("labels")) {
-                return [];
-            }
-
-            return [
-                {
-                    iconCssClass: "fa fa-user",
-                    title: "Action 1",
-                    type: "info",
-                    handler: () => alert("Action 1 selected.")
-                },
-                {
-                    iconCssClass: "fa fa-group",
-                    title: "Action 2",
-                    type: "success",
-                    handler: () => alert("Action 2 selected.")
-                }
-            ];
-        });
-
-        const headerSecondaryActions = computed((): PanelAction[] => {
-            if (!simulateValues.value.includes("headerSecondaryActions")) {
-                return [];
-            }
-
-            return [
-                {
-                    iconCssClass: "fa fa-user",
-                    title: "Action 1",
-                    type: "default",
-                    handler: () => alert("Action 1 selected.")
-                },
-                {
-                    iconCssClass: "fa fa-group",
-                    title: "Action 2",
-                    type: "success",
-                    handler: () => alert("Action 2 selected.")
-                }
-            ];
-        });
-
-        const footerActions = computed((): PanelAction[] => {
-            if (!simulateValues.value.includes("footerActions")) {
-                return [];
-            }
-
-            return [
-                {
-                    iconCssClass: "fa fa-user",
-                    title: "Action 1",
-                    type: "default",
-                    handler: () => alert("Action 1 selected.")
-                },
-                {
-                    iconCssClass: "fa fa-group",
-                    title: "Action 2",
-                    type: "success",
-                    handler: () => alert("Action 2 selected.")
-                }
-            ];
-        });
-
-        const footerSecondaryActions = computed((): PanelAction[] => {
-            if (!simulateValues.value.includes("footerSecondaryActions")) {
-                return [];
-            }
-
-            return [
-                {
-                    iconCssClass: "fa fa-user",
-                    title: "Action 1",
-                    type: "default",
-                    handler: () => alert("Action 1 selected.")
-                },
-                {
-                    iconCssClass: "fa fa-group",
-                    title: "Action 2",
-                    type: "success",
-                    handler: () => alert("Action 2 selected.")
-                }
-            ];
-        });
-
-        return {
-            colors: Array.apply(0, Array(256)).map((_: unknown, index: number) => `rgb(${index}, ${index}, ${index})`),
-            entityTypeGuid: EntityType.Group,
-            footerActions,
-            footerSecondaryActions,
-            headerActions,
-            headerSecondaryActions,
-            isAuditHidden: ref(false),
-            isBadgesVisible: ref(true),
-            isDeleteVisible: ref(true),
-            isEditVisible: ref(true),
-            isFollowVisible: ref(true),
-            isSecurityHidden: ref(false),
-            isTagsVisible: ref(false),
-            labels,
-            simulateValues,
-            simulateOptions: [
-                {
-                    value: "headerActions",
-                    text: "Header Actions"
-                },
-                {
-                    value: "headerSecondaryActions",
-                    text: "Header Secondary Actions"
-                },
-                {
-                    value: "labels",
-                    text: "Labels",
-                },
-                {
-                    value: "footerActions",
-                    text: "Footer Actions"
-                },
-                {
-                    value: "footerSecondaryActions",
-                    text: "Footer Secondary Actions"
-                },
-                {
-                    value: "helpContent",
-                    text: "Help Content"
-                }
-            ],
-            simulateHelp: computed((): boolean => simulateValues.value.includes("helpContent")),
-            delayedHandler: async () => {
-                await sleep(1000);
-                return true;
-            },
-            importCode: getTemplateImportPath("detailBlock"),
-            exampleCode: `<DetailBlock name="Sample Entity" :entityTypeGuid="entityTypeGuid" entityTypeName="Entity Type" entityKey="57dc00a3-ff88-4d4c-9878-30ae309117e2" />`
-        };
-    },
-    template: `
-<GalleryAndResult
-    :importCode="importCode"
-    :exampleCode="exampleCode">
-    <DetailBlock name="Sample Entity"
-        :entityTypeGuid="entityTypeGuid"
-        entityTypeName="Entity Type"
-        entityKey="57dc00a3-ff88-4d4c-9878-30ae309117e2"
-        :headerActions="headerActions"
-        :headerSecondaryActions="headerSecondaryActions"
-        :labels="labels"
-        :footerActions="footerActions"
-        :footerSecondaryActions="footerSecondaryActions"
-        :isAuditHidden="isAuditHidden"
-        :isEditVisible="isEditVisible"
-        :isDeleteVisible="isDeleteVisible"
-        :isFollowVisible="isFollowVisible"
-        :isBadgesVisible="isBadgesVisible"
-        :isSecurityHidden="isSecurityHidden"
-        :isTagsVisible="isTagsVisible"
-        @save="delayedHandler"
-        @edit="delayedHandler"
-        @delete="delayedHandler">
-        <template v-if="simulateHelp" #helpContent>
-            This is some help text.
-        </template>
-        <div v-for="c in colors" :style="{ background: c, height: '1px' }"></div>
-    </DetailBlock>
-
-    <template #settings>
-        <div class="row">
-            <div class="col-md-3">
-                <CheckBox v-model="isAuditHidden" label="Is Audit Hidden" />
-            </div>
-            <div class="col-md-3">
-                <CheckBox v-model="isBadgesVisible" label="Is Badges Visible" />
-            </div>
-            <div class="col-md-3">
-                <CheckBox v-model="isDeleteVisible" label="Is Delete Visible" />
-            </div>
-            <div class="col-md-3">
-                <CheckBox v-model="isEditVisible" label="Is Edit Visible" />
-            </div>
-            <div class="col-md-3">
-                <CheckBox v-model="isFollowVisible" label="Is Follow Visible" />
-            </div>
-            <div class="col-md-3">
-                <CheckBox v-model="isSecurityHidden" label="Is Security Hidden" />
-            </div>
-            <div class="col-md-3">
-                <CheckBox v-model="isTagsVisible" label="Is Tags Visible" />
-            </div>
-        </div>
-
-        <CheckBoxList v-model="simulateValues" label="Simulate" :items="simulateOptions" horizontal />
-    </template>
-</GalleryAndResult>`
-});
-
 const templateGalleryComponents = [
-    detailBlockGallery
+    DetailBlockGallery
 ]
     .map(a => {
         a.name = a.__name ?? a.name;
@@ -1002,6 +801,7 @@ export default defineComponent({
     components: {
         Panel,
         SectionHeader,
+        TextBox,
         ...controlGalleryComponents,
         ...templateGalleryComponents,
         ...generalInformationGalleryComponents
@@ -1014,6 +814,7 @@ export default defineComponent({
 
         onConfigurationValuesChanged(useReloadBlock());
 
+        const componentFilter = ref<string>("");
         const currentComponent = ref<Component>(Object.values(controlGalleryComponents)[0]);
 
         function getComponentFromHash(): void {
@@ -1030,7 +831,45 @@ export default defineComponent({
             }
         }
 
+        function getComponentFilterFromQueryString(): void {
+            const url = new URL(window.location.href);
+
+            componentFilter.value = url.searchParams.get("q") ?? "";
+        }
+
+        function filterComponents(source: Record<string, Component>): Record<string, Component> {
+            const components = { ...source };
+
+            if (componentFilter.value) {
+                Object.keys(components).forEach(key => {
+                    if (!components[key].name!.toLowerCase().includes(componentFilter.value.toLowerCase())) {
+                        delete components[key];
+                    }
+                });
+            }
+            return components;
+        }
+
+        const filteredControlGalleryComponents = computed(() => {
+            return filterComponents(controlGalleryComponents);
+        });
+
+        const filteredTemplateGalleryComponents = computed(() => {
+            return filterComponents(templateGalleryComponents);
+        });
+
+        const filteredGeneralInformationGalleryComponents = computed(() => {
+            return filterComponents(generalInformationGalleryComponents);
+        });
+
         getComponentFromHash();
+        getComponentFilterFromQueryString();
+
+        watch(componentFilter, () => {
+            const url = new URL(window.location.href);
+            url.searchParams.set("q", componentFilter.value);
+            window.history.replaceState({}, "", url.toString());
+        });
 
         onMounted(() => {
             window.addEventListener("hashchange", getComponentFromHash);
@@ -1041,28 +880,58 @@ export default defineComponent({
         });
 
         return {
+            componentFilter,
             currentComponent,
             convertComponentName,
-            controlGalleryComponents,
-            templateGalleryComponents,
-            generalInformationGalleryComponents
+            controlGalleryComponents: filteredControlGalleryComponents,
+            templateGalleryComponents: filteredTemplateGalleryComponents,
+            generalInformationGalleryComponents: filteredGeneralInformationGalleryComponents
         };
     },
 
     template: `
 <v-style>
+.galleryContainer {
+    overflow: hidden;
+}
+
+.galleryContainer .input-container {
+    padding: var(--spacing-xsmall);
+    border-right: 1px solid var(--color-interface-soft);
+    background-color: var(--color-interface-softer);
+}
+
 .gallerySidebar {
     border-radius: 0;
     margin: -1px 0 -1px -1px;
     overflow-y: auto;
-    flex-shrink: 0;
+    flex-grow: 1;
+    width: 300px;
+}
+
+.gallerySidebar li {
+    margin-bottom: var(--spacing-tiny);
+}
+
+.gallerySidebar li:hover {
+    background-color: rgba(0, 0, 0, 0.05);
+    border-radius: var(--spacing-tiny);
 }
 
 .gallerySidebar li.current {
     font-weight: 700;
 }
 
+.gallerySidebar li > a {
+    display: block;
+    margin-left: var(--spacing-small);
+    text-indent: calc(0px - var(--spacing-small));
+    padding: var(--spacing-tiny);
+}
+
 .galleryContent {
+    display: flex;
+    flex-direction: column;
     flex-grow: 1;
     overflow-x: clip;
     overflow-y: auto;
@@ -1090,30 +959,36 @@ export default defineComponent({
     </template>
     <template #default>
         <div class="panel-flex-fill-body flex-row galleryContainer">
+            <div class="d-flex flex-column">
+                <TextBox v-model="componentFilter"
+                         class="search-input"
+                         placeholder="Search"
+                         isClearable />
 
-            <div class="gallerySidebar well">
-                <h4>Components</h4>
+                <div class="gallerySidebar well">
+                    <h4>Components</h4>
 
-                <ul class="list-unstyled mb-0">
-                    <li v-for="(component, key) in controlGalleryComponents" :key="key" :class="{current: currentComponent.name === component.name}">
-                        <a :href="'#' + key" @click="currentComponent = component">{{ convertComponentName(component.name) }}</a>
-                    </li>
-                </ul>
+                    <ul class="list-unstyled mb-0">
+                        <li v-for="(component, key) in controlGalleryComponents" :key="key" :class="{current: currentComponent.name === component.name}">
+                            <a :href="'#' + key" @click="currentComponent = component">{{ convertComponentName(component.name) }}</a>
+                        </li>
+                    </ul>
 
-                <h4 class="mt-3">Templates</h4>
+                    <h4 class="mt-3">Templates</h4>
 
-                <ul class="list-unstyled mb-0">
-                    <li v-for="(component, key) in templateGalleryComponents" :key="key" :class="{current: currentComponent.name === component.name}">
-                        <a :href="'#' + key" @click="currentComponent = component">{{ convertComponentName(component.name) }}</a>
-                    </li>
-                </ul>
+                    <ul class="list-unstyled mb-0">
+                        <li v-for="(component, key) in templateGalleryComponents" :key="key" :class="{current: currentComponent.name === component.name}">
+                            <a :href="'#' + key" @click="currentComponent = component">{{ convertComponentName(component.name) }}</a>
+                        </li>
+                    </ul>
 
-                <h4 class="mt-3">General Information</h4>
-                <ul class="list-unstyled mb-0">
-                    <li v-for="(component, key) in generalInformationGalleryComponents" :key="key" :class="{current: currentComponent.name === component.name}">
-                        <a :href="'#' + key" @click="currentComponent = component">{{ convertComponentName(component.name) }}</a>
-                    </li>
-                </ul>
+                    <h4 class="mt-3">General Information</h4>
+                    <ul class="list-unstyled mb-0">
+                        <li v-for="(component, key) in generalInformationGalleryComponents" :key="key" :class="{current: currentComponent.name === component.name}">
+                            <a :href="'#' + key" @click="currentComponent = component">{{ convertComponentName(component.name) }}</a>
+                        </li>
+                    </ul>
+                </div>
             </div>
 
             <div class="galleryContent">

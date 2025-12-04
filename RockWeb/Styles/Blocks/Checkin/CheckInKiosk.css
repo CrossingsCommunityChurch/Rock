@@ -1,6 +1,11 @@
 ﻿
 
 /* These are default styles to be moved to the theme or something. */
+
+html body {
+   overflow: hidden;
+}
+
 .check-in-page {
     width: 100vw;
     height: 100vh;
@@ -28,6 +33,10 @@
 .check-in-page .btn-default {
     background-color: var(--color-interface-softer);
     color: var(--color-interface-strong);
+}
+
+.check-in-page .grid-obsidian .btn-default {
+    background-color:  transparent;
 }
 
 .check-in-page  .btn.btn-default.check-in-button {
@@ -434,6 +443,14 @@
     font-size: var(--font-size-h4);
 }
 
+.check-in-page .welcome-screen.camera-disabled .start-button {
+    grid-row: 1/3;
+}
+
+.check-in-page .welcome-screen.camera-disabled .scan-barcode-button {
+    display: none;
+}
+
 .check-in-page .welcome-screen.kiosk-closed,
 .check-in-page .welcome-screen.kiosk-not-open,
 .check-in-page .welcome-screen.kiosk-not-open-yet {
@@ -511,6 +528,7 @@
  */
 .check-in-page .schedule-select-screen .button-list {
     flex-direction: row;
+    flex-wrap: wrap;
     justify-content: center;
 }
 

@@ -48,9 +48,9 @@
 
         <div class="row">
             <div class="col-md-6">
-                <TextBox v-model="achievementIconCssClass"
-                         label="Icon CSS Class"
-                         help="The font awesome icon class to use for this achievement." />
+                <IconPicker v-model="achievementIconCssClass"
+                            label="Icon CSS Class"
+                            help="The font awesome icon class to use for this achievement." />
             </div>
 
             <div class="col-md-3">
@@ -153,14 +153,12 @@
 
             <CodeEditor v-model="badgeLavaTemplate"
                         label="Badge Lava Template"
-                        theme="rock"
                         mode="lava"
                         :editorHeight="200"
                         help="The template to use when displaying a badge for this achievement." />
 
             <CodeEditor v-model="resultsLavaTemplate"
                         label="Results Lava Template"
-                        theme="rock"
                         mode="lava"
                         :editorHeight="200"
                         help="The template to use when displaying the results for this achievement." />
@@ -186,7 +184,6 @@
 
             <CodeEditor v-model="customSummaryLavaTemplate"
                         label="Custom Summary Lava Template"
-                        theme="rock"
                         mode="lava"
                         :editorHeight="200"
                         help="The lava template used to render the status summary of the achievement. If this is blank, a default will be used." />
@@ -199,6 +196,7 @@
     import AttributeValuesContainer from "@Obsidian/Controls/attributeValuesContainer.obs";
     import CheckBox from "@Obsidian/Controls/checkBox.obs";
     import TextBox from "@Obsidian/Controls/textBox.obs";
+    import IconPicker from "@Obsidian/Controls/iconPicker.obs";
     import CategoryPicker from "@Obsidian/Controls/categoryPicker.obs";
     import ColorPicker from "@Obsidian/Controls/colorPicker.obs";
     import NumberBox from "@Obsidian/Controls/numberBox.obs";

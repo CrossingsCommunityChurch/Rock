@@ -61,6 +61,7 @@
                     <Rock:NotificationBox ID="nbWarningMessage" runat="server" NotificationBoxType="Warning" />
                     <asp:ValidationSummary ID="ValidationSummary1" runat="server" HeaderText="Please correct the following:" CssClass="alert alert-validation" />
                     <Rock:NotificationBox ID="nbEditModeMessage" runat="server" NotificationBoxType="Info" />
+                    <Rock:ModalAlert ID="mdGridWarning" runat="server" />
                         
                     <asp:HiddenField ID="hfContentLibraryItemGuid" runat="server" />
                     <Rock:PanelWidget ID="pwContentLibraryUploaded" runat="server" Visible="false" Title="Uploaded to Community Content Library">
@@ -102,14 +103,14 @@
                                                     <input id="slugId" class="js-slug-id" type="hidden" value="<%# Eval("Id") %>" />
                                                     <span class="js-slug-literal"><%# Eval("Slug") %></span>
                                                     <div class="rollover-item control-actions pull-right">
-                                                        <a class="js-slug-edit margin-r-md" href="#"><i class="fa fa-pencil"></i></a>
-                                                        <a class="js-slug-remove" href="#"><i class="fa fa-close"></i></a>
+                                                        <a class="js-slug-edit margin-r-md" href="#"><i class="ti ti-pencil"></i></a>
+                                                        <a class="js-slug-remove" href="#"><i class="ti ti-x"></i></a>
                                                     </div>
                                                 </div>
                                             </ItemTemplate>
                                         </asp:Repeater>
                                         <a id="lbAdd" title="Add Slug" class="btn btn-xs btn-action btn-square">
-                                            <i class="fa fa-plus-circle"></i>
+                                            <i class="ti ti-circle-plus"></i>
                                         </a>
                                     </div>
                                 </Rock:RockControlWrapper>
@@ -139,7 +140,7 @@
                                     <div class="form-group rollover-container">
                                         <asp:Label ID="lblItemGlobalKey" runat="server"></asp:Label>
                                         <div class="rollover-item control-actions pull-right">
-                                            <asp:LinkButton ID="lbRefreshItemGlobalKey" runat="server" CssClass="btn btn-default btn-sm" OnClick="lbRefreshItemGlobalKey_Click" OnClientClick="Rock.dialogs.confirmPreventOnCancel( event, 'Are you sure you wish to update the item identifier? If the current value is being used elsewhere it will break the link.');"><i class="fa fa-redo"></i></asp:LinkButton>
+                                            <asp:LinkButton ID="lbRefreshItemGlobalKey" runat="server" CssClass="btn btn-default btn-sm" OnClick="lbRefreshItemGlobalKey_Click" OnClientClick="Rock.dialogs.confirmPreventOnCancel( event, 'Are you sure you wish to update the item identifier? If the current value is being used elsewhere it will break the link.');"><i class="ti ti-arrow-forward-up"></i></asp:LinkButton>
                                         </div>
                                     </div>
                                 </Rock:RockControlWrapper>
@@ -159,7 +160,7 @@
                         <div class="row">
                             <div class="col-md-12">
                                 <Rock:HtmlEditor ID="htmlContent" runat="server" Label="Content" ResizeMaxWidth="720" Height="300" />
-                                <Rock:StructureContentEditor ID="sceContent" runat="server" Label="Content" />
+                                <Rock:StructureContentEditor ID="sceContent" runat="server" Label="Content" EditorBottomPadding="300" />
                             </div>
                         </div>
 
@@ -267,6 +268,12 @@
         <Rock:ModalDialog ID="mdRedownload" runat="server" SaveButtonText="Yes" OnSaveClick="mdRedownload_SaveClick" Title="Re-download and Refresh">
             <Content>
                 <Rock:NotificationBox ID="nbRedownloadWarning" runat="server" NotificationBoxType="Warning" Text="The action you are about to perform will overwrite the existing content of the article. Any changes will be lost. Are you sure you want to proceed with the update?" />
+            </Content>
+        </Rock:ModalDialog>
+
+        <Rock:ModalDialog ID="mdDelete" runat="server" SaveButtonText="Delete" Title="Delete Content Item" OnSaveClick="mdDelete_SaveClick">
+            <Content>
+                <Rock:NotificationBox ID="nbDeleteWarning" runat="server" NotificationBoxType="Warning" Text="This action will permanently delete this content item. This cannot be undone. Are you sure you want to proceed?" />
             </Content>
         </Rock:ModalDialog>
 

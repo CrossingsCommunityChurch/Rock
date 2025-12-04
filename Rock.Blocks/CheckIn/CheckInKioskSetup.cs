@@ -25,6 +25,7 @@ using System.Threading.Tasks;
 using Rock.Attribute;
 using Rock.CheckIn.v2;
 using Rock.Data;
+using Rock.Enums.CheckIn;
 using Rock.Model;
 using Rock.Security;
 using Rock.Utility.ExtensionMethods;
@@ -43,7 +44,7 @@ namespace Rock.Blocks.CheckIn
     [DisplayName( "Check-in Kiosk Setup" )]
     [Category( "Check-in" )]
     [Description( "Sets kiosk options and then starts the kiosk to allow self check-in." )]
-    [IconCssClass( "fa fa-clipboard" )]
+    [IconCssClass( "ti ti-clipboard" )]
     [SupportedSiteTypes( Model.SiteType.Web )]
 
     #region Block Attributes
@@ -147,15 +148,22 @@ namespace Rock.Blocks.CheckIn
         /// <returns>A new instance of <see cref="KioskBag"/>.</returns>
         internal static WebKioskBag GetKioskBag( DeviceCache kiosk )
         {
+            var isAddingFamiliesAllowed = kiosk.GetAttributeValue( SystemKey.DeviceAttributeKey.DEVICE_KIOSK_ALLOW_ADDING_FAMILIES ).AsBoolean();
+            var isEditingFamiliesAllowed = kiosk.GetAttributeValue( SystemKey.DeviceAttributeKey.DEVICE_KIOSK_ALLOW_EDITING_FAMILIES ).AsBoolean();
+            var allowAddingIndividualsToExistingFamilies = kiosk.GetAttributeValue( SystemKey.DeviceAttributeKey.DEVICE_KIOSK_ALLOW_ADDING_INDIVIDUALS_TO_EXISTING_FAMILIES ).ConvertToEnum<AdultsOrChildrenSelectionMode>();
+
             var bag = new WebKioskBag
             {
+                AllowAddingIndividualsToExistingFamilies = allowAddingIndividualsToExistingFamilies,
                 Id = kiosk.IdKey,
                 IdNumber = kiosk.Id,
                 Name = kiosk.Name,
                 Type = kiosk.KioskType,
                 IsCameraEnabled = kiosk.HasCamera,
                 CameraMode = kiosk.CameraBarcodeConfigurationType ?? CameraBarcodeConfiguration.Off,
-                IsRegistrationModeEnabled = kiosk.GetAttributeValue( "core_device_RegistrationMode" ).AsBoolean()
+                IsRegistrationModeEnabled = isAddingFamiliesAllowed || isEditingFamiliesAllowed,
+                IsAddingFamiliesEnabled = isAddingFamiliesAllowed,
+                IsEditingFamiliesEnabled = isEditingFamiliesAllowed
             };
 
             return bag;

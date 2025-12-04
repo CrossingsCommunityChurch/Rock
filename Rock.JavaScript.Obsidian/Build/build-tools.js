@@ -410,9 +410,6 @@ class DeclarationBuilder {
         /** @type BuildTask[] */
         this.buildTasks = [];
 
-        /** @type string */
-        this.execPath = path.join(__dirname, "obs-tsc.js");
-
         /** @type string[] */
         this.arguments = ["--declaration", "--emitDeclarationOnly"];
     }
@@ -529,7 +526,7 @@ class DeclarationBuilder {
                 continue;
             }
 
-            const proc = spawn("node", [this.execPath, ...this.arguments, "-p", project.projectFile]);
+            const proc = spawn("npx", ["vue-tsc", ...this.arguments, "-p", project.projectFile], { shell: true, stdio: "inherit" });
 
             this.buildTasks.push({
                 projectFile: project.projectFile,
@@ -558,10 +555,7 @@ class DeclarationBuilder {
                 const duration = Math.floor(performance.now() - this.buildTasks[buildIndex].start);
                 const relativeFile = path.relative(process.cwd(), project.projectFile);
 
-                console.log(`Project '${relativeFile}' ${project.failed ? "failed to build" : "built"} in ${duration}ms.`);
-
-                proc.stderr.pipe(process.stderr);
-                proc.stdout.pipe(process.stdout);
+                console.log(`Project '${relativeFile}' ${project.failed ? "failed to build" : "built"} in ${duration.toLocaleString()}ms.`);
 
                 this.buildTasks.splice(buildIndex, 1);
 
@@ -600,6 +594,8 @@ class DeclarationBuilder {
             return true;
         }
 
+        // Check all the files referenced in the last build to see if they are
+        // newer than the build info file. If they are, then we need to rebuild.
         for (const filename of buildInfo.program.fileNames) {
             let resolvedFilename = path.resolve(path.dirname(buildInfoFile), filename);
 
@@ -625,6 +621,28 @@ class DeclarationBuilder {
             }
 
             const fileStamp = fs.statSync(resolvedFilename).mtimeMs;
+            if (fileStamp >= buildInfoStamp) {
+                return true;
+            }
+        }
+
+        // Check for any files that had compiler errors last time we ran.
+        for (const fileDiagnostic of buildInfo.program.semanticDiagnosticsPerFile) {
+            if (Array.isArray(fileDiagnostic)) {
+                for (const diagnostic of fileDiagnostic[1]) {
+                    if (diagnostic.category === 1) {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        // Do a final check of all files in the source directory. If any new
+        // files got added then this will pick then up and rebuild.
+        const files = glob.globSync(path.dirname(project.projectFile).replace(/\\/g, "/") + "/**/*");
+
+        for (const file of files) {
+            const fileStamp = fs.statSync(file).mtimeMs;
             if (fileStamp >= buildInfoStamp) {
                 return true;
             }

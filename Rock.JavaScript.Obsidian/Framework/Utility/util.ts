@@ -33,6 +33,7 @@ export function deepEqual(a: unknown, b: unknown, strict: boolean): boolean {
     if (strict && a === b) {
         return true;
     }
+    // eslint-disable-next-line eqeqeq
     else if (!strict && a == b) {
         return true;
     }
@@ -267,4 +268,11 @@ export function isNullish(value: unknown): value is null | undefined {
  */
 export function isNotNullish<T>(item: T): item is NonNullable<T> {
     return !isNullish(item);
+}
+
+/**
+ * Blindly asserts that the value is of type T.
+ */
+export function assertType<T>(value: unknown): value is T {
+    return true;
 }

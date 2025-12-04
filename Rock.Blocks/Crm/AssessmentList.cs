@@ -37,7 +37,7 @@ namespace Rock.Blocks.Crm
     [DisplayName( "Assessment List" )]
     [Category( "CRM" )]
     [Description( "Displays the details of a particular assessment." )]
-    [IconCssClass( "fa fa-question" )]
+    [IconCssClass( "ti ti-question-mark" )]
     [SupportedSiteTypes( Model.SiteType.Web )]
 
     #region Block Attributes
@@ -65,7 +65,6 @@ namespace Rock.Blocks.Crm
         Key = AttributeKey.LavaTemplate,
         Description = "The lava template to use to format the entire block.  <span class='tip tip-lava'></span> <span class='tip tip-html'></span>",
         EditorMode = CodeEditorMode.Html,
-        EditorTheme = CodeEditorTheme.Rock,
         EditorHeight = 400,
         IsRequired = true,
         DefaultValue = lavaTemplateDefaultValue,

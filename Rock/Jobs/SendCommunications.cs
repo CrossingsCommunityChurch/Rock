@@ -29,6 +29,7 @@ using Rock.Attribute;
 using Rock.Data;
 using Rock.Logging;
 using Rock.Model;
+using Rock.Observability;
 using Rock.Utility;
 using Rock.Web.Cache;
 
@@ -43,22 +44,13 @@ namespace Rock.Jobs
     #region Job Attributes
 
     [IntegerField(
-        "Delay Period",
-        Key = AttributeKey.DelayPeriod,
-        Description = "The number of minutes to wait before sending any new communication (If the communication block's 'Send When Approved' option is turned on, then a delay should be used here to prevent a send overlap).",
-        IsRequired = false,
-        DefaultIntegerValue = 30,
-        Category = "",
-        Order = 0 )]
-
-    [IntegerField(
         "Expiration Period",
         Key = AttributeKey.ExpirationPeriod,
         Description = "The number of days after a communication was created or scheduled to be sent when it should no longer be sent.",
         IsRequired = false,
         DefaultIntegerValue = 3,
         Category = "",
-        Order = 1 )]
+        Order = 0 )]
 
     [IntegerField(
         "Parallel Communications",
@@ -67,7 +59,7 @@ namespace Rock.Jobs
         IsRequired = false,
         DefaultIntegerValue = 3,
         Category = "",
-        Order = 2 )]
+        Order = 1 )]
 
     #endregion
 
@@ -81,7 +73,6 @@ namespace Rock.Jobs
         /// </summary>
         private static class AttributeKey
         {
-            public const string DelayPeriod = "DelayPeriod";
             public const string ExpirationPeriod = "ExpirationPeriod";
             public const string ParallelCommunications = "ParallelCommunications";
         }
@@ -104,9 +95,8 @@ namespace Rock.Jobs
         /// <inheritdoc cref="RockJob.Execute()" />
         public override void Execute()
         {
-            int expirationDays = this.GetAttributeValue( "ExpirationPeriod" ).AsInteger();
-            int delayMinutes = this.GetAttributeValue( "DelayPeriod" ).AsInteger();
-            int maxParallelization = this.GetAttributeValue( "ParallelCommunications" ).AsInteger();
+            int expirationDays = this.GetAttributeValue( AttributeKey.ExpirationPeriod ).AsInteger();
+            int maxParallelization = this.GetAttributeValue( AttributeKey.ParallelCommunications ).AsInteger();
 
             List<Model.Communication> sendCommunications = null;
             var startDateTime = RockDateTime.Now;
@@ -114,7 +104,7 @@ namespace Rock.Jobs
             using ( var rockContext = new RockContext() )
             {
                 sendCommunications = new CommunicationService( rockContext )
-                    .GetQueued( expirationDays, delayMinutes, false, false )
+                    .GetQueued( expirationDays, 0, false, false )
                     .AsNoTracking()
                     .ToList()
                     .OrderBy( c => c.Id )
@@ -199,35 +189,41 @@ namespace Rock.Jobs
                 throw new Exception( "One or more exceptions occurred sending communications..." + Environment.NewLine + exceptionMsgs.AsDelimited( Environment.NewLine ) );
             }
 
-            // check for communications that have not been sent but are past the expire date. Mark them as failed and set a warning.
-            var expireDateTimeEndWindow = RockDateTime.Now.AddDays( 0 - expirationDays );
-
-            // limit the query to only look a week prior to the window to avoid performance issue (it could be slow to query at ALL the communication recipient before the expire date, as there could several years worth )
-            var expireDateTimeBeginWindow = expireDateTimeEndWindow.AddDays( -7 );
-
-            startDateTime = RockDateTime.Now;
-            stopWatch = Stopwatch.StartNew();
-            using ( var rockContext = new RockContext() )
+            using ( var activity = ObservabilityHelper.StartActivity( "COMMUNICATION: Send Communications Job > Update Expired Recipients Status to 'Failed'" ) )
             {
-                var qryExpiredRecipients = new CommunicationRecipientService( rockContext ).Queryable()
-                    .Where( cr =>
-                        cr.Communication.Status == CommunicationStatus.Approved &&
-                        cr.Status == CommunicationRecipientStatus.Pending &&
-                        (
-                            ( !cr.Communication.FutureSendDateTime.HasValue && cr.Communication.ReviewedDateTime.HasValue && cr.Communication.ReviewedDateTime < expireDateTimeEndWindow && cr.Communication.ReviewedDateTime > expireDateTimeBeginWindow )
-                            || ( cr.Communication.FutureSendDateTime.HasValue && cr.Communication.FutureSendDateTime < expireDateTimeEndWindow && cr.Communication.FutureSendDateTime > expireDateTimeBeginWindow )
-                        ) );
+                // check for communications that have not been sent but are past the expire date. Mark them as failed and set a warning.
+                var expireDateTimeEndWindow = RockDateTime.Now.AddDays( 0 - expirationDays );
 
-                rockContext.BulkUpdate( qryExpiredRecipients, c => new CommunicationRecipient { Status = CommunicationRecipientStatus.Failed, StatusNote = "Communication was not sent before the expire window (possibly due to delayed approval)." } );
+                // limit the query to only look a week prior to the window to avoid performance issue (it could be slow to query at ALL the communication recipient before the expire date, as there could several years worth )
+                var expireDateTimeBeginWindow = expireDateTimeEndWindow.AddDays( -7 );
+
+                startDateTime = RockDateTime.Now;
+                stopWatch = Stopwatch.StartNew();
+                using ( var rockContext = new RockContext() )
+                {
+                    var qryExpiredRecipients = new CommunicationRecipientService( rockContext ).Queryable()
+                        .Where( cr =>
+                            cr.Communication.Status == CommunicationStatus.Approved &&
+                            cr.Status == CommunicationRecipientStatus.Pending &&
+                            (
+                                ( !cr.Communication.FutureSendDateTime.HasValue && cr.Communication.ReviewedDateTime.HasValue && cr.Communication.ReviewedDateTime < expireDateTimeEndWindow && cr.Communication.ReviewedDateTime > expireDateTimeBeginWindow )
+                                || ( cr.Communication.FutureSendDateTime.HasValue && cr.Communication.FutureSendDateTime < expireDateTimeEndWindow && cr.Communication.FutureSendDateTime > expireDateTimeBeginWindow )
+                            ) );
+
+                    rockContext.BulkUpdate( qryExpiredRecipients, c => new CommunicationRecipient { Status = CommunicationRecipientStatus.Failed, StatusNote = "Communication was not sent before the expire window (possibly due to delayed approval)." } );
+                }
+
+                Log( LogLevel.Information, @"Updated expired communication recipients' status to ""Failed"".", startDateTime, stopWatch.ElapsedMilliseconds );
             }
 
-            Log( LogLevel.Information, @"Updated expired communication recipients' status to ""Failed"".", startDateTime, stopWatch.ElapsedMilliseconds );
-
-            var statusMessage = SendEmailMetricsReminders();
-
-            if ( statusMessage.IsNotNullOrWhiteSpace() )
+            using ( var activity = ObservabilityHelper.StartActivity( "COMMUNICATION: Send Communications Job > Send Email Metrics Reminders" ) )
             {
-                this.Result += Environment.NewLine + statusMessage;
+                var statusMessage = SendEmailMetricsReminders();
+
+                if ( statusMessage.IsNotNullOrWhiteSpace() )
+                {
+                    this.Result += Environment.NewLine + statusMessage;
+                }
             }
         }
 
@@ -388,7 +384,7 @@ namespace Rock.Jobs
                 }
             };
             var metricsUrl = internalApplicationRoot.EnsureTrailingForwardslash() + communicationPage.BuildUrl().RemoveLeadingForwardslash();
-                
+
             var mergeFields = Rock.Lava.LavaHelper.GetCommonMergeFields( null );
             mergeFields.Add( "Person", data.EmailMetricsReminderRecipient );
             mergeFields.AddOrReplace( "MetricsUrl", metricsUrl );

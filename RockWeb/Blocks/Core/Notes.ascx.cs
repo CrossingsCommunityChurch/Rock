@@ -130,13 +130,13 @@ namespace RockWeb.Blocks.Core
     [CodeEditorField( "Note View Lava Template",
         Description = "The Lava Template to use when rendering the readonly view of all the notes.",
         EditorMode = CodeEditorMode.Lava,
-        EditorTheme = CodeEditorTheme.Rock,
         EditorHeight = 100,
         IsRequired = false,
         DefaultValue = @"{% include '~~/Assets/Lava/NoteViewList.lava' %}",
         Order = 15,
         Key = AttributeKey.NoteViewLavaTemplate )]
 
+    [Rock.Cms.DefaultBlockRole( Rock.Enums.Cms.BlockRole.Secondary )]
     [Rock.SystemGuid.BlockTypeGuid( Rock.SystemGuid.BlockType.NOTES )]
     public partial class Notes : RockBlock, ISecondaryBlock
     {

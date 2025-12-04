@@ -113,6 +113,9 @@ registerFieldType(FieldTypeGuids.Color, new ColorFieldType());
 import { ColorSelectorFieldType } from "./colorSelectorField.partial";
 registerFieldType(FieldTypeGuids.ColorSelector, new ColorSelectorFieldType());
 
+import { CommunicationFlowFieldType } from "./communicationFlowField.partial";
+registerFieldType(FieldTypeGuids.CommunicationFlow, new CommunicationFlowFieldType());
+
 import { ConditionalScaleFieldType } from "./conditionalScaleField.partial";
 registerFieldType(FieldTypeGuids.ConditionalScale, new ConditionalScaleFieldType());
 
@@ -244,6 +247,9 @@ registerFieldType(FieldTypeGuids.FinancialGateway, new FinancialGatewayFieldType
 
 import { FinancialStatementTemplateFieldType } from "./financialStatementTemplateField.partial";
 registerFieldType(FieldTypeGuids.FinancialStatementTemplate, new FinancialStatementTemplateFieldType());
+
+import { FinancialTransactionFieldType } from "./financialTransactionField.partial";
+registerFieldType(FieldTypeGuids.FinancialTransaction, new FinancialTransactionFieldType());
 
 import { FileFieldType } from "./fileField.partial";
 registerFieldType(FieldTypeGuids.File, new FileFieldType());

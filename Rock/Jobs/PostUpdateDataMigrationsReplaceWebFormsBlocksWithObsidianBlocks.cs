@@ -22,6 +22,8 @@ using System.IO;
 using System.Linq;
 using System.Text;
 
+using Microsoft.EntityFrameworkCore;
+
 using Rock.Attribute;
 using Rock.Data;
 using Rock.Model;
@@ -122,6 +124,28 @@ namespace Rock.Jobs
         /// </value>
         private string MigrationStrategy => this.GetAttributeValue( AttributeKey.MigrationStrategy );
 
+        private readonly Dictionary<string, string> AttributeFixes = new Dictionary<string, string>( StringComparer.OrdinalIgnoreCase )
+        {
+            {
+                "E664BB02-D501-40B0-AAD6-D8FA0E63438B",
+                @"
+                DECLARE @FundraisingListBlockTypeId int = (SELECT ISNULL([Id], 0) 
+                                                            FROM [BlockType] 
+                                                            WHERE [Guid] = 'e664bb02-d501-40b0-aad6-d8fa0e63438b')
+
+                UPDATE [A]
+                SET [A].[Key] = 'DetailPage',
+                    [A].[Name] = 'Detail Page'
+                FROM [Attribute] AS [A]
+                INNER JOIN [EntityType] AS [ET] ON [ET].[Id] = [A].[EntityTypeId]
+                WHERE [ET].[Name] = 'Rock.Model.Block'
+                    AND [A].[EntityTypeQualifierColumn] = 'BlockTypeId'
+                    AND [A].[EntityTypeQualifierValue] = @FundraisingListBlockTypeId
+                    AND [A].[Key] = 'DetailsPage'"
+            }
+        };
+
+
         #endregion
 
         #region Public Methods
@@ -190,7 +214,21 @@ namespace Rock.Jobs
             {
                 using ( var rockContext = new RockContext() )
                 {
-                    rockContext.Database.CommandTimeout = commandTimeout;
+                    // Check if the blockTypeGuidPair.Key exists in our AttributeFixes dictionary
+                    var oldBlockTypeGuid = blockTypeGuidPair.Key;
+                    if ( AttributeFixes.ContainsKey( oldBlockTypeGuid.ToString() ) )
+                    {
+                        rockContext.Database.ExecuteSqlCommand( AttributeFixes[oldBlockTypeGuid.ToString()] );
+
+                        // After we update the attribute we need to flush the cache for the Attributes of that Block Type.
+                        var blockTypeId = BlockTypeCache.GetId( oldBlockTypeGuid );
+                        if ( blockTypeId.HasValue )
+                        {
+                            AttributeCache.FlushAttributesForBlockType( blockTypeId.Value );
+                        }
+                    }
+
+                    rockContext.Database.SetCommandTimeout( commandTimeout );
                     var jobMigration = new JobMigration( rockContext );
                     var migrationHelper = new MigrationHelper( jobMigration );
                     ReplaceBlocksOfOneBlockTypeWithBlocksOfAnotherBlockType( blockTypeGuidPair.Key, blockTypeGuidPair.Value, rockContext, migrationHelper );
@@ -218,10 +256,8 @@ namespace Rock.Jobs
         {
             var oldBlockTypeId = BlockTypeCache.GetId( oldBlockTypeGuid );
             // If the old block is not found in the Cache, it mostly likely was deleted in a previous migration in a previous version.
-            // So we merely log it to the exception table and continue
             if ( !oldBlockTypeId.HasValue )
             {
-                ExceptionLogService.LogException( $"BlockType could not be found for guid '{oldBlockTypeGuid}' for the current block" );
                 return;
             }
 
@@ -299,6 +335,17 @@ namespace Rock.Jobs
                     rockContext.SaveChanges();
                 } );
 
+                /*
+                    10/30/2025 - KBH
+
+                    This is needed for a custom fix when swapping the Asset Manager Block with the Obsidian File Asset Manager Block.
+                    We need to update the Block Attributes for the newly created File Asset Manager Blocks.
+                */
+                if ( oldBlockTypeGuid == "13165D92-9CCD-4071-8484-3956169CB640".AsGuid() )
+                {
+                    UpdateFileAssetManagerAttributeValues( rockContext );
+                }
+
                 foreach ( var pageId in flushPageIds )
                 {
                     PageCache.FlushPage( pageId );
@@ -348,7 +395,14 @@ namespace Rock.Jobs
                 newBlockPreferences.Add( newBlockPersonPreference );
                 var newBlockPersonPreferenceKeyPrefix = PersonPreferenceService.GetPreferencePrefix( blockEntityType.GetEntityType(), newBlockPersonPreference.EntityId.ToIntSafe() );
                 var oldBlockPersonPreferenceKeyPrefix = PersonPreferenceService.GetPreferencePrefix( blockEntityType.GetEntityType(), oldBlockPersonPreference.EntityId.ToIntSafe() );
-                newBlockPersonPreference.Key = $"{newBlockPersonPreferenceKeyPrefix}{oldBlockPersonPreference.Key.Substring( oldBlockPersonPreferenceKeyPrefix.Length )}";
+                if ( oldBlockPersonPreference.Key.Contains( oldBlockPersonPreferenceKeyPrefix ) && oldBlockPersonPreference.Key.Length > oldBlockPersonPreferenceKeyPrefix.Length )
+                {
+                    newBlockPersonPreference.Key = $"{newBlockPersonPreferenceKeyPrefix}{oldBlockPersonPreference.Key.Substring( oldBlockPersonPreferenceKeyPrefix.Length )}";
+                }
+                else
+                {
+                    newBlockPersonPreference.Key = $"{newBlockPersonPreferenceKeyPrefix}{oldBlockPersonPreference.Key}";
+                }
             }
 
             personPreferenceService.AddRange( newBlockPreferences );
@@ -400,6 +454,18 @@ namespace Rock.Jobs
             {
                 // Shallow clone the old block without copying its identity information so we can save new blocks.
                 var newBlock = oldBlock.CloneWithoutIdentity();
+
+                /*
+                    10/30/2025 - KBH
+
+                    This is needed for a custom fix when swapping the Asset Manager Block with the Obsidian File Asset Manager Block.
+                    We need to keep track of which Blocks were originally Asset Manager Blocks so that we can update their Block
+                    Attributes later.
+                */
+                if ( oldBlockTypeGuid == "13165D92-9CCD-4071-8484-3956169CB640".AsGuid() )
+                {
+                    newBlock.ForeignGuid = oldBlockTypeGuid;
+                }
 
                 // Overwrite the block type ID.
                 newBlock.BlockTypeId = newBlockTypeId;
@@ -487,6 +553,100 @@ namespace Rock.Jobs
                     rockContext.SaveChanges();
                 }
             }
+        }
+
+        /// <summary>
+        /// Updates the File Asset Manager attribute values for the swapped blocks.
+        /// </summary>
+        /// <param name="rockContext"></param>
+        private void UpdateFileAssetManagerAttributeValues( RockContext rockContext )
+        {
+            rockContext.Database.ExecuteSqlCommand( @"
+DECLARE @NewBlockTypeGuid UNIQUEIDENTIFIER = '535500a7-967f-4da3-8fca-cb844203cb3d'; -- File Asset Manager Block Type Guid
+DECLARE @OldBlockTypeGuid UNIQUEIDENTIFIER   = '13165D92-9CCD-4071-8484-3956169CB640'; -- Asset Manager Block Type Guid
+
+-- Attribute GUIDs and Values
+DECLARE @EnableAssetManagerAttributeGuid UNIQUEIDENTIFIER = '7750F7BB-DC53-41C6-987B-5FD2B02674C2';
+DECLARE @EnableFileManagerAttributeGuid UNIQUEIDENTIFIER = 'FCBB90A6-965F-4237-9B0F-4384E3FFC991';
+
+DECLARE @EnableAssetManagerAttributeId INT;
+DECLARE @EnableFileManagerAttributeId INT;
+
+-- Get Attribute IDs
+SELECT @EnableAssetManagerAttributeId = [Id] FROM [Attribute] WHERE [Guid] = @EnableAssetManagerAttributeGuid;
+SELECT @EnableFileManagerAttributeId = [Id] FROM [Attribute] WHERE [Guid] = @EnableFileManagerAttributeGuid;
+
+-- Collect Asset Manager Block IDs
+DECLARE @AssetManagerBlockIds TABLE (BlockId INT);
+
+INSERT INTO @AssetManagerBlockIds (BlockId)
+SELECT b.[Id]
+FROM [Block] b
+WHERE b.[BlockTypeId] = (
+        SELECT [Id]
+        FROM [BlockType]
+        WHERE [Guid] = @NewBlockTypeGuid
+    )
+  AND b.[ForeignGuid] = @OldBlockTypeGuid;
+
+DECLARE @BlockId INT;
+
+DECLARE block_cursor CURSOR FOR
+SELECT BlockId FROM @AssetManagerBlockIds;
+
+OPEN block_cursor;
+FETCH NEXT FROM block_cursor INTO @BlockId;
+
+-- Now, for each block using the old Asset Manager Block Type, all we need to do is: 
+-- 1) turn on the EnableAssetProviders attribute value and
+-- 2) turn off the EnableFileManager attribute value
+
+WHILE @@FETCH_STATUS = 0
+BEGIN
+    DELETE FROM [AttributeValue]
+    WHERE [AttributeId] = @EnableAssetManagerAttributeId
+      AND [EntityId] = @BlockId;
+
+    INSERT INTO [AttributeValue] (
+        [IsSystem],
+        [AttributeId],
+        [EntityId],
+        [Value],
+        [Guid]
+    )
+    VALUES (
+        0,
+        @EnableAssetManagerAttributeId,
+        @BlockId,
+        1,
+        NEWID()
+    );
+
+    DELETE FROM [AttributeValue]
+    WHERE [AttributeId] = @EnableFileManagerAttributeId
+      AND [EntityId] = @BlockId;
+
+    INSERT INTO [AttributeValue] (
+        [IsSystem],
+        [AttributeId],
+        [EntityId],
+        [Value],
+        [Guid]
+    )
+    VALUES (
+        0,
+        @EnableFileManagerAttributeId,
+        @BlockId,
+        0,
+        NEWID()
+    );
+
+    FETCH NEXT FROM block_cursor INTO @BlockId;
+END;
+
+CLOSE block_cursor;
+DEALLOCATE block_cursor;
+" );
         }
     }
 }

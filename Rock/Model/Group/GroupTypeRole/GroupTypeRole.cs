@@ -156,6 +156,15 @@ namespace Rock.Model
         public bool CanManageMembers { get; set; }
 
         /// <summary>
+        /// Gets or sets a value indicating whether this instance can take attendance.
+        /// </summary>
+        /// <value>
+        ///   <c>true</c> if this instance can take attendance; otherwise, <c>false</c>.
+        /// </value>
+        [DataMember]
+        public bool CanTakeAttendance { get; set; }
+
+        /// <summary>
         /// Gets or sets a value indicating whether this instance is excluded from peer network.
         /// </summary>
         /// <value>
@@ -176,6 +185,13 @@ namespace Rock.Model
         /// </summary>
         [DataMember]
         public ChatRole ChatRole { get; set; }
+
+        /// <summary>
+        /// Determines if this role is intended to be used and displayed on public
+        /// facing sites and features.
+        /// </summary>
+        [DataMember]
+        public bool IsPublic { get; set; } = true;
 
         #endregion
 

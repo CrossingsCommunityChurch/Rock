@@ -20,7 +20,7 @@ import { NumberFilterMethod } from "@Obsidian/Enums/Core/Grid/numberFilterMethod
 import { DateFilterMethod } from "@Obsidian/Enums/Core/Grid/dateFilterMethod";
 import { PickExistingFilterMethod } from "@Obsidian/Enums/Core/Grid/pickExistingFilterMethod";
 import { TextFilterMethod } from "@Obsidian/Enums/Core/Grid/textFilterMethod";
-import { ColumnFilter, ColumnDefinition, IGridState, StandardFilterProps, StandardCellProps, IGridCache, IGridRowCache, ColumnSort, SortValueFunction, FilterValueFunction, QuickFilterValueFunction, StandardColumnProps, StandardHeaderCellProps, EntitySetOptions, ExportValueFunction, StandardSkeletonCellProps, GridLength, BooleanSearchBag, FilterValuesFunction } from "@Obsidian/Types/Controls/grid";
+import { ColumnFilter, ColumnDefinition, IGridState, StandardFilterProps, StandardCellProps, IGridCache, IGridRowCache, ColumnSort, SortValueFunction, FilterValueFunction, QuickFilterValueFunction, StandardColumnProps, StandardHeaderCellProps, EntitySetOptions, ExportValueFunction, StandardSkeletonCellProps, GridLength, BooleanSearchBag, FilterValuesFunction, TooltipFunction } from "@Obsidian/Types/Controls/grid";
 import { ICancellationToken } from "@Obsidian/Utility/cancellation";
 import { extractText, getVNodeProp, getVNodeProps } from "@Obsidian/Utility/component";
 import { DayOfWeek, RockDateTime } from "@Obsidian/Utility/rockDateTime";
@@ -207,6 +207,16 @@ export const standardColumnProps: StandardColumnProps = {
     },
 
     disableSort: {
+        type: Boolean as PropType<boolean>,
+        default: false
+    },
+
+    tooltip: {
+        type: [String, Function] as PropType<string | TooltipFunction>,
+        required: false
+    },
+
+    tooltipHtml: {
         type: Boolean as PropType<boolean>,
         default: false
     },
@@ -909,6 +919,7 @@ function buildAttributeColumns(columns: ColumnDefinition[], node: VNode): void {
             },
             wrapped: false,
             disableSort: false,
+            tooltipHtml: false,
             props: {},
             slots: {},
             data: {}
@@ -1004,6 +1015,7 @@ function insertCustomColumns(columns: ColumnDefinition[], customColumns: CustomC
             },
             wrapped: false,
             disableSort: false,
+            tooltipHtml: false,
             props: {},
             slots: {},
             data: {}
@@ -1053,6 +1065,8 @@ function buildColumn(name: string, node: VNode): ColumnDefinition {
     const width = getVNodeProp<string>(node, "width");
     const wrapped = getVNodeProp<boolean>(node, "wrapped") || false;
     const disableSort = getVNodeProp<boolean>(node, "disableSort") || false;
+    const tooltip = getVNodeProp<string | TooltipFunction>(node, "tooltip");
+    const tooltipHtml = getVNodeProp<boolean>(node, "tooltipHtml") ?? false;
     const filterPrependComponent = node.children?.["filterPrepend"] as Component | undefined;
 
     // Get the function that will provide the sort value.
@@ -1210,6 +1224,8 @@ function buildColumn(name: string, node: VNode): ColumnDefinition {
         headerClass,
         itemClass,
         wrapped,
+        tooltip,
+        tooltipHtml,
         props: getVNodeProps(node),
         slots: node.children as Record<string, Component> ?? {},
         data: {}
@@ -1774,6 +1790,9 @@ export class GridState implements IGridState {
     /** A background worker that will populate all the row cache data. */
     private populateRowCacheWorker: BackgroundGridRowCacheWorker | null = null;
 
+    /** A function that can be used to override the selected keys. */
+    private selectedKeysOverride?: (selectedKeys: string[]) => string[];
+
     // #endregion
 
     // #region Constructors
@@ -1787,7 +1806,7 @@ export class GridState implements IGridState {
      * @param itemTerm The word or phrase that describes each row.
      * @param entityTypeGuid The unique identifier of the entity type this grid represents, or `undefined`.
      */
-    constructor(columns: ColumnDefinition[], gridDefinition: GridDefinitionBag | undefined, liveUpdates: boolean, itemTerm: string, entityTypeGuid: Guid | undefined) {
+    constructor(columns: ColumnDefinition[], gridDefinition: GridDefinitionBag | undefined, liveUpdates: boolean, itemTerm: string, entityTypeGuid: Guid | undefined, selectedKeysOverride: ((selectedKeys: string[]) => string[]) | undefined) {
         this.gridDefinition = gridDefinition;
         this.rowCache = new GridRowCache(undefined);
         this.liveUpdates = liveUpdates;
@@ -1804,6 +1823,8 @@ export class GridState implements IGridState {
         }
 
         this.internalVisibleColumns = this.columns.filter(c => !c.hideOnScreen);
+
+        this.selectedKeysOverride = selectedKeysOverride;
     }
 
     /**
@@ -1862,7 +1883,13 @@ export class GridState implements IGridState {
     }
 
     public set selectedKeys(value: string[]) {
-        this.internalSelectedKeys = value;
+        if (this.selectedKeysOverride) {
+            this.internalSelectedKeys = this.selectedKeysOverride(value);
+        }
+        else {
+            this.internalSelectedKeys = value;
+        }
+
         this.emitter.emit("selectedKeysChanged", this);
     }
 
@@ -1901,7 +1928,13 @@ export class GridState implements IGridState {
     }
 
     public getSortedRows(): Record<string, unknown>[] {
-        return this.sortRows(this.internalRows);
+        // Bail early if we don't have any sorting to perform.
+        if (!this.columnSort) {
+            return [...this.internalRows];
+        }
+        else {
+            return this.sortRows(this.internalRows, this.columnSort);
+        }
     }
 
     on(event: keyof GridEvents, callback: (grid: IGridState) => void): void {
@@ -1910,6 +1943,66 @@ export class GridState implements IGridState {
 
     off(event: keyof GridEvents, callback: (grid: IGridState) => void): void {
         this.emitter.off(event, callback);
+    }
+
+    /**
+     * Sorts the given set of rows.
+     *
+     * @param rows The rows that should be sorted according to the current sorting definition.
+     *
+     * @returns A new array of rows that is properly sorted.
+     */
+    public sortRows(rows: ReadonlyArray<Record<string, unknown>>, columnSort: ColumnSort): Record<string, unknown>[] {
+        const column = this.visibleColumns.find(c => c.name === columnSort.column);
+        const order = columnSort.isDescending ? -1 : 1;
+
+        if (!column) {
+            console.warn("Ignoring invalid sort definition.", toRaw(this.columnSort));
+            return [...rows];
+        }
+
+        const sortValue = column.sortValue;
+
+        // Pre-process each row to calculate the sort value. Otherwise it will
+        // be calculated exponentially during sort. This provides a serious
+        // performance boost when sorting Lava columns. Even though we have
+        // cache we do it this way because we may not have an itemKey which
+        // would disable the cache.
+        const rowsToSort = rows.map(r => {
+            let value: string | number | undefined;
+
+            if (sortValue) {
+                value = sortValue(r, column, this);
+            }
+            else {
+                value = undefined;
+            }
+
+            return {
+                row: r,
+                value
+            };
+        });
+
+        rowsToSort.sort((a, b) => {
+            if (a.value === undefined) {
+                return -order;
+            }
+            else if (b.value === undefined) {
+                return order;
+            }
+            else if (a.value < b.value) {
+                return -order;
+            }
+            else if (a.value > b.value) {
+                return order;
+            }
+            else {
+                return 0;
+            }
+        });
+
+        return rowsToSort.map(r => r.row);
     }
 
     // #endregion
@@ -2002,7 +2095,7 @@ export class GridState implements IGridState {
             const quickFilterMatch = !quickFilterRawValue || columns.some((column): boolean => {
                 const value = column.quickFilterValue(row, column, this);
 
-                if (value === undefined) {
+                if (typeof value !== "string") {
                     return false;
                 }
 
@@ -2024,7 +2117,7 @@ export class GridState implements IGridState {
 
                 const columnFilterValue = this.columnFilters[column.name];
 
-                if (columnFilterValue === undefined) {
+                if (columnFilterValue === undefined || columnFilterValue === null) {
                     return true;
                 }
 
@@ -2054,78 +2147,17 @@ export class GridState implements IGridState {
     }
 
     /**
-     * Sorts the given set of rows.
-     *
-     * @param rows The rows that should be sorted according to the current sorting definition.
-     *
-     * @returns A new array of rows that is properly sorted.
-     */
-    private sortRows(rows: ReadonlyArray<Record<string, unknown>>): Record<string, unknown>[] {
-        const columnSort = this.columnSort;
-
-        // Bail early if we don't have any sorting to perform.
-        if (!columnSort) {
-            return [...rows];
-        }
-
-        const column = this.visibleColumns.find(c => c.name === columnSort.column);
-        const order = columnSort.isDescending ? -1 : 1;
-
-        if (!column) {
-            console.warn("Ignoring invalid sort definition.", toRaw(this.columnSort));
-            return [...rows];
-        }
-
-        const sortValue = column.sortValue;
-
-        // Pre-process each row to calculate the sort value. Otherwise it will
-        // be calculated exponentially during sort. This provides a serious
-        // performance boost when sorting Lava columns. Even though we have
-        // cache we do it this way because we may not have an itemKey which
-        // would disable the cache.
-        const rowsToSort = rows.map(r => {
-            let value: string | number | undefined;
-
-            if (sortValue) {
-                value = sortValue(r, column, this);
-            }
-            else {
-                value = undefined;
-            }
-
-            return {
-                row: r,
-                value
-            };
-        });
-
-        rowsToSort.sort((a, b) => {
-            if (a.value === undefined) {
-                return -order;
-            }
-            else if (b.value === undefined) {
-                return order;
-            }
-            else if (a.value < b.value) {
-                return -order;
-            }
-            else if (a.value > b.value) {
-                return order;
-            }
-            else {
-                return 0;
-            }
-        });
-
-        return rowsToSort.map(r => r.row);
-    }
-
-    /**
      * Takes the {@link filteredRows} and sorts them according to the information
      * tracked by the Grid and updates the {@link sortedRows} property.
      */
     private updateSortedRows(): void {
-        this.sortedRows = this.sortRows(this.filteredRows);
+        // Bail early if we don't have any sorting to perform.
+        if (!this.columnSort) {
+            this.sortedRows = [...this.filteredRows];
+        }
+        else {
+            this.sortedRows = this.sortRows(this.filteredRows, this.columnSort);
+        }
     }
 
     /**

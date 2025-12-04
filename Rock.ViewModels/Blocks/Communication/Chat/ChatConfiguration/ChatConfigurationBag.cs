@@ -47,13 +47,13 @@ namespace Rock.ViewModels.Blocks.Communication.Chat.ChatConfiguration
         public bool IsOpenDirectMessagingAllowed { get; set; }
 
         /// <summary>
-        /// Gets or sets the workflow type that will be launched every time a chat user is created.
-        /// </summary>
-        public ListItemBag WelcomeWorkflowType { get; set; }
-
-        /// <summary>
         /// Gets or sets the list of data views that will be used to populate badges in the external chat application.
         /// </summary>
         public List<ListItemBag> ChatBadgeDataViews { get; set; }
+
+        /// <summary>
+        /// Gets or sets the data view that will be used to determine who has direct message access.
+        /// </summary>
+        public ListItemBag DirectMessageAccessDataView { get; set; }
     }
 }

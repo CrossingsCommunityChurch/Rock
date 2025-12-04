@@ -56,8 +56,8 @@
                          help="The path to use for the HTML editor's image folder root (e.g. '~/content/my_channel_images' ) " />
             </div>
             <div class="col-md-6">
-                <TextBox v-model="iconCssClass"
-                         label="Icon CSS Class" />
+                <IconPicker v-model="iconCssClass"
+                            label="Icon CSS Class" />
                 <AttributeValuesContainer v-model="attributeValues" :attributes="attributes" isEditMode :numberOfColumns="2" />
                 <CheckBoxList v-model="settings" :items="settingsOptions" label="Settings" />
             </div>
@@ -187,6 +187,7 @@
     import Panel from "@Obsidian/Controls/panel.obs";
     import NotificationBox from "@Obsidian/Controls/notificationBox.obs";
     import CheckBox from "@Obsidian/Controls/checkBox.obs";
+    import IconPicker from "@Obsidian/Controls/iconPicker.obs";
     import RadioButtonList from "@Obsidian/Controls/radioButtonList.obs";
     import Grid, { EditColumn, TextColumn, DeleteColumn, BooleanColumn, ReorderColumn } from "@Obsidian/Controls/grid";
     import Modal from "@Obsidian/Controls/modal.obs";
@@ -271,7 +272,7 @@
     const availableLicenses = ref(props.options.availableLicenses ?? []);
     const isOrganizationConfigured = ref(props.options.isOrganizationConfigured);
     const disableContentField = ref(props.options.disableContentField);
-    const editorType = ref(props.modelValue?.bag?.isStructuredContent == true ? "1" : "2");
+    const editorType = ref(props.modelValue?.bag?.isStructuredContent === true ? "1" : "2");
     const editorTypes = [
         {
             text: "Structured Content",
@@ -304,11 +305,11 @@
     });
 
     const availableChannels = computed((): ListItemBag[] => {
-        return contentChannelList.value.filter(channel => !childContentChannels.value.find(child => child.value == channel.value));
+        return contentChannelList.value.filter(channel => !childContentChannels.value.find(child => child.value === channel.value));
     });
 
     const licenseTypeRules = computed((): string => {
-        return isContentLibraryEnabled.value == true ? "required" : "";
+        return isContentLibraryEnabled.value === true ? "required" : "";
     });
 
     const isButtonGroupVisible = computed((): boolean => {
@@ -324,7 +325,7 @@
     });
 
     const isRootImageDirectoryVisible = computed((): boolean => {
-        return contentControlType.value == "1";
+        return contentControlType.value === "1";
     });
 
     // #endregion
@@ -438,8 +439,8 @@
             const index = itemAttributes.value.findIndex(a => a.guid === itemAttribute.value?.guid);
             if (index !== -1) {
                 // Get the updated attribute and rowItem.
-                let editedAttribute = itemAttributes.value.find(a => a.guid == itemAttribute.value?.guid);
-                let rowItem = attributesGridData.rows?.find(x => x.key == itemAttribute.value?.guid);
+                let editedAttribute = itemAttributes.value.find(a => a.guid === itemAttribute.value?.guid);
+                let rowItem = attributesGridData.rows?.find(x => x.key === itemAttribute.value?.guid);
 
                 if (editedAttribute) {
                     // Replace old attribute with updated attribute.
@@ -579,7 +580,7 @@
         if (result.isSuccess && result.data) {
 
             disableContentField.value = result.data.disableContentField ?? false;
-            const requireApprovalSetting = settingsOptions.value.find(s => s.value == requireApprovalSettingValue);
+            const requireApprovalSetting = settingsOptions.value.find(s => s.value === requireApprovalSettingValue);
             if (result.data.disableStatus) {
                 settingsOptions.value = settingsOptions.value.filter(s => s.value !== requireApprovalSettingValue);
             }
@@ -593,7 +594,7 @@
     });
 
     watch(editorType, () => {
-        const isStructuredContentChecked = editorType.value == "1";
+        const isStructuredContentChecked = editorType.value === "1";
 
         if (isStructuredContentChecked) {
             isStructuredContent.value = true;

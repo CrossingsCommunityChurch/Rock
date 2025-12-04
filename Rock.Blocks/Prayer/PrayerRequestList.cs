@@ -30,6 +30,7 @@ using Rock.Security;
 using Rock.ViewModels.Blocks;
 using Rock.ViewModels.Blocks.Prayer.PrayerRequestList;
 using Rock.Web.Cache;
+using Rock.Web.UI;
 
 namespace Rock.Blocks.Prayer
 {
@@ -40,15 +41,17 @@ namespace Rock.Blocks.Prayer
     [DisplayName( "Prayer Request List" )]
     [Category( "Prayer" )]
     [Description( "Displays a list of prayer requests." )]
-    [IconCssClass( "fa fa-list" )]
+    [IconCssClass( "ti ti-list" )]
     [SupportedSiteTypes( Model.SiteType.Web )]
 
     [LinkedPage( "Detail Page",
         Description = "The page that will show the prayer request details.",
         Key = AttributeKey.DetailPage )]
 
+    [ContextAware( typeof( Rock.Model.Person ) )]
     [Rock.SystemGuid.EntityTypeGuid( "e8be562a-bb24-47a9-b3df-63cfb508f831" )]
-    [Rock.SystemGuid.BlockTypeGuid( "e860f577-f30d-4197-87f0-c3dc6132f537" )]
+    // was [Rock.SystemGuid.BlockTypeGuid( "e860f577-f30d-4197-87f0-c3dc6132f537" )]
+    [Rock.SystemGuid.BlockTypeGuid( "4D6B686A-79DF-4EFC-A8BA-9841C248BF74" )]
     [CustomizedGrid]
     public class PrayerRequestList : RockEntityListBlockType<PrayerRequest>
     {
@@ -75,7 +78,7 @@ namespace Rock.Blocks.Prayer
             var builder = GetGridBuilder();
 
             box.IsAddEnabled = GetIsAddEnabled();
-            box.IsDeleteEnabled = BlockCache.IsAuthorized( Authorization.EDIT, RequestContext.CurrentPerson );
+            box.IsDeleteEnabled = GetIsDeleteEnabled();
             box.ExpectedRowCount = null;
             box.NavigationUrls = GetBoxNavigationUrls();
             box.Options = GetBoxOptions();
@@ -105,23 +108,50 @@ namespace Rock.Blocks.Prayer
         }
 
         /// <summary>
+        /// Determines if the delete button should be enabled in the grid.
+        /// <summary>
+        /// <returns>A boolean value that indicates if the delete button should be enabled.</returns>
+        private bool GetIsDeleteEnabled()
+        {
+            return BlockCache.IsAuthorized( Authorization.EDIT, RequestContext.CurrentPerson );
+        }
+
+        /// <summary>
         /// Gets the box navigation URLs required for the page to operate.
         /// </summary>
         /// <returns>A dictionary of key names and URL values.</returns>
         private Dictionary<string, string> GetBoxNavigationUrls()
         {
+            var qryParams = new Dictionary<string, string>();
+            qryParams.Add( "PrayerRequestId", "((Key))" );
+
+            var personContext = GetContextEntity();
+            if ( personContext != null )
+            {
+                qryParams.Add( "PersonId", personContext.Id.ToString() );
+            }
+
             return new Dictionary<string, string>
             {
-                [NavigationUrlKey.DetailPage] = this.GetLinkedPageUrl( AttributeKey.DetailPage, "PrayerRequestId", "((Key))" )
+                [NavigationUrlKey.DetailPage] = this.GetLinkedPageUrl( AttributeKey.DetailPage, qryParams )
             };
         }
 
         /// <inheritdoc/>
         protected override IQueryable<PrayerRequest> GetListQueryable( RockContext rockContext )
         {
-            return base.GetListQueryable( rockContext )
+            var qry = base.GetListQueryable( rockContext )
                 .Include( a => a.Campus )
                 .Include( a => a.Category );
+
+            // Filter by person context if available
+            var personContext = GetContextEntity();
+            if ( personContext != null )
+            {
+                qry = qry.Where( p => p.RequestedByPersonAlias != null && p.RequestedByPersonAlias.PersonId == personContext.Id );
+            }
+
+            return qry;
         }
 
         /// <inheritdoc/>
@@ -198,9 +228,51 @@ namespace Rock.Blocks.Prayer
             }
         }
 
+        /// <summary>
+        /// Determines whether the current Person has either edit or administrative authorization for the block.
+        /// </summary>
+        /// <remarks>This method checks the current Person's permissions against the block's authorization
+        /// settings  for the "Edit" and "Administrate" roles.</remarks>
+        /// <returns><see langword="true"/> if the current Person is authorized with either edit or administrative permissions;
+        /// otherwise, <see langword="false"/>.</returns>
+        private bool IsPersonEditOrAdminAuthorized()
+        {
+            var currentPerson = RequestContext.CurrentPerson;
+            var allowedAuthorizations = new[] { Authorization.EDIT, Authorization.ADMINISTRATE };
+
+            if ( allowedAuthorizations.Any( auth => BlockCache.IsAuthorized( auth, currentPerson ) ) )
+            {
+                return true;
+            }
+
+            return false;
+        }
+
         #endregion
 
         #region Block Actions
+
+        [BlockAction]
+        public BlockActionResult UpdateApprovalStatus( string prayerRequestIdKey, bool isApproved )
+        {
+            var entityService = new PrayerRequestService( RockContext );
+            var entity = entityService.Get( prayerRequestIdKey, !PageCache.Layout.Site.DisablePredictableIds );
+
+            if ( entity == null )
+            {
+                return ActionBadRequest( $"{PrayerRequest.FriendlyTypeName} not found." );
+            }
+
+            if ( !IsPersonEditOrAdminAuthorized() )
+            {
+                return ActionBadRequest( $"Not authorized to update approval status of {PrayerRequest.FriendlyTypeName}." );
+            }
+
+            entity.IsApproved = isApproved;
+            RockContext.SaveChanges();
+
+            return ActionOk();
+        }
 
         /// <summary>
         /// Deletes the specified entity.
@@ -218,7 +290,7 @@ namespace Rock.Blocks.Prayer
                 return ActionBadRequest( $"{PrayerRequest.FriendlyTypeName} not found." );
             }
 
-            if ( !BlockCache.IsAuthorized( Authorization.EDIT, RequestContext.CurrentPerson ) )
+            if ( !IsPersonEditOrAdminAuthorized() )
             {
                 return ActionBadRequest( $"Not authorized to delete {PrayerRequest.FriendlyTypeName}." );
             }

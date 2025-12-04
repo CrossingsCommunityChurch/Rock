@@ -22,6 +22,16 @@
                            @propertyChanged="baseBlock.onPropertyChanged" />
             </RockForm>
         </template>
+        <template #subheaderLeft v-if="panelMode == DetailPanelMode.View && blockLabels && blockLabels.length > 0">
+            <div class="d-flex">
+                <div class="label-group">
+                    <span v-for="label in blockLabels" :key="label.title" :class="getClassForLabelAction(label)">
+                        <i v-if="label.iconCssClass" :class="label.iconCssClass"></i>
+                        <template v-if="label.title">{{ label.title }}</template>
+                    </span>
+                </div>
+            </div>
+        </template>
         <template #footerActions>
             <div v-if="panelMode === DetailPanelMode.Edit || panelMode === DetailPanelMode.Add">
                 <RockButton v-if="isEditable"
@@ -82,7 +92,7 @@
     import { BtnType } from "@Obsidian/Enums/Controls/btnType";
     import { BtnSize } from "@Obsidian/Enums/Controls/btnSize";
     import RockForm from "@Obsidian/Controls/rockForm.obs";
-    import { useConfigurationValues, useInvokeBlockAction, useEntityDetailBlock } from "@Obsidian/Utility/block";
+    import { useConfigurationValues, useInvokeBlockAction, useEntityDetailBlock, hideBlockRole, showBlockRole } from "@Obsidian/Utility/block";
     import { NavigationUrlKey } from "./AchievementTypeDetail/types.partial";
     import { DetailBlockBox } from "@Obsidian/ViewModels/Blocks/detailBlockBox";
     import { AchievementTypeBag } from "@Obsidian/ViewModels/Blocks/Engagement/AchievementTypeDetail/achievementTypeBag";
@@ -90,6 +100,8 @@
     import { makeUrlRedirectSafe } from "@Obsidian/Utility/url";
     import { confirmDelete } from "@Obsidian/Utility/dialogs";
     import { ValidPropertiesBox } from "@Obsidian/ViewModels/Utility/validPropertiesBox";
+    import { PanelAction } from "@Obsidian/Types/Controls/panelAction";
+    import { BlockRole } from "@Obsidian/Enums/Cms/blockRole";
 
     const config = useConfigurationValues<DetailBlockBox<AchievementTypeBag, AchievementTypeDetailOptionsBag>>();
     const invokeBlockAction = useInvokeBlockAction();
@@ -133,6 +145,59 @@
     const options = computed((): AchievementTypeDetailOptionsBag => {
         return config.options ?? {};
     });
+
+    /**
+    * Additional labels to display in the block panel.
+    */
+    const blockLabels = computed((): PanelAction[] | undefined => {
+        const labels: PanelAction[] = [];
+
+        if (panelMode.value !== DetailPanelMode.View) {
+            return undefined;
+        }
+
+        if (achievementTypeViewBag.value?.isActive === true) {
+            labels.push({
+                iconCssClass: "ti ti-bulb-filled",
+                title: "Active",
+                type: "success"
+            });
+        }
+        else {
+            labels.push({
+                iconCssClass: "ti ti-bulb",
+                title: "Inactive",
+                type: "danger"
+            });
+        }
+
+        return labels;
+    });
+
+    // #endregion
+
+    // #region Functions
+
+    /**
+     * Gets the CSS class to use for an action when it is displayed
+     * as a label.
+     *
+     * @param action The action to be displayed.
+     *
+     * @returns A string that contains the CSS classes to apply to the DOM element.
+     */
+    const getClassForLabelAction = (action: PanelAction): string => {
+        let cssClass = action.handler ? "label clickable" : "label";
+
+        if (action.type === "link") {
+            cssClass += " label-default";
+        }
+        else {
+            cssClass += ` label-${action.type}`;
+        }
+
+        return cssClass;
+    };
 
     // #endregion
 
@@ -178,6 +243,7 @@
         else {
             panelMode.value = DetailPanelMode.View;
         }
+        await showBlockRole(BlockRole.Secondary);
     }
 
     /**
@@ -222,6 +288,7 @@
                 validProperties: result.data.validProperties ?? Object.keys(result.data.bag)
             };
             panelMode.value = DetailPanelMode.Edit;
+            await hideBlockRole(BlockRole.Secondary);
         }
     }
 
@@ -243,6 +310,7 @@
             if (result.statusCode === 200 && typeof result.data === "object") {
                 achievementTypeViewBag.value = result.data.bag;
                 panelMode.value = DetailPanelMode.View;
+                await showBlockRole(BlockRole.Secondary);
             }
             else if (result.statusCode === 201 && typeof result.data === "string") {
                 window.location.href = makeUrlRedirectSafe(result.data);

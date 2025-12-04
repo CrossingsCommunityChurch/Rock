@@ -38,6 +38,7 @@ using Rock.Web.Cache;
 using Rock.Web.UI;
 using Rock.Web.UI.Controls;
 using Rock.Constants;
+using Rock.Crm.RecordSource;
 
 namespace RockWeb.Blocks.Finance
 {
@@ -144,7 +145,6 @@ namespace RockWeb.Blocks.Finance
         Key = AttributeKey.AccountHeaderTemplate,
         Description = "The Lava Template to use as the amount input label for each account.",
         EditorMode = CodeEditorMode.Lava,
-        EditorTheme = CodeEditorTheme.Rock,
         EditorHeight = 50,
         IsRequired = true,
         DefaultValue = "{{ Account.PublicName }}",
@@ -176,9 +176,9 @@ namespace RockWeb.Blocks.Finance
         "Use Account Campus Mapping Logic",
         Description = @"If enabled, the accounts will be determined as follows:
         <ul>
-          <li>If the selected account is not associated with a campus, the Selected Account will be the first matching active child account that is associated with the selected campus.</li>
-          <li>If the selected account is not associated with a campus, but there are no active child accounts for the selected campus, the parent account (the one the user sees) will be returned.</li>
-          <li>If the selected account is associated with a campus, that account will be returned regardless of campus selection (and it won't use the child account logic)</li>
+          <li>If no campus is selected, then the selected account will be used.</li>
+          <li>If an active direct child account has a campus that matches the selected campus, then the first matching child account will be used.</li>
+          <li>If no active direct child account matches the selected campus, then the selected account will be used.</li>
         <ul>",
         Key = AttributeKey.UseAccountCampusMappingLogic,
         DefaultBooleanValue = false,
@@ -222,7 +222,7 @@ namespace RockWeb.Blocks.Finance
 
     [DefinedValueField( "Connection Status",
         Key = AttributeKey.ConnectionStatus,
-        Description = "The connection status to use for new individuals (default: 'Prospect'.)",
+        Description = "The connection status to use for new individuals (default: 'Prospect').",
         DefinedTypeGuid = Rock.SystemGuid.DefinedType.PERSON_CONNECTION_STATUS,
         IsRequired = true,
         AllowMultiple = false,
@@ -231,51 +231,60 @@ namespace RockWeb.Blocks.Finance
 
     [DefinedValueField( "Record Status",
         Key = AttributeKey.RecordStatus,
-        Description = "The record status to use for new individuals (default: 'Pending'.)",
+        Description = "The record status to use for new individuals (default: 'Pending').",
         DefinedTypeGuid = Rock.SystemGuid.DefinedType.PERSON_RECORD_STATUS,
         IsRequired = true,
         AllowMultiple = false,
         DefaultValue = Rock.SystemGuid.DefinedValue.PERSON_RECORD_STATUS_PENDING,
         Order = 23 )]
 
+    [DefinedValueField( "Record Source",
+        Key = AttributeKey.RecordSource,
+        Description = "The record source to use for new individuals (default = 'Giving'). If a 'RecordSource' page parameter is found, it will be used instead.",
+        DefinedTypeGuid = Rock.SystemGuid.DefinedType.RECORD_SOURCE_TYPE,
+        IsRequired = true,
+        AllowMultiple = false,
+        DefaultValue = Rock.SystemGuid.DefinedValue.RECORD_SOURCE_TYPE_GIVING,
+        Order = 24 )]
+
     [BooleanField( "Enable Comment Entry",
         Key = AttributeKey.EnableCommentEntry,
         Description = "Allows the guest to enter the value that's put into the comment field (will be appended to the 'Payment Comment Template' setting)",
         DefaultBooleanValue = false,
-        Order = 24 )]
+        Order = 25 )]
 
     [TextField( "Comment Entry Label",
         Key = AttributeKey.CommentEntryLabel,
         Description = "The label to use on the comment edit field (e.g. Trip Name to give to a specific trip).",
         IsRequired = false,
         DefaultValue = "Comment",
-        Order = 25 )]
+        Order = 26 )]
 
     [BooleanField( "Enable Business Giving",
         Key = AttributeKey.EnableBusinessGiving,
         Description = "Should the option to give as a business be displayed?",
         DefaultBooleanValue = true,
-        Order = 26 )]
+        Order = 27 )]
 
     [BooleanField( "Enable Anonymous Giving",
         Key = AttributeKey.EnableAnonymousGiving,
         Description = "Should the option to give anonymously be displayed. Giving anonymously will display the transaction as 'Anonymous' in places where it is shown publicly, for example, on a list of fundraising contributors.",
         DefaultBooleanValue = false,
-        Order = 27 )]
+        Order = 28 )]
 
     [BooleanField(
         "Disable Captcha Support",
         Description = "If set to 'Yes' the CAPTCHA verification step will not be performed.",
         Key = AttributeKey.DisableCaptchaSupport,
         DefaultBooleanValue = false,
-        Order = 28 )]
+        Order = 29 )]
 
     [BooleanField(
         "Enable End Date",
         Description = "When enabled, this setting allows an individual to specify an optional end date for their recurring scheduled gifts.",
         Key = AttributeKey.EnableEndDate,
         DefaultBooleanValue = false,
-        Order = 29 )]
+        Order = 30 )]
 
     #endregion Default Category
 
@@ -351,7 +360,6 @@ namespace RockWeb.Blocks.Finance
         Key = AttributeKey.ConfirmationHeader,
         Description = "The text (HTML) to display at the top of the confirmation section.  <span class='tip tip-lava'></span> <span class='tip tip-html'></span>",
         EditorMode = CodeEditorMode.Html,
-        EditorTheme = CodeEditorTheme.Rock,
         EditorHeight = 200,
         IsRequired = true,
         DefaultValue = AttributeString.ConfirmationHeader,
@@ -362,7 +370,6 @@ namespace RockWeb.Blocks.Finance
         Key = AttributeKey.ConfirmationFooter,
         Description = "The text (HTML) to display at the bottom of the confirmation section. <span class='tip tip-lava'></span> <span class='tip tip-html'></span>",
         EditorMode = CodeEditorMode.Html,
-        EditorTheme = CodeEditorTheme.Rock,
         EditorHeight = 200,
         IsRequired = true,
         DefaultValue = AttributeString.ConfirmationFooter,
@@ -382,7 +389,6 @@ namespace RockWeb.Blocks.Finance
         Key = AttributeKey.SuccessFooter,
         Description = "The text (HTML) to display at the bottom of the success section. <span class='tip tip-lava'></span> <span class='tip tip-html'></span>",
         EditorMode = CodeEditorMode.Html,
-        EditorTheme = CodeEditorTheme.Rock,
         EditorHeight = 200,
         IsRequired = false,
         DefaultValue = @"",
@@ -409,7 +415,6 @@ namespace RockWeb.Blocks.Finance
         Key = AttributeKey.PaymentCommentTemplate,
         Description = AttributeString.PaymentCommentDescription,
         EditorMode = CodeEditorMode.Lava,
-        EditorTheme = CodeEditorTheme.Rock,
         EditorHeight = 100,
         IsRequired = false,
         Category = CategoryKey.TextOptions,
@@ -446,7 +451,6 @@ namespace RockWeb.Blocks.Finance
         Key = AttributeKey.InvalidAccountMessage,
         Description = "Display this text (HTML) as an error alert if an invalid 'account' or 'glaccount' is passed through the URL.",
         EditorMode = CodeEditorMode.Html,
-        EditorTheme = CodeEditorTheme.Rock,
         EditorHeight = 200,
         IsRequired = true,
         DefaultValue = "The configured financial accounts are not valid for accepting financial transactions.",
@@ -501,7 +505,6 @@ namespace RockWeb.Blocks.Finance
         Key = AttributeKey.TransactionHeader,
         Description = "The Lava template which will be displayed prior to the Amount entry",
         EditorMode = CodeEditorMode.Lava,
-        EditorTheme = CodeEditorTheme.Rock,
         EditorHeight = 200,
         IsRequired = false,
         DefaultValue = "",
@@ -533,6 +536,7 @@ namespace RockWeb.Blocks.Finance
 
     #endregion Block Attributes
 
+    [Rock.Cms.DefaultBlockRole( Rock.Enums.Cms.BlockRole.Primary )]
     [Rock.SystemGuid.BlockTypeGuid( "4CCC45A5-4AB9-4A36-BF8D-A6E316790004" )]
     public partial class UtilityPaymentEntry : Rock.Web.UI.RockBlock
     {
@@ -563,6 +567,7 @@ namespace RockWeb.Blocks.Finance
             public const string AddressType = "AddressType";
             public const string ConnectionStatus = "ConnectionStatus";
             public const string RecordStatus = "RecordStatus";
+            public const string RecordSource = "RecordSource";
             public const string EnableCommentEntry = "EnableCommentEntry";
             public const string CommentEntryLabel = "CommentEntryLabel";
             public const string EnableBusinessGiving = "EnableBusinessGiving";
@@ -913,8 +918,8 @@ mission. We are so grateful for your commitment.</p>
 
             RegisterScript();
 
-            var disableCaptchaSupport = GetAttributeValue( AttributeKey.DisableCaptchaSupport ).AsBoolean() || !cpCaptcha.IsAvailable;
-            cpCaptcha.Visible = !disableCaptchaSupport;
+            var disableCaptchaSupport = Captcha.CaptchaService.ShouldDisableCaptcha( GetAttributeValue( AttributeKey.DisableCaptchaSupport ).AsBoolean() );
+            cpCaptcha.Visible = !( disableCaptchaSupport || !cpCaptcha.IsAvailable );
             cpCaptcha.TokenReceived += CpCaptcha_TokenReceived;
 
             InitializeFinancialGatewayControls();
@@ -935,13 +940,18 @@ mission. We are so grateful for your commitment.</p>
                 _hostedPaymentInfoControl.Visible = true;
                 hfHostPaymentInfoSubmitScript.Value = this.FinancialGatewayComponent.GetHostPaymentInfoSubmitScript( this.FinancialGateway, _hostedPaymentInfoControl );
                 cpCaptcha.Visible = false;
+
+                var isSavedAccount = rblSavedAccount.SelectedValue.AsInteger() > 0;
+                btnSavedAccountPaymentInfoNext.Visible = isSavedAccount;
+                btnHostedPaymentInfoNext.Visible = !isSavedAccount;
                 return;
             }
 
             nbPaymentTokenError.Visible = true;
             nbPaymentTokenError.Text = "There was an issue processing your request. Please try again. If the issue persists please contact us.";
-            cpCaptcha.Visible = false;
+            cpCaptcha.Visible = true;
             btnHostedPaymentInfoNext.Visible = false;
+            btnSavedAccountPaymentInfoNext.Visible = false;
         }
 
         private void InitializeFinancialGatewayControls()
@@ -964,13 +974,23 @@ mission. We are so grateful for your commitment.</p>
             nbPaymentTokenError.Text = "Loading...";
             nbPaymentTokenError.Visible = true;
 
-            if ( GetAttributeValue( AttributeKey.DisableCaptchaSupport ).AsBoolean() || !cpCaptcha.IsAvailable )
+            if ( cpCaptcha.Visible )
+            {
+                btnHostedPaymentInfoNext.Visible = false;
+                btnSavedAccountPaymentInfoNext.Visible = false;
+            }
+
+            if ( Captcha.CaptchaService.ShouldDisableCaptcha( GetAttributeValue( AttributeKey.DisableCaptchaSupport ).AsBoolean() ) || !cpCaptcha.IsAvailable )
             {
                 hfHostPaymentInfoSubmitScript.Value = this.FinancialGatewayComponent.GetHostPaymentInfoSubmitScript( this.FinancialGateway, _hostedPaymentInfoControl );
                 _hostedPaymentInfoControl.Visible = true;
 
                 nbPaymentTokenError.Visible = false;
                 nbPaymentTokenError.Text = string.Empty;
+
+                var isSavedAccount = rblSavedAccount.SelectedValue.AsInteger() > 0;
+                btnSavedAccountPaymentInfoNext.Visible = isSavedAccount;
+                btnHostedPaymentInfoNext.Visible = !isSavedAccount;
             }
 
             if ( _hostedPaymentInfoControl is IHostedGatewayPaymentControlTokenEvent )
@@ -1386,7 +1406,7 @@ mission. We are so grateful for your commitment.</p>
                 var literal = new LiteralControl() { ID = "btnAddAccountLiteral" };
                 var openingHtml = $@"
 <div class=""btn-group js-button-dropdownlist"">
-    <button type=""button"" class=""btn btn-default dropdown-toggle js-buttondropdown-btn-select"" data-toggle=""dropdown"" aria-expanded=""false"">{GetAttributeValue( AttributeKey.AddAccountText )} <span class=""fa fa-caret-down""></span></button>
+    <button type=""button"" class=""btn btn-default dropdown-toggle js-buttondropdown-btn-select"" data-toggle=""dropdown"" aria-expanded=""false"">{GetAttributeValue( AttributeKey.AddAccountText )} <span class=""ti ti-caret-down-filled""></span></button>
     <ul class=""dropdown-menu"">
 ";
 
@@ -1629,6 +1649,20 @@ mission. We are so grateful for your commitment.</p>
                 .Select( a => a.Value.Value )
                 .Where( a => a is IHostedGatewayComponent && !( a is TestGateway ) )
                 .Select( a => a as IHostedGatewayComponent ).ToList();
+
+            // Now remove any components that have no active instances
+            hostedGatewayComponentList = hostedGatewayComponentList
+                .Where( item =>
+                {
+                    using ( var rockContext = new Rock.Data.RockContext() )
+                    {
+                        var entityType = Rock.Web.Cache.EntityTypeCache.Get( item.TypeGuid );
+                        return new FinancialGatewayService( rockContext )
+                            .Queryable()
+                            .Any( g => g.EntityTypeId == entityType.Id && g.IsActive );
+                    }
+                } )
+                .ToList();
 
             rptInstalledGateways.DataSource = hostedGatewayComponentList;
             rptInstalledGateways.DataBind();
@@ -2108,6 +2142,18 @@ mission. We are so grateful for your commitment.</p>
                 allowedCurrencyTypes.Add( achCurrency );
             }
 
+            var applePayCurrency = DefinedValueCache.Get( Rock.SystemGuid.DefinedValue.CURRENCY_TYPE_APPLE_PAY.AsGuid() );
+            if ( financialGatewayComponent.SupportsSavedAccount( applePayCurrency ) )
+            {
+                allowedCurrencyTypes.Add( applePayCurrency );
+            }
+
+            var googlePayCurrency = DefinedValueCache.Get( Rock.SystemGuid.DefinedValue.CURRENCY_TYPE_ANDROID_PAY.AsGuid() );
+            if ( financialGatewayComponent.SupportsSavedAccount( googlePayCurrency ) )
+            {
+                allowedCurrencyTypes.Add( googlePayCurrency );
+            }
+
             int[] allowedCurrencyTypeIds = allowedCurrencyTypes.Select( a => a.Id ).ToArray();
 
             personSavedAccountsQuery = personSavedAccountsQuery.Where( a =>
@@ -2158,8 +2204,8 @@ mission. We are so grateful for your commitment.</p>
         protected void rblSavedAccount_SelectedIndexChanged( object sender, EventArgs e )
         {
             bool isSavedAccount = rblSavedAccount.SelectedValue.AsInteger() > 0;
-            btnSavedAccountPaymentInfoNext.Visible = isSavedAccount;
-            btnHostedPaymentInfoNext.Visible = !isSavedAccount;
+            btnSavedAccountPaymentInfoNext.Visible = isSavedAccount && !cpCaptcha.Visible;
+            btnHostedPaymentInfoNext.Visible = !isSavedAccount && !cpCaptcha.Visible;
             pnlPaymentInfo.Visible = !isSavedAccount;
         }
 
@@ -2194,6 +2240,15 @@ mission. We are so grateful for your commitment.</p>
 
                     var participationMode = PageParameters().ContainsKey( PageParameterKey.ParticipationMode ) ? PageParameter( PageParameterKey.ParticipationMode ).AsIntegerOrNull() ?? 1 : 1;
 
+                    /*
+                         4/3/2025 - SMC
+
+                         This logic overlaps with logic in the Fundraising Donation Entry block. Any changes made here should also be applied there.
+                         When these blocks are migrated to Obsidian, this redundancy should be resolved to ensure the logic exists in only one place.
+
+                         Reason: Prevent code duplication and maintain consistency between blocks.
+                    */
+
                     if ( EntityTypeCache.Get( transactionEntityTypeId ).Guid == Rock.SystemGuid.EntityType.GROUP_MEMBER.AsGuid() )
                     {
                         var groupMember = new GroupMemberService( rockContext ).Get( transactionEntity.Guid );
@@ -2210,7 +2265,7 @@ mission. We are so grateful for your commitment.</p>
                             }
 
                             var contributionTotal = new FinancialTransactionDetailService( rockContext )
-                            .GetContributionsForGroupMemberList( transactionEntityTypeId, familyMemberGroupMembersInCurrentGroup.Select( m => m.Id ).ToList() );
+                                .GetContributionsForGroupMemberList( transactionEntityTypeId, familyMemberGroupMembersInCurrentGroup.Select( m => m.Id ).ToList() );
                             mergeFields.Add( "FundraisingGoal", groupFundraisingGoal );
                             mergeFields.Add( "AmountRaised", contributionTotal );
                         }
@@ -2621,6 +2676,8 @@ mission. We are so grateful for your commitment.</p>
                             person.RecordStatusValueId = dvcRecordStatus.Id;
                         }
 
+                        person.RecordSourceValueId = GetRecordSourceValueId();
+
                         // Create Person/Family
                         familyGroup = PersonService.SaveNewPerson( person, rockContext, null, false );
                     }
@@ -2767,6 +2824,8 @@ mission. We are so grateful for your commitment.</p>
                     person.RecordStatusValueId = dvcRecordStatus.Id;
                 }
 
+                person.RecordSourceValueId = GetRecordSourceValueId();
+
                 // Create Person/Family
                 PersonService.SaveNewPerson( person, rockContext, null, false );
             }
@@ -2889,6 +2948,8 @@ mission. We are so grateful for your commitment.</p>
                         business.RecordStatusValueId = dvcRecordStatus.Id;
                     }
 
+                    business.RecordSourceValueId = GetRecordSourceValueId();
+
                     // Create Person/Family
                     familyGroup = PersonService.SaveNewPerson( business, rockContext, null, false );
 
@@ -2986,6 +3047,18 @@ mission. We are so grateful for your commitment.</p>
             }
 
             return person;
+        }
+
+        /// <summary>
+        /// Gets the record source to use for new individuals.
+        /// </summary>
+        /// <returns>
+        /// The identifier of the Record Source Type <see cref="DefinedValue"/> to use.
+        /// </returns>
+        private int? GetRecordSourceValueId()
+        {
+            return RecordSourceHelper.GetSessionRecordSourceValueId()
+                ?? DefinedValueCache.Get( GetAttributeValue( AttributeKey.RecordSource ).AsGuid() )?.Id;
         }
 
         /// <summary>

@@ -34,7 +34,6 @@ using System.Dynamic;
 using Rock.Web;
 using Rock.Security;
 using Rock.Lava;
-using DotLiquid;
 
 namespace RockWeb.Blocks.Groups
 {
@@ -51,7 +50,13 @@ namespace RockWeb.Blocks.Groups
     [BooleanField( "Include Inactive Groups", "Determines if inactive groups should be included on the map.", false, "", 6 )]
     [TextField( "Attributes", "Comma delimited list of attribute keys to include values for in the map info window (e.g. 'StudyTopic,MeetingTime').", false, "", "", 7 )]
     [DefinedValueField( Rock.SystemGuid.DefinedType.MAP_STYLES, "Map Style", "The map theme that should be used for styling the map.", true, false, Rock.SystemGuid.DefinedValue.MAP_STYLE_GOOGLE, "", 8 )]
-    [CodeEditorField( "Info Window Contents", "Lava template for the info window. To suppress the window provide a blank template.", CodeEditorMode.Lava, CodeEditorTheme.Rock, 600, false, @"
+
+    [CodeEditorField( "Info Window Contents",
+        Description = "Lava template for the info window. To suppress the window provide a blank template.",
+        EditorMode = CodeEditorMode.Lava,
+        EditorHeight = 600,
+        IsRequired = false,
+        DefaultValue = @"
 <div class='clearfix'>
     <h4 class='pull-left' style='margin-top: 0;'>{{GroupName}}</h4>
     <span class='label label-campus pull-right'>{{GroupCampus}}</span>
@@ -89,7 +94,9 @@ namespace RockWeb.Blocks.Groups
     <a class='btn btn-xs btn-action' href='{{GroupDetailPage}}'>View Group</a>
 {% endif %}
 
-", "", 9 )]
+",
+        Order = 9 )]
+
     [Rock.SystemGuid.BlockTypeGuid( "2CCAFC0B-8B48-4B64-B210-0EDAF9FFC4EF" )]
     public partial class GroupTypeMap : Rock.Web.UI.RockBlock
     {
@@ -216,39 +223,22 @@ namespace RockWeb.Blocks.Groups
 
                 if ( groupType != null )
                 {
-                    Template template = null;
                     ILavaTemplate lavaTemplate = null;
 
-                    if ( LavaService.RockLiquidIsEnabled )
-                    {                        
-                        if ( GetAttributeValue( "ShowMapInfoWindow" ).AsBoolean() )
-                        {
-                            template = LavaHelper.CreateDotLiquidTemplate( GetAttributeValue( "InfoWindowContents" ).Trim() );
+                    string templateContent;
 
-                            LavaHelper.VerifyParseTemplateForCurrentEngine( GetAttributeValue( "InfoWindowContents" ).Trim() );
-                        }
-                        else
-                        {
-                            template = LavaHelper.CreateDotLiquidTemplate( string.Empty );
-                        }
+                    if ( GetAttributeValue( "ShowMapInfoWindow" ).AsBoolean() )
+                    {
+                        templateContent = GetAttributeValue( "InfoWindowContents" ).Trim();
                     }
                     else
                     {
-                        string templateContent;
-
-                        if ( GetAttributeValue( "ShowMapInfoWindow" ).AsBoolean() )
-                        {
-                            templateContent = GetAttributeValue( "InfoWindowContents" ).Trim();
-                        }
-                        else
-                        {
-                            templateContent = string.Empty;
-                        }
-
-                        var parseResult = LavaService.ParseTemplate( templateContent );
-
-                        lavaTemplate = parseResult.Template;
+                        templateContent = string.Empty;
                     }
+
+                    var parseResult = LavaService.ParseTemplate( templateContent );
+
+                    lavaTemplate = parseResult.Template;
 
                     var groupPageRef = new PageReference( GetAttributeValue( "GroupDetailPage" ) );
 
@@ -391,20 +381,13 @@ namespace RockWeb.Blocks.Groups
 
                             string infoWindow;
 
-                            if ( LavaService.RockLiquidIsEnabled )
-                            {
-                                infoWindow = template.Render( Hash.FromDictionary( groupDict ) ).Replace( "\n", string.Empty );
-                            }
-                            else
-                            {
-                                var result = LavaService.RenderTemplate( lavaTemplate, groupDict );
+                            var result = LavaService.RenderTemplate( lavaTemplate, groupDict );
 
-                                infoWindow = result.Text;
+                            infoWindow = result.Text;
 
-                                if ( !result.HasErrors )
-                                { 
-                                    infoWindow = infoWindow.Replace( "\n", string.Empty );
-                                }
+                            if ( !result.HasErrors )
+                            { 
+                                infoWindow = infoWindow.Replace( "\n", string.Empty );
                             }
 
                             sbGroupJson.Append( string.Format(
@@ -555,7 +538,7 @@ namespace RockWeb.Blocks.Groups
                         {
                             string messagesFormat = @" <p>
                                                 <div class='alert alert-warning fade in'>Some groups could not be mapped.
-                                                    <button type='button' class='close' data-dismiss='alert' aria-hidden='true'><i class='fa fa-times'></i></button>
+                                                    <button type='button' class='close' data-dismiss='alert' aria-hidden='true'><i class='ti ti-x'></i></button>
                                                     <small><a data-toggle='collapse' data-parent='#accordion' href='#map-error-details'>Show Details</a></small>
                                                     <div id='map-error-details' class='collapse'>
                                                         <p class='margin-t-sm'>

@@ -135,7 +135,11 @@ namespace Rock.Tests.Integration.Engagement.Achievements
         [ClassCleanup]
         public static void ClassCleanup()
         {
-            DeleteTestData();
+            if ( !IsContainersEnabled )
+            {
+                DeleteTestData();
+            }
+
             _rockContext = null;
             _stepProgramService = null;
         }
@@ -162,7 +166,7 @@ namespace Rock.Tests.Integration.Engagement.Achievements
                 .OrderBy( saa => saa.AchievementAttemptStartDateTime );
 
             // There should be no attempts
-            Assert.That.AreEqual( 0, attemptsQuery.Count() );
+            Assert.AreEqual( 0, attemptsQuery.Count() );
 
             var achievementTypeCache = AchievementTypeCache.Get( _achievementTypeId );
             var step = new StepService( _rockContext ).Queryable().FirstOrDefault( i => i.ForeignKey == KEY );
@@ -172,18 +176,18 @@ namespace Rock.Tests.Integration.Engagement.Achievements
             _rockContext.SaveChanges();
 
             var attempts = attemptsQuery.ToList();
-            Assert.That.IsNotNull( attempts );
-            Assert.That.AreEqual( 1, attempts.Count );
+            Assert.IsNotNull( attempts );
+            Assert.HasCount( 1, attempts );
 
             // The database stores progress with only 2 digits beyond the decimal
             var progress = decimal.Divide( COMPLETE_COUNT, STEP_TYPE_COUNT );
             var progressDifference = Math.Abs( progress - attempts[0].Progress );
 
-            Assert.That.AreEqual( RockDateTime.Today, attempts[0].AchievementAttemptStartDateTime );
-            Assert.That.AreEqual( RockDateTime.Today, attempts[0].AchievementAttemptEndDateTime );
-            Assert.That.IsTrue( progressDifference < .01m );
-            Assert.That.IsFalse( attempts[0].IsClosed );
-            Assert.That.IsFalse( attempts[0].IsSuccessful );
+            Assert.AreEqual( RockDateTime.Today, attempts[0].AchievementAttemptStartDateTime );
+            Assert.AreEqual( RockDateTime.Today, attempts[0].AchievementAttemptEndDateTime );
+            Assert.IsLessThan( .01m, progressDifference );
+            Assert.IsFalse( attempts[0].IsClosed );
+            Assert.IsFalse( attempts[0].IsSuccessful );
         }
     }
 }

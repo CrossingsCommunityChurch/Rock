@@ -40,7 +40,7 @@ namespace Rock.Blocks.Core
     [DisplayName( "Binary File Type Detail" )]
     [Category( "Core" )]
     [Description( "Displays all details of a binary file type." )]
-    [IconCssClass( "fa fa-question" )]
+    [IconCssClass( "ti ti-question-mark" )]
     [SupportedSiteTypes( Model.SiteType.Web )]
 
     #region Block Attributes
@@ -165,7 +165,11 @@ namespace Rock.Blocks.Core
                 return null;
             }
 
-            var cacheability = entity.CacheControlHeaderSettings.FromJsonOrNull<RockCacheability>();
+            var defaultCacheability = new RockCacheability()
+            {
+                RockCacheablityType = RockCacheablityType.Public,
+            };
+            var cacheability = entity.CacheControlHeaderSettings.FromJsonOrNull<RockCacheability>() ?? defaultCacheability;
 
             return new BinaryFileTypeBag
             {
@@ -212,7 +216,7 @@ namespace Rock.Blocks.Core
             var bag = GetCommonEntityBag( entity );
 
             bag.LoadAttributesAndValuesForPublicEdit( entity, RequestContext.CurrentPerson, enforceSecurity: false );
-            bag.BinaryFileTypeAttributes = GetAttributes( entity ).ConvertAll( a => PublicAttributeHelper.GetPublicEditableAttributeViewModel( a ) );
+            bag.BinaryFileTypeAttributes = GetAttributes( entity ).ConvertAll( a => PublicAttributeHelper.GetPublicEditableAttribute( a ) );
 
             if ( entity.IsSystem )
             {

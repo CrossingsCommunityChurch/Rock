@@ -42,7 +42,7 @@ namespace Rock.Blocks.Core
     [DisplayName( "Attributes" )]
     [Category( "Core" )]
     [Description( "Allows for the managing of attributes." )]
-    [IconCssClass( "fa fa-list-ul" )]
+    [IconCssClass( "ti ti-list" )]
     [SupportedSiteTypes( Model.SiteType.Web )]
 
     #region Block Attributes
@@ -103,6 +103,7 @@ namespace Rock.Blocks.Core
 
     #endregion
 
+    [Rock.Cms.DefaultBlockRole( Rock.Enums.Cms.BlockRole.Primary )]
     [Rock.SystemGuid.EntityTypeGuid( "A7D9C259-1CD0-42C2-B708-4D95F2469B18" )]
     [Rock.SystemGuid.BlockTypeGuid( "791DB49B-58A4-44E1-AEF5-ABFF2F37E197" )]
     public class Attributes : RockEntityListBlockType<Model.Attribute>
@@ -418,7 +419,7 @@ namespace Rock.Blocks.Core
             {
                 if ( fieldType.Field is Rock.Field.ISecurityGrantFieldType grantFieldType )
                 {
-                    grantFieldType.AddRulesToSecurityGrant( securityGrant );
+                    grantFieldType.AddRulesToSecurityGrant( securityGrant, new Dictionary<string, string>() );
                 }
             }
 
@@ -446,7 +447,7 @@ namespace Rock.Blocks.Core
 
             return new EditAttributeViewModel
             {
-                Attribute = PublicAttributeHelper.GetPublicEditableAttributeViewModel( attribute ),
+                Attribute = PublicAttributeHelper.GetPublicEditableAttribute( attribute ),
                 EntityTypeQualifierColumn = attribute.EntityTypeQualifierColumn,
                 EntityTypeQualifierValue = attribute.EntityTypeQualifierValue,
                 ValidQualifierColumns = validQualifierProperties,
@@ -493,7 +494,7 @@ namespace Rock.Blocks.Core
             return ActionOk( new
             {
                 Attribute = PublicAttributeHelper.GetPublicAttributeForEdit( attribute ),
-                Value = PublicAttributeHelper.GetPublicEditValue( attribute, value )
+                Value = PublicAttributeHelper.GetPublicValueForEdit( attribute, value )
             } );
         }
 

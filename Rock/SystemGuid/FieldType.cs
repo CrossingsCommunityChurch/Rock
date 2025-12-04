@@ -177,6 +177,11 @@ namespace Rock.SystemGuid
         public const string COLOR_SELECTOR = "B07070F6-B66E-4B83-8DA6-12CF3400A1EC";
 
         /// <summary>
+        /// Communication Flow field type
+        /// </summary>
+        public const string COMMUNICATION_FLOW = "DD16B493-2588-436A-8C99-8771206ED28D";
+
+        /// <summary>
         /// Communication Template field type
         /// </summary>
         public const string COMMUNICATION_TEMPLATE = "C3B37465-DCAF-4C8C-930C-9A9B5D066CA9";
@@ -347,6 +352,11 @@ namespace Rock.SystemGuid
         public const string DEFINED_VALUE_RANGE = "B5C07B16-844D-4620-82E3-4CCA8F5FC350";
 
         /// <summary>
+        /// Device field type
+        /// </summary>
+        public const string DEVICE = "D7F5D737-BDC9-4656-951E-08325D0543FD";
+
+        /// <summary>
         /// Document Type field type
         /// </summary>
         public const string DOCUMENT_TYPE = "1FD31CDC-E5E2-431B-8D53-72FC0430044D";
@@ -415,6 +425,11 @@ namespace Rock.SystemGuid
         /// Financial Statement Template field type
         /// </summary>
         public const string FINANCIAL_STATEMENT_TEMPLATE = "9E0CD807-D69F-4888-A9BE-BCD11DD083FE";
+
+        /// <summary>
+        /// Financial Transaction field type
+        /// </summary>
+        public const string FINANCIAL_TRANSACTION = "04C66B8E-2DBD-4799-875E-FFFD818EDD91";
 
         /// <summary>
         /// Gender field type

@@ -32,7 +32,7 @@ namespace Rock.Blocks.Lms
     [DisplayName( "Public Learning Program List" )]
     [Category( "LMS" )]
     [Description( "Displays a list of public learning programs." )]
-    [IconCssClass( "fa fa-list" )]
+    [IconCssClass( "ti ti-list" )]
     [SupportedSiteTypes( Model.SiteType.Web )]
 
     [TextField( "Page Title",
@@ -62,7 +62,6 @@ namespace Rock.Blocks.Lms
         Key = AttributeKey.LavaTemplate,
         Description = "The lava template to use to render the page. Merge fields include: Programs (a list of ProgramInfos), ShowCompletionStatus, BannerImageGuid, PageTitle, PageDescription, CurrentPerson and other Common Merge Fields. <span class='tip tip-lava'></span>",
         EditorMode = CodeEditorMode.Lava,
-        EditorTheme = CodeEditorTheme.Rock,
         EditorHeight = 400,
         IsRequired = false,
         DefaultValue = AttributeDefault.ProgramListTemplate,
@@ -185,7 +184,7 @@ namespace Rock.Blocks.Lms
                     
                     {% else %} 
                         <div class=""d-flex justify-content-center align-items-center card-img-h card-img-top""> 
-                        <i class=""fa fa-image fa-2x o-30""></i> </div>
+                        <i class=""ti ti-photo ti-2x o-30""></i> </div>
                 {% endif %}
                 
                 //- 2 TITLE

@@ -484,6 +484,15 @@ namespace RockWeb.Blocks.Cms
             var contentItem = contentItemService.Get( e.RowKeyId );
             if ( contentItem != null )
             {
+                var blockAllows = IsUserAuthorized( Authorization.EDIT );
+                var channelAllows = ContentChannelCache.Get( contentItem.ContentChannelId )?.IsAuthorized( Authorization.EDIT, CurrentPerson ) == true;
+                var itemAllows = contentItem.IsAuthorized( Authorization.EDIT, CurrentPerson );
+                if ( !blockAllows || !channelAllows || !itemAllows )
+                {
+                    mdGridWarning.Show( "You are not authorized to delete this item.", ModalAlertType.Alert );
+                    return;
+                }
+
                 string errorMessage;
                 if ( !contentItemService.CanDelete( contentItem, out errorMessage ) )
                 {
@@ -886,7 +895,7 @@ namespace RockWeb.Blocks.Cms
 
         protected string DisplayDateStatus( DateTime aDate )
         {
-            return ( aDate > RockDateTime.Now ) ? "<i class='fa fa-clock'></i>" : string.Empty;
+            return ( aDate > RockDateTime.Now ) ? "<i class='ti ti-clock'></i>" : string.Empty;
         }
 
         protected void BindAttributes( ContentChannel channel )
@@ -1066,10 +1075,10 @@ namespace RockWeb.Blocks.Cms
                     tagField.HtmlEncode = false;
                 }
 
-                bool canEditChannel = channel.IsAuthorized( Rock.Security.Authorization.EDIT, CurrentPerson );
-                gContentChannelItems.Actions.ShowAdd = canEditChannel;
-                gContentChannelItems.IsDeleteEnabled = canEditChannel;
-                if ( canEditChannel )
+                bool canEdit = IsUserAuthorized( Rock.Security.Authorization.EDIT ) && channel.IsAuthorized( Rock.Security.Authorization.EDIT, CurrentPerson );
+                gContentChannelItems.Actions.ShowAdd = canEdit;
+                gContentChannelItems.IsDeleteEnabled = canEdit;
+                if ( canEdit )
                 {
                     var securityField = new SecurityField();
                     gContentChannelItems.Columns.Add( securityField );

@@ -18,6 +18,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 
+using Rock.Crm.RecordSource;
 using Rock.Data;
 using Rock.Model;
 using Rock.Transactions;
@@ -166,29 +167,33 @@ namespace Rock.CheckIn.v2
         /// <returns>An instance of <see cref="ValidPropertiesBox{TPropertyBag}"/> that wraps the <see cref="RegistrationFamilyBag"/>.</returns>
         public ValidPropertiesBox<RegistrationFamilyBag> GetFamilyBag( Group group )
         {
-            var homeLocationTypeId = DefinedValueCache.Get( Rock.SystemGuid.DefinedValue.GROUP_LOCATION_TYPE_HOME.AsGuid(), _rockContext ).Id;
             var attributeGuids = _template.RequiredAttributeGuidsForFamilies
                 .Union( _template.OptionalAttributeGuidsForFamilies )
                 .ToList();
             AddressControlBag address = null;
 
-            if ( group.GroupLocations != null )
+            if ( _template.DisplayAddressOnFamilies != Enums.Controls.RequirementLevel.Unavailable )
             {
-                var location = group.GroupLocations
-                    .Where( l => l.GroupLocationTypeValueId == homeLocationTypeId )
-                    .Select( l => l.Location )
-                    .FirstOrDefault();
+                var homeLocationTypeId = DefinedValueCache.Get( Rock.SystemGuid.DefinedValue.GROUP_LOCATION_TYPE_HOME.AsGuid(), _rockContext ).Id;
 
-                address = new AddressControlBag
+                if ( group.GroupLocations != null )
                 {
-                    City = location?.City,
-                    Country = location?.Country,
-                    State = location?.State,
-                    Locality = location?.County,
-                    PostalCode = location?.PostalCode,
-                    Street1 = location?.Street1,
-                    Street2 = location?.Street2,
-                };
+                    var location = group.GroupLocations
+                        .Where( l => l.GroupLocationTypeValueId == homeLocationTypeId )
+                        .Select( l => l.Location )
+                        .FirstOrDefault();
+
+                    address = new AddressControlBag
+                    {
+                        City = location?.City,
+                        Country = location?.Country,
+                        State = location?.State,
+                        Locality = location?.County,
+                        PostalCode = location?.PostalCode,
+                        Street1 = location?.Street1,
+                        Street2 = location?.Street2,
+                    };
+                }
             }
 
             if ( group.Attributes == null )
@@ -196,7 +201,7 @@ namespace Rock.CheckIn.v2
                 group.LoadAttributes( _rockContext );
             }
 
-            group.Members.Select( gm => gm.Person ).LoadAttributes( _rockContext );
+            group.Members.Select( gm => gm.Person ).ToList().LoadAttributes( _rockContext );
 
             var bag = new RegistrationFamilyBag
             {
@@ -225,7 +230,7 @@ namespace Rock.CheckIn.v2
         /// <returns>An list of <see cref="RegistrationPersonBag"/> objects.</returns>
         public List<ValidPropertiesBox<RegistrationPersonBag>> GetFamilyMemberBags( Group group, List<GroupMember> canCheckInMembers )
         {
-            group.Members.Select( gm => gm.Person ).LoadAttributes( _rockContext );
+            group.Members.Select( gm => gm.Person ).ToList().LoadAttributes( _rockContext );
 
             var personBags = group.Members
                 .Select( gm => GetPersonBag( gm.Person, null ) )
@@ -254,6 +259,7 @@ namespace Rock.CheckIn.v2
         {
             members.Select( gm => gm.Person )
                 .DistinctBy( p => p.Id )
+                .ToList()
                 .LoadAttributes( _rockContext );
 
             foreach ( var member in members )
@@ -323,6 +329,10 @@ namespace Rock.CheckIn.v2
 
                         primaryFamily = CreatePrimaryFamily( registrationFamily, familyLastName, defaultCampusId, saveResult );
                     }
+                    else
+                    {
+                        UpdatePrimaryFamily( primaryFamily, registrationFamily, saveResult );
+                    }
 
                     UpdateFamilyAttributeValues( primaryFamily, registrationFamily );
                     EnsurePeopleInPrimaryFamilyAreMembersOfGroup( primaryFamily, registrationPeople );
@@ -348,9 +358,75 @@ namespace Rock.CheckIn.v2
         }
 
         /// <summary>
+        /// Adds a single individual to an existing family.
+        /// </summary>
+        /// <param name="familyId">The identifier of the family to be updated.</param>
+        /// <param name="individual">The individual to be added to the family.</param>
+        /// <param name="defaultCampusId">The default campus to use when creating new families.</param>
+        /// <returns>An instance of <see cref="FamilyRegistrationSaveResult"/> that describes if the operation was successful or not.</returns>
+        public FamilyRegistrationSaveResult AddIndividual( string familyId, ValidPropertiesBox<RegistrationPersonBag> individual, int? defaultCampusId )
+        {
+            if ( !HasAllRequiredValues( null, new List<ValidPropertiesBox<RegistrationPersonBag>> { individual }, out var errorMessage ) )
+            {
+                return new FamilyRegistrationSaveResult
+                {
+                    ErrorMessage = errorMessage
+                };
+            }
+
+            var groupService = new GroupService( _rockContext );
+            var primaryFamily = groupService.GetInclude( familyId, g => g.Members.Select( gm => gm.Person ), false );
+            var adults = primaryFamily.Members
+                .Select( gm => gm.Person )
+                .Where( p => p.AgeClassification == AgeClassification.Adult )
+                .ToList();
+
+            if ( primaryFamily == null )
+            {
+                return new FamilyRegistrationSaveResult
+                {
+                    ErrorMessage = $"Family was not found."
+                };
+            }
+
+            try
+            {
+                var saveResult = new FamilyRegistrationSaveResult();
+
+                _rockContext.WrapTransaction( () =>
+                {
+                    var registrationPeople = new List<(ValidPropertiesBox<RegistrationPersonBag> RegistrationPerson, Person Person)>();
+
+                    // Loop through all people and add/update as needed.
+                    var person = CreateOrUpdatePerson( individual, ref primaryFamily, saveResult );
+
+                    registrationPeople.Add( (individual, person) );
+
+                    EnsurePeopleInPrimaryFamilyAreMembersOfGroup( primaryFamily, registrationPeople );
+                    EnsurePeopleNotInPrimaryFamilyHaveAFamily( registrationPeople, defaultCampusId, saveResult, adults );
+
+                    saveResult.PrimaryFamily = primaryFamily;
+                } );
+
+                saveResult.IsSuccess = true;
+
+                return saveResult;
+            }
+            catch ( Exception ex )
+            {
+                ExceptionLogService.LogException( ex );
+
+                return new FamilyRegistrationSaveResult
+                {
+                    ErrorMessage = ex.Message
+                };
+            }
+        }
+
+        /// <summary>
         /// This handles any post-save tasks that should be performed. This
-        /// method should be called after the SaveRegistration method so that
-        /// all standard post-save processing can be performed.
+        /// method should be called after the SaveRegistration or AddIndividual
+        /// methods so that all standard post-save processing can be performed.
         /// </summary>
         /// <remarks>
         /// In rare cases, such as testing, we don't want these operations to be
@@ -590,16 +666,19 @@ namespace Rock.CheckIn.v2
         /// <returns><c>true</c> if all required properties are present; otherwise <c>false</c>.</returns>
         internal bool HasAllRequiredValues( ValidPropertiesBox<RegistrationFamilyBag> registrationFamily, List<ValidPropertiesBox<RegistrationPersonBag>> people, out string errorMessage )
         {
-            if ( !registrationFamily.IsValidProperty( nameof( registrationFamily.Bag.Id ) ) )
+            if ( registrationFamily != null )
             {
-                errorMessage = $"Family is missing required {nameof( registrationFamily.Bag.Id )} property.";
-                return false;
-            }
+                if ( !registrationFamily.IsValidProperty( nameof( registrationFamily.Bag.Id ) ) )
+                {
+                    errorMessage = $"Family is missing required {nameof( registrationFamily.Bag.Id )} property.";
+                    return false;
+                }
 
-            if ( !registrationFamily.IsValidProperty( nameof( registrationFamily.Bag.FamilyName ) ) )
-            {
-                errorMessage = $"Family is missing required {nameof( registrationFamily.Bag.FamilyName )} property.";
-                return false;
+                if ( !registrationFamily.IsValidProperty( nameof( registrationFamily.Bag.FamilyName ) ) )
+                {
+                    errorMessage = $"Family is missing required {nameof( registrationFamily.Bag.FamilyName )} property.";
+                    return false;
+                }
             }
 
             foreach ( var registrationPerson in people )
@@ -675,7 +754,103 @@ namespace Rock.CheckIn.v2
             saveResult.NewFamilyList.Add( family );
             _rockContext.SaveChanges();
 
+            if ( _template.DisplayAddressOnFamilies != Enums.Controls.RequirementLevel.Unavailable )
+            {
+                registrationFamily.IfValidProperty( nameof( registrationFamily.Bag.Address ), () =>
+                {
+                    UpdateFamilyAddress( family, registrationFamily.Bag.Address );
+                } );
+            }
+
             return family;
+        }
+
+        /// <summary>
+        /// Updates the primary family for a registration. This should be
+        /// called when an existing family has been found.
+        /// </summary>
+        /// <param name="family">The existing family to be updated.</param>
+        /// <param name="registrationFamily">The details of the family being registered.</param>
+        /// <param name="saveResult">Will be updated with the new <see cref="Group"/> object.</param>
+        /// <returns>An new instance of <see cref="Group"/> that will have already been saved to the database.</returns>
+        internal void UpdatePrimaryFamily( Group family, ValidPropertiesBox<RegistrationFamilyBag> registrationFamily, FamilyRegistrationSaveResult saveResult )
+        {
+            if ( registrationFamily.Bag.FamilyName.IsNotNullOrWhiteSpace() )
+            {
+                family.Name = registrationFamily.Bag.FamilyName;
+                _rockContext.SaveChanges();
+            }
+
+            if ( _template.DisplayAddressOnFamilies != Enums.Controls.RequirementLevel.Unavailable )
+            {
+                registrationFamily.IfValidProperty( nameof( registrationFamily.Bag.Address ), () =>
+                {
+                    UpdateFamilyAddress( family, registrationFamily.Bag.Address );
+                } );
+            }
+        }
+
+        /// <summary>
+        /// Update the home address for the family.
+        /// </summary>
+        /// <param name="family">The family to be updated.</param>
+        /// <param name="address">The address or <c>null</c> if any existing address should be removed.</param>
+        private void UpdateFamilyAddress( Group family, AddressControlBag address )
+        {
+            var groupLocationService = new GroupLocationService( _rockContext );
+            var homeLocationTypeId = DefinedValueCache.Get( Rock.SystemGuid.DefinedValue.GROUP_LOCATION_TYPE_HOME.AsGuid(), _rockContext ).Id;
+            var familyLocation = family.GroupLocations.Where( a => a.GroupLocationTypeValueId == homeLocationTypeId ).FirstOrDefault();
+
+            // If we don't have a street address then we treat it as removing
+            // the address from the family.
+            if ( address == null || address.Street1.IsNullOrWhiteSpace() )
+            {
+                if ( familyLocation != null )
+                {
+                    groupLocationService.Delete( familyLocation );
+                    _rockContext.SaveChanges();
+                }
+
+                return;
+            }
+
+            // Find the location that matches the address, if not found then a
+            // new one will be created.
+            var newOrExistingLocation = new LocationService( _rockContext ).Get(
+                    address.Street1,
+                    address.Street2,
+                    address.City,
+                    address.State,
+                    address.PostalCode,
+                    address.Country );
+
+            // This only happens if the address was completely invalid. Just abort.
+            if ( newOrExistingLocation == null )
+            {
+                return;
+            }
+
+            // If the family does not have a current home address then create
+            // a new one.
+            if ( familyLocation == null )
+            {
+                familyLocation = new GroupLocation
+                {
+                    GroupLocationTypeValueId = homeLocationTypeId,
+                    GroupId = family.Id,
+                    IsMailingLocation = true,
+                    IsMappedLocation = true
+                };
+
+                groupLocationService.Add( familyLocation );
+            }
+
+            // If the location has changed then update the family location.
+            if ( newOrExistingLocation.Id != familyLocation.LocationId )
+            {
+                familyLocation.LocationId = newOrExistingLocation.Id;
+                _rockContext.SaveChanges();
+            }
         }
 
         /// <summary>
@@ -708,8 +883,12 @@ namespace Rock.CheckIn.v2
             registrationPerson.IfValidProperty( nameof( registrationPerson.Bag.Gender ),
                 () => gender = registrationPerson.Bag.Gender );
 
+            // Don't convert to organization time zone, just take the
+            // raw date value from the client without any conversion. This
+            // effectively strips off the timezone and leaves us with the
+            // original date value as entered in the UI.
             registrationPerson.IfValidProperty( nameof( registrationPerson.Bag.BirthDate ),
-                () => birthdate = registrationPerson.Bag.BirthDate?.ToOrganizationDateTime() );
+                () => birthdate = registrationPerson.Bag.BirthDate?.DateTime.Date );
 
             return new PersonService.PersonMatchQuery( registrationPerson.Bag.NickName,
                 registrationPerson.Bag.LastName,
@@ -737,8 +916,18 @@ namespace Rock.CheckIn.v2
             // NOTE: NickName, LastName, Gender, MaritalStatusValueId should
             // replace existing values if they were provided even if it is a
             // matched person.
-            person.NickName = registrationPerson.Bag.NickName;
+
             person.LastName = registrationPerson.Bag.LastName;
+
+            // If the value of the NickName has changed, then also update the
+            // first name. This way we don't "break" a name where the first
+            // name and nickname are different but the only real change they
+            // made was to birthdate.
+            if ( person.NickName != registrationPerson.Bag.NickName )
+            {
+                person.FirstName = registrationPerson.Bag.NickName;
+                person.NickName = registrationPerson.Bag.NickName;
+            }
 
             registrationPerson.IfValidProperty( nameof( registrationPerson.Bag.Gender ),
                 () => person.Gender = registrationPerson.Bag.Gender );
@@ -797,7 +986,11 @@ namespace Rock.CheckIn.v2
             {
                 if ( registrationPerson.Bag.BirthDate.HasValue || saveEmptyValues )
                 {
-                    person.SetBirthDate( registrationPerson.Bag.BirthDate?.ToOrganizationDateTime() );
+                    // Don't convert to organization time zone, just take the
+                    // raw date value from the client without any conversion. This
+                    // effectively strips off the timezone and leaves us with the
+                    // original date value as entered in the UI.
+                    person.SetBirthDate( registrationPerson.Bag.BirthDate?.DateTime.Date );
                 }
             } );
 
@@ -825,8 +1018,15 @@ namespace Rock.CheckIn.v2
                 registrationPerson.IfValidProperty( nameof( registrationPerson.Bag.RecordStatus ),
                     () => person.RecordStatusValueId = GetDefinedValueId( registrationPerson.Bag.RecordStatus ) );
 
-                registrationPerson.IfValidProperty( nameof( registrationPerson.Bag.ConnectionStatus ),
-                    () => person.ConnectionStatusValueId = GetDefinedValueId( registrationPerson.Bag.ConnectionStatus ) );
+                if ( registrationPerson.IsValidProperty( nameof( registrationPerson.Bag.ConnectionStatus ) ) )
+                {
+                    person.ConnectionStatusValueId = GetDefinedValueId( registrationPerson.Bag.ConnectionStatus );
+                }
+                else if ( person.Id == 0 )
+                {
+                    // Use configured default from the check-in template.
+                    person.ConnectionStatusValueId = DefinedValueCache.Get( _template.DefaultPersonConnectionStatusGuid, _rockContext )?.Id;
+                }
 
                 registrationPerson.IfValidProperty( nameof( registrationPerson.Bag.Ethnicity ),
                     () => person.EthnicityValueId = GetDefinedValueId( registrationPerson.Bag.Ethnicity ) );
@@ -836,6 +1036,17 @@ namespace Rock.CheckIn.v2
             }
 
             var isNewPerson = person.Id == 0;
+
+            if ( isNewPerson )
+            {
+                if ( !saveResult.RecordSourceValueId.HasValue )
+                {
+                    saveResult.RecordSourceValueId = RecordSourceHelper.GetSessionRecordSourceValueId()
+                        ?? DefinedValueCache.Get( _template.DefaultPersonRecordSourceGuid, _rockContext )?.Id;
+                }
+
+                person.RecordSourceValueId = saveResult.RecordSourceValueId;
+            }
 
             _rockContext.SaveChanges();
 
@@ -1131,6 +1342,7 @@ namespace Rock.CheckIn.v2
 
             var peopleInPrimaryFamily = people
                 .Where( p => p.RegistrationPerson.Bag.RelationshipToAdult == null
+                    || p.RegistrationPerson.Bag.RelationshipToAdult.Value.IsNullOrWhiteSpace()
                     || familyRelationshipGuids.Contains( p.RegistrationPerson.Bag.RelationshipToAdult.Value.AsGuid() ) );
 
             // Ensure that every person who is listed in the UI as being in the
@@ -1180,16 +1392,20 @@ namespace Rock.CheckIn.v2
         /// <param name="people">The people being registered in the kiosk.</param>
         /// <param name="defaultCampusId">The campus to set on any new families being created.</param>
         /// <param name="saveResult">Will be updated with any new <see cref="Group"/> objects that were created.</param>
-        internal void EnsurePeopleNotInPrimaryFamilyHaveAFamily( List<(ValidPropertiesBox<RegistrationPersonBag> RegistrationPerson, Person Person)> people, int? defaultCampusId, FamilyRegistrationSaveResult saveResult )
+        /// <param name="adultsInPrimaryFamily">Optional list of known adults in the family to use when adding known relationships. Leave <c>null</c> to automatically detect from <paramref name="people"/>.</param>
+        internal void EnsurePeopleNotInPrimaryFamilyHaveAFamily( List<(ValidPropertiesBox<RegistrationPersonBag> RegistrationPerson, Person Person)> people, int? defaultCampusId, FamilyRegistrationSaveResult saveResult, List<Person> adultsInPrimaryFamily = null )
         {
             var familyRelationshipGuids = _template.SameFamilyKnownRelationshipRoleGuids;
             var groupService = new GroupService( _rockContext );
             var groupMemberService = new GroupMemberService( _rockContext );
 
-            var adultsInPrimaryFamily = people
-                .Where( p => p.RegistrationPerson.Bag.IsAdult )
-                .Select( p => p.Person )
-                .ToList();
+            if ( adultsInPrimaryFamily == null )
+            {
+                adultsInPrimaryFamily = people
+                    .Where( p => p.RegistrationPerson.Bag.IsAdult )
+                    .Select( p => p.Person )
+                    .ToList();
+            }
 
             var peopleNotInPrimaryFamily = people
                 .Where( p => !familyRelationshipGuids.Contains( ( p.RegistrationPerson.Bag.RelationshipToAdult?.Value ).AsGuid() ) );

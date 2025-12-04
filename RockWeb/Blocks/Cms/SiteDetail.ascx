@@ -15,7 +15,7 @@
             <asp:HiddenField ID="hfSiteId" runat="server" />
 
             <div class="panel-heading">
-                <h1 class="panel-title"><i class="fa fa-desktop"></i>
+                <h1 class="panel-title"><i class="ti ti-device-desktop"></i>
                     <asp:Literal ID="lReadOnlyTitle" runat="server" /></h1>
                 <div class="panel-labels">
                     <asp:Literal ID="lVisitSite" runat="server" />
@@ -121,7 +121,7 @@
                         </div>
                         <div class="row">
                             <div class="col-md-12">
-                                <Rock:CodeEditor ID="cePageHeaderContent" runat="server" Label="Page Header Content" Help="The content provided here will be added to each page's head section." EditorMode="Lava" EditorTheme="Rock" Height="300" />
+                                <Rock:CodeEditor ID="cePageHeaderContent" runat="server" Label="Page Header Content" Help="The content provided here will be added to each page's head section." EditorMode="Lava" Height="300" />
                             </div>
                         </div>
                     </Rock:PanelWidget>

@@ -30,6 +30,16 @@ namespace Rock.ViewModels.Blocks.Core.CampusDetail
     public class CampusBag : EntityBagBase
     {
         /// <summary>
+        /// Gets or sets the specially handled core attributes.
+        /// </summary>
+        public Dictionary<string, PublicAttributeBag> CoreAttributes { get; set; }
+
+        /// <summary>
+        /// Gets or sets the specially handled core attribute values.
+        /// </summary>
+        public Dictionary<string, string> CoreAttributeValues { get; set; }
+
+        /// <summary>
         /// Gets or sets the campus schedules.
         /// </summary>
         /// <value>The campus schedules.</value>
@@ -140,5 +150,10 @@ namespace Rock.ViewModels.Blocks.Core.CampusDetail
         /// </summary>
         /// <value>The campus topics.</value>
         public List<CampusTopicBag> CampusTopics { get; set; }
+
+        /// <summary>
+        /// Gets or sets the campus average weekend attendance.
+        /// </summary>
+        public int? AverageWeekendAttendance { get; set; }
     }
 }

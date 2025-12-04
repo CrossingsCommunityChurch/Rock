@@ -312,6 +312,7 @@ namespace Rock.Communication.Transport
                                             .Where( p => p.PersonAliasId.HasValue && p.PersonAliasId.Value == personAliasId && p.IsActive && p.NotificationsEnabled && !string.IsNullOrEmpty( p.DeviceRegistrationId ) )
                                             .Where( p => !siteId.HasValue || siteId.Value == p.SiteId )
                                             .Select( p => p.DeviceRegistrationId )
+                                            .Distinct()
                                             .ToList();
                                     }
                                     else if ( !string.IsNullOrEmpty( recipient.PersonalDevice?.DeviceRegistrationId ) )
@@ -377,7 +378,10 @@ namespace Rock.Communication.Transport
                                         }
                                         else
                                         {
-                                            recipient.SendDateTime = RockDateTime.Now;
+                                            var now = RockDateTime.Now;
+
+                                            recipient.SendDateTime = now;
+                                            recipient.DeliveredDateTime = now;
                                         }
 
                                         recipient.Status = status;
@@ -921,6 +925,7 @@ namespace Rock.Communication.Transport
                                             .Where( p => p.PersonAliasId.HasValue && p.PersonAliasId.Value == personAliasId && p.IsActive && p.NotificationsEnabled && !string.IsNullOrEmpty( p.DeviceRegistrationId ) )
                                             .Where( p => !siteId.HasValue || siteId.Value == p.SiteId )
                                             .Select( p => p.DeviceRegistrationId )
+                                            .Distinct()
                                             .ToList();
                                     }
                                     else if ( !string.IsNullOrEmpty( recipient.PersonalDevice?.DeviceRegistrationId ) )
@@ -965,7 +970,10 @@ namespace Rock.Communication.Transport
                                         }
                                         else
                                         {
-                                            recipient.SendDateTime = RockDateTime.Now;
+                                            var now = RockDateTime.Now;
+
+                                            recipient.SendDateTime = now;
+                                            recipient.DeliveredDateTime = now;
                                         }
 
                                         recipient.Status = status;

@@ -28,10 +28,10 @@ using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using System.Web;
 
-using DotLiquid;
-
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 
+using Rock.AI.Agent;
 using Rock.Blocks;
 using Rock.Bus;
 using Rock.Communication.Chat;
@@ -39,14 +39,15 @@ using Rock.Configuration;
 using Rock.Data;
 using Rock.Enums.Configuration;
 using Rock.Lava;
-using Rock.Lava.DotLiquid;
 using Rock.Lava.Fluid;
-using Rock.Lava.RockLiquid;
 using Rock.Logging;
 using Rock.Model;
+using Rock.Net;
 using Rock.Net.Geolocation;
 using Rock.Observability;
+using Rock.Utility.CaptchaApi;
 using Rock.Utility.Settings;
+using Rock.Web;
 using Rock.Web.Cache;
 using Rock.Web.UI;
 using Rock.WebFarm;
@@ -103,9 +104,10 @@ namespace Rock.WebStartup
         {
             LogStartupMessage( "Application Starting" );
 
-            InitializeRockApp();
-
             AppDomain.CurrentDomain.AssemblyResolve += AppDomain_AssemblyResolve;
+
+            InitializeRockApp();
+            Rock.JsonExtensions.ReferenceEqualityComparer = new Rock.Utility.EntityReferenceEqualityComparer();
 
             // Indicate to always log to file during initialization.
             ExceptionLogService.AlwaysLogToFile = true;
@@ -173,6 +175,21 @@ namespace Rock.WebStartup
             RockLogger.ReloadConfiguration();
             ShowDebugTimingMessage( "RockLogger" );
 
+            using ( ObservabilityHelper.StartActivity( "Startup: Application Startup Stage 1" ) )
+            {
+                RunApplicationStartupStage1( runMigrationFileInfo, ranEFMigrations );
+            }
+        }
+
+        /// <summary>
+        /// Runs the first stage of the application startup that can be traced
+        /// by observability. This requires that EF be configured and that
+        /// observability also be configured.
+        /// </summary>
+        /// <param name="runMigrationFileInfo">The FileInfo that represents the 'Run.Migration' file.</param>
+        /// <param name="ranEFMigrations"><c>true</c> if EF migrations were executed.</param>
+        private static void RunApplicationStartupStage1( FileInfo runMigrationFileInfo, bool ranEFMigrations )
+        {
             // Configure the values for RockDateTime.
             // To avoid the overhead of initializing the GlobalAttributesCache prior to LoadCacheObjects(), load these from the database instead.
             LogStartupMessage( "Configuring Date Settings" );
@@ -278,6 +295,20 @@ namespace Rock.WebStartup
             Rock.Transactions.RockQueue.StartFastQueue();
             ShowDebugTimingMessage( "Rock Fast Queue" );
 
+            // Register all the AI skills into the database.
+            LogStartupMessage( "Registering AI Skills" );
+            AISkillService.RegisterSkills();
+            ShowDebugTimingMessage( "AI Skills" );
+
+            // Start the Automation system.
+            LogStartupMessage( "Starting the Automation System" );
+            using ( var scope = RockApp.Current.CreateScope() )
+            {
+                AutomationTriggerCache.CreateAllMonitors( scope.ServiceProvider.GetRequiredService<Core.Automation.AutomationTriggerContainer>() );
+                AutomationEventCache.CreateAllExecutors( scope.ServiceProvider.GetRequiredService<Core.Automation.AutomationEventContainer>() );
+            }
+            ShowDebugTimingMessage( "Automation System" );
+
             bool anyThemesUpdated = UpdateThemes();
             if ( anyThemesUpdated )
             {
@@ -297,18 +328,64 @@ namespace Rock.WebStartup
         {
             var sc = new ServiceCollection();
 
+            // Register basic hosting services.
             sc.AddSingleton<IConnectionStringProvider, WebFormsConnectionStringProvider>();
             sc.AddSingleton<IInitializationSettings, WebFormsInitializationSettings>();
             sc.AddSingleton<IDatabaseConfiguration, DatabaseConfiguration>();
             sc.AddSingleton<IHostingSettings, HostingSettings>();
             sc.AddSingleton<IChatProvider, StreamChatProvider>();
+            sc.AddSingleton<ICaptchaProvider, CaptchaProofOfWorkProvider>();
+            sc.AddSingleton<IRockRequestContextAccessor, RockRequestContextAccessor>();
+            sc.AddSingleton<IWebHostEnvironment>( provider => new Utility.WebHostEnvironment
+            {
+                WebRootPath = AppDomain.CurrentDomain.BaseDirectory
+            } );
+            sc.AddSingleton<MetadataHelper>();
+            sc.AddSingleton<ObsidianFingerprintManager>();
+            sc.AddSingleton<ILavaEngineFactory, LavaEngineFactory>();
+
+            sc.AddScoped<RockContext>();
+
+            sc.AddRockLogging();
 
             // Register the class to initialize for InitializationSettings. This
             // is transient so that we always get the current values from the
             // source.
             sc.AddTransient<InitializationSettings, WebFormsInitializationSettings>();
 
-            RockApp.Current = new RockApp( sc.BuildServiceProvider() );
+            // Register Light Containers.
+            sc.AddSingleton( typeof( Extension.LightComponentLoader<> ), typeof( Extension.LightComponentLoader<> ) );
+            sc.AddScoped<Core.Automation.AutomationTriggerContainer>();
+            sc.AddScoped<Core.Automation.AutomationEventContainer>();
+            sc.AddScoped<AI.Agent.AgentSkillContainer>();
+
+            sc.AddSingleton<IRockContextFactory, RockContextFactory>();
+
+            foreach ( var configurationType in Rock.Reflection.FindTypes( typeof( Plugin.IConfigureServices ) ) )
+            {
+                try
+                {
+                    var configurationInstance = Activator.CreateInstance( configurationType.Value ) as Plugin.IConfigureServices;
+                    configurationInstance.ConfigureServices( sc );
+
+                }
+                catch ( Exception ex )
+                {
+                    // We are too early in the startup to use any meaningful
+                    // logging. So just write it to the debug console for now.
+                    Debug.WriteLine( $"Error configuring services for {configurationType.Value.FullName}: {ex.Message}" );
+                }
+            }
+
+            // If we are running under Visual Studio then turn on scope validation
+            // to help catch misconfigurations.
+            var serviceOptions = new ServiceProviderOptions
+            {
+                ValidateOnBuild = System.Web.Hosting.HostingEnvironment.IsDevelopmentEnvironment,
+                ValidateScopes = System.Web.Hosting.HostingEnvironment.IsDevelopmentEnvironment
+            };
+
+            RockApp.Current = new RockApp( sc.BuildServiceProvider( serviceOptions ) );
         }
 
         /// <summary>
@@ -457,7 +534,7 @@ namespace Rock.WebStartup
                 try
                 {
                     var startupException = new RockStartupException( "Error sending version update notifications", ex );
-                    LogError( startupException, null );
+                    LogError( startupException );
                     ExceptionLogService.LogException( startupException, null );
                 }
                 catch
@@ -641,8 +718,17 @@ namespace Rock.WebStartup
             // will be logged and stop running any more migrations for that assembly
             foreach ( var pluginMigration in pluginAssemblies )
             {
-                bool ranPluginMigration = RunPluginMigrations( pluginMigration );
-                migrationsWereRun = migrationsWereRun || ranPluginMigration;
+                try
+                {
+                    bool ranPluginMigration = RunPluginMigrations( pluginMigration );
+                    migrationsWereRun = migrationsWereRun || ranPluginMigration;
+                }
+                catch ( Exception ex )
+                {
+                    // Don't throw exceptions caused by plugins, just log them
+                    // and keep going so we don't prevent Rock from starting.
+                    ExceptionLogService.LogException( ex );
+                }
             }
 
             return migrationsWereRun;
@@ -808,14 +894,14 @@ namespace Rock.WebStartup
                 // if a plugin migration got an error, it gets wrapped with a RockStartupException
                 // If this occurs, we'll log the migration that occurred,  and stop running migrations for this assembly
                 System.Diagnostics.Debug.WriteLine( rockStartupException.Message );
-                LogError( rockStartupException, null );
+                LogError( rockStartupException );
             }
             catch ( Exception ex )
             {
                 // If an exception occurs in an an assembly, log the error, and stop running migrations for this assembly
                 var startupException = new RockStartupException( $"Error running migrations from {pluginAssemblyName}" );
                 System.Diagnostics.Debug.WriteLine( startupException.Message );
-                LogError( ex, null );
+                LogError( ex );
             }
 
             return result;
@@ -1022,6 +1108,9 @@ AS
     [E].[Id] AS [EntityId],
     [A].[Id] AS [AttributeId],
     [A].[Key],
+    [A].[Name],
+    [A].[IsPublic],
+    [A].[IsGridColumn],
     CASE WHEN ISNULL([AV].[Value], '') != '' THEN [AV].[Value] ELSE ISNULL([A].[DefaultValue], '') END AS [Value],
     CASE WHEN ISNULL([AV].[Value], '') != '' THEN [AV].[PersistedTextValue] ELSE [A].[DefaultPersistedTextValue] END AS [PersistedTextValue],
     CASE WHEN ISNULL([AV].[Value], '') != '' THEN [AV].[PersistedHtmlValue] ELSE [A].[DefaultPersistedHtmlValue] END AS [PersistedHtmlValue],
@@ -1137,97 +1226,17 @@ WHERE [PQ].[row_number] = 1
         /// </summary>
         private static void InitializeLava()
         {
-            // Get the Lava Engine configuration settings.
-            Type engineType = null;
-
-            /* [2023-09-25] DL
-             * As of v17, the Lava Engine is configured to use the Fluid Liquid library by default.
-             * The Liquid Framework global setting referenced below is removed in the migration to v17, and should only exist
-             * if it has been manually reinstated to resolve a significant runtime issue.
-             * In a future release, all references to the DotLiquid library will be removed from the Rock codebase and this 
-             * configuration code can also be removed.
-             */
-            var liquidEngineTypeValue = GlobalAttributesCache.Value( Rock.SystemKey.SystemSetting.LAVA_ENGINE_LIQUID_FRAMEWORK )?.ToLower();
-            if ( !string.IsNullOrWhiteSpace( liquidEngineTypeValue ) )
-            {
-                if ( liquidEngineTypeValue == "dotliquid" )
-                {
-                    // The "DotLiquid" configuration setting here corresponds to what is referred to internally as "RockLiquid":
-                    // the Rock-specific fork of the DotLiquid framework.
-                    // This mode executes pre-v13 code to process Lava, and does not use a Lava Engine implementation.
-                    // Note that this should not be confused with the LavaEngine referred to by LavaEngineTypeSpecifier.DotLiquid,
-                    // which is a Lava Engine implementation of the DotLiquid framework used for testing purposes.
-                    LavaService.RockLiquidIsEnabled = true;
-                }
-                else if ( liquidEngineTypeValue == "fluidverification" )
-                {
-                    engineType = typeof( FluidEngine );
-                    LavaService.RockLiquidIsEnabled = true;
-                }
-                else if ( liquidEngineTypeValue == "fluid" )
-                {
-                    engineType = typeof( FluidEngine );
-                    LavaService.RockLiquidIsEnabled = false;
-                }
-                else
-                {
-                    // Log an error for the invalid configuration setting, and continue with the default value.
-                    ExceptionLogService.LogException( $"Invalid Lava Engine Type. The setting value \"{liquidEngineTypeValue}\" is not valid, must be [dotliquid|fluid|fluidverification]. The Fluid engine will be activated by default." );
-
-                    engineType = typeof( FluidEngine );
-                    LavaService.RockLiquidIsEnabled = false;
-                }
-            }
-            else
-            {
-                // The Fluid Engine is the default engine for Rock v17 and above.
-                engineType = typeof( FluidEngine );
-                LavaService.RockLiquidIsEnabled = false;
-            }
-
             InitializeLavaEngines();
 
-            if ( engineType != null )
-            {
-                InitializeGlobalLavaEngineInstance( engineType );
-            }
-
-            if ( LavaService.RockLiquidIsEnabled )
-            {
-                InitializeRockLiquidLibrary();
-            }
+            InitializeGlobalLavaEngineInstance();
         }
 
         private static void InitializeLavaEngines()
         {
-            // Register the RockLiquid Engine (pre-v13).
-            LavaService.RegisterEngine( ( engineServiceType, options ) =>
-            {
-                var rockLiquidEngine = new RockLiquidEngine();
-
-                InitializeLavaEngineInstance( rockLiquidEngine, options as LavaEngineConfigurationOptions );
-
-                return rockLiquidEngine;
-            } );
-
-            // Register the DotLiquid Engine factory.
-            LavaService.RegisterEngine( ( engineServiceType, options ) =>
-            {
-                var dotLiquidEngine = new DotLiquidEngine();
-
-                InitializeLavaEngineInstance( dotLiquidEngine, options as LavaEngineConfigurationOptions );
-
-                return dotLiquidEngine;
-            } );
-
             // Register the Fluid Engine factory.
             LavaService.RegisterEngine( ( engineServiceType, options ) =>
             {
-                var fluidEngine = new FluidEngine();
-
-                InitializeLavaEngineInstance( fluidEngine, options as LavaEngineConfigurationOptions );
-
-                return fluidEngine;
+                return RockApp.Current.GetRequiredService<ILavaEngineFactory>().CreateEngine( options as LavaEngineConfigurationOptions );
             } );
         }
 
@@ -1247,209 +1256,25 @@ WHERE [PQ].[row_number] = 1
             return engineOptions;
         }
 
-        private static void InitializeRockLiquidLibrary()
-        {
-            _ = LavaService.NewEngineInstance( typeof( RockLiquidEngine ) );
-
-            // Register the set of filters that are compatible with RockLiquid.
-            Template.RegisterFilter( typeof( Rock.Lava.Filters.TemplateFilters ) );
-            Template.RegisterFilter( typeof( Rock.Lava.RockFilters ) );
-            Template.DefaultIsThreadSafe = true;
-
-            // Initialize the RockLiquid file system.
-            Template.FileSystem = new LavaFileSystem();
-        }
-
         /// <summary>
         /// Initialize the global Lava Engine instance.
         /// </summary>
-        /// <param name="engineType"></param>
-        private static void InitializeGlobalLavaEngineInstance( Type engineType )
+        private static void InitializeGlobalLavaEngineInstance()
         {
             // Initialize the Lava engine.
             var options = GetDefaultEngineConfiguration();
 
-            LavaService.SetCurrentEngine( engineType, options );
+            LavaService.SetCurrentEngine( typeof( ILavaEngine ), options );
 
             // Subscribe to exception notifications from the Lava Engine.
             var engine = LavaService.GetCurrentEngine();
 
             engine.ExceptionEncountered += Engine_ExceptionEncountered;
-
-            InitializeLavaEngineInstance( engine, options );
-        }
-
-        /// <summary>
-        /// Initialize a specific Lava Engine instance.
-        /// </summary>
-        /// <param name="engine"></param>
-        /// <param name="options"></param>
-        private static void InitializeLavaEngineInstance( ILavaEngine engine, LavaEngineConfigurationOptions options )
-        {
-            options = options ?? GetDefaultEngineConfiguration();
-
-            if ( engine.GetType() == typeof( RockLiquidEngine ) )
-            {
-                engine.Initialize( options );
-                return;
-            }
-
-            InitializeLavaFilters( engine );
-            InitializeLavaTags( engine );
-            InitializeLavaBlocks( engine );
-
-            if ( options.InitializeDynamicShortcodes )
-            {
-                InitializeLavaShortcodes( engine );
-            }
-
-            InitializeLavaSafeTypes( engine );
-
-            engine.Initialize( options );
         }
 
         private static void Engine_ExceptionEncountered( object sender, LavaEngineExceptionEventArgs e )
         {
             ExceptionLogService.LogException( e.Exception, System.Web.HttpContext.Current );
-        }
-
-        private static void InitializeLavaFilters( ILavaEngine engine )
-        {
-            // Register the common Rock.Lava filters first, then overwrite with the engine-specific filters.
-            engine.RegisterFilters( typeof( Rock.Lava.Filters.TemplateFilters ) );
-            engine.RegisterFilters( typeof( Rock.Lava.LavaFilters ) );
-        }
-
-        private static void InitializeLavaShortcodes( ILavaEngine engine )
-        {
-            // Register shortcodes defined in the codebase.
-            try
-            {
-                var shortcodeTypes = Rock.Reflection.FindTypes( typeof( ILavaShortcode ) ).Select( a => a.Value ).ToList();
-
-                foreach ( var shortcodeType in shortcodeTypes )
-                {
-                    // Create an instance of the shortcode to get the registration name.
-                    var instance = Activator.CreateInstance( shortcodeType ) as ILavaShortcode;
-
-                    var name = instance.SourceElementName;
-
-                    if ( string.IsNullOrWhiteSpace( name ) )
-                    {
-                        name = shortcodeType.Name;
-                    }
-
-                    // Register the shortcode with a factory method to create a new instance of the shortcode from the System.Type defined in the codebase.
-                    engine.RegisterShortcode( name, ( shortcodeName ) =>
-                    {
-                        var shortcode = Activator.CreateInstance( shortcodeType ) as ILavaShortcode;
-
-                        return shortcode;
-                    } );
-                }
-            }
-            catch ( Exception ex )
-            {
-                ExceptionLogService.LogException( ex, null );
-            }
-
-            // Register shortcodes defined in the current database.
-            var shortCodes = LavaShortcodeCache.All();
-
-            foreach ( var shortcode in shortCodes )
-            {
-                // Register the shortcode with the current Lava Engine.
-                // The provider is responsible for retrieving the shortcode definition from the data store and managing the web-based shortcode cache.
-                WebsiteLavaShortcodeProvider.RegisterShortcode( engine, shortcode.TagName );
-            }
-        }
-
-        private static void InitializeLavaTags( ILavaEngine engine )
-        {
-            // Get all tags and call OnStartup methods
-            try
-            {
-                var elementTypes = Rock.Reflection.FindTypes( typeof( ILavaTag ) ).Select( a => a.Value ).ToList();
-
-                foreach ( var elementType in elementTypes )
-                {
-                    var instance = Activator.CreateInstance( elementType ) as ILavaTag;
-
-                    var name = instance.SourceElementName;
-
-                    if ( string.IsNullOrWhiteSpace( name ) )
-                    {
-                        name = elementType.Name;
-                    }
-
-                    engine.RegisterTag( name, ( tagName ) =>
-                    {
-                        var tag = Activator.CreateInstance( elementType ) as ILavaTag;
-                        return tag;
-                    } );
-
-                    try
-                    {
-                        instance.OnStartup( engine );
-                    }
-                    catch ( Exception ex )
-                    {
-                        var lavaException = new Exception( string.Format( "Lava component initialization failure. Startup failed for Lava Tag \"{0}\".", elementType.FullName ), ex );
-
-                        ExceptionLogService.LogException( lavaException, null );
-                    }
-                }
-            }
-            catch ( Exception ex )
-            {
-                ExceptionLogService.LogException( ex, null );
-            }
-        }
-
-        private static void InitializeLavaBlocks( ILavaEngine engine )
-        {
-            // Get all blocks and call OnStartup methods
-            try
-            {
-                var blockTypes = Rock.Reflection.FindTypes( typeof( ILavaBlock ) ).Select( a => a.Value ).ToList();
-
-                foreach ( var blockType in blockTypes )
-                {
-                    var blockInstance = Activator.CreateInstance( blockType ) as ILavaBlock;
-
-                    engine.RegisterBlock( blockInstance.SourceElementName, ( blockName ) =>
-                    {
-                        return Activator.CreateInstance( blockType ) as ILavaBlock;
-                    } );
-
-                    try
-                    {
-                        blockInstance.OnStartup( engine );
-                    }
-                    catch ( Exception ex )
-                    {
-                        ExceptionLogService.LogException( ex, null );
-                    }
-
-                }
-            }
-            catch ( Exception ex )
-            {
-                ExceptionLogService.LogException( ex, null );
-            }
-        }
-
-        /// <summary>
-        /// Initializes the lava safe types on the engine. This takes care
-        /// of special types that we don't have direct access to so we can't
-        /// add the proper interfaces to them.
-        /// </summary>
-        /// <param name="engine">The engine.</param>
-        private static void InitializeLavaSafeTypes( ILavaEngine engine )
-        {
-            engine.RegisterSafeType( typeof( Common.Mobile.DeviceData ) );
-            engine.RegisterSafeType( typeof( Utility.RockColor ) );
-            engine.RegisterSafeType( typeof( Utilities.ColorPair ) );
         }
 
         #endregion
@@ -1460,39 +1285,9 @@ WHERE [PQ].[row_number] = 1
         /// Logs the error to database (or filesystem if database isn't available)
         /// </summary>
         /// <param name="ex">The ex.</param>
-        /// <param name="context">The context.</param>
-        private static void LogError( Exception ex, HttpContext context )
+        private static void LogError( Exception ex )
         {
-            int? pageId;
-            int? siteId;
-            PersonAlias personAlias = null;
-
-            if ( context == null )
-            {
-                pageId = null;
-                siteId = null;
-            }
-            else
-            {
-                var pid = context.Items["Rock:PageId"];
-                pageId = pid != null ? int.Parse( pid.ToString() ) : ( int? ) null;
-                var sid = context.Items["Rock:SiteId"];
-                siteId = sid != null ? int.Parse( sid.ToString() ) : ( int? ) null;
-                try
-                {
-                    var user = UserLoginService.GetCurrentUser();
-                    if ( user != null && user.Person != null )
-                    {
-                        personAlias = user.Person.PrimaryAlias;
-                    }
-                }
-                catch
-                {
-                    // Intentionally left blank
-                }
-            }
-
-            ExceptionLogService.LogException( ex, context, pageId, siteId, personAlias );
+            ExceptionLogService.LogException( ex, null );
         }
 
         /// <summary>

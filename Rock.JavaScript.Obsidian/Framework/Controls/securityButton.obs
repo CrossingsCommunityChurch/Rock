@@ -1,6 +1,6 @@
 <!-- Copyright by the Spark Development Network; Licensed under the Rock Community License -->
 <template>
-    <a href="#" @click.prevent="showModal" role="button" :class="classes"><i class="fa fa-lock"></i></a>
+    <a href="#" @click.prevent="showModal" role="button" :class="classes"><i class="ti ti-lock"></i></a>
 </template>
 
 <script setup lang="ts">
@@ -55,7 +55,7 @@
     const entityTitle = computed(() => {
         let title = props.title;
 
-        if (title.substring(0, 6).toUpperCase() == "SECURE") {
+        if (title.substring(0, 6).toUpperCase() === "SECURE") {
             title = title.substring(6).trim();
         }
 

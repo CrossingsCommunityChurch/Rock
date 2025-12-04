@@ -101,7 +101,6 @@ namespace RockWeb.Blocks.Finance
         Key = AttributeKey.AdditionalCustomActions,
         Description = BlockAttributeDescription.AdditionalCustomActions,
         EditorMode = CodeEditorMode.Html,
-        EditorTheme = CodeEditorTheme.Rock,
         EditorHeight = 200,
         IsRequired = false,
         Order = 7 )]
@@ -592,7 +591,7 @@ Because the contents of this setting will be rendered inside a &lt;ul&gt; elemen
                 {
                     string url = string.Format( "~/WorkflowEntry/{0}?PersonId={1}", workflowType.Id, businessId );
                     sbActions.AppendFormat(
-                        "<li><a href='{0}'><i class='fa-fw {1}'></i> {2}</a></li>",
+                        "<li><a href='{0}'><i class='ti-fw {1}'></i> {2}</a></li>",
                         ResolveRockUrl( url ),
                         workflowType.IconCssClass,
                         workflowType.Name );

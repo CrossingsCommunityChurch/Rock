@@ -103,6 +103,8 @@ export const Category = {
     PersonAttributesSocial: "DD8F467D-B83C-444F-B04C-C681167046A1",
     /** The Personal Merge Template Category guid */
     PersonalMergeTemplate: "A9F2F544-660B-4176-ACAD-88898416A66E",
+    /** Communications Personalization Segment Category Guid */
+    PersonalizationSegmentCommunications: "F80DADC1-AF83-4953-BDA6-6A9F046EA8E6",
     /** The category for defined types for PowerBI */
     PowerbiDefinedType: "FF0B8B72-C1A3-BB99-4D51-78BC670ADB9C",
     /** The registration attribute category that indicates Registration Attributes that should be prompted for at the end of the registration process. */
@@ -115,8 +117,12 @@ export const Category = {
     SchedulePersistedDatasets: "7D152006-C47D-47E6-BF0B-09C3C2D0AE84",
     /** Gets the DataView Persisted Schedule category guid */
     SchedulePersistedDataviews: "EEC7A935-BEF2-4450-9CBF-B85CEC6F7FEA",
+    /** Gets the Personalization Segment Schedules category guid */
+    SchedulePersonalizationSegments: "568A8E6C-DD49-4AC8-84BB-799099EFD9C6",
     /** Gets the Service Times schedule category guid */
     ScheduleServiceTimes: "4FECC91B-83F9-4269-AE03-A006F401C47E",
+    /** The system communication Form Builder Category guid. */
+    SystemCommunicationFormBuilder: "E3696A97-3F69-4AA8-8DDF-7AC628CAF060",
     /** The System Communication RSVP Confirmation Category guid */
     SystemCommunicationRsvpConfirmation: "19024818-E456-4642-8858-F50C8B6DB5ED",
     /** The system communication Sign-Up Group confirmation Category guid */

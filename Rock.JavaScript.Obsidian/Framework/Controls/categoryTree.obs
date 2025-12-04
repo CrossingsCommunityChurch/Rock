@@ -1,6 +1,6 @@
 <!-- Copyright by the Spark Development Network; Licensed under the Rock Community License -->
 <template>
-    <div class="scrollbar-thin picker-body border border-gray-300 rounded overflow-visible overflow-y-auto position-relative z-0" :style="`height: ${height}`">
+    <div class="picker-body border border-gray-300 rounded overflow-visible overflow-y-auto position-relative z-0" :style="`height: ${height}`">
         <TreeList v-model="internalValues"
                   :multiple="multiple"
                   :provider="itemProvider"
@@ -13,37 +13,8 @@
     </div>
 </template>
 
-<style scoped>
-.scrollbar-thin {
-    scrollbar-width: thin;
-}
-
-.scrollbar-thin::-webkit-scrollbar {
-    width: 8px;
-    border-radius: 4px;
-}
-
-.scrollbar-thin::-webkit-scrollbar-button {
-    display: none;
-}
-
-.scrollbar-thin::-webkit-scrollbar-thumb {
-    background-color: #858585;
-    border-radius: 4px;
-}
-
-.scrollbar-thin::-webkit-scrollbar-thumb:hover {
-    background-color: #6b6b6b;
-}
-
-.scrollbar-thin::-webkit-scrollbar-track {
-    background-color: #f0f0f0;
-    border-radius: 4px;
-}
-</style>
-
 <script setup lang="ts">
-    import { type PropType, ref, watch } from "vue";
+    import { type PropType, ref, watch, watchEffect } from "vue";
     import TreeList from "./treeList.obs";
     import { CategoryTreeItemProvider } from "@Obsidian/Utility/treeItemProviders";
     import { forceToArray } from "@Obsidian/Utility/arrayUtils";
@@ -83,6 +54,15 @@
             type: Array as PropType<TreeItemBag[]>
         },
 
+        /**
+         * V-model to give the parent component an indication of whether or not any categories have
+         * been loaded/exist.
+         */
+        hasCategories: {
+            type: Boolean,
+            default: false
+        },
+
         disableFolderSelection: {
             type: Boolean as PropType<boolean>,
             default: false
@@ -115,7 +95,8 @@
 
     const emit = defineEmits<{
         (e: "update:modelValue", value: ListItemBag | ListItemBag[] | null): void,
-        (_e: "valueSelected"): void
+        (e: "update:hasCategories", value: boolean): void,
+        (e: "valueSelected"): void
     }>();
 
     /**
@@ -221,6 +202,9 @@
         flatItems.value = flatten(newItems ?? [], i => i.children ?? []);
     };
 
+    watchEffect(() => {
+        emit("update:hasCategories", flatItems.value.length > 0);
+    });
 
     // Keep security token up to date, but don't need refetch data
     watch(securityGrantToken, () => {

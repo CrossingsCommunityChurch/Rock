@@ -45,7 +45,7 @@
 
             <PasteAsPlainTextPlugin ref="pasteAsPlainTextPlugin" />
 
-            <MergeFieldPlugin :mergeFields="mergeFields" ref="mergeFieldPlugin" />
+            <MergeFieldPlugin :mergeFields="mergeFields" :commonMergeFields="commonMergeFields" ref="mergeFieldPlugin" />
 
             <ImageBrowserPlugin ref="imageBrowserPlugin"
                                 :encryptedRootFolder="encryptedImageRootFolder"
@@ -62,86 +62,22 @@
             <LavaLanguagePlugin />
 
             <StylesheetsPlugin />
+
+            <ShortLinkPlugin ref="shortLinkPlugin"
+                             :checkToken="shortLinkCheckToken"
+                             :getPageId="shortLinkGetPageId"
+                             :sites="shortLinkSites"
+                             :tokenMinLength="shortLinkTokenMinLength" />
         </template>
     </RockFormField>
 </template>
 
 <style scoped>
-:deep(.tox.tox-tinymce-inline .tox-editor-header) {
-    border: none;
-}
-
-:deep(.tox-tinymce) {
-    border: none;
-    border-bottom-left-radius: 0;
-    border-bottom-right-radius: 0;
-}
-
-.note-editor-container {
-    position: relative;
-    border: 1px solid var(--input-border);
-    border-bottom-left-radius: 0;
-    border-bottom-right-radius: 0;
-    border-radius: var(--input-border-radius);
-    transition: border-color ease-in-out .15s, box-shadow ease-in-out .15s;
-}
-
-.note-editor-container:focus,
-.note-editor-container.focused,
-.note-editor-container:focus-within {
-    border-color: var(--focus-state-border-color);
-    border: var(--focus-state-border);
-    box-shadow: var(--focus-state-shadow);
-}
-
-:deep(.note-editor .note-toolbar) {
-    padding: 0;
-    border: none;
-    box-shadow: none;
-}
-
-:deep(.codeeditor-header) {
-    display: none;
-}
-
-:deep(.code-editor-container pre) {
-    border-radius: 0;
-}
-
 .note-editor-container :deep(.note-editor .note-editable) {
     padding: 0;
     border-right: none;
     border-left: none;
     border-bottom: none;
-}
-
-.note-editing-area-overlay {
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    right: 0;
-    left: 0;
-    background-color: transparent;
-}
-
-.note-statusbar {
-    background-color: #8080801d;
-    border-bottom-left-radius: 4px;
-    border-bottom-right-radius: 4px;
-    border-top: 1px solid #00000032;
-}
-
-.note-resizebar {
-    cursor: ns-resize;
-    height: 9px;
-    padding-top: 1px;
-    width: 100%;
-}
-
-.note-icon-bar {
-    border-top: 1px solid #00000032;
-    margin: 1px auto;
-    width: 20px;
 }
 </style>
 
@@ -158,12 +94,18 @@
     import MetaTagsPlugin from "./NoteEditor/metaTagsPlugin.partial.obs";
     import ParagraphPlugin from "./NoteEditor/paragraphPlugin.partial.obs";
     import PasteAsPlainTextPlugin from "./NoteEditor/pasteAsPlainTextPlugin.partial.obs";
+
+    import ShortLinkPlugin from "./NoteEditor/shortLinkPlugin.partial.obs";
     import StylesheetsPlugin from "./NoteEditor/stylesheetsPlugin.partial.obs";
+    import { getCssVariableValue } from "@Obsidian/Utility/cssUtils";
     import { providePluginsFeature } from "./NoteEditor/utils.partial";
     import { tinymce, Editor, EditorEvent, Events, RawEditorOptions } from "@Obsidian/Libs/tinymce";
+    import { Guid } from "@Obsidian/Types";
     import { useVModelPassthrough } from "@Obsidian/Utility/component";
+    import { debounce, isNullish } from "@Obsidian/Utility/util";
+    import { ListItemBag } from "@Obsidian/ViewModels/Utility/listItemBag";
 
-    type ToolbarConfig = "light" | "full";
+    type ToolbarConfig = "light" | "full" | "light-compact";
 
     const props = defineProps({
         /** The HTML value. */
@@ -205,6 +147,16 @@
          * "FieldName^EntityType|Label" // Same as previous but with a custom label.
          */
         mergeFields: {
+            type: Array as PropType<string[] | undefined>,
+            required: false
+        },
+
+        /**
+         * A list of common merge field to show below the picker for easy access. Should be an array of strings
+         * and the strings should be in the following format: "FieldName^Label|Icon" or just "FieldName^Label", where the FieldName is the
+         * name of the merge field, Label is the text to display on the button, and Icon is the CSS class for icon.
+         */
+        commonMergeFields: {
             type: Array as PropType<string[] | undefined>,
             required: false
         },
@@ -259,12 +211,54 @@
         },
 
         /**
+         * When set to true, the HTML editor will show the asset manager button
+         * in the toolbar. This requires that a security grant token be available
+         * that provides access to the asset manager.
+         */
+        enableAssetManager: {
+            type: Boolean as PropType<boolean>,
+            default: false
+        },
+
+
+        /**
          * When set to true, the code editor allows toggling even if the content includes Lava commands,
          * bypassing any usual restrictions related to such content.
          */
         isTogglableCodeEditorForced: {
             type: Boolean,
             default: false
+        },
+
+        shortLinkCheckToken: {
+            type: Object as PropType<((token: string, siteId: number) => Promise<string>) | null | undefined>
+        },
+
+        shortLinkGetPageId: {
+            type: Object as PropType<((pageGuid: Guid) => Promise<number | null | undefined>) | null | undefined>
+        },
+
+        shortLinkSites: {
+            type: Array as PropType<ListItemBag[] | null | undefined>
+        },
+
+        shortLinkTokenMinLength: {
+            type: Number as PropType<number | null | undefined>
+        },
+
+        /**
+         * The delay (in milliseconds) before uncommitted editor changes are automatically committed.
+         *
+         * "Uncommitted changes" are edits made by the user that have not yet triggered a change event—
+         * typically because the editor hasn't lost focus or reached an internal threshold.
+         *
+         * This setting is useful for syncing the model value shortly after the user stops typing.
+         * May affect performance with large content.
+         *
+         * Set to `null` or `undefined` to disable (default).
+         */
+        autocommitDelayMs: {
+            type: Number as PropType<number | null | undefined>
         }
     });
 
@@ -299,6 +293,7 @@
     const imageBrowserPlugin = ref<InstanceType<typeof ImageBrowserPlugin> | undefined>();
     const fileBrowserPlugin = ref<InstanceType<typeof FileBrowserPlugin> | undefined>();
     const assetManagerPlugin = ref<InstanceType<typeof AssetManagerPlugin> | undefined>();
+    const shortLinkPlugin = ref<InstanceType<typeof ShortLinkPlugin> | undefined>();
 
     // Provide helpers to plugins.
     const pluginManager = providePluginsFeature({
@@ -323,7 +318,20 @@
         return isEditorShown.value;
     }
 
-    // #endregion
+    const scheduleAutoCommit = computed<() => void>(() => {
+        if (isNullish(props.autocommitDelayMs)) {
+            return () => { /* Do nothing if the prop is nullish. */ };
+        }
+        else {
+            return debounce(
+                () => {
+                    tinyMceInstance.value?.execCommand("mceTriggerChange");
+                }, props.autocommitDelayMs
+            );
+        }
+    });
+
+    // #endregion Functions
 
     // #region Event Handlers
 
@@ -362,7 +370,7 @@
         isCodeEditorWarningShown.value = event.isPrevented;
     }
 
-    // #endregion
+    // #endregion Event Handlers
 
     // #region Watchers
 
@@ -421,6 +429,9 @@
     // This gets called after the plugins have been mounted.
     onMounted(() => {
         if (editorId.value) {
+            const assetManagerPluginId = props.enableAssetManager
+                ? assetManagerPlugin.value?.id
+                : undefined;
             // Define the toolbar buttons depending on the toolbar config (light or full).
             // They are displayed in the order in which they are defined
             // and grouped using pipe (|) characters; e.g.,
@@ -431,8 +442,9 @@
             // so no need to create a rockpastefromword plugin at this point.
             // https://www.tiny.cloud/docs/tinymce/6/available-toolbar-buttons/
             const toolbarConfigs: Record<ToolbarConfig, string> = {
-                "light": `${editSourceCodePlugin.value?.id} | bold italic strikethrough link forecolor backcolor styles numlist bullist | removeformat | ${paragraphPlugin.value?.id} | ${mergeFieldPlugin.value?.id} | ${imageBrowserPlugin.value?.id} ${fileBrowserPlugin.value?.id} ${assetManagerPlugin.value?.id} | ${pasteAsPlainTextPlugin.value?.id} | undo redo`,
-                "full": `${editSourceCodePlugin.value?.id} | bold italic underline strikethrough numlist bullist link | undo redo | removeformat | styles forecolor backcolor | fontfamily fontsize superscript subscript table hr | ${paragraphPlugin.value?.id} | ${mergeFieldPlugin.value?.id} | ${imageBrowserPlugin.value?.id} ${fileBrowserPlugin.value?.id} ${assetManagerPlugin.value?.id} | ${pasteAsPlainTextPlugin.value?.id} | help`,
+                "light": `${editSourceCodePlugin.value?.id} | bold italic strikethrough link ${shortLinkPlugin.value?.id} forecolor backcolor styles numlist bullist | removeformat | ${paragraphPlugin.value?.id} | ${mergeFieldPlugin.value?.id} | ${imageBrowserPlugin.value?.id} ${fileBrowserPlugin.value?.id} ${assetManagerPluginId} | ${pasteAsPlainTextPlugin.value?.id} | undo redo`,
+                "light-compact": `${editSourceCodePlugin.value?.id} bold italic strikethrough link ${shortLinkPlugin.value?.id} forecolor backcolor styles numlist bullist ${paragraphPlugin.value?.id} | ${imageBrowserPlugin.value?.id} ${fileBrowserPlugin.value?.id} ${assetManagerPluginId} removeformat ${pasteAsPlainTextPlugin.value?.id} ${mergeFieldPlugin.value?.id} undo redo`,
+                "full": `${editSourceCodePlugin.value?.id} | bold italic underline strikethrough numlist bullist link ${shortLinkPlugin.value?.id} | undo redo | removeformat | styles forecolor backcolor | fontfamily fontsize superscript subscript table hr | ${paragraphPlugin.value?.id} | ${mergeFieldPlugin.value?.id} | ${imageBrowserPlugin.value?.id} ${fileBrowserPlugin.value?.id} ${assetManagerPluginId} | ${pasteAsPlainTextPlugin.value?.id} | help`,
             };
 
             // Get the default system font.
@@ -466,7 +478,16 @@
                 // and will inherit global Rock styles.
                 content_css: false,
 
-                content_style: `body { font-family: ${defaultSystemFont || "arial,helvetica,sans-serif"} }`,
+                content_style: `:root {
+                    --color-interface-softest: ${getCssVariableValue("--color-interface-softest")};
+                    --color-interface-strong: ${getCssVariableValue("--color-interface-strong")};
+                }
+
+                body {
+                    font-family: ${defaultSystemFont || "arial,helvetica,sans-serif"};
+                    background-color: var(--color-interface-softest);
+                    color: var(--color-interface-strong);
+                }`,
 
                 // Hide the header menu bar and the footer status bar (which includes the TinyMCE attribution).
                 menubar: false,
@@ -664,6 +685,11 @@
                         }
                     });
 
+                    // Automatically commit changes after a short delay to allow for typing.
+                    editor.on("input", (_e): void => {
+                        scheduleAutoCommit.value();
+                    });
+
                     editor.on("focus", (): void => {
                         if (noteEditorContainerElement.value) {
                             noteEditorContainerElement.value.classList.add("focused");
@@ -691,7 +717,20 @@
 
     onUnmounted(() => {
         if (tinyMceInstance.value) {
-            tinyMceInstance.value.destroy();
+            try {
+                tinyMceInstance.value.destroy();
+            }
+            catch (e) {
+                // Ignore error if TinyMCE fails to destroy the instance during unmounting.
+                // This usually means that the elements have already been removed from the DOM.
+                const ignoreMessage = "Node cannot be null or undefined";
+                if (e === ignoreMessage || (e instanceof Error && e.message?.includes(ignoreMessage))) {
+                    return;
+                }
+
+                // Re-throw error if it is something else.
+                throw e;
+            }
         }
     });
 </script>

@@ -122,7 +122,6 @@ namespace Rock.Blocks.Group
         DefaultValue = DefaultListItemDetailsTemplate,
         Description = "An optional lava template to appear next to each person in the list.",
         EditorMode = CodeEditorMode.Lava,
-        EditorTheme = CodeEditorTheme.Rock,
         EditorHeight = 400,
         IsRequired = false,
         Key = AttributeKey.ListItemDetailsTemplate,
@@ -223,6 +222,7 @@ namespace Rock.Blocks.Group
 
     #endregion
 
+    [Rock.Cms.DefaultBlockRole( Rock.Enums.Cms.BlockRole.Primary )]
     [Rock.SystemGuid.EntityTypeGuid( "64ECB2E0-218F-4EB4-8691-7DC94A767037" )]
     [Rock.SystemGuid.BlockTypeGuid( "308DBA32-F656-418E-A019-9D18235027C1" )]
     public class GroupAttendanceDetail : RockBlockType
@@ -2370,7 +2370,7 @@ namespace Rock.Blocks.Group
                     }
                 }
 
-                var occurrenceDate = attendanceOccurrenceSearchParameters.AttendanceOccurrenceDate ?? RockDateTime.Today;
+                var occurrenceDate = ( attendanceOccurrenceSearchParameters.AttendanceOccurrenceDate ?? RockDateTime.Today ).Date;
                 var locationId = attendanceOccurrenceSearchParameters.LocationId;
                 var scheduleId = attendanceOccurrenceSearchParameters.ScheduleId;
                 var group = attendanceOccurrenceSearchParameters.Group;
@@ -2499,7 +2499,7 @@ namespace Rock.Blocks.Group
 
                 var currentPerson = this._block.GetCurrentPerson();
 
-                if ( !group.IsAuthorized( Authorization.MANAGE_MEMBERS, currentPerson ) && !group.IsAuthorized( Authorization.EDIT, currentPerson ) )
+                if ( !group.IsAuthorized( Authorization.MANAGE_MEMBERS, currentPerson ) && !group.IsAuthorized( Authorization.EDIT, currentPerson ) && !group.IsAuthorized( Authorization.TAKE_ATTENDANCE, currentPerson ) )
                 {
                     return null;
                 }

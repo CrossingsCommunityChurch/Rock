@@ -46,7 +46,7 @@ namespace Rock.Tests.Integration.Core.Lava.Filters
                 .Queryable()
                 .FirstOrDefault( x => x.ContentChannel.Name == "External Website Ads" && x.Title == "SAMPLE: Easter" );
 
-            Assert.That.IsNotNull( contentChannelItem, "Required test data not found." );
+            Assert.IsNotNull( contentChannelItem, "Required test data not found." );
 
             var values = new LavaDataDictionary { { "Item", contentChannelItem } };
 
@@ -103,7 +103,7 @@ Hello Ted! Your Id is <Id>, and your IdHash is'<IdHash>'.
             TestHelper.AssertTemplateOutput( expectedOutput, input, options );
         }
 
-        [DataTestMethod]
+        [TestMethod]
         [DataRow( "" )]
         [DataRow( "abc" )]
         [DataRow( "123abc" )]
@@ -145,9 +145,8 @@ Hello Ted!
             TestHelper.AssertTemplateOutput( expectedOutput, input, options );
         }
 
-        [DataTestMethod]
+        [TestMethod]
         [DataRow( "" )]
-        [DataRow( "123" )]
         [DataRow( "abc" )]
         public void FromIdHash_WithInvalidHashInput_ReturnsEmptyOutput( string inputHash )
         {
@@ -155,6 +154,22 @@ Hello Ted!
             input = input.Replace( "<input>", inputHash );
 
             TestHelper.AssertTemplateOutput( string.Empty, input );
+        }
+
+        [TestMethod]
+        public void FromIdHash_WithIntegerInput_ReturnsIntegerOutput()
+        {
+            var input = @"{{ 123 | FromIdHash }}";
+
+            TestHelper.AssertTemplateOutput( "123", input );
+        }
+
+        [TestMethod]
+        public void FromIdHash_WithIntegerStringInput_ReturnsIntegerOutput()
+        {
+            var input = @"{{ '123' | FromIdHash }}";
+
+            TestHelper.AssertTemplateOutput( "123", input );
         }
 
         #endregion
@@ -190,10 +205,10 @@ The encrypted message is: *
 The decrypted message is: This is my secret!
 ";
 
-            TestHelper.AssertTemplateOutput( typeof(FluidEngine), expectedOutput, inputTemplate, new LavaTestRenderOptions { Wildcards = new List<string> { "*" } } );
+            TestHelper.AssertTemplateOutput( typeof( FluidEngine ), expectedOutput, inputTemplate, new LavaTestRenderOptions { Wildcards = new List<string> { "*" } } );
         }
 
-        [DataTestMethod]
+        [TestMethod]
         [DataRow( "" )]
         [DataRow( null )]
         [DataRow( "This is my secret!" )]
@@ -207,7 +222,7 @@ The decrypted message is: This is my secret!
 
             var output1 = TestHelper.GetTemplateOutput( typeof( FluidEngine ), inputTemplate1 );
 
-            Assert.That.AreNotEqual( output1?.RemoveWhiteSpace(), input?.RemoveWhiteSpace() );
+            Assert.AreNotEqual( output1?.RemoveWhiteSpace(), input?.RemoveWhiteSpace() );
 
             // Verify that the input text can be encrypted and decrypted successfully.
             var inputTemplate2 = @"

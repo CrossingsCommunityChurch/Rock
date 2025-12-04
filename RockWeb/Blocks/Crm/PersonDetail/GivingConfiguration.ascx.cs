@@ -239,7 +239,10 @@ namespace RockWeb.Blocks.Crm.PersonDetail
             var btnScheduledTransactionInactivate = e.Item.FindControl( "btnScheduledTransactionInactivate" ) as LinkButton;
             btnScheduledTransactionInactivate.CommandArgument = financialScheduledTransaction.Guid.ToString();
 
-            if ( financialScheduledTransaction.IsActive && financialScheduledTransaction.FinancialGateway.GetGatewayComponent().UpdateScheduledPaymentSupported )
+            var isScheduledPaymentUpdateSupported = financialScheduledTransaction?.FinancialGateway?.GetGatewayComponent()?.UpdateScheduledPaymentSupported
+                ?? false;
+
+            if ( financialScheduledTransaction.IsActive && isScheduledPaymentUpdateSupported )
             {
                 btnScheduledTransactionInactivate.Visible = true;
             }
@@ -1061,7 +1064,10 @@ namespace RockWeb.Blocks.Crm.PersonDetail
                 pledgesQry = pledgesQry.Where( p => accountGuids.Contains( p.Account.Guid ) );
             }
 
-            var pledges = pledgesQry.ToList();
+            var pledges = pledgesQry
+                .OrderByDescending( p => p.StartDate )
+                .ThenBy( p => p.Id )
+                .ToList();
             rptPledges.DataSource = pledges;
             rptPledges.DataBind();
         }

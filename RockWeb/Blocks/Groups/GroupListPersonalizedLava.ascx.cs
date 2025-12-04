@@ -73,7 +73,6 @@ namespace RockWeb.Blocks.Groups
         Key = AttributeKey.LavaTemplate,
         Description = "The lava template to use to format the group list.",
         EditorMode = CodeEditorMode.Lava,
-        EditorTheme = CodeEditorTheme.Rock,
         EditorHeight = 400,
         IsRequired = true,
         DefaultValue = "{% include '~~/Assets/Lava/GroupListSidebar.lava' %}",
@@ -109,6 +108,7 @@ namespace RockWeb.Blocks.Groups
 
     #endregion Block Attributes
 
+    [Rock.Cms.DefaultBlockRole( Rock.Enums.Cms.BlockRole.Navigation )]
     [Rock.SystemGuid.BlockTypeGuid( "1B172C33-8672-4C98-A995-8E123FF316BD" )]
     public partial class GroupListPersonalizedLava : RockBlock
     {
@@ -264,7 +264,7 @@ namespace RockWeb.Blocks.Groups
 
             foreach ( var groupMember in qry.ToList() )
             {
-                if ( groupMember.Group.IsAuthorized( Authorization.VIEW, CurrentPerson ) && groupMember.GroupRole.CanView )
+                if ( groupMember.Group.IsAuthorized( Authorization.VIEW, CurrentPerson ) && ( groupMember.GroupRole.CanView || groupMember.GroupRole.CanTakeAttendance ) )
                 {
                     groups.Add( new GroupInvolvementSummary
                     {
@@ -312,7 +312,6 @@ namespace RockWeb.Blocks.Groups
             return childGroups;
         }
 
-        [DotLiquid.LiquidType( "Group", "Role", "IsLeader", "GroupType" )]
         public class GroupInvolvementSummary : LavaDataObject
         {
             public Group Group { get; set; }

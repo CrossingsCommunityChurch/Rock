@@ -50,6 +50,50 @@ namespace Rock
         }
 
         /// <summary>
+        /// Get's an enum as a type from it's type name 'Rock.Model.SiteType'
+        /// </summary>
+        /// <param name="enumTypeName"></param>
+        /// <returns></returns>
+        public static Type GetEnumType( string enumTypeName )
+        {
+            if ( string.IsNullOrWhiteSpace( enumTypeName ) )
+            {
+                return null;
+            }
+
+            if ( _enumTypeCache.TryGetValue( enumTypeName, out var cachedType ) )
+            {
+                return cachedType;
+            }
+
+            var enumType = AppDomain.CurrentDomain
+                .GetAssemblies()
+                .SelectMany( assembly =>
+                {
+                    try
+                    {
+                        return assembly.GetTypes();
+                    }
+                    catch
+                    {
+                        return Array.Empty<Type>();
+                    }
+                } )
+                .FirstOrDefault( t =>
+                    t.IsEnum &&
+                    ( t.Name.Equals( enumTypeName, StringComparison.OrdinalIgnoreCase ) ||
+                     t.FullName.Equals( enumTypeName, StringComparison.OrdinalIgnoreCase ) ) );
+
+            if ( enumType != null )
+            {
+                _enumTypeCache[enumTypeName] = enumType;
+            }
+
+            return enumType;
+        }
+        private static readonly Dictionary<string, Type> _enumTypeCache = new Dictionary<string, Type>();
+
+        /// <summary>
         /// Finds the first matching type in Rock or any of the assemblies that reference Rock
         /// </summary>
         /// <param name="baseType">Type of the base.</param>
@@ -286,6 +330,28 @@ namespace Rock
             {
                 System.Reflection.MethodInfo getMethod = serviceInstance.GetType().GetMethod( "Get", new Type[] { typeof( string ), typeof( bool ) } );
                 return getMethod.Invoke( serviceInstance, new object[] { key, true } ) as Rock.Data.IEntity;
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Gets the <see cref="IEntity"/> that corresponds to the entity type and
+        /// identifier key specified.
+        /// </summary>
+        /// <param name="entityType">Type of the entity.</param>
+        /// <param name="key">The key that identifies the entity.</param>
+        /// <param name="allowIntegerIdentifier">if set to <c>true</c> integer identifiers will be allowed; otherwise <c>null</c> will be returned if an integer identifier is provided.</param>
+        /// <param name="dbContext">The database context to use when accessing the database.</param>
+        /// <returns>An instance of the entity or null if not found.</returns>
+        public static Rock.Data.IEntity GetIEntityForEntityType( Type entityType, string key, bool allowIntegerIdentifier, Data.DbContext dbContext = null )
+        {
+            Rock.Data.IService serviceInstance = Reflection.GetServiceForEntityType( entityType, dbContext );
+
+            if ( serviceInstance != null )
+            {
+                System.Reflection.MethodInfo getMethod = serviceInstance.GetType().GetMethod( "Get", new Type[] { typeof( string ), typeof( bool ) } );
+                return getMethod.Invoke( serviceInstance, new object[] { key, allowIntegerIdentifier } ) as Rock.Data.IEntity;
             }
 
             return null;
@@ -977,7 +1043,17 @@ namespace Rock
             string pluginsFolder = Path.Combine( AppDomain.CurrentDomain.BaseDirectory, "Plugins" );
 
             // blacklist of files that would never have Rock MEF components or Rock types
-            string[] ignoredFileStart = { "Lucene.", "Microsoft.", "msvcr100.", "System.", "JavaScriptEngineSwitcher.", "React.", "CacheManager." };
+            string[] ignoredFileStart = {
+                "Lucene.",
+                "Microsoft.",
+                "msvcr100.",
+                "System.",
+                "JavaScriptEngineSwitcher.",
+                "React.",
+                "CacheManager.",
+                // This was moved into core in v18.0, it can be removed in v19.0
+                "tech.triumph.Lava.Helix.dll"
+            };
 
             // get all *.dll in the bin and plugin directories except for blacklisted ones
             var assemblyFileNames = Directory.EnumerateFiles( binDirectory, "*.dll", SearchOption.AllDirectories ).ToList();

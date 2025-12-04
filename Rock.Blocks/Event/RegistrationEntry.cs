@@ -24,14 +24,15 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
 
-using DotLiquid.Util;
-
 using Rock.Attribute;
 using Rock.ClientService.Core.Campus;
 using Rock.ClientService.Finance.FinancialPersonSavedAccount;
 using Rock.ClientService.Finance.FinancialPersonSavedAccount.Options;
+using Rock.Crm.RecordSource;
 using Rock.Data;
 using Rock.ElectronicSignature;
+using Rock.Enums.Reporting;
+using Rock.Field;
 using Rock.Financial;
 using Rock.Model;
 using Rock.Pdf;
@@ -41,9 +42,11 @@ using Rock.Utility;
 using Rock.ViewModels.Blocks.Event.RegistrationEntry;
 using Rock.ViewModels.Controls;
 using Rock.ViewModels.Finance;
+using Rock.ViewModels.Reporting;
 using Rock.ViewModels.Utility;
 using Rock.Web;
 using Rock.Web.Cache;
+using Rock.Web.UI.Controls;
 
 namespace Rock.Blocks.Event
 {
@@ -55,7 +58,7 @@ namespace Rock.Blocks.Event
     [DisplayName( "Registration Entry" )]
     [Category( "Event" )]
     [Description( "Block used to register for a registration instance." )]
-    [IconCssClass( "fa fa-clipboard-list" )]
+    [IconCssClass( "ti ti-clipboard-list" )]
     [SupportedSiteTypes( Model.SiteType.Web )]
 
     #region Block Attributes
@@ -132,6 +135,20 @@ namespace Rock.Blocks.Event
         Order = 11 )]
 
     [BooleanField(
+        "Enable ACH",
+        Key = AttributeKey.EnableACH,
+        Description = "Enabling this will also control which type of Saved Accounts can be used during the payment process.  The payment gateway must still be configured to support ACH payments.",
+        DefaultBooleanValue = true,
+        Order = 12 )]
+
+    [BooleanField(
+        "Enable Credit Card",
+        Key = AttributeKey.EnableCreditCard,
+        Description = "Enabling this will also control which type of Saved Accounts can be used during the payment process.  The payment gateway must still be configured to support Credit Card payments.",
+        DefaultBooleanValue = true,
+        Order = 13 )]
+
+    [BooleanField(
         "Disable Captcha Support",
         Key = AttributeKey.DisableCaptchaSupport,
         Description = "If set to 'Yes' the CAPTCHA verification step will not be performed.",
@@ -161,8 +178,9 @@ namespace Rock.Blocks.Event
             public const string ForceEmailUpdate = "ForceEmailUpdate";
             public const string ShowFieldDescriptions = "ShowFieldDescriptions";
             public const string EnableSavedAccount = "EnableSavedAccount";
+            public const string EnableACH = "EnableACH";
+            public const string EnableCreditCard = "EnableCreditCard";
             public const string DisableCaptchaSupport = "DisableCaptchaSupport";
-            public const string EnableACHForEvents = "Ach";
         }
 
         /// <summary>
@@ -496,7 +514,7 @@ namespace Rock.Blocks.Event
         [BlockAction]
         public BlockActionResult SubmitRegistration( RegistrationEntryArgsBag args )
         {
-            var disableCaptcha = GetAttributeValue( AttributeKey.DisableCaptchaSupport ).AsBoolean();
+            var disableCaptcha = Captcha.CaptchaService.ShouldDisableCaptcha( GetAttributeValue( AttributeKey.DisableCaptchaSupport ).AsBoolean() );
 
             if ( !disableCaptcha && !RequestContext.IsCaptchaValid )
             {
@@ -1390,11 +1408,9 @@ namespace Rock.Blocks.Event
             // If the Registration Instance linkage specified a group, load it now
             var groupId = GetRegistrationGroupId( rockContext, context.Registration.RegistrationInstanceId );
 
-            Rock.Model.Group group = null;
-
             if ( groupId.HasValue )
             {
-                group = new GroupService( rockContext ).Get( groupId.Value );
+                var group = new GroupService( rockContext ).Get( groupId.Value );
 
                 if ( group != null && ( !context.Registration.GroupId.HasValue || context.Registration.GroupId.Value != group.Id ) )
                 {
@@ -1403,8 +1419,7 @@ namespace Rock.Blocks.Event
                 }
             }
 
-            var registrationSlug = PageParameter( PageParameterKey.Slug );
-            var linkage = GetRegistrationLinkage( registrationSlug, rockContext );
+            var linkage = GetRegistrationLinkage( rockContext, context.Registration.RegistrationInstanceId );
 
             if ( linkage?.CampusId.HasValue == true )
             {
@@ -1752,7 +1767,7 @@ namespace Rock.Blocks.Event
                     paymentReductionAmount -= paymentPlanAmount;
                 }
             }
-            
+
             // Amount To Pay Now
             if ( paymentReductionAmount > 0m
                  && registrationArgs.AmountToPayNow > 0m
@@ -1895,10 +1910,7 @@ namespace Rock.Blocks.Event
                             ( !l.RegistrationInstance.EndDateTime.HasValue || l.RegistrationInstance.EndDateTime > dateTime ) )
                         .FirstOrDefault();
 
-                    if ( linkage != null )
-                    {
-                        groupId = linkage.GroupId;
-                    }
+                    return linkage?.GroupId;
                 }
                 else if ( eventOccurrenceId.HasValue && registrationInstanceId.HasValue )
                 {
@@ -1910,40 +1922,60 @@ namespace Rock.Blocks.Event
                         .Select( l => l.GroupId )
                         .FirstOrDefault();
 
-                    if ( linkageGroupId.HasValue )
-                    {
-                        groupId = linkageGroupId.Value;
-                    }
+                    return linkageGroupId;
                 }
             }
 
-            return groupId;
+            // If there is no slug or event occurrence id then don't use/trust the groupId in the query string
+            // There is some if logic refactoring that could be done here but leaving as we're only addressing a
+            // security concern and don't want to inadvertently change behavior.
+            return null;
         }
 
         /// <summary>
         /// Gets the registration linkage.
         /// </summary>
-        /// <param name="slug">The slug.</param>
         /// <param name="rockContext">The rock context.</param>
+        /// <param name="registrationInstanceId">The registration instance identifier.</param>
         /// <returns></returns>
-        private EventItemOccurrenceGroupMap GetRegistrationLinkage( string slug, RockContext rockContext )
+        private EventItemOccurrenceGroupMap GetRegistrationLinkage( RockContext rockContext, int? registrationInstanceId )
         {
             var dateTime = RockDateTime.Now;
+            var registrationSlug = PageParameter( PageParameterKey.Slug );
+            var eventOccurrenceId = this.EventOccurrenceIdPageParameter;
 
-            var linkage = new EventItemOccurrenceGroupMapService( rockContext ?? new RockContext() )
-                .Queryable().AsNoTracking()
-                .Include( m => m.Campus )
-                .Where( l =>
-                    l.UrlSlug == slug &&
-                    l.RegistrationInstance != null &&
-                    l.RegistrationInstance.IsActive &&
-                    l.RegistrationInstance.RegistrationTemplate != null &&
-                    l.RegistrationInstance.RegistrationTemplate.IsActive &&
-                    ( !l.RegistrationInstance.StartDateTime.HasValue || l.RegistrationInstance.StartDateTime <= dateTime ) &&
-                    ( !l.RegistrationInstance.EndDateTime.HasValue || l.RegistrationInstance.EndDateTime > dateTime ) )
-                .FirstOrDefault();
+            if ( !registrationSlug.IsNullOrWhiteSpace() )
+            {
+                return new EventItemOccurrenceGroupMapService( rockContext ?? new RockContext() )
+                    .Queryable().AsNoTracking()
+                    .Include( m => m.Campus )
+                    .Where( l =>
+                        l.UrlSlug == registrationSlug &&
+                        l.RegistrationInstance != null &&
+                        l.RegistrationInstance.IsActive &&
+                        l.RegistrationInstance.RegistrationTemplate != null &&
+                        l.RegistrationInstance.RegistrationTemplate.IsActive &&
+                        ( !l.RegistrationInstance.StartDateTime.HasValue || l.RegistrationInstance.StartDateTime <= dateTime ) &&
+                        ( !l.RegistrationInstance.EndDateTime.HasValue || l.RegistrationInstance.EndDateTime > dateTime ) )
+                    .FirstOrDefault();
+            }
+            else if ( eventOccurrenceId.HasValue && registrationInstanceId.HasValue )
+            {
+                return new EventItemOccurrenceGroupMapService( rockContext ?? new RockContext() )
+                    .Queryable().AsNoTracking()
+                    .Include( m => m.Campus )
+                    .Where( l =>
+                        l.EventItemOccurrence.Id == eventOccurrenceId &&
+                        l.RegistrationInstanceId == registrationInstanceId.Value &&
+                        l.RegistrationInstance.IsActive &&
+                        l.RegistrationInstance.RegistrationTemplate != null &&
+                        l.RegistrationInstance.RegistrationTemplate.IsActive &&
+                        ( !l.RegistrationInstance.StartDateTime.HasValue || l.RegistrationInstance.StartDateTime <= dateTime ) &&
+                        ( !l.RegistrationInstance.EndDateTime.HasValue || l.RegistrationInstance.EndDateTime > dateTime ) )
+                    .FirstOrDefault();
+            }
 
-            return linkage;
+            return null;
         }
 
         /// <summary>
@@ -2166,7 +2198,7 @@ namespace Rock.Blocks.Event
             switch ( field.PersonFieldType )
             {
                 case RegistrationPersonFieldType.FirstName:
-                    return person.NickName.IsNullOrWhiteSpace() ? person.FirstName : person.NickName;
+                    return person.FirstName;
 
                 case RegistrationPersonFieldType.LastName:
                     return person.LastName;
@@ -2238,19 +2270,16 @@ namespace Rock.Blocks.Event
                     }
 
                 case RegistrationPersonFieldType.HomePhone:
-                    return person.GetPhoneNumber( SystemGuid.DefinedValue.PERSON_PHONE_TYPE_HOME.AsGuid() )?.Number;
+                    var homePhone = person.GetPhoneNumber( SystemGuid.DefinedValue.PERSON_PHONE_TYPE_HOME.AsGuid() );
+                    return CreatePhoneNumberBoxWithSmsControlBag( homePhone );
 
                 case RegistrationPersonFieldType.WorkPhone:
-                    return person.GetPhoneNumber( SystemGuid.DefinedValue.PERSON_PHONE_TYPE_WORK.AsGuid() )?.Number;
+                    var workPhone = person.GetPhoneNumber( SystemGuid.DefinedValue.PERSON_PHONE_TYPE_WORK.AsGuid() );
+                    return CreatePhoneNumberBoxWithSmsControlBag( workPhone );
 
                 case RegistrationPersonFieldType.MobilePhone:
                     var mobilePhone = person.GetPhoneNumber( SystemGuid.DefinedValue.PERSON_PHONE_TYPE_MOBILE.AsGuid() );
-                    if ( registrationContext.RegistrationSettings.ShowSmsOptIn )
-                    {
-                        return CreatePhoneNumberBoxWithSmsControlBag( mobilePhone );
-                    }
-
-                    return mobilePhone?.Number;
+                    return CreatePhoneNumberBoxWithSmsControlBag( mobilePhone );
 
                 case RegistrationPersonFieldType.Race:
                     var race = person.RaceValueId.HasValue ? DefinedValueCache.Get( person.RaceValueId.Value ) : null;
@@ -2302,12 +2331,12 @@ namespace Rock.Blocks.Event
 
             if ( entity == null )
             {
-                return PublicAttributeHelper.GetPublicEditValue( attribute, attribute.DefaultValue );
+                return PublicAttributeHelper.GetPublicValueForEdit( attribute, attribute.DefaultValue );
             }
 
             entity.LoadAttributes( rockContext );
 
-            return PublicAttributeHelper.GetPublicEditValue( attribute, entity.GetAttributeValue( attribute.Key ) );
+            return PublicAttributeHelper.GetPublicValueForEdit( attribute, entity.GetAttributeValue( attribute.Key ) );
         }
 
         /// <summary>
@@ -2353,6 +2382,16 @@ namespace Rock.Blocks.Event
             }
             else
             {
+                if ( !settings.ActualRecordSourceValueId.HasValue )
+                {
+                    settings.ActualRecordSourceValueId = RecordSourceHelper.GetSessionRecordSourceValueId()
+                        ?? settings.RecordSourceValueId
+                        ?? DefinedValueCache.Get( Rock.SystemGuid.DefinedValue.RECORD_SOURCE_TYPE_EVENT_REGISTRATION.AsGuid() )?.Id;
+                }
+
+                // Assign the record source for new people.
+                person.RecordSourceValueId = settings.ActualRecordSourceValueId;
+
                 // If we've created the family already for this registrant, add them to it
                 if (
                         ( settings.RegistrantsSameFamily == RegistrantsSameFamily.Ask && multipleFamilyGroupIds.ContainsKey( familyGuid ) ) ||
@@ -2451,6 +2490,7 @@ namespace Rock.Blocks.Event
         private void SavePhone( object fieldValue, Person person, Guid phoneTypeGuid, History.HistoryChangeList changes )
         {
             string phoneNumber = string.Empty;
+            string countryCode = string.Empty;
             bool? isMessagingEnabled = null;
 
             var phoneData = fieldValue.ToStringSafe().FromJsonOrNull<PhoneNumberBoxWithSmsControlBag>();
@@ -2459,6 +2499,7 @@ namespace Rock.Blocks.Event
                 // We got the number and SMS selection, so set both.
                 phoneNumber = phoneData.Number;
                 isMessagingEnabled = phoneData.IsMessagingEnabled;
+                countryCode = phoneData.CountryCode;
             }
             else if ( fieldValue is string )
             {
@@ -2499,6 +2540,8 @@ namespace Rock.Blocks.Event
             }
 
             phone.Number = cleanNumber;
+            phone.CountryCode = countryCode;
+
             History.EvaluateChange( changes, $"{numberType.Value} Phone", oldPhoneNumber, phone.NumberFormattedWithCountryCode );
 
             if ( isMessagingEnabled != null )
@@ -3130,7 +3173,7 @@ namespace Rock.Blocks.Event
             List<Action> postSaveActions )
         {
             // Force waitlist if specified by param, but allow waitlist if requested
-            isWaitlist |= (context.RegistrationSettings.IsWaitListEnabled && registrantInfo.IsOnWaitList);
+            isWaitlist |= ( context.RegistrationSettings.IsWaitListEnabled && registrantInfo.IsOnWaitList );
 
             var personService = new PersonService( rockContext );
             var registrationInstanceService = new RegistrationInstanceService( rockContext );
@@ -3453,12 +3496,14 @@ namespace Rock.Blocks.Event
             {
                 var attribute = AttributeCache.Get( field.AttributeId.Value );
 
-
                 if ( attribute is null )
                 {
                     continue;
                 }
+
                 var newValue = registrantInfo.FieldValues.GetValueOrNull( field.Guid ).ToStringSafe();
+                newValue = PublicAttributeHelper.GetPrivateValue( attribute, newValue );
+
                 var attributeValue = new AttributeValueCache( field.AttributeId.Value, null, newValue );
                 attributes.Add( attribute.Key, attribute );
                 attributeValues.Add( attribute.Key, attributeValue );
@@ -3714,7 +3759,14 @@ namespace Rock.Blocks.Event
             var formViewModels = new List<RegistrationEntryFormBag>();
             var allAttributeFields = formModels
                 .SelectMany( fm =>
-                    fm.Fields.Where( f => !f.IsInternal && f.Attribute?.IsActive == true )
+                    fm.Fields.Where( f =>
+                    {
+                        return !f.IsInternal
+                            && (
+                                f.Attribute?.IsActive == true
+                                || FieldVisibilityRules.IsFieldSupported( f.PersonFieldType )
+                            );
+                    } )
                 ).ToList();
 
             foreach ( var formModel in formModels )
@@ -3757,34 +3809,35 @@ namespace Rock.Blocks.Event
                                 return null;
                             }
 
-                            var filterValues = new List<string>();
-                            var fieldAttribute = AttributeCache.Get( comparedToField.AttributeId.Value );
-                            var fieldType = fieldAttribute?.FieldType?.Field;
+                            ViewModels.Reporting.FieldFilterRuleBag ruleBag;
 
-                            if ( fieldType == null )
+                            // At time of writing, Gender is the only non-attribute person field that can be part of a rule
+                            // as noted in Rock.Field.FieldVisibilityRules.GetSupportedFieldTypeCache
+                            if ( comparedToField.PersonFieldType == RegistrationPersonFieldType.Gender )
                             {
-                                return null;
+                                // Property Field
+                                ruleBag = new FieldFilterRuleBag
+                                {
+                                    ComparisonType = vr.ComparisonType,
+                                    Value = vr.ComparedToValue,
+                                    SourceType = FieldFilterSourceType.Property,
+                                    PropertyName = "Gender"
+                                };
                             }
-
-                            var comparisonTypeValue = vr.ComparisonType.ConvertToString( false );
-                            if ( comparisonTypeValue != null )
+                            else
                             {
-                                // only add the comparisonTypeValue if it is specified, just like
-                                // the logic at https://github.com/SparkDevNetwork/Rock/blob/22f64416b2461c8a988faf4b6e556bc3dcb209d3/Rock/Field/FieldType.cs#L558
-                                filterValues.Add( comparisonTypeValue );
+                                // Attribute Field
+                                var fieldAttribute = AttributeCache.Get( comparedToField.AttributeId.Value );
+                                ruleBag = FieldVisibilityRule.GetPublicRuleBag( fieldAttribute, vr.ComparisonType, vr.ComparedToValue );
                             }
-
-                            filterValues.Add( vr.ComparedToValue );
-
-                            var comparisonValue = fieldType.GetPublicFilterValue( filterValues.ToJson(), fieldAttribute.ConfigurationValues );
 
                             return new RegistrationEntryVisibilityBag
                             {
                                 ComparedToRegistrationTemplateFormFieldGuid = vr.ComparedToFormFieldGuid.Value,
                                 ComparisonValue = new PublicComparisonValueBag
                                 {
-                                    ComparisonType = ( int? ) comparisonValue.ComparisonType,
-                                    Value = comparisonValue.Value
+                                    ComparisonType = ( int? ) ruleBag.ComparisonType,
+                                    Value = ruleBag.Value
                                 }
                             };
                         } )
@@ -3926,7 +3979,7 @@ namespace Rock.Blocks.Event
                 session.FieldValues = session.FieldValues ?? new Dictionary<Guid, object>();
                 foreach ( var registrationAttribute in registrationAttributes )
                 {
-                    var defaultEditValue = PublicAttributeHelper.GetPublicEditValue( registrationAttribute, registrationAttribute.DefaultValue );
+                    var defaultEditValue = PublicAttributeHelper.GetPublicValueForEdit( registrationAttribute, registrationAttribute.DefaultValue );
 
                     session.FieldValues[registrationAttribute.Guid] = defaultEditValue;
                 }
@@ -3989,7 +4042,12 @@ namespace Rock.Blocks.Event
                 GatewayControl = isRedirectGateway ? null : new GatewayControlBag
                 {
                     FileUrl = financialGatewayComponent?.GetObsidianControlFileUrl( financialGateway ) ?? string.Empty,
-                    Settings = financialGatewayComponent?.GetObsidianControlSettings( financialGateway, null ) ?? new object()
+                    Settings = financialGatewayComponent?.GetObsidianControlSettings( financialGateway, new HostedPaymentInfoControlOptions
+                    {
+                        EnableACH = this.GetAttributeValue( AttributeKey.EnableACH ).AsBoolean(),
+                        EnableCreditCard = this.GetAttributeValue( AttributeKey.EnableCreditCard ).AsBoolean(),
+                        EnableBillingAddressCollection = true
+                    } ) ?? new object()
                 },
                 IsRedirectGateway = isRedirectGateway,
                 SpotsRemaining = adjustedSpotsRemaining,
@@ -4062,7 +4120,7 @@ namespace Rock.Blocks.Event
 
                 EnableSaveAccount = enableSavedAccount,
                 SavedAccounts = savedAccounts,
-                DisableCaptchaSupport = GetAttributeValue( AttributeKey.DisableCaptchaSupport ).AsBoolean(),
+                DisableCaptchaSupport = Captcha.CaptchaService.ShouldDisableCaptcha( GetAttributeValue( AttributeKey.DisableCaptchaSupport ).AsBoolean() ),
 
                 // Payment plan
                 IsPaymentPlanAllowed = isPaymentPlanAllowed,
@@ -4634,15 +4692,15 @@ namespace Rock.Blocks.Event
             // Set the schedule information.
             scheduledTransaction.TransactionFrequencyValueId = paymentSchedule.TransactionFrequencyValue.Id;
             scheduledTransaction.StartDate = paymentSchedule.StartDate;
-            
+
             // Set the payment information.
-            scheduledTransaction.Summary = paymentInfo.Comment1;
+            scheduledTransaction.Summary = context.Registration.GetSummary();
             if ( scheduledTransaction.FinancialPaymentDetail == null )
             {
                 scheduledTransaction.FinancialPaymentDetail = new FinancialPaymentDetail();
             }
             scheduledTransaction.FinancialPaymentDetail.SetFromPaymentInfo( paymentInfo, gateway, rockContext );
-            
+
             // Use the details from the gateway if it added one;
             // otherwise, create the details here.
             var transactionDetail = scheduledTransaction.ScheduledTransactionDetails.FirstOrDefault();
@@ -4727,7 +4785,7 @@ namespace Rock.Blocks.Event
                     {
                         viewModel.MessageHtml = "You have successfully completed this " + template.RegistrationTerm.ToLower();
                     }
-                    
+
                     if ( registration.RegistrationInstance.MaxAttendees.HasValue )
                     {
                         var context = GetContext( rockContext, out var errorMessage );
@@ -4761,22 +4819,34 @@ namespace Rock.Blocks.Event
         /// <returns>A list of <see cref="DefinedValueCache"/> objects that represent the currency types.</returns>
         private List<DefinedValueCache> GetAllowedCurrencyTypes( GatewayComponent gatewayComponent, FinancialGateway financialGateway )
         {
-            var enableACH = gatewayComponent.GetAttributeValue( financialGateway, AttributeKey.EnableACHForEvents ).AsBoolean();
-            var enableCreditCard = true;// this.GetAttributeValue( AttributeKey.EnableCreditCard ).AsBoolean();
-            var creditCardCurrency = DefinedValueCache.Get( Rock.SystemGuid.DefinedValue.CURRENCY_TYPE_CREDIT_CARD.AsGuid() );
-            var achCurrency = DefinedValueCache.Get( Rock.SystemGuid.DefinedValue.CURRENCY_TYPE_ACH.AsGuid() );
             var allowedCurrencyTypes = new List<DefinedValueCache>();
+            var enableACH = this.GetAttributeValue( AttributeKey.EnableACH ).AsBoolean();
+            var enableCreditCard = this.GetAttributeValue( AttributeKey.EnableCreditCard ).AsBoolean();
 
             // Conditionally enable credit card.
+            var creditCardCurrency = DefinedValueCache.Get( Rock.SystemGuid.DefinedValue.CURRENCY_TYPE_CREDIT_CARD.AsGuid() );
             if ( enableCreditCard && gatewayComponent.SupportsSavedAccount( creditCardCurrency ) )
             {
                 allowedCurrencyTypes.Add( creditCardCurrency );
             }
 
             // Conditionally enable ACH.
+            var achCurrency = DefinedValueCache.Get( Rock.SystemGuid.DefinedValue.CURRENCY_TYPE_ACH.AsGuid() );
             if ( enableACH && gatewayComponent.SupportsSavedAccount( achCurrency ) )
             {
                 allowedCurrencyTypes.Add( achCurrency );
+            }
+
+            var applePayCurrency = DefinedValueCache.Get( Rock.SystemGuid.DefinedValue.CURRENCY_TYPE_APPLE_PAY.AsGuid() );
+            if ( gatewayComponent.SupportsSavedAccount( applePayCurrency ) )
+            {
+                allowedCurrencyTypes.Add( applePayCurrency );
+            }
+
+            var googlePayCurrency = DefinedValueCache.Get( Rock.SystemGuid.DefinedValue.CURRENCY_TYPE_ANDROID_PAY.AsGuid() );
+            if ( gatewayComponent.SupportsSavedAccount( googlePayCurrency ) )
+            {
+                allowedCurrencyTypes.Add( googlePayCurrency );
             }
 
             return allowedCurrencyTypes;
@@ -5016,7 +5086,7 @@ namespace Rock.Blocks.Event
             foreach ( var attribute in registrationAttributes )
             {
                 var value = registration.GetAttributeValue( attribute.Key );
-                value = PublicAttributeHelper.GetPublicEditValue( attribute, value );
+                value = PublicAttributeHelper.GetPublicValueForEdit( attribute, value );
 
                 session.FieldValues[attribute.Guid] = value;
             }
@@ -5096,7 +5166,7 @@ namespace Rock.Blocks.Event
             var currentPerson = GetCurrentPerson();
             var registrationInstanceId = GetRegistrationInstanceId( rockContext );
             var registrationService = new RegistrationService( rockContext );
-            var disableCaptcha = GetAttributeValue( AttributeKey.DisableCaptchaSupport ).AsBoolean() || string.IsNullOrWhiteSpace( SystemSettings.GetValue( SystemKey.SystemSetting.CAPTCHA_SITE_KEY ) );
+            var disableCaptcha = Captcha.CaptchaService.ShouldDisableCaptcha( GetAttributeValue( AttributeKey.DisableCaptchaSupport ).AsBoolean() );
 
             // Basic check on the args to see that they appear valid
             if ( args == null )
@@ -5226,7 +5296,7 @@ namespace Rock.Blocks.Event
                     .AsQueryable();
             }
         }
-             
+
         /// <summary>
         /// Sends notifications after the registration is saved
         /// </summary>

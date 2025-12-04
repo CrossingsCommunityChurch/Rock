@@ -38,7 +38,7 @@ namespace Rock.Blocks.Core
     [DisplayName( "Attribute Matrix Template Detail" )]
     [Category( "Core" )]
     [Description( "Displays the details of a particular attribute matrix template." )]
-    [IconCssClass( "fa fa-question" )]
+    [IconCssClass( "ti ti-question-mark" )]
     [SupportedSiteTypes( Model.SiteType.Web )]
 
     [Rock.SystemGuid.EntityTypeGuid( "86759d9b-281c-4c1b-95e6-d4305731c03b" )]
@@ -147,7 +147,7 @@ namespace Rock.Blocks.Core
                 Name = entity.Name
             };
 
-            bag.TemplateAttributes = GetAttributes( entity.Id ).ConvertAll( a => PublicAttributeHelper.GetPublicEditableAttributeViewModel( a ) );
+            bag.TemplateAttributes = GetAttributes( entity.Id ).ConvertAll( a => PublicAttributeHelper.GetPublicEditableAttribute( a ) );
 
             return bag;
         }

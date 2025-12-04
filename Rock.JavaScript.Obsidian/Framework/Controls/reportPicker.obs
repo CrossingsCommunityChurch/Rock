@@ -2,10 +2,11 @@
 <template>
     <TreeItemPicker v-model="internalValue"
                     formGroupClasses="category-picker"
-                    iconCssClass="fa fa-list-alt"
+                    iconCssClass="ti ti-list-details"
                     :provider="itemProvider"
                     :multiple="multiple"
-                    disableFolderSelection />
+                    disableFolderSelection
+                    autoExpand />
 </template>
 
 <script setup lang="ts">

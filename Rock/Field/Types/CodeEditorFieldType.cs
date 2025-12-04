@@ -40,8 +40,6 @@ namespace Rock.Field.Types
 
         private const string EDITOR_MODE = "editorMode";
         private const string EDITOR_MODE_OPTIONS = "editorModeOptions";
-        private const string EDITOR_THEME = "editorTheme";
-        private const string EDITOR_THEME_OPTIONS = "editorThemeOptions";
         private const string EDITOR_HEIGHT = "editorHeight";
 
         /// <inheritdoc/>
@@ -51,12 +49,35 @@ namespace Rock.Field.Types
 
             // Get the Code editor options that are available
             var codeEditorModeOptions = ToListItemBagList<CodeEditorMode>();
-            var codeEditorThemeOptions = ToListItemBagList<CodeEditorTheme>();
 
             configurationProperties[EDITOR_MODE_OPTIONS] = codeEditorModeOptions.ToCamelCaseJson( false, true );
-            configurationProperties[EDITOR_THEME_OPTIONS] = codeEditorThemeOptions.ToCamelCaseJson( false, true );
 
             return configurationProperties;
+        }
+
+        /// <inheritdoc/>
+        public override Dictionary<string, string> GetPublicConfigurationValues( Dictionary<string, string> privateConfigurationValues, ConfigurationValueUsage usage, string internalValue )
+        {
+            var publicConfigurationValues = base.GetPublicConfigurationValues( privateConfigurationValues, usage, internalValue );
+
+            ConvertEnumToPublicValue<CodeEditorMode>( privateConfigurationValues, publicConfigurationValues, EDITOR_MODE );
+
+            return publicConfigurationValues;
+        }
+
+        /// <summary>
+        /// Converts the specified enum value from the private configuration to a public configuration value.
+        /// </summary>
+        /// <typeparam name="TEnum">The type of the enum.</typeparam>
+        /// <param name="privateConfig">The private configuration values.</param>
+        /// <param name="publicConfig">The public configuration values.</param>
+        /// <param name="key">The key of the configuration value to convert.</param>
+        private static void ConvertEnumToPublicValue<TEnum>( Dictionary<string, string> privateConfig, Dictionary<string, string> publicConfig, string key ) where TEnum : struct, Enum
+        {
+            if ( privateConfig.TryGetValue( key, out var value ) && Enum.TryParse( value, out TEnum enumValue ) )
+            {
+                publicConfig[key] = Convert.ToInt32( enumValue ).ToString();
+            }
         }
 
         /// <summary>
@@ -143,7 +164,6 @@ namespace Rock.Field.Types
         {
             List<string> configKeys = new List<string>();
             configKeys.Add( EDITOR_MODE );
-            configKeys.Add( EDITOR_THEME );
             configKeys.Add( EDITOR_HEIGHT );
             return configKeys;
         }
@@ -163,14 +183,6 @@ namespace Rock.Field.Types
             ddlMode.SelectedIndexChanged += OnQualifierUpdated;
             ddlMode.Label = "Editor Mode";
             ddlMode.Help = "The type of code that will be entered.";
-
-            var ddlTheme = new RockDropDownList();
-            controls.Add( ddlTheme );
-            ddlTheme.BindToEnum<CodeEditorTheme>();
-            ddlTheme.AutoPostBack = true;
-            ddlTheme.SelectedIndexChanged += OnQualifierUpdated;
-            ddlTheme.Label = "Editor Theme";
-            ddlTheme.Help = "The styling theme to use for the code editor.";
 
             var nbHeight = new NumberBox();
             controls.Add( nbHeight );
@@ -192,22 +204,17 @@ namespace Rock.Field.Types
         {
             Dictionary<string, ConfigurationValue> configurationValues = new Dictionary<string, ConfigurationValue>();
             configurationValues.Add( EDITOR_MODE, new ConfigurationValue( "Editor Mode", "The type of code that will be entered.", "" ) );
-            configurationValues.Add( EDITOR_THEME, new ConfigurationValue( "Editor Theme", "The styling theme to use for the code editor.", CodeEditorTheme.Rock.ConvertToInt().ToString() ) );
             configurationValues.Add( EDITOR_HEIGHT, new ConfigurationValue( "Editor Height", "The height of the control in pixels.", "200" ) );
 
-            if ( controls != null && controls.Count == 3 )
+            if ( controls != null && controls.Count == 2 )
             {
                 if ( controls[0] != null && controls[0] is RockDropDownList )
                 {
                     configurationValues[EDITOR_MODE].Value = ( ( RockDropDownList ) controls[0] ).SelectedValue;
                 }
-                if ( controls[1] != null && controls[1] is RockDropDownList )
+                if ( controls[1] != null && controls[1] is NumberBox )
                 {
-                    configurationValues[EDITOR_THEME].Value = ( ( RockDropDownList ) controls[1] ).SelectedValue;
-                }
-                if ( controls[2] != null && controls[2] is NumberBox )
-                {
-                    configurationValues[EDITOR_HEIGHT].Value = ( ( NumberBox ) controls[2] ).Text;
+                    configurationValues[EDITOR_HEIGHT].Value = ( ( NumberBox ) controls[1] ).Text;
                 }
             }
 
@@ -221,19 +228,15 @@ namespace Rock.Field.Types
         /// <param name="configurationValues"></param>
         public override void SetConfigurationValues( List<Control> controls, Dictionary<string, ConfigurationValue> configurationValues )
         {
-            if ( controls != null && controls.Count == 3 && configurationValues != null )
+            if ( controls != null && controls.Count == 2 && configurationValues != null )
             {
                 if ( controls[0] != null && controls[0] is RockDropDownList && configurationValues.ContainsKey( EDITOR_MODE ) )
                 {
                     ( ( RockDropDownList ) controls[0] ).SelectedValue = configurationValues[EDITOR_MODE].Value;
                 }
-                if ( controls[1] != null && controls[1] is RockDropDownList && configurationValues.ContainsKey( EDITOR_THEME ) )
+                if ( controls[1] != null && controls[1] is NumberBox && configurationValues.ContainsKey( EDITOR_HEIGHT ) )
                 {
-                    ( ( RockDropDownList ) controls[1] ).SelectedValue = configurationValues[EDITOR_THEME].Value;
-                }
-                if ( controls[2] != null && controls[2] is NumberBox && configurationValues.ContainsKey( EDITOR_HEIGHT ) )
-                {
-                    ( ( NumberBox ) controls[2] ).Text = configurationValues[EDITOR_HEIGHT].Value;
+                    ( ( NumberBox ) controls[1] ).Text = configurationValues[EDITOR_HEIGHT].Value;
                 }
             }
         }
@@ -255,11 +258,6 @@ namespace Rock.Field.Types
                 if ( configurationValues.ContainsKey( EDITOR_MODE ) )
                 {
                     editor.EditorMode = configurationValues[EDITOR_MODE].Value.ConvertToEnum<CodeEditorMode>( CodeEditorMode.Text );
-                }
-
-                if ( configurationValues.ContainsKey( EDITOR_THEME ) )
-                {
-                    editor.EditorTheme = configurationValues[EDITOR_THEME].Value.ConvertToEnum<CodeEditorTheme>( CodeEditorTheme.Rock );
                 }
 
                 if ( configurationValues.ContainsKey( EDITOR_HEIGHT ) )

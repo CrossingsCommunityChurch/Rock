@@ -1,7 +1,7 @@
 <!-- Copyright by the Spark Development Network; Licensed under the Rock Community License -->
 <template>
     <div class="sms-editor-step">
-        <Panel :hasFullscreen="true"
+        <Panel hasFullscreen
                panelBodyCssClass="panel-body-wizard"
                type="block">
             <template #title>
@@ -13,7 +13,7 @@
                                         :dismissible="true">
                             The communication has been saved.
                             <button type="button" class="close btn-dismiss-alert" aria-label="Hide This Alert" @click.prevent="isSaveSuccessMessageShown = false">
-                                <i class="fa fa-times" aria-hidden="true"></i>
+                                <i class="ti ti-x" aria-hidden="true"></i>
                             </button>
                         </HighlightLabel>
 
@@ -28,7 +28,7 @@
                     <i ref="saveElement"
                        data-toggle="tooltip"
                        title="Save Draft"
-                       class="fa fa-save"></i>
+                       class="ti ti-device-floppy"></i>
                 </span>
             </template>
 
@@ -42,7 +42,7 @@
                                     <div class="col-sm-12">
                                         <DropDownList v-model="smsFromSystemPhoneNumberGuidOrEmptyString"
                                                       :disabled="isSaving || isSendingTest"
-                                                      help="The number to originate message from (configured under Admin Tools > Communications > SMS Phone Numbers)."
+                                                      help="The number to originate message from (configured under Admin Tools > Communications > System Phone Numbers)."
                                                       :items="smsFromNumbers"
                                                       label="From Number"
                                                       rules="required"
@@ -56,20 +56,25 @@
                                                           :editorHeight="185"
                                                           :isCharacterCountShown="true"
                                                           :mergeFields="mergeFields"
+                                                          :commonMergeFields="commonMergeFields"
                                                           rules="required"
+                                                          :shortLinkCheckToken="shortLinkCheckToken"
+                                                          :shortLinkGetPageId="shortLinkGetPageId"
+                                                          :shortLinkSites="shortLinkSites"
+                                                          :shortLinkTokenMinLength="shortLinkTokenMinLength"
                                                           toolbarLabel="Message" />
                                     </div>
                                 </div>
 
                                 <div class="row">
                                     <div class="col-sm-12">
-                                        <ImageUploader v-model="currentAttachment"
-                                                       :binaryFileTypeGuid="attachmentBinaryFileTypeGuid"
-                                                       :disabled="isSaving || isSendingTest"
-                                                       label="Attachments"
-                                                       :fileProcessor="smsAttachmentFileProcessor"
-                                                       :uploadAsTemporary="false"
-                                                       @update:modelValue="onAttachmentAdded" />
+                                        <FileUploader v-model="currentAttachment"
+                                                      :binaryFileTypeGuid="attachmentBinaryFileTypeGuid"
+                                                      :disabled="isSaving || isSendingTest"
+                                                      label="Attachments"
+                                                      :fileProcessor="smsAttachmentFileProcessor"
+                                                      :uploadAsTemporary="false"
+                                                      @update:modelValue="onAttachmentAdded" />
 
                                         <NotificationBox v-if="attachmentSizeMessage">{{ attachmentSizeMessage }}</NotificationBox>
                                         <NotificationBox v-if="mimeTypeMessageHtml" :alertType="mimeTypeAlertType" v-html="mimeTypeMessageHtml" />
@@ -78,10 +83,19 @@
                             </div>
 
                             <div class="col-xs-12 col-sm-7">
-                                <SmsPreview :class="breakpointHelper.breakpoint"
-                                            :smsAttachmentLinks="smsAttachmentLinks"
-                                            :smsFromNumberName="smsFromNumberName"
-                                            :smsMessage="internalMessage" />
+                                <div class="preview-as-wrapper">
+                                    <PreviewAs v-model:previewAsType="internalPreviewAsType"
+                                               v-model:previewAsPersonAlias="internalPreviewAsPersonAlias"
+                                               v-model:personalizationSegment="internalPreviewAsPersonalizationSegment"
+                                               :isPreviewLoading="isPreviewLoading"
+                                               :personalizationSegments="personalizationSegments" />
+                                </div>
+
+                                <SmsMobilePreview :class="breakpointHelper.breakpoint"
+                                                  :isLoading="isPreviewLoading"
+                                                  :smsAttachmentLinks="smsAttachmentLinks"
+                                                  :smsFromNumberName="smsFromNumberName"
+                                                  :smsMessage="messagePreview" />
                             </div>
                         </div>
 
@@ -92,16 +106,18 @@
             </template>
 
             <template #footerActions>
-                <RockButton :disabled="isSaving || isSendingTest"
+                <RockButton v-shortcut="!areNavigationShortcutsDisabled && 'ArrowLeft'"
+                            :disabled="isSaving || isSendingTest"
                             @click="onPreviousClicked">Previous</RockButton>
             </template>
 
             <template #footerSecondaryActions>
                 <RockButton :disabled="isSaving || isSendingTest"
                             @click="onSendTestClicked">
-                    <i class="fa fa-paper-plane-o"></i> Send Test
+                    <i class="ti ti-send"></i> Send Test
                 </RockButton>
-                <RockButton btnType="primary"
+                <RockButton v-shortcut="!areNavigationShortcutsDisabled && 'ArrowRight'"
+                            btnType="primary"
                             :disabled="isSaving || isSendingTest"
                             @click="onNextClicked">{{ nextStepTitle ? `Next: ${nextStepTitle}` : 'Next' }}</RockButton>
             </template>
@@ -158,11 +174,21 @@
     display: inline-block;
 }
 
+.preview-as-wrapper {
+    padding: var(--spacing-medium);
+    background-color: var(--color-interface-softest);
+    padding-left: var(--panel-body-padding);
+    padding-right: var(--panel-body-padding);
+    margin-left: calc(0px - var(--panel-body-padding));
+    margin-right: calc(0px - var(--panel-body-padding));
+}
+
 :deep(.confirmation-preview-panel) {
     /* Since the preview is displayed inside a panel
        and it needs to expand to the edge of the panel,
        add a negative margin to the preview and add the same padding to the preview that the panel has. */
-    margin: calc(0px - var(--panel-body-padding));
+    margin-left: calc(0px - var(--panel-body-padding));
+    margin-right: calc(0px - var(--panel-body-padding));
 }
 
 :deep(.confirmation-preview-panel.xs) {
@@ -176,16 +202,16 @@
 }
 </style>
 
-
 <script setup lang="ts">
     import { computed, PropType, ref, watch } from "vue";
     import LoadingOverlay from "./loadingOverlay.partial.obs";
-    import SmsPreview from "./smsMobilePreview.partial.obs";
-    import { BinaryFileAttachment, BlockActionCallbacks } from "./types.partial";
+    import PreviewAs from "./previewAs.partial.obs";
+    import { BinaryFileAttachment, BlockActionCallbacks, PreviewAsType } from "./types.partial";
     import { useBreakpointHelper } from "./utils.partial";
     import DropDownList from "@Obsidian/Controls/dropDownList.obs";
     import HighlightLabel from "@Obsidian/Controls/highlightLabel.obs";
-    import ImageUploader from "@Obsidian/Controls/imageUploader.obs";
+    import SmsMobilePreview from "@Obsidian/Controls/Internal/smsMobilePreview.obs";
+    import FileUploader from "@Obsidian/Controls/fileUploader.obs";
     import Modal from "@Obsidian/Controls/modal.obs";
     import NotificationBox from "@Obsidian/Controls/notificationBox.obs";
     import Panel from "@Obsidian/Controls/panel.obs";
@@ -193,6 +219,7 @@
     import RockButton from "@Obsidian/Controls/rockButton.obs";
     import RockForm from "@Obsidian/Controls/rockForm.obs";
     import SmsMessageEditor from "@Obsidian/Controls/smsMessageEditor.obs";
+    import { vShortcut } from "@Obsidian/Directives/shortcut";
     import { AlertType } from "@Obsidian/Enums/Controls/alertType";
     import { Guid } from "@Obsidian/Types";
     import { useVModelPassthrough } from "@Obsidian/Utility/component";
@@ -201,10 +228,17 @@
     import { isPromise } from "@Obsidian/Utility/promiseUtils";
     import { asCommaAnd } from "@Obsidian/Utility/stringUtils";
     import { tooltip } from "@Obsidian/Utility/tooltip";
-    import { isNullish } from "@Obsidian/Utility/util";
+    import { debounceAsync, isNullish } from "@Obsidian/Utility/util";
     import { ListItemBag } from "@Obsidian/ViewModels/Utility/listItemBag";
+    import { toNumberOrNull } from "@Obsidian/Utility/numberUtils";
+    import { ICancellationToken } from "@Obsidian/Utility/cancellation";
 
     const props = defineProps({
+        areNavigationShortcutsDisabled: {
+            type: Boolean as PropType<boolean>,
+            required: true
+        },
+
         attachmentBinaryFileTypeGuid: {
             type: String as PropType<Guid>,
             required: true
@@ -230,9 +264,53 @@
             required: true
         },
 
+        personalizationSegments: {
+            type: Array as PropType<ListItemBag[] | null | undefined>,
+            required: true,
+        },
+
+        previewAsPersonAlias: {
+            type: Object as PropType<ListItemBag | null | undefined>,
+            required: true
+        },
+
+        previewAsPersonalizationSegment: {
+            type: Object as PropType<ListItemBag | null | undefined>,
+            required: true
+        },
+
+        previewAsType: {
+            type: String as PropType<PreviewAsType>,
+            required: true
+        },
+
+        previewProcessor: {
+            type: Object as PropType<((smsMessage: string, previewAsPersonGuid?: Guid | null | undefined, previewAsPersonalizationSegmentId?: number | null | undefined) => Promise<string | null | undefined>)>,
+            required: true
+        },
+
         recipientsLabel: {
             type: String as PropType<string>,
             required: true
+        },
+
+        shortLinkCheckToken: {
+            type: Object as PropType<((token: string, siteId: number) => Promise<string>) | null | undefined>,
+            required: true
+        },
+
+        shortLinkGetPageId: {
+            type: Object as PropType<((pageGuid: Guid) => Promise<number | null | undefined>) | null | undefined>,
+            required: true
+        },
+
+        shortLinkSites: {
+            type: Object as PropType<ListItemBag[] | null | undefined>,
+            required: true
+        },
+
+        shortLinkTokenMinLength: {
+            type: Number as PropType<number | null | undefined>
         },
 
         smsAcceptedMimeTypes: {
@@ -293,9 +371,12 @@
         (e: "saveCommunication", value: BlockActionCallbacks): void;
         (e: "update:communicationTemplateGuid", value: Guid | null | undefined): void;
         (e: "update:message", value: string): void;
-        (e: "update:testSmsPhoneNumber", value: string | null | undefined): void;
+        (e: "update:previewAsPersonAlias", value: ListItemBag | null | undefined): void;
+        (e: "update:previewAsPersonalizationSegment", value: ListItemBag | null | undefined): void;
+        (e: "update:previewAsType", value: PreviewAsType): void;
         (e: "update:smsFromSystemPhoneNumberGuid", value: Guid | null | undefined): void;
         (e: "update:smsAttachmentBinaryFiles", value: Guid | null | undefined): void;
+        (e: "update:testSmsPhoneNumber", value: string | null | undefined): void;
     }>();
 
     const breakpointHelper = useBreakpointHelper();
@@ -315,6 +396,11 @@
     const attachmentSizeMessage = ref<string | null | undefined>();
     const submitTrigger = ref<boolean>(false);
     const submitAction = ref<"next" | "sendTest">("next");
+    const isPreviewLoading = ref<boolean>(false);
+    const internalPreviewAsPersonAlias = useVModelPassthrough(props, "previewAsPersonAlias", emit);
+    const internalPreviewAsPersonalizationSegment = useVModelPassthrough(props, "previewAsPersonalizationSegment", emit);
+    const internalPreviewAsType = useVModelPassthrough(props, "previewAsType", emit);
+    const messagePreview = ref<string>("");
 
     // Communication state.
     const internalMessage = useVModelPassthrough(props, "message", emit);
@@ -322,9 +408,21 @@
     const internalTestSmsPhoneNumber = useVModelPassthrough(props, "testSmsPhoneNumber", emit);
     const internalSmsAttachmentBinaryFiles = useVModelPassthrough(props, "smsAttachmentBinaryFiles", emit);
 
+    const commonMergeFields = [
+        "Person.FirstName^First Name|ti ti-user",
+        "Person.NickName^Nick Name|ti ti-user",
+        "Person.FullName^Full Name|ti ti-user",
+    ];
+
     // #endregion
 
     // #region Computed Values
+
+    const refreshPreviewRequestKey = computed<string>(() => {
+        return internalPreviewAsType.value === "Preview As Person"
+            ? `person:${internalPreviewAsPersonAlias.value?.value ?? ""}`
+            : `segment:${internalPreviewAsPersonalizationSegment.value?.value ?? ""}`;
+    });
 
     const smsAttachmentFileProcessor = computed<(file: File) => File | Promise<File>>(() => {
         const resizer = resizeImageFileProcessor({ maxWidth: props.maxImageWidth });
@@ -389,7 +487,7 @@
         }
     });
 
-    // #endregion
+    // #endregion Computed Values
 
     // #region Event Handlers
 
@@ -468,7 +566,40 @@
         ];
     }
 
-    // #endregion
+    // #endregion Event Handlers
+
+    // #region Functions
+
+    async function updatePreview(): Promise<void> {
+        isPreviewLoading.value = true;
+
+        const previewAsPersonAliasGuid: Guid | null | undefined =
+            internalPreviewAsType.value === PreviewAsType.Person
+                ? toGuidOrNull(internalPreviewAsPersonAlias.value?.value)
+                : null;
+
+        const previewAsPersonalizationSegmentId: number | null | undefined =
+            internalPreviewAsType.value === PreviewAsType.Segment
+                ? toNumberOrNull(internalPreviewAsPersonalizationSegment.value?.value)
+                : null;
+
+        const result = await props.previewProcessor(internalMessage.value, previewAsPersonAliasGuid, previewAsPersonalizationSegmentId);
+
+        messagePreview.value = result ?? "";
+        isPreviewLoading.value = false;
+    }
+
+    const updatePreviewDebounced = debounceAsync(async (cancellationToken: ICancellationToken) => {
+        if (cancellationToken.isCancellationRequested) {
+            return;
+        }
+
+        await updatePreview();
+    }, {
+        delay: 500 // Wait 500 milliseconds after typing before sending an update request.
+    });
+
+    // #endregion Functions
 
     // #region Watchers
 
@@ -477,6 +608,16 @@
             tooltip(element);
         }
     });
+
+    watch(internalMessage, async () => {
+        await updatePreviewDebounced();
+    });
+
+    watch(refreshPreviewRequestKey, async () => {
+        await updatePreview();
+    });
+
+    updatePreview();
 
     // #endregion
 </script>

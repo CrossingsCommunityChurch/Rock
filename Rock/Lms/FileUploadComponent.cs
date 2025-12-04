@@ -66,7 +66,7 @@ namespace Rock.Lms
         public override string HighlightColor => "#d8f9e5";
 
         /// <inheritdoc/>
-        public override string IconCssClass => "fa fa-file-alt";
+        public override string IconCssClass => "ti ti-file";
 
         /// <inheritdoc/>
         public override string Name => "File Upload";
@@ -79,7 +79,7 @@ namespace Rock.Lms
         #region Methods
 
         /// <inheritdoc/>
-        public override Dictionary<string, string> GetActivityConfiguration( LearningActivity activity, Dictionary<string, string> componentData, PresentedFor presentation, RockContext rockContext, RockRequestContext requestContext )
+        public override Dictionary<string, string> GetActivityConfiguration( LearningClassActivity activity, Dictionary<string, string> componentData, PresentedFor presentation, RockContext rockContext, RockRequestContext requestContext )
         {
             if ( presentation == PresentedFor.Configuration )
             {
@@ -89,13 +89,14 @@ namespace Rock.Lms
             {
                 var instructions = componentData.GetValueOrNull( SettingKey.Instructions );
                 var rubric = componentData.GetValueOrNull( SettingKey.Rubric );
+                var mergeFields = requestContext.GetCommonMergeFields();
 
                 var instructionsHtml = instructions.IsNotNullOrWhiteSpace()
-                    ? new StructuredContentHelper( instructions ).Render()
+                    ? new StructuredContentHelper( instructions ).Render().ResolveMergeFields( mergeFields )
                     : string.Empty;
 
                 var rubricHtml = instructions.IsNotNullOrWhiteSpace()
-                    ? new StructuredContentHelper( rubric ).Render()
+                    ? new StructuredContentHelper( rubric ).Render().ResolveMergeFields( mergeFields )
                     : string.Empty;
 
                 return new Dictionary<string, string>
@@ -108,14 +109,31 @@ namespace Rock.Lms
             }
         }
 
+
         /// <inheritdoc/>
-        public override bool RequiresGrading( LearningActivityCompletion completion, Dictionary<string, string> completionData, Dictionary<string, string> componentData, RockContext rockContext, RockRequestContext requestContext )
+        public override Dictionary<string, string> GetComponentData( LearningClassActivity activity, Dictionary<string, string> componentSettings, RockContext rockContext, RockRequestContext requestContext )
+        {
+            // This is a cheat, we shouldn't really be trying to access the original
+            // JSON this way, but we don't have a better way to do it.
+            var oldData = activity.LearningActivity?.ActivityComponentSettingsJson?.FromJsonOrNull<Dictionary<string, string>>();
+
+            new StructuredContentHelper( componentSettings?.GetValueOrNull( SettingKey.Instructions ) )
+                .DetectAndApplyDatabaseChanges( oldData?.GetValueOrNull( SettingKey.Instructions ), rockContext );
+
+            new StructuredContentHelper( componentSettings?.GetValueOrNull( SettingKey.Rubric ) )
+                .DetectAndApplyDatabaseChanges( oldData?.GetValueOrNull( SettingKey.Rubric ), rockContext );
+
+            return base.GetComponentData( activity, componentSettings, rockContext, requestContext );
+        }
+
+        /// <inheritdoc/>
+        public override bool RequiresGrading( LearningClassActivityCompletion completion, Dictionary<string, string> completionData, Dictionary<string, string> componentData, RockContext rockContext, RockRequestContext requestContext )
         {
             return !completion.GradedByPersonAliasId.HasValue;
         }
 
         /// <inheritdoc/>
-        public override int? CalculatePointsEarned( LearningActivityCompletion completion, Dictionary<string, string> completionData, Dictionary<string, string> componentData, int pointsPossible, RockContext rockContext, RockRequestContext requestContext )
+        public override int? CalculatePointsEarned( LearningClassActivityCompletion completion, Dictionary<string, string> completionData, Dictionary<string, string> componentData, int pointsPossible, RockContext rockContext, RockRequestContext requestContext )
         {
             // Points are not auto-awarded for file uploads.
             return null;

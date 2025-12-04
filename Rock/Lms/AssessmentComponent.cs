@@ -52,7 +52,7 @@ namespace Rock.Lms
 
             public const string MultipleChoiceWeight = "multipleChoiceWeight";
 
-            public const string ShowMissedQuestionsOnResults = "shoeMissedQuestionsOnResults";
+            public const string ShowMissedQuestionsOnResults = "showMissedQuestionsOnResults";
 
             public const string ShowResultsOnCompletion = "showResultsOnCompletion";
         }
@@ -72,7 +72,7 @@ namespace Rock.Lms
         public override string HighlightColor => "#a9551d";
 
         /// <inheritdoc/>
-        public override string IconCssClass => "fa fa-list";
+        public override string IconCssClass => "ti ti-list";
 
         /// <inheritdoc/>
         public override string Name => "Assessment";
@@ -85,7 +85,7 @@ namespace Rock.Lms
         #region Methods
 
         /// <inheritdoc/>
-        public override Dictionary<string, string> GetActivityConfiguration( LearningActivity activity, Dictionary<string, string> componentData, PresentedFor presentation, RockContext rockContext, RockRequestContext requestContext )
+        public override Dictionary<string, string> GetActivityConfiguration( LearningClassActivity activity, Dictionary<string, string> componentData, PresentedFor presentation, RockContext rockContext, RockRequestContext requestContext )
         {
             if ( presentation == PresentedFor.Configuration )
             {
@@ -98,6 +98,13 @@ namespace Rock.Lms
                 var headerHtml = content.IsNotNullOrWhiteSpace()
                     ? new StructuredContentHelper( content ).Render()
                     : string.Empty;
+
+                if ( headerHtml.IsNotNullOrWhiteSpace() )
+                {
+                    var mergeFields = requestContext.GetCommonMergeFields();
+
+                    headerHtml = headerHtml.ResolveMergeFields( mergeFields );
+                }
 
                 var items = componentData.GetValueOrNull( SettingKey.Items ).FromJsonOrNull<List<AssessmentItem>>()
                     ?? new List<AssessmentItem>();
@@ -123,8 +130,22 @@ namespace Rock.Lms
             }
         }
 
+
         /// <inheritdoc/>
-        public override Dictionary<string, string> GetCompletionValues( LearningActivityCompletion completion, Dictionary<string, string> completionData, Dictionary<string, string> componentData, PresentedFor presentation, RockContext rockContext, RockRequestContext requestContext )
+        public override Dictionary<string, string> GetComponentData( LearningClassActivity activity, Dictionary<string, string> componentSettings, RockContext rockContext, RockRequestContext requestContext )
+        {
+            // This is a cheat, we shouldn't really be trying to access the original
+            // JSON this way, but we don't have a better way to do it.
+            var oldData = activity.LearningActivity?.ActivityComponentSettingsJson?.FromJsonOrNull<Dictionary<string, string>>();
+
+            new StructuredContentHelper( componentSettings?.GetValueOrNull( SettingKey.Header ) )
+                .DetectAndApplyDatabaseChanges( oldData?.GetValueOrNull( SettingKey.Header ), rockContext );
+
+            return base.GetComponentData( activity, componentSettings, rockContext, requestContext );
+        }
+
+        /// <inheritdoc/>
+        public override Dictionary<string, string> GetCompletionValues( LearningClassActivityCompletion completion, Dictionary<string, string> completionData, Dictionary<string, string> componentData, PresentedFor presentation, RockContext rockContext, RockRequestContext requestContext )
         {
             // Note: We don't strip the correct from students here because
             // they have already answered the questions. The answers are now
@@ -133,7 +154,7 @@ namespace Rock.Lms
         }
 
         /// <inheritdoc/>
-        public override Dictionary<string, string> GetCompletionData( LearningActivityCompletion completion, Dictionary<string, string> completionValues, Dictionary<string, string> componentData, PresentedFor presentation, RockContext rockContext, RockRequestContext requestContext )
+        public override Dictionary<string, string> GetCompletionData( LearningClassActivityCompletion completion, Dictionary<string, string> completionValues, Dictionary<string, string> componentData, PresentedFor presentation, RockContext rockContext, RockRequestContext requestContext )
         {
             var completionData = new Dictionary<string, string>( completionValues );
 
@@ -164,7 +185,7 @@ namespace Rock.Lms
         }
 
         /// <inheritdoc/>
-        public override int? CalculatePointsEarned( LearningActivityCompletion completion, Dictionary<string, string> completionData, Dictionary<string, string> componentData, int pointsPossible, RockContext rockContext, RockRequestContext requestContext )
+        public override int? CalculatePointsEarned( LearningClassActivityCompletion completion, Dictionary<string, string> completionData, Dictionary<string, string> componentData, int pointsPossible, RockContext rockContext, RockRequestContext requestContext )
         {
             var multipleChoiceSectionPoints = GetMultipleChoiceSectionPoints( componentData, completionData, pointsPossible );
             var shortAnswerSectionPoints = GetShortAnswerSectionPoints( componentData, completionData );
@@ -180,7 +201,7 @@ namespace Rock.Lms
         }
 
         /// <inheritdoc/>
-        public override bool RequiresGrading( LearningActivityCompletion completion, Dictionary<string, string> completionData, Dictionary<string, string> componentData, RockContext rockContext, RockRequestContext requestContext )
+        public override bool RequiresGrading( LearningClassActivityCompletion completion, Dictionary<string, string> completionData, Dictionary<string, string> componentData, RockContext rockContext, RockRequestContext requestContext )
         {
             if ( completion.GradedByPersonAliasId.HasValue )
             {

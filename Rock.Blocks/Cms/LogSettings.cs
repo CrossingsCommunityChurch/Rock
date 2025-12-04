@@ -40,8 +40,8 @@ namespace Rock.Blocks.Cms
     [DisplayName( "Log Settings" )]
     [Category( "Administration" )]
     [Description( "Block to edit rock log settings." )]
-    [IconCssClass( "fa fa-question" )]
-    // [SupportedSiteTypes( Model.SiteType.Web )]
+    [IconCssClass( "ti ti-question-mark" )]
+    [SupportedSiteTypes( Model.SiteType.Web )]
 
     [SystemGuid.EntityTypeGuid( "e5f272d4-e63f-46e7-9429-0d62cb458fd1" )]
     [SystemGuid.BlockTypeGuid( "fa01630c-18fb-472f-8bf1-013af257de3f" )]
@@ -118,7 +118,6 @@ namespace Rock.Blocks.Cms
             {
                 AdvancedSettings = rockConfig.AdvancedSettings,
                 IsLocalLoggingEnabled = rockConfig.IsLocalLoggingEnabled,
-                IsObservabilityLoggingEnabled = rockConfig.IsObservabilityLoggingEnabled,
                 MaxFileSize = rockConfig.MaxFileSize.ToString(),
                 NumberOfLogFiles = rockConfig.NumberOfLogFiles.ToString(),
                 StandardLogLevel = rockConfig.StandardLogLevel.ConvertToInt().ToString(),
@@ -152,9 +151,6 @@ namespace Rock.Blocks.Cms
 
             box.IfValidProperty( nameof( box.Bag.IsLocalLoggingEnabled ),
                 () => entity.IsLocalLoggingEnabled = box.Bag.IsLocalLoggingEnabled );
-
-            box.IfValidProperty( nameof( box.Bag.IsObservabilityLoggingEnabled ),
-                () => entity.IsObservabilityLoggingEnabled = box.Bag.IsObservabilityLoggingEnabled );
 
             box.IfValidProperty( nameof( box.Bag.AdvancedSettings ),
                 () => entity.AdvancedSettings = box.Bag.AdvancedSettings );
@@ -249,6 +245,8 @@ namespace Rock.Blocks.Cms
             Rock.Web.SystemSettings.SetValue( SystemSetting.ROCK_LOGGING_SETTINGS, entity.ToJson() );
 
             var bag = GetCommonEntityBag();
+
+            RockLogger.ReloadConfiguration();
 
             return ActionOk( new ValidPropertiesBox<LogSettingsBag>
             {

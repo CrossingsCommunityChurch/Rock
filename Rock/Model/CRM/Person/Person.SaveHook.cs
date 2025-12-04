@@ -63,16 +63,16 @@ namespace Rock.Model
 
                     this.Entity.IsDeceased = isInactive && isReasonDeceased;
 
-                    if ( isInactive )
+                    var recordStatusValueId = this.Entity.RecordStatusValueId;
+                    int? oldRecordStatusValueId = null;
+                    if ( Entry.State == EntityContextState.Modified )
                     {
-                        var recordStatusValueId = this.Entity.RecordStatusValueId;
-                        int? oldRecordStatusValueId = null;
-                        if ( Entry.State == EntityContextState.Modified )
-                        {
-                            oldRecordStatusValueId = this.Entry.OriginalValues[nameof( Person.RecordStatusValueId )].ToStringSafe().AsIntegerOrNull();
-                        }
+                        oldRecordStatusValueId = this.Entry.OriginalValues[nameof( Person.RecordStatusValueId )].ToStringSafe().AsIntegerOrNull();
+                    }
 
-                        if ( oldRecordStatusValueId != Entity.RecordStatusValueId )
+                    if ( oldRecordStatusValueId != Entity.RecordStatusValueId )
+                    {
+                        if ( isInactive )
                         {
                             // If person was just inactivated, update the group member status for all their group memberships to be inactive
                             foreach ( var groupMember in new GroupMemberService( rockContext )
@@ -97,11 +97,38 @@ namespace Rock.Model
                                 Logger.LogDebug( $"Person.PreSave() setting connection requests Inactive for Person.Id {this.Entity.Id} and ConnectionRequest.Id = {connectionRequest.Id}" );
                                 connectionRequest.ConnectionState = ConnectionState.Inactive;
                             }
+
+                            // Also inactivate the person's communication flow instance recipient records.
+                            foreach ( var communicationFlowInstanceRecipient in new CommunicationFlowInstanceRecipientService( rockContext )
+                                .Queryable()
+                                .Where( r =>
+                                    r.RecipientPersonAlias.PersonId == this.Entity.Id
+                                    && r.Status == Enums.Communication.CommunicationFlowInstanceRecipientStatus.Active ) )
+                            {
+                                Logger.LogDebug( $"Person.PreSave() setting communication flow instance recipients Inactive for Person.Id {this.Entity.Id} and CommunicationFlowInstanceRecipient.Id = {communicationFlowInstanceRecipient.Id}" );
+                                communicationFlowInstanceRecipient.Status = Enums.Communication.CommunicationFlowInstanceRecipientStatus.Inactive;
+                                communicationFlowInstanceRecipient.InactiveReason = Enums.Communication.CommunicationFlowInstanceRecipientInactiveReason.PersonInactivated;
+                            }
+                        }
+                        else
+                        {
+                            // If person was just reactivated, activate the person's communication flow instance recipient records.
+                            foreach ( var communicationFlowInstanceRecipient in new CommunicationFlowInstanceRecipientService( rockContext )
+                                .Queryable()
+                                .Where( r =>
+                                    r.RecipientPersonAlias.PersonId == this.Entity.Id
+                                    && r.Status == Enums.Communication.CommunicationFlowInstanceRecipientStatus.Inactive
+                                    && r.InactiveReason == Enums.Communication.CommunicationFlowInstanceRecipientInactiveReason.PersonInactivated ) )
+                            {
+                                Logger.LogDebug( $"Person.PreSave() setting communication flow instance recipients Active for Person.Id {this.Entity.Id} and CommunicationFlowInstanceRecipient.Id = {communicationFlowInstanceRecipient.Id}" );
+                                communicationFlowInstanceRecipient.Status = Enums.Communication.CommunicationFlowInstanceRecipientStatus.Active;
+                                communicationFlowInstanceRecipient.InactiveReason = null;
+                            }
                         }
                     }
                 }
 
-                this.Entity.RecordTypeValueId = this.Entity.RecordTypeValueId ?? DefinedValueCache.Get( Rock.SystemGuid.DefinedValue.PERSON_RECORD_TYPE_PERSON.AsGuid() ).Id;
+                    this.Entity.RecordTypeValueId = this.Entity.RecordTypeValueId ?? DefinedValueCache.Get( Rock.SystemGuid.DefinedValue.PERSON_RECORD_TYPE_PERSON.AsGuid() ).Id;
                 this.Entity.RecordStatusValueId = this.Entity.RecordStatusValueId ?? DefinedValueCache.Get( Rock.SystemGuid.DefinedValue.PERSON_RECORD_STATUS_ACTIVE.AsGuid() ).Id;
 
                 if ( !this.Entity.IsBusiness() && !this.Entity.ConnectionStatusValueId.HasValue )
@@ -405,7 +432,7 @@ namespace Rock.Model
                 PersonService.UpdateGivingLeaderId( this.Entity.Id, RockContext );
                 PersonService.UpdateGroupSalutations( this.Entity.Id, RockContext );
 
-                if ( ChatHelper.IsChatEnabled )
+                if ( RockContext.IsRockToChatSyncEnabled && ChatHelper.IsChatEnabled )
                 {
                     Task.Run( async () =>
                     {
@@ -416,11 +443,6 @@ namespace Rock.Model
                                 PersonId = Entity.Id,
                                 ShouldEnsureChatAliasExists = false
                             };
-
-                            // Enforce a "full" sync of the chat user when saving an individual person. BUT take note
-                            // that because of the `ShouldEnsureChatAliasExists` flag above, this person will only be
-                            // synced to the external chat system if they have already been synced at least once before.
-                            chatHelper.RockToChatSyncConfig.ShouldEnsureChatUsersExist = true;
 
                             await chatHelper.CreateOrUpdateChatUsersAsync( new List<SyncPersonToChatCommand> { syncCommand } );
                         }

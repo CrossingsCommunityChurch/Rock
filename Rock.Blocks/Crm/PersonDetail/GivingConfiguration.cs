@@ -85,6 +85,7 @@ namespace Rock.Blocks.Crm.PersonDetail
 
     #endregion
 
+    [Rock.Cms.DefaultBlockRole( Rock.Enums.Cms.BlockRole.Secondary )]
     [Rock.SystemGuid.EntityTypeGuid( "6B977F51-4B33-44F3-A6FF-89FCC9D1AE08" )]
     [Rock.SystemGuid.BlockTypeGuid( "BBA3A660-9A8B-4707-A553-D314C21B0A12" )]
     public partial class GivingConfiguration : RockBlockType
@@ -235,23 +236,22 @@ namespace Rock.Blocks.Crm.PersonDetail
 
         #region Internal Methods
 
-        private string GetPersonActionIdentifiers()
+        private void GetPersonActionIdentifiers()
         {
             var personId = GetInitialEntity();
 
-
-            if ( personId.HasValue )
+            if ( !personId.HasValue || personId == 0 )
             {
-                var person = new PersonService( RockContext ).Get( personId.Value );
-                if ( person != null )
-                {
-                    personActionIdentifierTransaction = person.GetPersonActionIdentifier( "transaction" );
-                    personActionIdentifierContribution = person.GetPersonActionIdentifier( "contribution-statement" );
-                    personActionIdentifierPledge = person.GetPersonActionIdentifier( "pledge" );
-                }
+                return;
             }
 
-            return null;
+            var person = new PersonService( RockContext ).Get( personId.Value );
+            if ( person != null )
+            {
+                personActionIdentifierTransaction = person.GetPersonActionIdentifier( "transaction" );
+                personActionIdentifierContribution = person.GetPersonActionIdentifier( "contribution-statement" );
+                personActionIdentifierPledge = person.GetPersonActionIdentifier( "pledge" );
+            }
         }
 
         /// <summary>
@@ -352,35 +352,37 @@ namespace Rock.Blocks.Crm.PersonDetail
         {
             var personId = GetInitialEntity();
 
-            if ( personId.HasValue )
+            if ( !personId.HasValue || personId == 0 )
             {
-                var personService = new PersonService( RockContext );
-                var financialAccountService = new FinancialAccountService( RockContext );
-
-                int? savedAccountId = null;
-                Guid? financialAccountGuid = null;
-                int? financialAccountId = null;
-
-                if ( !string.IsNullOrEmpty( settings.SelectedSavedAccountId ) )
-                {
-                    savedAccountId = settings.SelectedSavedAccountId.AsIntegerOrNull();
-                }
-
-                if ( !string.IsNullOrEmpty( settings.SelectedFinancialAccountId ) )
-                {
-                    financialAccountGuid = settings.SelectedFinancialAccountId.AsGuidOrNull();
-
-                    if ( financialAccountGuid.HasValue )
-                    {
-                        financialAccountId = financialAccountService.GetId( financialAccountGuid.Value );
-                    }
-
-                }
-
-                personService.ConfigureTextToGive( personId.Value, financialAccountId, savedAccountId, out _ );
-
-                RockContext.SaveChanges();
+                return ActionBadRequest( "Invalid Person Id" );
             }
+
+            var personService = new PersonService( RockContext );
+            var financialAccountService = new FinancialAccountService( RockContext );
+
+            int? savedAccountId = null;
+            Guid? financialAccountGuid = null;
+            int? financialAccountId = null;
+
+            if ( !string.IsNullOrEmpty( settings.SelectedSavedAccountId ) )
+            {
+                savedAccountId = settings.SelectedSavedAccountId.AsIntegerOrNull();
+            }
+
+            if ( !string.IsNullOrEmpty( settings.SelectedFinancialAccountId ) )
+            {
+                financialAccountGuid = settings.SelectedFinancialAccountId.AsGuidOrNull();
+
+                if ( financialAccountGuid.HasValue )
+                {
+                    financialAccountId = financialAccountService.GetId( financialAccountGuid.Value );
+                }
+
+            }
+
+            personService.ConfigureTextToGive( personId.Value, financialAccountId, savedAccountId, out _ );
+
+            RockContext.SaveChanges();
 
             return ActionOk();
         }
@@ -389,15 +391,25 @@ namespace Rock.Blocks.Crm.PersonDetail
         public BlockActionResult GetTextToGiveDetails()
         {
             var personId = GetInitialEntity();
-            if ( !personId.HasValue )
+
+            if ( !personId.HasValue || personId == 0 )
             {
-                return ActionBadRequest( "Invalid Person Id" );
+                return ActionOk( new
+                {
+                    DefaultAccountName =  "None",
+                    SavedAccountName =  "None",
+                } );
             }
 
             var defaultSavedAccount = GetDefaultSavedAccount( personId );
 
             var personService = new PersonService( RockContext );
             var person = personService.Get( personId.Value );
+
+            if ( person == null )
+            {
+                return ActionBadRequest( "Invalid Person Id" );
+            }
 
             var defaultFinancialAccount = person.ContributionFinancialAccount;
 
@@ -417,13 +429,19 @@ namespace Rock.Blocks.Crm.PersonDetail
         {
             var personId = GetInitialEntity();
 
-            if ( !personId.HasValue )
+            if ( !personId.HasValue || personId == 0 )
             {
                 return ActionOk( new { Transactions = new List<FinancialScheduledTransactionBag>(), HasInactiveTransactions = false } );
             }
 
             var personService = new PersonService( RockContext );
             var person = personService.Get( personId.Value );
+
+            if ( person == null )
+            {
+                return ActionBadRequest( "Invalid Person Id" );
+            }
+
             var givingGroupId = person.GivingGroupId;
 
             var financialScheduledTransactionService = new FinancialScheduledTransactionService( RockContext );
@@ -553,7 +571,7 @@ namespace Rock.Blocks.Crm.PersonDetail
         {
             var personId = GetInitialEntity();
 
-            if ( !personId.HasValue )
+            if ( !personId.HasValue || personId == 0 )
             {
                 return ActionOk( new List<FinancialPledge>() );
             }
@@ -574,7 +592,10 @@ namespace Rock.Blocks.Crm.PersonDetail
                 pledgesQry = pledgesQry.Where( p => accountGuids.Contains( p.Account.Guid ) );
             }
 
-            var pledges = pledgesQry.ToList();
+            var pledges = pledgesQry
+                .OrderByDescending( p => p.StartDate )
+                .ThenBy( p => p.Id )
+                .ToList();
 
             if ( pledges == null )
             {
@@ -637,7 +658,7 @@ namespace Rock.Blocks.Crm.PersonDetail
         {
             var personId = GetInitialEntity();
 
-            if ( !personId.HasValue )
+            if ( !personId.HasValue || personId == 0 )
             {
                 return ActionOk( new List<ContributionStatementBag>() );
             }

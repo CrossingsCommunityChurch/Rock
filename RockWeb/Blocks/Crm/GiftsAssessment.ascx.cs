@@ -45,7 +45,6 @@ namespace Rockweb.Blocks.Crm
         Key = AttributeKey.Instructions,
         Description = "The text (HTML) to display at the top of the instructions section.  <span class='tip tip-lava'></span> <span class='tip tip-html'></span>",
         EditorMode = CodeEditorMode.Html,
-        EditorTheme = CodeEditorTheme.Rock,
         EditorHeight = 400,
         IsRequired = true,
         DefaultValue = InstructionsDefaultValue,
@@ -56,7 +55,6 @@ namespace Rockweb.Blocks.Crm
         Key = AttributeKey.ResultsMessage,
         Description = "The text (HTML) to display at the top of the results section.<span class='tip tip-lava'></span><span class='tip tip-html'></span>",
         EditorMode = CodeEditorMode.Html,
-        EditorTheme = CodeEditorTheme.Rock,
         EditorHeight = 400,
         IsRequired = true,
         DefaultValue = ResultsMessageDefaultValue,
@@ -75,7 +73,7 @@ namespace Rockweb.Blocks.Crm
         Key = AttributeKey.SetPageIcon,
         Description = "The css class name to use for the heading icon.",
         IsRequired = false,
-        DefaultValue = "fa fa-gift",
+        DefaultValue = "ti ti-gift",
         Order = 3 )]
 
     [IntegerField(
@@ -87,6 +85,7 @@ namespace Rockweb.Blocks.Crm
         Order = 4 )]
     #endregion Block Attributes
 
+    [Rock.Cms.DefaultBlockRole( Rock.Enums.Cms.BlockRole.Primary )]
     [Rock.SystemGuid.BlockTypeGuid( Rock.SystemGuid.BlockType.GIFTS_ASSESSMENT )]
     public partial class GiftsAssessment : Rock.Web.UI.RockBlock
     {

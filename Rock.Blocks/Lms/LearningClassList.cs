@@ -45,7 +45,7 @@ namespace Rock.Blocks.Lms
     [DisplayName( "Learning Class List" )]
     [Category( "LMS" )]
     [Description( "Displays a list of learning classes." )]
-    [IconCssClass( "fa fa-list" )]
+    [IconCssClass( "ti ti-list" )]
     [SupportedSiteTypes( Model.SiteType.Web )]
 
     #region Block Attributes
@@ -84,6 +84,7 @@ namespace Rock.Blocks.Lms
 
     #endregion
 
+    [Rock.Cms.DefaultBlockRole( Rock.Enums.Cms.BlockRole.Secondary )]
     [Rock.SystemGuid.EntityTypeGuid( "ab72d147-d4ca-4ff5-ab49-696319cb9844" )]
     [Rock.SystemGuid.BlockTypeGuid( "340f6cc1-8c38-4579-9383-a6168680194a" )]
     [CustomizedGrid]
@@ -127,9 +128,9 @@ namespace Rock.Blocks.Lms
         {
             var box = new ListBlockBox<LearningClassListOptionsBag>();
 
-            var isEditEnabled = GetIsEditEnabled();
-            box.IsAddEnabled = isEditEnabled;
-            box.IsDeleteEnabled = isEditEnabled;
+            var isAddEnabled = GetIsAddEnabled();
+            box.IsAddEnabled = isAddEnabled;
+            box.IsDeleteEnabled = true;
             box.ExpectedRowCount = 5;
             box.NavigationUrls = GetBoxNavigationUrls();
             box.Options = GetBoxOptions();
@@ -177,9 +178,12 @@ namespace Rock.Blocks.Lms
         /// Determines if the add button should be enabled in the grid.
         /// <summary>
         /// <returns>A boolean value that indicates if the add button should be enabled.</returns>
-        private bool GetIsEditEnabled()
+        private bool GetIsAddEnabled()
         {
-            var entity = new LearningClass();
+            var entity = new LearningClass
+            {
+                LearningCourseId = RequestContext.PageParameterAsId( PageParameterKey.LearningCourseId )
+            };
 
             return entity.IsAuthorized( Authorization.EDIT, RequestContext.CurrentPerson );
         }
@@ -214,7 +218,7 @@ namespace Rock.Blocks.Lms
                 .Include( c => c.LearningCourse.LearningProgram )
                 .Include( c => c.LearningSemester )
                 .Include( c => c.LearningParticipants )
-                .Include( c => c.LearningParticipants.Select( p => p.LearningActivities ));
+                .Include( c => c.LearningParticipants.Select( p => p.LearningClassActivityCompletions ));
 
             var programId = RequestContext.PageParameterAsId( PageParameterKey.LearningProgramId );
             if ( programId > 0 )
@@ -234,14 +238,21 @@ namespace Rock.Blocks.Lms
                 baseQuery = baseQuery.Where( c => c.IsActive );
             }
 
-            var currentPerson = GetCurrentPerson();
-            return baseQuery.ToList().Where( c => c.IsAuthorized( Authorization.VIEW, currentPerson ) ).AsQueryable();
+            return baseQuery;
         }
 
         /// <inheritdoc/>
         protected override IQueryable<LearningClass> GetOrderedListQueryable( IQueryable<LearningClass> queryable, RockContext rockContext )
         {
             return queryable.OrderBy( c => c.LearningCourse.Name ).ThenBy( c => c.Name );
+        }
+
+        /// <inheritdoc/>
+        protected override List<LearningClass> GetListItems( IQueryable<LearningClass> queryable, RockContext rockContext )
+        {
+            return queryable.ToList()
+                .Where( lc => lc.IsAuthorized( Authorization.VIEW, RequestContext.CurrentPerson ) )
+                .ToList();
         }
 
         /// <inheritdoc/>
@@ -376,7 +387,7 @@ namespace Rock.Blocks.Lms
                 .Queryable()
                 .Any( p =>
                     p.LearningClassId == classId
-                    && p.LearningActivities.Any() );
+                    && p.LearningClassActivityCompletions.Any() );
 
             return ActionOk( hasCompletions );
         }

@@ -5,7 +5,6 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 using Rock.Data;
 using Rock.Model;
-using Rock.Tests.Shared;
 using Rock.Tests.Shared.TestFramework;
 using Rock.Utility.Enums;
 using Rock.Web.Cache;
@@ -29,7 +28,7 @@ namespace Rock.Tests.Integration.Core.Model
         /// Runs before any tests in this class are executed.
         /// </summary>
         [ClassInitialize]
-        public static void ClassInitialize(TestContext testContext)
+        public static void ClassInitialize( TestContext _ )
         {
             CreatePersonWithProtectionProfile( PersonGuid.PersonWithLowAccountProtectionProfileGuid.AsGuid(), AccountProtectionProfile.Low );
             CreatePersonWithProtectionProfile( PersonGuid.PersonWithMediumAccountProtectionProfileGuid.AsGuid(), AccountProtectionProfile.Medium );
@@ -37,7 +36,7 @@ namespace Rock.Tests.Integration.Core.Model
             CreatePersonWithProtectionProfile( PersonGuid.PersonWithExtremeAccountProtectionProfileGuid.AsGuid(), AccountProtectionProfile.Extreme );
         }
 
-        private static void CreatePersonWithProtectionProfile(Guid guid, AccountProtectionProfile accountProtectionProfile)
+        private static void CreatePersonWithProtectionProfile( Guid guid, AccountProtectionProfile accountProtectionProfile )
         {
             var rockContext = new RockContext();
             var personService = new PersonService( rockContext );
@@ -63,25 +62,6 @@ namespace Rock.Tests.Integration.Core.Model
             PersonService.SaveNewPerson( person, rockContext );
         }
 
-        /// <summary>
-        /// Runs after all tests in this class is executed.
-        /// </summary>
-        [ClassCleanup]
-        public static void ClassCleanup()
-        {
-            //
-        }
-
-        /// <summary>
-        /// Runs after each test in this class is executed.
-        /// Deletes the test data added to the database for each tests.
-        /// </summary>
-        [TestCleanup]
-        public void Cleanup()
-        {
-            //
-        }
-
         #endregion
 
         [TestMethod]
@@ -93,8 +73,8 @@ namespace Rock.Tests.Integration.Core.Model
 
             var token = personWithLowAccountProtectionProfile.GetImpersonationToken();
 
-            Assert.That.IsNotNull( token );
-            Assert.That.NotEqual( "TokenProhibited", token );
+            Assert.IsNotNull( token );
+            Assert.AreNotEqual( "TokenProhibited", token );
         }
 
         [TestMethod]
@@ -106,7 +86,7 @@ namespace Rock.Tests.Integration.Core.Model
 
             var token = personWithExtremeAccountProtectionProfile.GetImpersonationToken();
 
-            Assert.That.Equal( "TokenProhibited", token );
+            Assert.AreEqual( "TokenProhibited", token );
         }
 
         [TestMethod]
@@ -122,11 +102,11 @@ namespace Rock.Tests.Integration.Core.Model
 
             var token = personWithLowAccountProtectionProfile.GetImpersonationToken();
 
-            Assert.That.IsNotNull( token );
+            Assert.IsNotNull( token );
 
             var personFromToken = personTokenService.GetByImpersonationToken( token );
 
-            Assert.That.Equal( PersonGuid.PersonWithLowAccountProtectionProfileGuid.AsGuid(), personFromToken.PersonAlias.Person.Guid );
+            Assert.AreEqual( PersonGuid.PersonWithLowAccountProtectionProfileGuid.AsGuid(), personFromToken.PersonAlias.Person.Guid );
         }
 
         [TestMethod]
@@ -141,7 +121,7 @@ namespace Rock.Tests.Integration.Core.Model
 
             var personFromToken = personTokenService.GetByImpersonationToken( token );
 
-            Assert.That.IsNull( personFromToken );
+            Assert.IsNull( personFromToken );
         }
 
         [TestMethod]
@@ -157,11 +137,11 @@ namespace Rock.Tests.Integration.Core.Model
 
             var token = personWithLowAccountProtectionProfile.GetImpersonationToken();
 
-            Assert.That.IsNotNull( token );
+            Assert.IsNotNull( token );
 
             var personFromToken = personTokenService.GetByImpersonationToken( token );
 
-            Assert.That.Equal( PersonGuid.PersonWithLowAccountProtectionProfileGuid.AsGuid(), personFromToken.PersonAlias.Person.Guid );
+            Assert.AreEqual( PersonGuid.PersonWithLowAccountProtectionProfileGuid.AsGuid(), personFromToken.PersonAlias.Person.Guid );
         }
 
         [TestMethod]
@@ -176,7 +156,7 @@ namespace Rock.Tests.Integration.Core.Model
 
             var personFromToken = personTokenService.GetByImpersonationToken( token );
 
-            Assert.That.IsNull( personFromToken );
+            Assert.IsNull( personFromToken );
         }
     }
 }

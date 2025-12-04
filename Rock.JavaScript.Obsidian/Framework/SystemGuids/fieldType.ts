@@ -25,6 +25,8 @@
 export const FieldType = {
     /** Address field type */
     AchievementType: "593132CF-BA5D-462F-97F6-94DCC0BFFE6F",
+    /** Adaptive Message field type */
+    AdaptiveMessage: "55CC533A-99D2-418F-B93E-73EA098ABDAE",
     /** Address field type */
     Address: "0A495222-23B7-41D3-82C8-D484CDB75D17",
     /** AI provider field type. */
@@ -83,6 +85,8 @@ export const FieldType = {
     Color: "D747E6AE-C383-4E22-8846-71518E3DD06F",
     /** Color selector field type */
     ColorSelector: "B07070F6-B66E-4B83-8DA6-12CF3400A1EC",
+    /** Communication Flow field type */
+    CommunicationFlow: "DD16B493-2588-436A-8C99-8771206ED28D",
     /** Communication Preference field type */
     CommunicationPreferenceType: "507C28F2-8BC0-4909-A4FE-9C2B1149E2B2",
     /** Communication Template field type */
@@ -151,6 +155,8 @@ export const FieldType = {
     DefinedValueCategorized: "3217C31F-85B6-4E0D-B6BE-2ADB0D28588D",
     /** Defined Value Range field type */
     DefinedValueRange: "B5C07B16-844D-4620-82E3-4CCA8F5FC350",
+    /** Device field type */
+    Device: "D7F5D737-BDC9-4656-951E-08325D0543FD",
     /** Document Type field type */
     DocumentType: "1FD31CDC-E5E2-431B-8D53-72FC0430044D",
     /** Email field type */
@@ -179,6 +185,8 @@ export const FieldType = {
     FinancialGateway: "7B34F9D8-6BBA-423E-B50E-525ABB3A1013",
     /** Financial Statement Template field type */
     FinancialStatementTemplate: "9E0CD807-D69F-4888-A9BE-BCD11DD083FE",
+    /** Financial Transaction field type */
+    FinancialTransaction: "04C66B8E-2DBD-4799-875E-FFFD818EDD91",
     /** Gender field type */
     Gender: "2E28779B-4C76-4142-AE8D-49EA31DDB503",
     /** Group field type */

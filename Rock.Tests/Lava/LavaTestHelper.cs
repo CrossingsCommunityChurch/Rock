@@ -24,7 +24,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 using Rock.Lava;
 using Rock.Lava.Fluid;
-using Rock.Tests.Shared;
+using Rock.Model;
 
 namespace Rock.Tests.Lava
 {
@@ -52,6 +52,7 @@ namespace Rock.Tests.Lava
                 _fluidEngine = LavaService.NewEngineInstance( typeof( FluidEngine ), engineOptions );
 
                 RegisterFilters( _fluidEngine );
+                RegisterBlocks( _fluidEngine );
             }
         }
 
@@ -116,7 +117,7 @@ namespace Rock.Tests.Lava
             // Set to India Standard Time (UTC+05:30), or an alternative if that is the local timezone in the current environment.
             tz = TimeZoneInfo.FindSystemTimeZoneById( "India Standard Time" );
 
-            Assert.That.IsNotNull( tz, "Timezone 'IST' is not available in this environment." );
+            Assert.IsNotNull( tz, "Timezone 'IST' is not available in this environment." );
 
             if ( tz.Id == TimeZoneInfo.Local.Id )
             {
@@ -130,12 +131,12 @@ namespace Rock.Tests.Lava
                     tz = TimeZoneInfo.FindSystemTimeZoneById( "Japan Standard Time" );
                 }
 
-                Assert.That.IsNotNull( tz, "Timezone 'Tokyo Standard Time' is not available in this environment." );
+                Assert.IsNotNull( tz, "Timezone 'Tokyo Standard Time' is not available in this environment." );
             }
 
             // To simplify the process of testing date/time differences, we need to ensure that the selected timezone is not subject to Daylight Saving Time.
             // If a DST-affected timezone is used, some tests will fail when executed across DST boundary dates.
-            Assert.That.IsFalse( tz.SupportsDaylightSavingTime, "Test Timezone should not be configured for Daylight Saving Time (DST)." );
+            Assert.IsFalse( tz.SupportsDaylightSavingTime, "Test Timezone should not be configured for Daylight Saving Time (DST)." );
 
             return tz;
         }
@@ -151,18 +152,18 @@ namespace Rock.Tests.Lava
             // Set to UCT-07:00, or an alternative if that is the local timezone in the current environment.
             tz = TimeZoneInfo.FindSystemTimeZoneById( "US Mountain Standard Time" );
 
-            Assert.That.IsNotNull( tz, "Timezone 'MST' is not available in this environment." );
+            Assert.IsNotNull( tz, "Timezone 'MST' is not available in this environment." );
 
             if ( tz.Id == TimeZoneInfo.Local.Id )
             {
                 // Set to UCT-07:00.
                 tz = TimeZoneInfo.FindSystemTimeZoneById( "Hawaiian Standard Time" );
-                Assert.That.IsNotNull( tz, "Timezone 'Hawaiian Standard Time' is not available in this environment." );
+                Assert.IsNotNull( tz, "Timezone 'Hawaiian Standard Time' is not available in this environment." );
             }
 
             // To simplify the process of testing date/time differences, we need to ensure that the selected timezone is not subject to Daylight Saving Time.
             // If a DST-affected timezone is used, some tests will fail when executed across DST boundary dates.
-            Assert.That.IsFalse( tz.SupportsDaylightSavingTime, "Test Timezone should not be configured for Daylight Saving Time (DST)." );
+            Assert.IsFalse( tz.SupportsDaylightSavingTime, "Test Timezone should not be configured for Daylight Saving Time (DST)." );
 
             return tz;
         }
@@ -176,9 +177,9 @@ namespace Rock.Tests.Lava
             // Set to Central Standard Time (CST), a timezone that supports Daylight Saving Time (DST).
             var tz = TimeZoneInfo.FindSystemTimeZoneById( "Central Standard Time" );
 
-            Assert.That.IsNotNull( tz, "Timezone 'CST' is not available in this environment." );
+            Assert.IsNotNull( tz, "Timezone 'CST' is not available in this environment." );
 
-            Assert.That.IsTrue( tz.SupportsDaylightSavingTime, "Test Timezone should be configured for Daylight Saving Time (DST)." );
+            Assert.IsTrue( tz.SupportsDaylightSavingTime, "Test Timezone should be configured for Daylight Saving Time (DST)." );
 
             return tz;
         }
@@ -274,6 +275,39 @@ namespace Rock.Tests.Lava
             } );
         }
 
+        private static void RegisterBlocks( ILavaEngine engine )
+        {
+            // Get all blocks and call OnStartup methods
+            try
+            {
+                var blockTypes = Reflection.FindTypes( typeof( ILavaBlock ) ).Select( a => a.Value ).ToList();
+
+                foreach ( var blockType in blockTypes )
+                {
+                    var blockInstance = Activator.CreateInstance( blockType ) as ILavaBlock;
+
+                    engine.RegisterBlock( blockInstance.SourceElementName, ( blockName ) =>
+                    {
+                        return Activator.CreateInstance( blockType ) as ILavaBlock;
+                    } );
+
+                    try
+                    {
+                        blockInstance.OnStartup( engine );
+                    }
+                    catch ( Exception ex )
+                    {
+                        ExceptionLogService.LogException( ex, null );
+                    }
+
+                }
+            }
+            catch ( Exception ex )
+            {
+                ExceptionLogService.LogException( ex, null );
+            }
+        }
+
         private static void RegisterFilters( ILavaEngine engine )
         {
             engine.RegisterFilters( typeof( global::Rock.Lava.Filters.TemplateFilters ) );
@@ -287,7 +321,7 @@ namespace Rock.Tests.Lava
                 return _fluidEngine;
             }
 
-            throw new Exception( $"Cannot return an instance of engine type \"{ engineType }\"." );
+            throw new Exception( $"Cannot return an instance of engine type \"{engineType}\"." );
         }
 
         /// <summary>
@@ -364,9 +398,9 @@ namespace Rock.Tests.Lava
                 }
                 catch ( Exception ex )
                 {
-                    Debug.Write( $"**\n** ERROR\n**\n{ex.Message}" );
+                    Debug.Write( $"\n**\n** ERROR\n**\n{ex.Message}" );
 
-                    exceptions.Add( new Exception( $"Engine \"{ engine.EngineName }\" reported an error.", ex ) );
+                    exceptions.Add( new Exception( $"Engine \"{engine.EngineName}\" reported an error.", ex ) );
                 }
             }
 
@@ -482,7 +516,7 @@ namespace Rock.Tests.Lava
 
             DebugWriteRenderResult( engine, inputTemplate, debugString );
 
-            Assert.That.Equal( expectedOutput, outputString );
+            Assert.AreEqual( expectedOutput, outputString );
         }
 
         /// <summary>
@@ -571,7 +605,7 @@ namespace Rock.Tests.Lava
 
             WriteOutputToDebug( engine, outputString );
 
-            Assert.That.IsNotNull( outputDateUtc, $"Template Output does not represent a valid DateTime. [Output=\"{ outputString }\"]" );
+            Assert.IsNotNull( outputDateUtc, $"Template Output does not represent a valid DateTime. [Output=\"{outputString}\"]" );
 
             try
             {
@@ -588,15 +622,15 @@ namespace Rock.Tests.Lava
             {
                 var info = $@"
 Test Environment:
-LavaEngine = { engine.EngineName },
+LavaEngine = {engine.EngineName},
 LocalDateTime = {DateTimeOffset.Now},
 LocalTimeZoneName = {TimeZoneInfo.Local.DisplayName},
-LocalTimeZoneOffset = { TimeZoneInfo.Local.BaseUtcOffset }
-RockDateTime = { LavaDateTime.NowOffset },
-RockTimeZoneName = { RockDateTime.OrgTimeZoneInfo.DisplayName },
-RockTimeZoneOffset = { RockDateTime.OrgTimeZoneInfo.BaseUtcOffset }
+LocalTimeZoneOffset = {TimeZoneInfo.Local.BaseUtcOffset}
+RockDateTime = {LavaDateTime.NowOffset},
+RockTimeZoneName = {RockDateTime.OrgTimeZoneInfo.DisplayName},
+RockTimeZoneOffset = {RockDateTime.OrgTimeZoneInfo.BaseUtcOffset}
 ";
-                throw new Exception( $"Lava Date/Time test failed.\n{ info }", ex );
+                throw new Exception( $"Lava Date/Time test failed.\n{info}", ex );
             }
         }
 

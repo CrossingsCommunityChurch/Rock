@@ -100,7 +100,7 @@ namespace Rock.CheckIn.v2
                     .OrderByDescending( gm => gm.GroupId == familyIdNumber )
                     .ThenBy( gm => gm.RoleOrder );
 
-            members.Select( fm => fm.Person ).DistinctBy( p => p.Id ).LoadAttributes( RockContext );
+            members.Select( fm => fm.Person ).DistinctBy( p => p.Id ).ToList().LoadAttributes( RockContext );
 
             foreach ( var member in members )
             {
@@ -356,7 +356,10 @@ namespace Rock.CheckIn.v2
                 IsUnavailable = attendee.IsUnavailable,
                 IsMultipleSelectionsAvailable = attendee.IsMultipleSelectionsAvailable,
                 UnavailableMessage = attendee.UnavailableMessage,
-                SelectedOpportunities = attendee.SelectedOpportunities
+                SelectedOpportunities = attendee.SelectedOpportunities,
+                PossibleSchedules = attendee.Opportunities?.Schedules
+                    .Select( GetScheduleOpportunityBag )
+                    .ToList() ?? new List<ScheduleOpportunityBag>(),
             };
         }
 

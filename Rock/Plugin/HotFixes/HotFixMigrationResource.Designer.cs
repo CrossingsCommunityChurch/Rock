@@ -366,8 +366,7 @@ namespace Rock.Plugin.HotFixes {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to 
-        ///
+        ///   Looks up a localized string similar to /*
         ///&lt;doc&gt;
         /// &lt;summary&gt;
         ///   This stored procedure detects potential duplicate person records and stores the results in [PersonDuplicate]
@@ -381,7 +380,7 @@ namespace Rock.Plugin.HotFixes {
         ///            * Phone Type - Cell: &apos;407E7E45-7B2E-4FCD-9605-ECB1339F2453&apos;
         /// &lt;/remarks&gt;
         /// &lt;code&gt;
-        ///   [rest of string was truncated]&quot;;.
+        ///  EX [rest of string was truncated]&quot;;.
         /// </summary>
         public static string _050_MigrationRollupsForV7_4_spCrm_PersonDuplicateFinder {
             get {
@@ -951,6 +950,117 @@ namespace Rock.Plugin.HotFixes {
         public static string _225_ImprovePeerNetworkCalculations_spPeerNetwork_UpdateGroupConnections {
             get {
                 return ResourceManager.GetString("_225_ImprovePeerNetworkCalculations_spPeerNetwork_UpdateGroupConnections", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to /*
+        ///&lt;doc&gt;
+        ///	&lt;summary&gt;
+        ///        This procedure takes a communication list (group) or communication and returns all of the
+        ///		recipients along with the data needed to determine if the individual can recieve an email,
+        ///		sms or push notification.
+        ///	&lt;/summary&gt;
+        ///
+        ///	&lt;returns&gt;
+        ///		All of the fields needed to drive the communication wizard.
+        ///	&lt;/returns&gt;
+        ///	&lt;param name=&apos;ListId&apos; datatype=&apos;int&apos;&gt;The group id of the communication list or the communication id.&lt;/param&gt;
+        ///	&lt;param name=&apos;ListType&apos; datatype=&apos;int&apos;&gt;1 = Communicati [rest of string was truncated]&quot;;.
+        /// </summary>
+        public static string _250_AddDuplicateCommunicationRecipientHandling_spCommunicationRecipientDetails {
+            get {
+                return ResourceManager.GetString("_250_AddDuplicateCommunicationRecipientHandling_spCommunicationRecipientDetails", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to /*
+        ///&lt;doc&gt;
+        ///    &lt;summary&gt;
+        ///        Synchronizes the pending recipients of a communication with the current, active members of its list group,
+        ///        respecting scheduled send cutoffs, recipient/person communication preferences, and optional personalization
+        ///        segment filters.
+        ///    &lt;/summary&gt;
+        ///    &lt;params&gt;
+        ///        &lt;param name=&quot;@CommunicationId&quot; type=&quot;INT&quot; required=&quot;true&quot;&gt;
+        ///            The Id of the [Communication] to synchronize.
+        ///        &lt;/param&gt;
+        ///    &lt;/params&gt;
+        ///    &lt;examples&gt;
+        ///        &lt;code&gt;
+        ///      [rest of string was truncated]&quot;;.
+        /// </summary>
+        public static string _262_ImproveCommunicationPrepPerformance_spCommunication_SynchronizeListRecipients {
+            get {
+                return ResourceManager.GetString("_262_ImproveCommunicationPrepPerformance_spCommunication_SynchronizeListRecipient" +
+                        "s", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to CREATE PROCEDURE [dbo].[spCrm_FamilyAnalyticsGiving]
+        ///	
+        ///AS
+        ///BEGIN
+        ///	
+        ///	-- configuration of the duration in weeks
+        ///	DECLARE @GivingDurationLongWeeks int = 52
+        ///	DECLARE @GivingDurationShortWeeks int = 6
+        ///	
+        ///	DECLARE @cACTIVE_RECORD_STATUS_VALUE_GUID uniqueidentifier = &apos;618F906C-C33D-4FA3-8AEF-E58CB7B63F1E&apos;
+        ///	DECLARE @cPERSON_RECORD_TYPE_VALUE_GUID uniqueidentifier = &apos;36CF10D6-C695-413D-8E7C-4546EFEF385E&apos;
+        ///	DECLARE @cFAMILY_GROUPTYPE_GUID uniqueidentifier = &apos;790E3215-3B10-442B-AF69-616C0DCB998E&apos;
+        ///	DECLARE @cA [rest of string was truncated]&quot;;.
+        /// </summary>
+        public static string _267_UpdateFamilyAnalyticsStoredProcedure_spCrm_FamilyAnalyticsGiving {
+            get {
+                return ResourceManager.GetString("_267_UpdateFamilyAnalyticsStoredProcedure_spCrm_FamilyAnalyticsGiving", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to /*
+        ///&lt;doc&gt;
+        ///    &lt;summary&gt;
+        ///        Synchronizes the pending recipients of a communication with the current, active members of its list group,
+        ///        respecting scheduled send cutoffs, recipient/person communication preferences, and optional personalization
+        ///        segment filters.
+        ///    &lt;/summary&gt;
+        ///    &lt;params&gt;
+        ///        &lt;param name=&quot;@CommunicationId&quot; type=&quot;INT&quot; required=&quot;true&quot;&gt;
+        ///            The Id of the [Communication] to synchronize.
+        ///        &lt;/param&gt;
+        ///    &lt;/params&gt;
+        ///    &lt;examples&gt;
+        ///        &lt;code&gt;
+        ///      [rest of string was truncated]&quot;;.
+        /// </summary>
+        public static string _268_ImproveSyncListRecipientsPerformance_spCommunication_SynchronizeListRecipients {
+            get {
+                return ResourceManager.GetString("_268_ImproveSyncListRecipientsPerformance_spCommunication_SynchronizeListRecipien" +
+                        "ts", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to /*
+        ///&lt;doc&gt;
+        ///    &lt;summary&gt;
+        ///        This stored procedure retrieves placed and unplaced people for all supported
+        ///        configurations of the Group Placement block in Rock RMS. It supports filtering
+        ///        by template, instance, groups, entity sets, demographics, campus, DataView
+        ///        membership, and fee qualifications.
+        ///    &lt;/summary&gt;
+        ///
+        ///    &lt;returns&gt;
+        ///        A result set containing placement-eligible people along with placement status
+        ///        and contextual registration or group information.
+        ///     [rest of string was truncated]&quot;;.
+        /// </summary>
+        public static string _269_UpdateGroupPlacementStoredProcedure_spGetGroupPlacementPeople {
+            get {
+                return ResourceManager.GetString("_269_UpdateGroupPlacementStoredProcedure_spGetGroupPlacementPeople", resourceCulture);
             }
         }
     }

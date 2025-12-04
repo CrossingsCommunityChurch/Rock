@@ -256,4 +256,5 @@
         webFarmSettingsEditBag.value = config.entity;
         //panelMode.value = DetailPanelMode.Add;
     }
+
 </script>

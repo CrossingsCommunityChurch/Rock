@@ -4,8 +4,10 @@
         <div class="control-wrapper">
             <Loading :id="id || uniqueId" :isLoading="isLoading">
                 <div class="form-row" v-if="country.isVisible">
-                    <div class="form-group col-sm-6">
-                        <DropDownList v-model="internalValue.country" :items="countryOptions" :validationTitle="country.label" :rules="rules.country" :disabled="disabled" :autocomplete="country.autocomplete" />
+                    <div class="col-sm-6">
+                        <div class="form-group">
+                            <DropDownList v-model="internalValue.country" :items="countryOptions" :validationTitle="country.label" :rules="rules.country" :disabled="disabled" :autocomplete="country.autocomplete" enhanceForLongLists />
+                        </div>
                     </div>
                 </div>
                 <div class="form-group" v-if="address1.isVisible">
@@ -22,7 +24,7 @@
                         <TextBox v-model="internalValue.locality" :placeholder="county.label" :validationTitle="county.label" :rules="rules.locality" :disabled="disabled" :autocomplete="county.autocomplete" />
                     </div>
                     <div class="form-group col-sm-3" v-if="state.isVisible">
-                        <DropDownList v-if="hasStateList" :showBlankItem="state.rules != RequirementLevel.Required || disableFrontEndValidation || omitDefaultValues" v-model="internalValue.state" :items="stateOptions" :validationTitle="state.label" :rules="rules.state" :disabled="disabled" :autocomplete="state.autocomplete" />
+                        <DropDownList v-if="hasStateList" v-model="internalValue.state" :items="stateOptions" :validationTitle="state.label" :rules="rules.state" :disabled="disabled" :autocomplete="state.autocomplete" showBlankItem enhanceForLongLists />
                         <TextBox v-else v-model="internalValue.state" :placeholder="state.label" :validationTitle="state.label" :rules="rules.state" :disabled="disabled" :autocomplete="state.autocomplete" />
                     </div>
                     <div class="form-group col-sm-3" v-if="zip.isVisible">
@@ -90,7 +92,7 @@
             default: false
         },
 
-        /** If false, set automatically fill state and country fields with default values if not provided in model value */
+        /** If false, automatically fill state and country fields with default values if not provided in model value */
         omitDefaultValues: {
             type: Boolean,
             default: false
@@ -217,22 +219,22 @@
         }
 
         if (isRequired.value || internalValue.street1) {
-            if (address1.rules == RequirementLevel.Required) {
+            if (address1.rules === RequirementLevel.Required) {
                 rules.street1 = "required";
             }
-            if (address2.rules == RequirementLevel.Required) {
+            if (address2.rules === RequirementLevel.Required) {
                 rules.street2 = "required";
             }
-            if (city.rules == RequirementLevel.Required) {
+            if (city.rules === RequirementLevel.Required) {
                 rules.city = "required";
             }
-            if (county.rules == RequirementLevel.Required) {
+            if (county.rules === RequirementLevel.Required) {
                 rules.locality = "required";
             }
-            if (state.rules == RequirementLevel.Required) {
+            if (state.rules === RequirementLevel.Required) {
                 rules.state = "required";
             }
-            if (zip.rules == RequirementLevel.Required) {
+            if (zip.rules === RequirementLevel.Required) {
                 rules.postalCode = "required";
             }
         }
@@ -265,28 +267,36 @@
             isInternational.value = data.showCountrySelection;
 
             // Label is static
-            address1.isVisible = data.addressLine1Requirement != RequirementLevel.Unavailable;
+            address1.isVisible = data.addressLine1Requirement !== RequirementLevel.Unavailable;
             address1.rules = data.addressLine1Requirement;
 
             // Address Line 2 is only shown if it's required or it's requested by the prop; Label is static
-            address2.isVisible = !(data.addressLine2Requirement == RequirementLevel.Unavailable || (!props.disableFrontEndValidation && !props.showAddressLine2 && data.addressLine2Requirement == RequirementLevel.Optional));
-            address2.rules = data.addressLine2Requirement;
+            const address2LocalityRequirement = (!props.disableFrontEndValidation && data.addressLine2Requirement === RequirementLevel.Optional && !props.showAddressLine2)
+                ? RequirementLevel.Unavailable
+                : data.addressLine2Requirement;
 
-            // County / Locality is only shown if it's required or it's requested by the prop
-            county.isVisible = !(data.localityRequirement == RequirementLevel.Unavailable || (!props.disableFrontEndValidation && props.showCounty && data.localityRequirement == RequirementLevel.Optional));
-            county.rules = data.localityRequirement;
+            address2.isVisible = !(address2LocalityRequirement === RequirementLevel.Unavailable);
+            address2.rules = address2LocalityRequirement;
+
+            // County / Locality is only shown if not unavailable or it's requested by the prop
+            const countyLocalityRequirement = (!props.disableFrontEndValidation && data.localityRequirement === RequirementLevel.Optional && !props.showCounty)
+                ? RequirementLevel.Unavailable
+                : data.localityRequirement;
+
+            county.isVisible = !(countyLocalityRequirement === RequirementLevel.Unavailable);
+            county.rules = countyLocalityRequirement;
             county.label = data.localityLabel ?? county.label;
 
-            city.isVisible = data.cityRequirement != RequirementLevel.Unavailable;
+            city.isVisible = data.cityRequirement !== RequirementLevel.Unavailable;
             city.rules = data.cityRequirement;
             city.label = data.cityLabel ?? city.label;
             city.autocomplete = county.isVisible ? "address-level3" : "address-level2";
 
-            state.isVisible = data.stateRequirement != RequirementLevel.Unavailable;
+            state.isVisible = data.stateRequirement !== RequirementLevel.Unavailable;
             state.rules = data.stateRequirement;
             state.label = data.stateLabel ?? state.label;
 
-            zip.isVisible = data.postalCodeRequirement != RequirementLevel.Unavailable;
+            zip.isVisible = data.postalCodeRequirement !== RequirementLevel.Unavailable;
             zip.rules = data.postalCodeRequirement;
             zip.label = data.postalCodeLabel ?? zip.label;
 
@@ -316,7 +326,7 @@
     }
 
     watch(() => internalValue.country, (currentVal, oldVal) => {
-        if (currentVal != oldVal) {
+        if (currentVal !== oldVal) {
             getConfiguration(currentVal);
         }
     }, { deep: true });

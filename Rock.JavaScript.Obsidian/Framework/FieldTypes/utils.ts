@@ -20,7 +20,7 @@ import { binaryComparisonTypes, containsComparisonTypes, isCompareVisibleForComp
 import { getFilteredComparisonTypeOptions } from "@Obsidian/Core/Reporting/comparisonTypeOptions";
 import { ComparisonValue } from "@Obsidian/Types/Reporting/comparisonValue";
 import { ComparisonType } from "@Obsidian/Enums/Reporting/comparisonType";
-import { FilterMode } from "@Obsidian/Core/Reporting/filterMode";
+import { FilterMode } from "@Obsidian/Enums/Reporting/filterMode";
 import DropDownList from "@Obsidian/Controls/dropDownList.obs";
 import FieldFilterContainer from "@Obsidian/Controls/fieldFilterContainer.obs";
 import { toNumberOrNull } from "@Obsidian/Utility/numberUtils";
@@ -249,7 +249,6 @@ export function getStandardFilterComponent(comparisonLabelOrTypes: ComparisonTyp
             /** True if the compare component should be visible. */
             const hasCompareComponent = computed(() => {
                 return comparisonTypes !== null
-                    && props.filterMode !== FilterMode.Simple
                     && !isSingleComparisonType(comparisonTypes)
                     && isCompareVisibleForComparisonFilter(comparisonTypes, props.filterMode);
             });
@@ -280,9 +279,8 @@ export function getStandardFilterComponent(comparisonLabelOrTypes: ComparisonTyp
                     type = comparisonTypes;
                 }
                 else {
-                    // If the filter mode is simple, then the comparison type is
-                    // not shown so we come up with a sane default.
-                    if (props.filterMode === FilterMode.Simple) {
+                    // If the compare component is not visible, then come up with a sane default.
+                    if (!hasCompareComponent.value) {
                         if (comparisonTypes === binaryComparisonTypes) {
                             type = ComparisonType.EqualTo;
                         }
@@ -294,8 +292,7 @@ export function getStandardFilterComponent(comparisonLabelOrTypes: ComparisonTyp
                         }
                     }
                     else {
-                        // Get the comparison type selected by the user if we are
-                        // in advanced mode.
+                        // When the compare component is visible, get the comparison type selected by the user.
                         type = toNumberOrNull(internalComparisonType.value);
                     }
                 }
@@ -338,12 +335,13 @@ export function getStandardFilterComponent(comparisonLabelOrTypes: ComparisonTyp
                 hasValueComponent,
                 internalComparisonType,
                 internalComparisonValue,
-                isTypeOptional
+                isTypeOptional,
+                filterMode: props.filterMode
             };
         },
 
         template: `
-<FieldFilterContainer :compareLabel="compareLabel">
+<FieldFilterContainer :compareLabel="compareLabel" :filterMode="filterMode">
     <template v-if="hasCompareComponent" #compare>
         <DropDownList v-model="internalComparisonType" :items="comparisonTypeOptions" :showBlankItem="isTypeOptional" />
     </template>

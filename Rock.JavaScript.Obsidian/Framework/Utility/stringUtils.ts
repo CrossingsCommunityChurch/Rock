@@ -214,7 +214,7 @@ export function pluralConditional(num: number, singular: string, plural: string)
  * @param padCharacter The character to use to pad the string.
  */
 export function padLeft(str: string | undefined | null, length: number, padCharacter: string = " "): string {
-    if (padCharacter == "") {
+    if (padCharacter === "") {
         padCharacter = " ";
     }
     else if (padCharacter.length > 1) {
@@ -240,7 +240,7 @@ export function padLeft(str: string | undefined | null, length: number, padChara
  * @param padCharacter The character to use to pad the string.
  */
 export function padRight(str: string | undefined | null, length: number, padCharacter: string = " "): string {
-    if (padCharacter == "") {
+    if (padCharacter === "") {
         padCharacter = " ";
     }
     else if (padCharacter.length > 1) {
@@ -376,6 +376,32 @@ export function createHash(str: string): number {
 }
 
 /**
+ * Generates a cryptographically strong SHA-256 hash of a given string.
+ *
+ * This is a secure hash function ideal for caching, fingerprinting, or comparing
+ * large or variable input data like HTML emails, templates, or user-generated content.
+ *
+ * - ✅ Collision-resistant
+ * - ✅ Safe for HTML/email body hashing
+ * - ❌ Slightly slower (async) but reliable for content comparison
+ *
+ * @param str - The input string to hash.
+ * @returns A Promise resolving to a 64-character hex-encoded SHA-256 hash string.
+ *
+ * @example
+ * const key = await createStrongHash("<html>Your email here</html>");
+ */
+export async function createHashSha256(str: string): Promise<string> {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(str);
+    const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+
+    return Array.from(new Uint8Array(hashBuffer))
+        .map(b => b.toString(16).padStart(2, "0"))
+        .join("");
+}
+
+/**
  * Replaces all instances of `search` in `str` with `replace`.
  * @param str The source string.
  * @param search The string to search for.
@@ -383,6 +409,58 @@ export function createHash(str: string): number {
  */
 export function replaceAll(str: string, search: string, replace: string): string {
     return str.replace(new RegExp(search, "g"), replace);
+}
+
+/**
+ * Attempts to parse the JSON and returns undefined if it could not be parsed.
+ *
+ * @param value The JSON value to parse.
+ *
+ * @returns The object that represents the JSON or undefined.
+ */
+export function safeParseJson<T>(value: string | null | undefined): T | undefined {
+    if (!value) {
+        return undefined;
+    }
+
+    try {
+        return JSON.parse(value);
+    }
+    catch {
+        return undefined;
+    }
+}
+
+/**
+ * Returns a string like "an apple" or "a banana" based on the initial sound of the word.
+ * Handles common English edge cases, including silent 'h' and hard 'u' sounds.
+ */
+export function prependSingularIndefiniteArticle(singularWord: string): string {
+    if (!singularWord) {
+        return singularWord;
+    }
+
+    const lower = singularWord.toLowerCase();
+
+    // Common silent "h" words
+    const silentH = ["honest", "hour", "honor", "heir"];
+    if (silentH.includes(lower)) {
+        return `an ${singularWord}`;
+    }
+
+    // Words starting with hard "u" like "unicorn", "university"
+    const hardURegex = /^(u[bcfhjkqrstn])/i; // "ubiquitous", "unicorn", etc.
+    if (hardURegex.test(singularWord)) {
+        return `a ${singularWord}`;
+    }
+
+    // Words starting with vowel sounds
+    const vowelSound = /^[aeiou]/i;
+    if (vowelSound.test(singularWord)) {
+        return `an ${singularWord}`;
+    }
+
+    return `a ${singularWord}`;
 }
 
 export default {
@@ -402,5 +480,6 @@ export default {
     padRight,
     truncate,
     createHash,
-    replaceAll
+    replaceAll,
+    safeParseJson,
 };

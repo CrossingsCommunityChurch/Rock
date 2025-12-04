@@ -43,7 +43,7 @@ namespace RockWeb.Blocks.Connection
     [DisplayName( "Connection Request List" )]
     [Category( "Connection > WebView" )]
     [Description( "Displays the list of connection requests for a single opportunity." )]
-    [IconCssClass( "fa fa-list" )]
+    [IconCssClass( "ti ti-list" )]
 
     #region Block Attributes
     [CodeEditorField( "Lava Template",
@@ -53,7 +53,6 @@ namespace RockWeb.Blocks.Connection
                             <p><strong>ConnectionRequests, ConnectionOpportunity, DetailPage</strong>)</p>
                          </i>",
         EditorMode = CodeEditorMode.Lava,
-        EditorTheme = CodeEditorTheme.Rock,
         EditorHeight = 400,
         IsRequired = false,
         DefaultValue = Lava.ConnectionRequests,

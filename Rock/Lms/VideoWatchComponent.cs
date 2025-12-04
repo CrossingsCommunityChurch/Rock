@@ -68,7 +68,7 @@ namespace Rock.Lms
         public override string HighlightColor => "#2f699f";
 
         /// <inheritdoc/>
-        public override string IconCssClass => "fa fa-video";
+        public override string IconCssClass => "ti ti-video";
 
         /// <inheritdoc/>
         public override string Name => "Video Watch";
@@ -81,7 +81,7 @@ namespace Rock.Lms
         #region Methods
 
         /// <inheritdoc/>
-        public override Dictionary<string, string> GetActivityConfiguration( LearningActivity activity, Dictionary<string, string> componentData, PresentedFor presentation, RockContext rockContext, RockRequestContext requestContext )
+        public override Dictionary<string, string> GetActivityConfiguration( LearningClassActivity activity, Dictionary<string, string> componentData, PresentedFor presentation, RockContext rockContext, RockRequestContext requestContext )
         {
             if ( presentation == PresentedFor.Configuration )
             {
@@ -91,13 +91,14 @@ namespace Rock.Lms
             {
                 var headerContent = componentData.GetValueOrNull( SettingKey.HeaderContent );
                 var footerContent = componentData.GetValueOrNull( SettingKey.FooterContent );
+                var mergeFields = requestContext.GetCommonMergeFields();
 
                 var headerContentHtml = headerContent.IsNotNullOrWhiteSpace()
-                    ? new StructuredContentHelper( headerContent ).Render()
+                    ? new StructuredContentHelper( headerContent ).Render().ResolveMergeFields( mergeFields )
                     : string.Empty;
 
                 var footerContentHtml = footerContent.IsNotNullOrWhiteSpace()
-                    ? new StructuredContentHelper( footerContent ).Render()
+                    ? new StructuredContentHelper( footerContent ).Render().ResolveMergeFields( mergeFields )
                     : string.Empty;
 
                 return new Dictionary<string, string>
@@ -108,6 +109,22 @@ namespace Rock.Lms
                     [SettingKey.Video] = componentData.GetValueOrNull( SettingKey.Video )
                 };
             }
+        }
+
+        /// <inheritdoc/>
+        public override Dictionary<string, string> GetComponentData( LearningClassActivity activity, Dictionary<string, string> componentSettings, RockContext rockContext, RockRequestContext requestContext )
+        {
+            // This is a cheat, we shouldn't really be trying to access the original
+            // JSON this way, but we don't have a better way to do it.
+            var oldData = activity.LearningActivity?.ActivityComponentSettingsJson?.FromJsonOrNull<Dictionary<string, string>>();
+
+            new StructuredContentHelper( componentSettings?.GetValueOrNull( SettingKey.HeaderContent ) )
+                .DetectAndApplyDatabaseChanges( oldData?.GetValueOrNull( SettingKey.HeaderContent ), rockContext );
+
+            new StructuredContentHelper( componentSettings?.GetValueOrNull( SettingKey.FooterContent ) )
+                .DetectAndApplyDatabaseChanges( oldData?.GetValueOrNull( SettingKey.FooterContent ), rockContext );
+
+            return base.GetComponentData( activity, componentSettings, rockContext, requestContext );
         }
 
         #endregion

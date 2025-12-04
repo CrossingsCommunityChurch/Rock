@@ -13,7 +13,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 // </copyright>
-//
 
 using System;
 using Rock.ViewModels.Controls;
@@ -72,6 +71,11 @@ namespace Rock.ViewModels.Blocks.Core.LocationDetail
         /// Gets or sets the Rock.Model.Device Id of the printer (if any) associated with the location.
         /// </summary>
         public ListItemBag PrinterDevice { get; set; }
+
+        /// <summary>
+        /// Gets or sets the identifier of the bluetooth beacon.
+        /// </summary>
+        public int? BeaconId { get; set; }
 
         /// <summary>
         /// Gets or sets a threshold that will prevent checkin unless a manager overrides

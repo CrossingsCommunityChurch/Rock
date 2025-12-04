@@ -41,7 +41,7 @@ namespace Rock.Blocks.Cms
     [DisplayName( "Content Channel Type Detail" )]
     [Category( "CMS" )]
     [Description( "Displays the details for a content channel type." )]
-    [IconCssClass( "fa fa-question" )]
+    [IconCssClass( "ti ti-question-mark" )]
     [SupportedSiteTypes( Model.SiteType.Web )]
 
     #region Block Attributes
@@ -195,8 +195,8 @@ namespace Rock.Blocks.Cms
                 ShowInChannelList = entity.ShowInChannelList
             };
 
-            bag.ItemAttributes = GetAttributes( rockContext, entity.Id, new ContentChannelItem().TypeId ).ConvertAll( a => PublicAttributeHelper.GetPublicEditableAttributeViewModel( a ) );
-            bag.ChannelAttributes = GetAttributes( rockContext, entity.Id, new ContentChannel().TypeId ).ConvertAll( a => PublicAttributeHelper.GetPublicEditableAttributeViewModel( a ) );
+            bag.ItemAttributes = GetAttributes( rockContext, entity.Id, new ContentChannelItem().TypeId ).ConvertAll( a => PublicAttributeHelper.GetPublicEditableAttribute( a ) );
+            bag.ChannelAttributes = GetAttributes( rockContext, entity.Id, new ContentChannel().TypeId ).ConvertAll( a => PublicAttributeHelper.GetPublicEditableAttribute( a ) );
 
             return bag;
         }

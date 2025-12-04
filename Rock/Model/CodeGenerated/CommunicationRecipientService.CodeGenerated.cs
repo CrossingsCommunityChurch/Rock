@@ -52,6 +52,18 @@ namespace Rock.Model
         public bool CanDelete( CommunicationRecipient item, out string errorMessage )
         {
             errorMessage = string.Empty;
+
+            if ( new Service<CommunicationFlowInstanceCommunicationConversion>( Context ).Queryable().Any( a => a.CommunicationRecipientId == item.Id ) )
+            {
+                errorMessage = string.Format( "This {0} is assigned to a {1}.", CommunicationRecipient.FriendlyTypeName, CommunicationFlowInstanceCommunicationConversion.FriendlyTypeName );
+                return false;
+            }
+
+            if ( new Service<CommunicationFlowInstanceRecipient>( Context ).Queryable().Any( a => a.UnsubscribeCommunicationRecipientId == item.Id ) )
+            {
+                errorMessage = string.Format( "This {0} is assigned to a {1}.", CommunicationRecipient.FriendlyTypeName, CommunicationFlowInstanceRecipient.FriendlyTypeName );
+                return false;
+            }
             return true;
         }
     }
@@ -132,6 +144,7 @@ namespace Rock.Model
             target.Id = source.Id;
             target.AdditionalMergeValuesJson = source.AdditionalMergeValuesJson;
             target.CommunicationId = source.CommunicationId;
+            target.DeliveredDateTime = source.DeliveredDateTime;
             target.FirstSendAttemptDateTime = source.FirstSendAttemptDateTime;
             target.ForeignGuid = source.ForeignGuid;
             target.ForeignKey = source.ForeignKey;
@@ -143,10 +156,13 @@ namespace Rock.Model
             target.ResponseCode = source.ResponseCode;
             target.SendDateTime = source.SendDateTime;
             target.SentMessage = source.SentMessage;
+            target.SpamComplaintDateTime = source.SpamComplaintDateTime;
             target.Status = source.Status;
             target.StatusNote = source.StatusNote;
             target.TransportEntityTypeName = source.TransportEntityTypeName;
             target.UniqueMessageId = source.UniqueMessageId;
+            target.UnsubscribeDateTime = source.UnsubscribeDateTime;
+            target.UnsubscribeLevel = source.UnsubscribeLevel;
             target.CreatedDateTime = source.CreatedDateTime;
             target.ModifiedDateTime = source.ModifiedDateTime;
             target.CreatedByPersonAliasId = source.CreatedByPersonAliasId;

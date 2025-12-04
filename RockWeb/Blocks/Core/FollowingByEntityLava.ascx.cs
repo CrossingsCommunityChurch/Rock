@@ -53,7 +53,6 @@ namespace RockWeb.Blocks.Core
     [CodeEditorField( "Lava Template",
         Description = "Lava template to use to display content",
         EditorMode = CodeEditorMode.Lava,
-        EditorTheme = CodeEditorTheme.Rock,
         EditorHeight = 400,
         IsRequired = true,
         DefaultValue = @"<div class=""panel panel-block""> 
@@ -73,18 +72,18 @@ namespace RockWeb.Blocks.Core
         {% if LinkUrl != '' %}
             <li><a href=""{{ LinkUrl | Replace:'[Id]',item.Id }}"">{{ itemName }}</a> 
             <a class=""pull-right"" href = ""#"" onclick = ""{{ deleteKey | Postback:'DeleteFollowing' }}"">
-            <i class=""fa fa-times""></i>
+            <i class=""ti ti-x""></i>
 			</a></li>
         {% else %}
             <li>{{ itemName }}
             <a class=""pull-right"" href = ""#"" onclick = ""{{ deleteKey | Postback:'DeleteFollowing' }}"">
-            <i class=""fa fa-times""></i>
+            <i class=""ti ti-x""></i>
 			</a></li>
         {% endif %}
     {% endfor %}
 
     {% if HasMore %}
-        <li><i class='fa fa-fw''></i> <small>(showing top {{ Quantity }})</small></li>
+        <li><i class='ti ti-fw''></i> <small>(showing top {{ Quantity }})</small></li>
     {% endif %}
     </ul>
 </div>

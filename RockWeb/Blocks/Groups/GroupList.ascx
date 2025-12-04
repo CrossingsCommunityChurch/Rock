@@ -65,6 +65,19 @@
 
         <Rock:NotificationBox ID="nbMessage" runat="server" Title="Error" NotificationBoxType="Danger" Visible="false" />
 
+        <Rock:ModalDialog ID="mdRestoreArchivedPrompt" runat="server" Visible="false" Title="Restore Group Member" CancelLinkVisible="false">
+            <Content>
+                <asp:HiddenField ID="hfRestoreGroupMemberId" runat="server" />
+                <Rock:NotificationBox ID="nbRestoreError" runat="server" NotificationBoxType="Danger" Visible="false"/>
+                <Rock:NotificationBox ID="nbRestoreArchivedGroupMember" runat="server" NotificationBoxType="Info" Text="There is an archived record for the person in this role in this group. Do you want to restore the previous settings? Notes will be retained." />
+            </Content>
+            <Footer>
+                <asp:LinkButton ID="btnRestoreArchivedGroupMember" runat="server" CssClass="btn btn-primary" Text="Restore" OnClick="btnRestoreArchivedGroupMember_Click" />
+                <asp:LinkButton ID="btnDontRestoreArchiveGroupmember" runat="server" CssClass="btn btn-default" Text="Don't Restore" OnClick="btnDontRestoreArchiveGroupmember_Click" />
+                <asp:LinkButton ID="btnCancelRestore" runat="server" CssClass="btn btn-link" Text="Cancel" OnClick="btnCancelRestore_Click" />
+            </Footer>
+        </Rock:ModalDialog>
+
         <script>
 
             Sys.Application.add_load(function () {
@@ -85,10 +98,14 @@
                         var groupListMode = <%=(int)GroupListGridMode%>;
 
                         if (groupListMode == 0) {
-
                             confirmMessage = 'Are you sure you want to ' + actionName + ' this person from this group?';
                         } else {
-                            confirmMessage = 'Are you sure you want to ' + actionName + ' this group?';
+                            var chatChannelWarning = "";
+                            if ($row.hasClass('js-has-chat-channel')) {
+                                chatChannelWarning = 'This group has a corresponding channel in the external chat system. ';
+                            }
+
+                            confirmMessage = chatChannelWarning + 'Are you sure you want to ' + actionName + ' this group?';
                         }
 
                         e.preventDefault();

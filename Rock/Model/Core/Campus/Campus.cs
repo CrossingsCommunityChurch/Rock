@@ -134,6 +134,8 @@ namespace Rock.Model
         /// </value>
         [DataMember]
         [MaxLength( 500 )]
+        [RockObsolete( "19.0" )]
+        [Obsolete( "Use the CampusSchedules navigation property instead." )]
         public string ServiceTimes { get; set; }
 
         /// <summary>
@@ -217,6 +219,27 @@ namespace Rock.Model
         [DataMember]
         [DecimalPrecision( 8, 2 )]
         public decimal? TitheMetric { get; set; }
+
+        /// <summary>
+        /// The identifier of the beacon that is associated with this campus.
+        /// This is typically used with Bluetooth proximity beacons and allows
+        /// the <see cref="Campus"/> to be determined from a beacon.
+        /// </summary>
+        /// <remarks>
+        /// This is typically set automatically on creation to match the
+        /// identifier of the campus.
+        /// </remarks>
+        [DataMember]
+        public int? BeaconId { get; set; }
+
+        /// <summary>
+        /// Gets or sets the average weekend attendance.
+        /// </summary>
+        /// <value>
+        /// The average weekend attendance.
+        /// </value>
+        [DataMember]
+        public int? AverageWeekendAttendance { get; set; }
 
         #endregion Entity Properties
 

@@ -21,9 +21,9 @@
 // </copyright>
 //
 
-import { CommunicationType } from "@Obsidian/Enums/Blocks/Communication/CommunicationEntryWizard/communicationType";
 import { PushOpenAction } from "@Obsidian/Enums/Blocks/Communication/CommunicationEntryWizard/pushOpenAction";
 import { CommunicationStatus } from "@Obsidian/Enums/Communication/communicationStatus";
+import { CommunicationType } from "@Obsidian/Enums/Communication/communicationType";
 import { SegmentCriteria } from "@Obsidian/Enums/Communication/segmentCriteria";
 import { Guid } from "@Obsidian/Types";
 import { CommunicationEntryWizardPushNotificationOptionsBag } from "@Obsidian/ViewModels/Blocks/Communication/CommunicationEntryWizard/communicationEntryWizardPushNotificationOptionsBag";
@@ -85,8 +85,8 @@ export type CommunicationEntryWizardCommunicationBag = {
     /** Gets or sets the email message. */
     message?: string | null;
 
-    /** Gets or sets the personalization segment identifiers that communication recipients must satisfy. */
-    personalizationSegmentIds?: number[] | null;
+    /** Gets or sets the personalization segments that communication recipients must satisfy. */
+    personalizationSegments?: ListItemBag[] | null;
 
     /** Gets or sets the push data. */
     pushData?: CommunicationEntryWizardPushNotificationOptionsBag | null;

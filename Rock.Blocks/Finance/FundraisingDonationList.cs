@@ -18,6 +18,7 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Data.Entity;
 using System.Linq;
 using Rock;
 using Rock.Attribute;
@@ -39,7 +40,7 @@ namespace Rock.Blocks.Finance
     [DisplayName("Fundraising Donation List")]
     [Category("Fundraising")]
     [Description("Lists donations in a grid for the current fundraising opportunity or participant.")]
-    [IconCssClass("fa fa-list")]
+    [IconCssClass("ti ti-list")]
     [SupportedSiteTypes( Model.SiteType.Web )]
 
     [CustomCheckboxListField("Hide Grid Columns",
@@ -62,7 +63,6 @@ namespace Rock.Blocks.Finance
         Key = AttributeKey.DonorColumn,
         Description = "The value that should be displayed for the Donor column. <span class='tip tip-lava'></span>",
         EditorMode = CodeEditorMode.Lava,
-        EditorTheme = CodeEditorTheme.Rock,
         EditorHeight = 100,
         IsRequired = true,
         DefaultValue = @"<a href=""/Person/{{ Donor.Id }}"">{{ Donor.FullName }}</a>",
@@ -72,15 +72,16 @@ namespace Rock.Blocks.Finance
         Key = AttributeKey.ParticipantColumn,
         Description = "The value that should be displayed for the Participant column. <span class='tip tip-lava'></span>",
         EditorMode = CodeEditorMode.Lava,
-        EditorTheme = CodeEditorTheme.Rock,
         EditorHeight = 100,
         IsRequired = true,
         DefaultValue = @"<a href=""/Person/{{ Participant.PersonId }}"" class=""pull-right margin-l-sm btn btn-sm btn-default"">
-    <i class=""fa fa-user""></i>
+    <i class=""ti ti-user""></i>
 </a>
 <a href=""/GroupMember/{{ Participant.Id }}"">{{ Participant.Person.FullName }}</a>",
         Category = "Advanced",
         Order = 3)]
+
+    [Rock.Cms.DefaultBlockRole( Rock.Enums.Cms.BlockRole.Secondary )]
     [SystemGuid.EntityTypeGuid("b80410e7-53d7-4ab1-8b17-39ff8b3e708f")]
     [SystemGuid.BlockTypeGuid("054a8469-a838-4708-b18f-9f2819346298")]
     [CustomizedGrid]
@@ -178,6 +179,7 @@ namespace Rock.Blocks.Finance
             }
 
             var queryable = financialTransactionDetailService.Queryable()
+                .Include( d => d.Transaction.AuthorizedPersonAlias.Person.PrimaryFamily.GroupLocations.Select( gl => gl.Location ) )
                 .Where(d => d.EntityTypeId == entityTypeIdGroupMember && groupMemberIds.Contains(d.EntityId.Value));
 
             return queryable;
@@ -202,8 +204,9 @@ namespace Rock.Blocks.Finance
                 var group = RequestContext.GetContextEntity<Model.Group>();
 
                 _groupMembers = new GroupMemberService(rockContext).Queryable()
-                    .Where(m => m.GroupId == group.Id)
-                    .ToDictionary(m => m.Id);
+                    .Include( m => m.Person )
+                    .Where( m => m.GroupId == group.Id )
+                    .ToDictionary( m => m.Id );
             }
             else
             {

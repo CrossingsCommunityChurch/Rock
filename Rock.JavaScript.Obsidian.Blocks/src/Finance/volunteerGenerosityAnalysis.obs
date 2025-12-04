@@ -20,7 +20,7 @@
                     <div class="d-flex justify-content-end">
                         <button ref="refreshTooltip" class="btn btn-xs btn-default" @click.prevent="refreshData" :title="formatLastUpdated(lastUpdated) + '. Estimated refresh time ' + estimatedRefreshTime + 's.'">
                             {{ calculateTimeDifference(lastUpdated) }}
-                            <i class="fas fa-sync-alt"></i>
+                            <i class="ti ti-refresh"></i>
                         </button>
                     </div>
 
@@ -139,15 +139,17 @@
     right: var(--table-cell-padding-x);
     left: var(--table-cell-padding-x);
     height: initial;
+    width: calc(100% - var(--table-cell-padding-x) - var(--table-cell-padding-x));
+    gap: 4px;
 }
 
 .bar {
-    width: 4%;
-    margin: 0 2px;
+    flex-grow: 1;
+    max-width: 20px;
     position: relative;
     height: 30px;
     transition: height 0.3s ease-out;
-    background-color: var(--color-info);
+    background-color: var(--color-info-strong);
 }
 
 .empty {
@@ -171,6 +173,7 @@
     flex-direction: column-reverse;
     height: 110px;
     margin: 0 4px;
+    border: 0.5px solid var(--color-interface-softer);
 }
 
 .not-donated,
@@ -179,19 +182,19 @@
     display: flex;
     align-items: flex-end;
     justify-content: center;
-    color: white;
     transition: height 0.3s ease-out;
     font-size: 14px;
 }
 
 .not-donated {
-    background-color: #E8E8E8;
-    color: black;
+    background-color: var(--color-interface-soft);
+    color: var(--color-interface-stronger);
 }
 
 .donated {
-    background-color: var(--color-success);
-    border-top: 1px solid #00000035;
+    background-color: var(--color-success-strong);
+    border-top: 1px solid var(--color-interface-strongest);
+    color: var(--base-interface-softest);
 }
 
 .month-label {
@@ -316,7 +319,7 @@
      */
     const calculateDonationPercentages = (): { month: string; donatedPercentage: number; notDonatedPercentage: number }[] => {
         // Initialize an object to hold donation data for each month
-        const donationData = last13Months.reduce((acc, month) => {
+        const donationData: Record<string, { donated: Set<unknown>, total: Set<unknown> }> = last13Months.reduce((acc, month) => {
             acc[month] = { donated: new Set(), total: new Set() };
             return acc;
         }, {});
@@ -328,15 +331,15 @@
                 const dateKeys = person.donationDateKeys.split("|");
                 dateKeys.forEach(dateKey => {
                     const date = new Date(parseInt(dateKey.slice(0, 4)), parseInt(dateKey.slice(4, 6)) - 1, parseInt(dateKey.slice(6, 8)));
-                    const monthYear = date.toLocaleString("default", {month: "short", year: "numeric"});
-                    if (last13Months.includes(monthYear)){
+                    const monthYear = date.toLocaleString("default", { month: "short", year: "numeric" });
+                    if (last13Months.includes(monthYear)) {
                         donationData[monthYear].donated.add(givingId);
                     }
                 });
             }
 
             // Add giving ID to the total set of potential donors for all months
-            Object.values(donationData).forEach((monthData: any) => {
+            Object.values(donationData).forEach((monthData) => {
                 monthData.total.add(givingId);
             });
         });
@@ -442,14 +445,14 @@
     const getBarChart = (donationDateKeys: string | undefined): { month: string; full: string; class: string; }[] => {
         const donatedMonths = new Set<string>();
 
-        if (donationDateKeys){
+        if (donationDateKeys) {
             const dateKeys = donationDateKeys.split("|");
             dateKeys.forEach(dateKey => {
                 const year = parseInt(dateKey.slice(0, 4));
                 const month = parseInt(dateKey.slice(4, 6)) - 1;
                 const day = parseInt(dateKey.slice(6, 8));
                 const date = new Date(year, month, day);
-                const monthYear = date.toLocaleString("default", {month: "short", year: "numeric"});
+                const monthYear = date.toLocaleString("default", { month: "short", year: "numeric" });
 
                 donatedMonths.add(monthYear);
             });

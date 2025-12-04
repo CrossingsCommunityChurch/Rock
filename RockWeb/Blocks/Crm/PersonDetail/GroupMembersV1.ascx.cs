@@ -80,7 +80,6 @@ namespace RockWeb.Blocks.Crm.PersonDetail
         Key = AttributeKey.GroupHeaderLava,
         Description = "Lava to put at the top of the block. Merge fields include Page, CurrentPerson, Group (the family) and GroupMembers.",
         EditorMode = CodeEditorMode.Lava,
-        EditorTheme = CodeEditorTheme.Rock,
         EditorHeight = 200,
         IsRequired = false,
         Order = 5 )]
@@ -90,7 +89,6 @@ namespace RockWeb.Blocks.Crm.PersonDetail
         Key = AttributeKey.GroupFooterLava,
         Description = "Lava to put at the bottom of the block. Merge fields include Page, CurrentPerson, Group (the family) and GroupMembers.",
         EditorMode = CodeEditorMode.Lava,
-        EditorTheme = CodeEditorTheme.Rock,
         EditorHeight = 200,
         IsRequired = false,
         Order = 6 )]
@@ -703,10 +701,10 @@ namespace RockWeb.Blocks.Crm.PersonDetail
         var $moreAttributes = $pnl.find('.js-more-group-attributes').first();
         if ( $moreAttributes.is(':visible') ) {
             $moreAttributes.slideUp();
-            $(this).html('<i class=""fa fa-chevron-down""></i>');
+            $(this).html('<i class=""ti ti-chevron-down""></i>');
         } else {
             $moreAttributes.slideDown();
-            $(this).html('<i class=""fa fa-chevron-up""></i>');
+            $(this).html('<i class=""ti ti-chevron-up""></i>');
         }
     });";
             ScriptManager.RegisterStartupScript( upGroupMembers, upGroupMembers.GetType(), "showmore", script, true );

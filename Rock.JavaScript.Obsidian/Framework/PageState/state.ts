@@ -20,14 +20,16 @@ import { DebugTiming } from "@Obsidian/ViewModels/Utility/debugTiming";
 import { CurrentPersonBag } from "@Obsidian/ViewModels/Crm/currentPersonBag";
 
 export type State = {
-    areSecondaryBlocksShown: boolean;
     currentPerson: CurrentPersonBag | null;
     isAnonymousVisitor: boolean;
     pageParameters: Record<string, string>;
     pageId: number;
     pageGuid: Guid;
+    sessionGuid: Guid;
     interactionGuid: Guid;
     executionStartTime: number;
-    debugTimings: DebugTiming[],
-    loginUrlWithReturnUrl: string
+    debugTimings: DebugTiming[];
+    loginUrlWithReturnUrl: string;
+
+    trailblazerMode: boolean;
 };

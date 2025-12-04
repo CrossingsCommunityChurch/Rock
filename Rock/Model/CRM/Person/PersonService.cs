@@ -1773,6 +1773,164 @@ namespace Rock.Model
         }
 
         /// <summary>
+        /// Get's a list of person records that match a full name using name similarity search (SoundEx)
+        /// </summary>
+        /// <param name="fullName">The full name of the people to search for.</param>
+        /// <param name="includeDeceased">If <c>true</c> then people marked as deceased will be included in the results.</param>
+        /// <returns>A queryable of the people that have similar names to <paramref name="fullName"/>.</returns>
+        public IQueryable<Person> GetSimilarPersons( string fullName, bool includeDeceased = false )
+        {
+            var splitName = SplitFullName( fullName );
+
+            var personQueryable = Queryable( includeDeceased );
+
+            if (splitName == null )
+            {
+                return personQueryable;
+            }
+
+            var metaphones = this.Context.Set<Metaphone>();
+
+            string ln1 = string.Empty;
+            string ln2 = string.Empty;
+            Rock.Utility.DoubleMetaphone.doubleMetaphone( splitName.LastName, ref ln1, ref ln2 );
+            ln1 = ln1 ?? string.Empty;
+            ln2 = ln2 ?? string.Empty;
+
+            var lastNames = metaphones
+                .Where( m =>
+                    ( ln1 != "" && ( m.Metaphone1 == ln1 || m.Metaphone2 == ln1 ) ) ||
+                    ( ln2 != "" && ( m.Metaphone1 == ln2 || m.Metaphone2 == ln2 ) ) )
+                .Select( m => m.Name )
+                .Distinct()
+                .ToList();
+
+            if ( !lastNames.Any() )
+            {
+                return null;
+            }
+
+            string fn1 = string.Empty;
+            string fn2 = string.Empty;
+            Rock.Utility.DoubleMetaphone.doubleMetaphone( splitName.FirstName, ref fn1, ref fn2 );
+            fn1 = fn1 ?? string.Empty;
+            fn2 = fn2 ?? string.Empty;
+
+            var firstNames = metaphones
+                .Where( m =>
+                    ( fn1 != "" && ( m.Metaphone1 == fn1 || m.Metaphone2 == fn1 ) ) ||
+                    ( fn2 != "" && ( m.Metaphone1 == fn2 || m.Metaphone2 == fn2 ) ) )
+                .Select( m => m.Name )
+                .Distinct()
+                .ToList();
+
+            if ( !firstNames.Any() )
+            {
+                return null;
+            }
+
+            // TODO: search for previous last names
+
+            return personQueryable
+            .Where( p =>
+                        lastNames.Contains( p.LastName )
+                        && ( firstNames.Contains( p.FirstName ) || firstNames.Contains( p.NickName ) )
+                        && ( !splitName.SuffixValueId.HasValue || p.SuffixValueId == splitName.SuffixValueId ) );
+
+        }
+
+        /// <summary>
+        /// Splits a full name into a first name and last name with some basic formatting assumptions. This method returns null
+        /// if it is unable to provide a successful parse.
+        /// Supported formats:
+        /// * Decker, Ted - Assumes the last name is before the command and everything after is the first name
+        /// </summary>
+        /// <param name="fullName"></param>
+        /// <returns></returns>
+        private SplitNameResult SplitFullName( string fullName )
+        {
+            if ( fullName.IsNullOrWhiteSpace() )
+            {
+                return null;
+            }
+
+            fullName = fullName.Trim();
+
+            // Fast path: "Last, First"
+            int comma = fullName.IndexOf( ',' );
+            if ( comma >= 0 )
+            {
+                var last = fullName.Substring( 0, comma ).Trim();
+                var first = ( comma + 1 < fullName.Length ) ? fullName.Substring( comma + 1 ).Trim() : string.Empty;
+
+                return new SplitNameResult
+                {
+                    FirstName = first,
+                    LastName = last
+                };
+            }
+
+            var nameParts = fullName.SplitDelimitedValues();
+            int namePartCount = nameParts.Length;
+
+            if ( namePartCount == 1 ) return null;  // Single part, name is not valid (sorry Prince, Cher and Madonna)
+
+            var result = new SplitNameResult();
+
+            // Process suffixes
+            var lastPart = nameParts[namePartCount - 1];
+            foreach ( var suffix in DefinedTypeCache.Get( SystemGuid.DefinedType.PERSON_SUFFIX.AsGuid() ).DefinedValues )
+            {
+                if ( string.Equals( suffix.Value.Trim( '.' ), lastPart.Trim( '.' ), StringComparison.OrdinalIgnoreCase ) )
+                {
+                    result.Suffix = suffix.Value;
+                    result.SuffixValueId = suffix.Id;
+
+                    // Remove the suffix from the part list
+                    namePartCount--;
+                }
+            }
+
+            // Process simple "First Last" (optional suffix)
+            if ( namePartCount == 2 )                          
+            {
+                result.FirstName = nameParts[0].Trim();
+                result.LastName = nameParts[1].Trim();
+                return result;
+            }
+
+            // Check if the second-to-last word is a last name prefix
+            int lastNameStartIndex = namePartCount - 1;
+            if ( LastNamePrefixes.Contains( nameParts[namePartCount - 2] ) )
+            {
+                lastNameStartIndex = namePartCount - 2;
+            }
+
+            // TODO: In the future we could do additional validation by looking at MetaFirstNameGenderLookup and MetaLastNameLookup
+            //       to see if our found values match. If not we could start looking for other permutations. This could help us
+            //       with Hispanic names that often have multi-word last names. This would also allow us to append a probable
+            //       gender to the result.
+
+            result.FirstName = string.Join( " ", nameParts, 0, lastNameStartIndex );
+            result.LastName = string.Join( " ", nameParts, lastNameStartIndex, namePartCount - lastNameStartIndex );
+
+            return result;
+        }
+
+        // Common last name prefixes that should be treated as part of the last name
+        private static readonly HashSet<string> LastNamePrefixes = new HashSet<string>( StringComparer.OrdinalIgnoreCase )
+        {
+            "van", "von", "de", "del", "di", "la", "le", "du", "da", "mac", "mc", "st", "st.", "san", "bin", "al"
+        };
+
+        private class SplitNameResult {
+            public string FirstName { get; set; }
+            public string LastName { get; set; }
+            public string Suffix { get; set; }
+            public int? SuffixValueId { get; set; }
+        }
+
+        /// <summary>
         /// Gets an queryable collection of <see cref="Rock.Model.Person"/> entities where their phone number partially matches the provided value.
         /// </summary>
         /// <param name="partialPhoneNumber">A <see cref="System.String"/> containing a partial phone number to match.</param>
@@ -2362,6 +2520,17 @@ namespace Rock.Model
         {
             return new PersonPreviousNameService( ( RockContext ) this.Context ).Queryable()
                 .Where( m => m.PersonAlias.PersonId == personId ).OrderBy( a => a.LastName );
+        }
+
+        /// <summary>
+        /// Gets any previous last names for this person sorted alphabetically by LastName
+        /// </summary>
+        /// <param name="personQuery">The person query.</param>
+        /// <returns></returns>
+        public IOrderedQueryable<PersonPreviousName> GetPreviousNames( IQueryable<Person> personQuery )
+        {
+            return new PersonPreviousNameService( this.Context as RockContext ).Queryable()
+                .Where( m => personQuery.Contains( m.PersonAlias.Person ) ).OrderBy( a => a.LastName );
         }
 
         /// <summary>
@@ -3018,7 +3187,7 @@ namespace Rock.Model
             //// 1) Both Persons are adults in the same family (GroupType = Family, GroupRole = Adult, and in same Group)
             //// 2) Opposite Gender as Person, if Gender of both Persons is known. This condition won't hold true if the church sets the Bible Strict Spouse setting to false.
             //// 3) Both Persons are Married
-            int marriedDefinedValueId = DefinedValueCache.Get( Rock.SystemGuid.DefinedValue.PERSON_MARITAL_STATUS_MARRIED.AsGuid() ).Id;
+            var marriedDefinedValueId = DefinedValueCache.Get( Rock.SystemGuid.DefinedValue.PERSON_MARITAL_STATUS_MARRIED.AsGuid() ).Id;
             var isBibleStrictSpouse = Rock.Web.SystemSettings.GetValue( SystemSetting.BIBLE_STRICT_SPOUSE ).AsBoolean( true );
 
             if ( person.MaritalStatusValueId != marriedDefinedValueId )
@@ -3026,8 +3195,8 @@ namespace Rock.Model
                 return default( TResult );
             }
 
-            Guid adultGuid = new Guid( Rock.SystemGuid.GroupRole.GROUPROLE_FAMILY_MEMBER_ADULT );
-            int adultRoleId = GroupTypeCache.Get( Rock.SystemGuid.GroupType.GROUPTYPE_FAMILY ).Roles.First( a => a.Guid == adultGuid ).Id;
+            var adultGuid = new Guid( Rock.SystemGuid.GroupRole.GROUPROLE_FAMILY_MEMBER_ADULT );
+            var adultRoleId = GroupTypeCache.Get( Rock.SystemGuid.GroupType.GROUPTYPE_FAMILY ).Roles.First( a => a.Guid == adultGuid ).Id;
 
             // Businesses don't have a family role, so check for null before trying to get the Id.
             var familyRole = GetFamilyRole( person );
@@ -3047,6 +3216,100 @@ namespace Rock.Model
                 .ThenBy( m => m.PersonId )
                 .Select( selector )
                 .FirstOrDefault();
+        }
+
+        /// <summary>
+        /// Retrieves the full names of spouses for the specified set of people as a dictionary by the person's (not spouse) identifier.
+        /// </summary>
+        /// <param name="personQuery">An <see cref="IQueryable{Person}"/> representing the base query for the people
+        /// whose spouses should be determined. Any filtering should be applied before passing this query.</param>
+        /// <returns>
+        /// A <see cref="Dictionary{TKey, TValue}"/> where:
+        /// <list type="bullet">
+        ///   <item><description><c>TKey</c> = the <see cref="IEntity.Id"/> of the person (not the spouse).</description></item>
+        ///   <item><description><c>TValue</c> = the spouse’s full name as a <see cref="string"/>.</description></item>
+        /// </list>
+        /// Only people meeting the spouse criteria will be included in the dictionary.
+        /// </returns>
+        /// <remarks>
+        ///     <para>
+        ///         <strong>This is an internal API</strong> that supports the Rock
+        ///         infrastructure and not subject to the same compatibility standards
+        ///         as public APIs. It may be changed or removed without notice in any
+        ///         release and should therefore not be directly used in any plug-ins.
+        ///     </para>
+        /// </remarks>
+        [RockInternal( "17.2" )]
+        internal Dictionary<int, string> GetSpousesFullName( IQueryable<Person> personQuery )
+        {
+            // Note this logic is duplicated in SpouseNameSelect and SpouseTransform.
+            //// Spouse is determined if all these conditions are met
+            //// 1) Both Persons are adults in the same family (GroupType = Family, GroupRole = Adult, and in same Group)
+            //// 2) Opposite Gender as Person, if Gender of both Persons is known. This condition won't hold true if the church sets the Bible Strict Spouse setting to false.
+            //// 3) Both Persons are Married
+
+            var marriedDefinedValueId = DefinedValueCache.Get( Rock.SystemGuid.DefinedValue.PERSON_MARITAL_STATUS_MARRIED.AsGuid() ).Id;
+            var isBibleStrictSpouse = Rock.Web.SystemSettings.GetValue( SystemSetting.BIBLE_STRICT_SPOUSE ).AsBoolean( true );
+
+            Guid adultGuid = new Guid( Rock.SystemGuid.GroupRole.GROUPROLE_FAMILY_MEMBER_ADULT );
+            var familyGroupType = GroupTypeCache.Get( Rock.SystemGuid.GroupType.GROUPTYPE_FAMILY );
+            var adultRoleId = familyGroupType.Roles.First( r => r.Guid == adultGuid ).Id;
+            var groupTypeFamilyId = familyGroupType.Id;
+
+            // Get the queryable person IDs from the incoming personQuery
+            var marriedPersonIds = personQuery
+                .Where( p => p.MaritalStatusValueId == marriedDefinedValueId )
+                .Select( p => p.Id );
+
+            // GroupMembers of married people (adult in family group)
+            var marriedGroupMembers = new GroupMemberService( this.Context as RockContext ).Queryable().AsNoTracking()
+                .Where( gm =>
+                    marriedPersonIds.Contains( gm.PersonId ) &&
+                    gm.Group.GroupTypeId == groupTypeFamilyId &&
+                    gm.GroupRoleId == adultRoleId );
+
+            var spousesQuery = new GroupMemberService( this.Context as RockContext ).Queryable().AsNoTracking()
+                .Where( gm =>
+                    gm.Group.GroupTypeId == groupTypeFamilyId &&
+                    gm.GroupRoleId == adultRoleId )
+                .Join( marriedGroupMembers,
+                    spouse => spouse.GroupId,
+                    married => married.GroupId,
+                    ( spouse, married ) => new { MatchedPerson = married, Spouse = spouse } )
+                .Where( m => m.Spouse.Person.MaritalStatusValueId == marriedDefinedValueId )
+                .Where( m =>
+                    !isBibleStrictSpouse ||
+                    m.MatchedPerson.Person.Gender != m.Spouse.Person.Gender ||
+                    m.MatchedPerson.Person.Gender == Gender.Unknown ||
+                    m.Spouse.Person.Gender == Gender.Unknown )
+                .OrderBy( m => m.Spouse.GroupOrder ?? int.MaxValue )
+                .ThenBy( m => Math.Abs( DbFunctions.DiffDays(
+                    m.Spouse.Person.BirthDate ?? new DateTime( 1, 1, 1 ),
+                    m.MatchedPerson.Person.BirthDate ?? new DateTime( 1, 1, 1 )
+                ) ?? 0 ) )
+                .ThenBy( m => m.Spouse.PersonId )
+                // IMPORTANT: project only primitives; DO NOT use Person.FullName here (it triggers lazy loading).
+                .Select( m => new
+                {
+                    PersonId = m.MatchedPerson.PersonId,
+                    SpouseNickName = m.Spouse.Person.NickName,
+                    SpouseLastName = m.Spouse.Person.LastName,
+                    SpouseSuffixValueId = m.Spouse.Person.SuffixValueId,
+                    SpouseRecordTypeValueId = m.Spouse.Person.RecordTypeValueId
+                } );
+
+            var spouses = spousesQuery
+                .GroupBy( x => x.PersonId )
+                .Select( g => g.FirstOrDefault() ) // take best match for each person
+                .AsEnumerable()                    // switch to client-side to safely build FullName
+                .ToDictionary(
+                    x => x.PersonId,
+                    x =>
+                    {
+                        return Person.FormatFullName( x.SpouseNickName, x.SpouseLastName, x.SpouseSuffixValueId, x.SpouseRecordTypeValueId );
+                    } );
+
+            return spouses;
         }
 
         /// <summary>
@@ -3566,7 +3829,7 @@ namespace Rock.Model
         /// </summary>
         /// <param name="personId">The person identifier.</param>
         /// <returns></returns>
-        [RockObsolete( "1.17" )]
+        [RockObsolete( "17.0" )]
         [Obsolete( "Peer Networks can now be found in the PeerNetwork table, and are no longer tied to Groups." )]
         public Group GetPeerNetworkGroup( int personId )
         {
@@ -5180,25 +5443,287 @@ AND GroupTypeId = ${familyGroupType.Id}
         }
 
         /// <summary>
-        /// Gets the distinct identifiers of non-deceased <see cref="Person"/> records that have at least one
-        /// chat-specific <see cref="PersonAlias"/> record.
+        /// Gets a Queryable of the distinct identifiers of <see cref="Person"/> records for non-deceased individuals
+        /// who have at least one chat-specific <see cref="PersonAlias"/> record.
         /// </summary>
-        /// <returns>The <see cref="Person"/> identifiers of all non-deceased chat users.</returns>
-        public IQueryable<int> GetChatUserPersonIds()
+        /// <returns>A Queryable of the distinct <see cref="Person"/> identifiers of all non-deceased, chat-enabled individuals.</returns>
+        internal IQueryable<int> GetNonDeceasedChatUserPersonIdsQuery()
         {
             var rockContext = this.Context as RockContext;
 
-            var chatAliasQry = new PersonAliasService( rockContext )
-                .Queryable()
-                .Where( pa => pa.ForeignKey.StartsWith( ChatHelper.ChatPersonAliasForeignKeyPrefix ) );
+            var chatAliasQry = new PersonAliasService( rockContext ).GetChatPersonAliasesQuery();
 
-            return Queryable()
-                .Where( p => !p.IsDeceased )
+            return Queryable( includeDeceased: false )
                 .Join(
                     chatAliasQry,
                     p => p.Id,
                     pa => pa.PersonId,
                     ( p, pa ) => p.Id
+                )
+                .Distinct();
+        }
+
+        /// <summary>
+        /// Gets a Queryable of the distinct identifiers of <see cref="Person"/> records for deceased individuals who
+        /// have at least one chat-specific <see cref="PersonAlias"/> record.
+        /// </summary>
+        /// <returns>A Queryable of the distinct <see cref="Person"/> identifiers of all deceased, chat-enabled individuals.</returns>
+        /// <remarks>
+        /// This is useful when determining which <see cref="ChatUser"/>s to delete in the external chat system.
+        /// </remarks>
+        internal IQueryable<int> GetDeceasedChatUserPersonIdsQuery()
+        {
+            var rockContext = this.Context as RockContext;
+
+            var chatAliasQry = new PersonAliasService( rockContext ).GetChatPersonAliasesQuery();
+
+            return Queryable( includeDeceased: true )
+                .Where( p => p.IsDeceased )
+                .Join(
+                    chatAliasQry,
+                    p => p.Id,
+                    pa => pa.PersonId,
+                    ( p, pa ) => p.Id
+                )
+                .Distinct();
+        }
+
+        /// <summary>
+        /// Gets the active <see cref="RockChatUserKey"/> for each provided, non-deceased <see cref="Person"/> identifier.
+        /// </summary>
+        /// <param name="personIds">The list of <see cref="Person"/> identifiers for whom to get <see cref="RockChatUserKey"/>s.</param>
+        /// <returns>
+        /// A list of <see cref="RockChatUserKey"/>s, with one entry for each <see cref="Person"/> who already has a
+        /// chat-specific <see cref="PersonAlias"/> record.</returns>
+        /// <remarks>
+        /// If a <see cref="Person"/> has more than one chat-specific <see cref="PersonAlias"/> record, the earliest
+        /// one will be used to represent the <see cref="ChatUser.Key"/>.
+        /// </remarks>
+        internal List<RockChatUserKey> GetActiveRockChatUserKeys( List<int> personIds )
+        {
+            var rockContext = this.Context as RockContext;
+
+            var personQry = Queryable();
+            var chatAliasQry = new PersonAliasService( rockContext ).GetChatPersonAliasesQuery();
+
+            if ( personIds.Count == 1 )
+            {
+                // Most performant: limit queries to just this person.
+                var firstPersonId = personIds.First();
+                personQry = personQry.Where( p => p.Id == firstPersonId );
+                chatAliasQry = chatAliasQry.Where( pa => pa.PersonId == firstPersonId );
+            }
+            else if ( personIds.Count < 1000 )
+            {
+                // For fewer than 1k people, allow a SQL `WHERE...IN` clause.
+                personQry = personQry.Where( p => personIds.Contains( p.Id ) );
+                chatAliasQry = chatAliasQry.Where( pa => personIds.Contains( pa.PersonId ) );
+            }
+            else
+            {
+                // For 1k or more people, create and join to an entity set.
+                var entitySetOptions = new AddEntitySetActionOptions
+                {
+                    Name = $"{nameof( PersonService )}_{nameof( GetActiveRockChatUserKeys )}",
+                    EntityTypeId = EntityTypeCache.Get<Person>().Id,
+                    EntityIdList = personIds,
+                    ExpiryInMinutes = 20
+                };
+
+                var entitySetService = new EntitySetService( rockContext );
+                var entitySetId = entitySetService.AddEntitySet( entitySetOptions );
+                var entitySetItemQry = entitySetService.GetEntityQuery( entitySetId ).Select( e => e.Id );
+
+                personQry = personQry.Where( p => entitySetItemQry.Contains( p.Id ) );
+                chatAliasQry = chatAliasQry.Where( pa => entitySetItemQry.Contains( pa.PersonId ) );
+            }
+
+            return personQry
+                .GroupJoin(
+                    chatAliasQry,
+                    p => p.Id,
+                    pa => pa.PersonId,
+                    ( p, chatAliases ) => new
+                    {
+                        Person = p,
+                        ChatAliases = chatAliases.Select( ca => new { ca.Id, ca.Guid } )
+                    }
+                )
+                .ToList() // Materialize everything in a single query; we'll perform in-memory sorting of chat aliases below.
+                .Select( p =>
+                {
+                    var firstChatAlias = p.ChatAliases.Any()
+                        ? p.ChatAliases.OrderBy( a => a.Id ).First() // Get the earliest chat alias in the case of multiple.
+                        : null;
+
+                    return new RockChatUserKey
+                    {
+                        PersonId = p.Person.Id,
+                        NickName = p.Person.NickName,
+                        LastName = p.Person.LastName,
+                        ChatPersonAliasId = firstChatAlias?.Id,
+                        ChatPersonAliasGuid = firstChatAlias?.Guid
+                    };
+                } )
+                .Where( k => k.ChatPersonAliasGuid.HasValue ) // Only include results that actually have a chat alias guid.
+                .ToList();
+        }
+
+        /// <summary>
+        /// Gets the per-<see cref="Person"/> lists of <see cref="RockChatUserKey"/>s for individuals who have more than
+        /// one <see cref="ChatUser.Key"/>.
+        /// </summary>
+        /// <param name="personId">
+        /// The optional <see cref="Person"/> identifier, to check if just one particular person has multiple
+        /// <see cref="ChatUser.Key"/>s.
+        /// </param>
+        /// <param name="includeDeceased">
+        /// Whether to include deceased individuals in the results. If <paramref name="personId"/> is provided, this will
+        /// be auto-set to <see langword="true"/>.
+        /// </param>
+        /// <returns>
+        /// A <see cref="Dictionary{TKey, TValue}"/> where the key is the <see cref="Person"/> identifier and the value is
+        /// their list of <see cref="RockChatUserKey"/>s.
+        /// </returns>
+        internal Dictionary<int, List<RockChatUserKey>> GetPeopleWithMultipleChatUserKeys( int? personId = null, bool includeDeceased = false )
+        {
+            var rockContext = this.Context as RockContext;
+
+            // Always include deceased individuals if this query is targeting a specific person.
+            if ( personId.HasValue )
+            {
+                includeDeceased = true;
+            }
+
+            var personQry = Queryable( includeDeceased );
+            if ( personId.HasValue )
+            {
+                personQry = personQry.Where( p => p.Id == personId.Value );
+            }
+
+            var chatAliasQry = new PersonAliasService( rockContext ).GetChatPersonAliasesQuery();
+
+            return personQry
+                .Join(
+                    chatAliasQry,
+                    p => p.Id,
+                    pa => pa.PersonId,
+                    ( p, pa ) => new RockChatUserKey
+                    {
+                        PersonId = p.Id,
+                        NickName = p.NickName,
+                        LastName = p.LastName,
+                        ChatPersonAliasId = pa.Id,
+                        ChatPersonAliasGuid = pa.Guid,
+                    }
+                )
+                .GroupBy( p => p.PersonId )
+                .Where( g => g.Count() > 1 )
+                .ToDictionary(
+                    p => p.Key,
+                    p => p.ToList()
+                );
+        }
+
+        /// <summary>
+        /// Gets a Queryable of a chat-enabled <see cref="Person"/>'s complete list of <see cref="RockChatUserKey"/>s,
+        /// including those for deceased individuals.
+        /// </summary>
+        /// <param name="personId">The identifier of the <see cref="Person"/> for whom to get <see cref="RockChatUserKey"/>s.</param>
+        /// <returns>A Queryable of a chat-enabled <see cref="Person"/>'s complete list of <see cref="RockChatUserKey"/>s</returns>
+        /// <remarks>
+        /// This is probably only useful when deleting all of a <see cref="Person"/>'s <see cref="ChatUser"/>s in the
+        /// external chat system.
+        /// </remarks>
+        internal IQueryable<RockChatUserKey> GetAllRockChatUserKeysQuery( int personId )
+        {
+            var rockContext = this.Context as RockContext;
+
+            var chatAliasQry = new PersonAliasService( rockContext ).GetChatPersonAliasesQuery();
+
+            return Queryable( includeDeceased: true )
+                .Where( p => p.Id == personId )
+                .Join(
+                    chatAliasQry,
+                    p => p.Id,
+                    pa => pa.PersonId,
+                    ( p, pa ) => new RockChatUserKey
+                    {
+                        PersonId = p.Id,
+                        NickName = p.NickName,
+                        LastName = p.LastName,
+                        ChatPersonAliasId = pa.Id,
+                        ChatPersonAliasGuid = pa.Guid,
+                    }
+                );
+        }
+
+        /// <summary>
+        /// Gets the Rock <see cref="Person"/> for the provided <see cref="ChatUser.Key"/>.
+        /// </summary>
+        /// <param name="chatUserKey">The <see cref="ChatUser.Key"/> of the <see cref="Person"/> to get.</param>
+        /// <returns>The Rock <see cref="Person"/> or <see langword="null"/> if no matching <see cref="Person"/> found.</returns>
+        internal Person GetByChatUserKey( string chatUserKey )
+        {
+            if ( chatUserKey == null )
+            {
+                return null;
+            }
+
+            return Queryable()
+                .Where( p => p.Aliases.Any( a => a.ForeignKey == chatUserKey ) )
+                .FirstOrDefault();
+        }
+
+        /// <summary>
+        /// Gets a queryable collection of <see cref="Person"/> entities whose associated <see cref="ChatUser.Key"/>
+        /// values match those provided.
+        /// </summary>
+        /// <param name="chatUserKeys">A set of <see cref="ChatUser.Key"/> values to match against <see cref="Person"/>records.</param>
+        /// <param name="personQueryOptions">Optional filtering options for the person query.</param>
+        /// <returns>
+        /// An <see cref="IQueryable{Person}"/> of people whose associated chat user keys match those provided.
+        /// </returns>
+        /// <remarks>
+        /// Only the first 500 <paramref name="chatUserKeys"/> will be considered in order to prevent SQL query
+        /// performance degradation. If more than 500 keys need to be evaluated, the caller is responsible for batching
+        /// the input and invoking this method multiple times.
+        /// </remarks>
+        internal IQueryable<Person> GetPersonByChatUserKeysQuery( HashSet<string> chatUserKeys, PersonQueryOptions personQueryOptions = null )
+        {
+            var chatAliasGuids = chatUserKeys
+                ?.Take( 500 )
+                .Select( k => ChatHelper.GetPersonAliasGuid( k ) )
+                .Where( g => g.HasValue )
+                .Select( g => g.Value )
+                .ToHashSet();
+
+            if ( chatAliasGuids?.Any() != true )
+            {
+                return Enumerable.Empty<Person>().AsQueryable();
+            }
+
+            var rockContext = this.Context as RockContext;
+            var chatAliasQry = new PersonAliasService( rockContext ).Queryable();
+
+            if ( chatAliasGuids.Count == 1 )
+            {
+                // Most performant: limit queries to just this person.
+                var firstChatAliasGuid = chatAliasGuids.First();
+                chatAliasQry = chatAliasQry.Where( pa => pa.Guid.Equals( firstChatAliasGuid ) );
+            }
+            else if ( chatAliasGuids.Count < 1000 )
+            {
+                // Not ideal, but we're limited to a SQL `WHERE...IN` clause.
+                chatAliasQry = chatAliasQry.Where( pa => chatAliasGuids.Contains( pa.Guid ) );
+            }
+
+            return Queryable( personQueryOptions )
+                .Join(
+                    chatAliasQry,
+                    p => p.Id,
+                    pa => pa.PersonId,
+                    ( p, pa ) => p
                 )
                 .Distinct();
         }

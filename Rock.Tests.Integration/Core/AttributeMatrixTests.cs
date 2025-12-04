@@ -18,7 +18,6 @@ using System;
 using System.Collections.Generic;
 using System.Data.Entity;
 using System.Linq;
-using System.Threading.Tasks;
 
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
@@ -131,9 +130,9 @@ namespace Rock.Tests.Integration.Core
 
             item.SaveAttributeValues( rockContext );
 
-            // Wait to allow the history records to be added, because
-            // they are processed on a background thread.
-            Task.Delay( 1000 ).Wait();
+            // Drain the queue so that the transaction that creates the history
+            // entries is processed.
+            Rock.Transactions.RockQueue.Drain( _ => { } );
 
             // Verify that a new history entry has been added.
             var postUpdateHistoryItems = historyService.Queryable()
@@ -150,7 +149,7 @@ namespace Rock.Tests.Integration.Core
 
             var expectedCount = historyRecordShouldExist ? 1 : 0;
             var actualCount = valueChangeHistoryItems.Count();
-            Assert.IsTrue( actualCount == expectedCount,
+            Assert.AreEqual( expectedCount, actualCount,
                 $"History log is incorrect. Expected {expectedCount} entries, found {actualCount} entries." );
         }
 

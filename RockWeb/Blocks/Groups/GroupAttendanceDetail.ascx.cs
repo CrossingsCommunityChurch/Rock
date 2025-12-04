@@ -81,7 +81,6 @@ namespace RockWeb.Blocks.Groups
     [CodeEditorField( "Lava Template",
         Description = "An optional lava template to appear next to each person in the list.",
         EditorMode = CodeEditorMode.Lava,
-        EditorTheme = CodeEditorTheme.Rock,
         EditorHeight = 400,
         IsRequired = false,
         Order = 7,
@@ -131,6 +130,8 @@ namespace RockWeb.Blocks.Groups
         Order = 15,
         Key = AttributeKey.AttendanceTypeLabel )]
     #endregion
+
+    [Rock.Cms.DefaultBlockRole( Rock.Enums.Cms.BlockRole.Primary )]
     [Rock.SystemGuid.BlockTypeGuid( Rock.SystemGuid.BlockType.GROUP_ATTENDANCE_DETAIL )]
     public partial class GroupAttendanceDetail : RockBlock
     {

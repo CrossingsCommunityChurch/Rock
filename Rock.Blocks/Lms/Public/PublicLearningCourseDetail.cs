@@ -34,14 +34,13 @@ namespace Rock.Blocks.Lms
     [DisplayName( "Public Learning Course Detail" )]
     [Category( "LMS" )]
     [Description( "Displays the details of a particular public learning course." )]
-    [IconCssClass( "fa fa-question" )]
+    [IconCssClass( "ti ti-question-mark" )]
     [SupportedSiteTypes( Model.SiteType.Web )]
 
     [CodeEditorField( "Lava Template",
         Key = AttributeKey.CourseDetailTemplate,
         Description = "The Lava template to use to render the page. Merge fields include: CourseInfo, CurrentPerson and other Common Merge Fields. <span class='tip tip-lava'></span>",
         EditorMode = CodeEditorMode.Lava,
-        EditorTheme = CodeEditorTheme.Rock,
         EditorHeight = 400,
         IsRequired = false,
         DefaultValue = AttributeDefault.CourseDetailTemplate,
@@ -176,12 +175,12 @@ namespace Rock.Blocks.Lms
                 <div class=""card rounded-lg mb-4"">
                     <div class=""card-body"">
                         <div class=""card-title d-flex align-items-center"">
-							<h4 class=""m-0""><span><i class=""fa fa-clipboard-list mr-2""></i></span>Requirements
+							<h4 class=""m-0""><span><i class=""ti ti-clipboard-list mr-2""></i></span>Requirements
 							    {% if CourseInfo.UnmetPrerequisites != empty %}
-                                    <i class=""fa fa-exclamation-circle text-danger""></i>
+                                    <i class=""ti ti-exclamation-circle text-danger""></i>
                                     </h4>
                                 {% else %}
-                                    <i class=""fa fa-check-circle text-success""></i>
+                                    <i class=""ti ti-circle-check text-success""></i>
                                     </h4>
                                 {% endif %}
 							</h4>
@@ -205,7 +204,7 @@ namespace Rock.Blocks.Lms
                     </div>
                 </div>
                 
-                {% assign today = 'Now' | Date:'yyyy-MM-dd' %}
+                {% assign today = 'Now' | Date:'yyyy-MM-dd' | AsDateTime %}
                 {% assign hasClasses = false %}
                 {% for semesterInfo in CourseInfo.Semesters %}
                     
@@ -223,12 +222,12 @@ namespace Rock.Blocks.Lms
 							<div class=""card rounded-lg mb-4"">
 								<div class=""card-body"">
 									<div class=""card-title d-flex align-items-center"">
-										<i class=""fa fa-user-check mr-2""></i>
+										<i class=""ti ti-user-check mr-2""></i>
 										<h4 class=""m-0"">Currently Enrolled</h4>
 									</div>
 									<div class=""card-text text-muted mb-3"">
 										<p>You are currently enrolled in this course.</p>
-										<p class=""text-gray-800""><i class=""fa fa-arrow-right mr-2""></i>{{classInfo.Name}}</p>
+										<p class=""text-gray-800""><i class=""ti ti-arrow-right mr-2""></i>{{classInfo.Name}}</p>
 									</div>
 									<div>
 										<a class=""btn btn-info"" href=""{{ classInfo.WorkspaceLink }}"">View Class Workspace</a>
@@ -244,13 +243,13 @@ namespace Rock.Blocks.Lms
                                     
                                     <div class=""card-body"">
                                         <div class=""card-title d-flex align-items-center"">
-                                            <i class=""fa fa-rotate-left mr-2""></i>
+                                            <i class=""ti ti-arrow-back-up mr-2""></i>
                                             <h4 class=""m-0"">History</h4>
                                         </div>
                                         <div class=""text-muted"">You completed this class on {{
                                             classInfo.StudentParticipant.LearningCompletionDateTime | Date: 'sd' }}.</div>
 
-                                        {% if classInfo.StudentParticipant.LearningGradingSystemScale.Name != empty %}
+                                        {% if CourseInfo.IsCompletionOnly == false %}
                                         <div class=""mt-3"">
                                             <div class=""text-muted"">
                                                 <p class=""text-bold mb-0"">Grade</p>
@@ -273,13 +272,13 @@ namespace Rock.Blocks.Lms
                                     
                                     <div class=""card-body"">
                                         <div class=""card-title d-flex align-items-center"">
-                                            <i class=""fa fa-rotate-left mr-2""></i>
+                                            <i class=""ti ti-arrow-back-up mr-2""></i>
                                             <h4 class=""m-0"">History</h4>
                                         </div>
                                         <div class=""text-muted"">You completed this class on {{
                                             classInfo.StudentParticipant.LearningCompletionDateTime | Date: 'sd' }}</div>
 
-                                        {% if classInfo.StudentParticipant.LearningGradingSystemScale.Name != empty %}
+                                        {% if CourseInfo.IsCompletionOnly == false %}
                                         <div class=""mt-3"">
                                             <div class=""text-muted"">
                                                 <p class=""text-bold mb-0"">Grade</p>
@@ -306,7 +305,7 @@ namespace Rock.Blocks.Lms
                 {% else %}
                     <div class=""card rounded-lg"">
                         <div class=""card-body"">
-                            <h4 class=""card-title mt-0""><i class=""fa fa-chalkboard-teacher mr-2""></i>Classes</h4>
+                            <h4 class=""card-title mt-0""><i class=""ti ti-chalkboard-teacher mr-2""></i>Classes</h4>
                             
                             //- SCOPING TO CLASS DETAILS
                             
@@ -464,6 +463,7 @@ namespace Rock.Blocks.Lms
                 GetAttributeValue( AttributeKey.NextSessionDateRange ), RockDateTime.Now );
 
             var publicOnly = GetAttributeValue( AttributeKey.PublicOnly ).AsBoolean();
+            var mergeFields = RequestContext.GetCommonMergeFields();
 
             // Get the course details or a default value.
             var course = learningCourseService.GetPublicCourseDetails(
@@ -477,11 +477,12 @@ namespace Rock.Blocks.Lms
                     ProgramInfo = new LearningProgramService.PublicLearningProgramBag(),
                 };
 
-            course.DescriptionAsHtml = new StructuredContentHelper( course.Description ?? string.Empty ).Render();
+            course.DescriptionAsHtml = new StructuredContentHelper( course.Description )
+                .Render()
+                .ResolveMergeFields( mergeFields );
 
             AddClassSpecificProperties( course );
 
-            var mergeFields = this.RequestContext.GetCommonMergeFields( currentPerson );
             mergeFields.Add( "CourseInfo", course );
             mergeFields.Add( "ShowCompletionStatus", ShowCompletionStatus );
 

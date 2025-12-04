@@ -52,6 +52,11 @@ namespace Rock.Tests.Integration.Performance.Crm
         [ClassCleanup]
         public static void ClassCleanup()
         {
+            if ( IsContainersEnabled )
+            {
+                return;
+            }
+
             HistoryDataFactory.RemoveSampleData();
         }
 
@@ -150,7 +155,7 @@ namespace Rock.Tests.Integration.Performance.Crm
 
             var connectionStatusType = statusType.DefinedValues.FirstOrDefault( x => x.Value == statusName );
 
-            Assert.That.IsNotNull( connectionStatusType, $"Connection Status Type not found. [TypeName={statusName}]" );
+            Assert.IsNotNull( connectionStatusType, $"Connection Status Type not found. [TypeName={statusName}]" );
 
             return connectionStatusType.Id;
         }

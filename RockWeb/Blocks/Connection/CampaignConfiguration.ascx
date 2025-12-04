@@ -5,7 +5,7 @@
         <Rock:NotificationBox ID="nbEditModeMessage" runat="server" NotificationBoxType="Info"  Visible="false" />
         <asp:Panel ID="pnlDetail" CssClass="panel panel-block" runat="server">
             <div class="panel-heading">
-                <h1 class="panel-title"><i class="fa fa-plug"></i>
+                <h1 class="panel-title"><i class="ti ti-plug"></i>
                     <asp:Literal ID="lTitle" runat="server" /></h1>
             </div>
             <div class="panel-body">
@@ -31,7 +31,7 @@
                 <a href="#" class="btn btn-xs btn-link js-campaign-show-advanced-settings" >Show Advanced Settings</a>
 
                 <div class="js-campaign-advanced-settings">
-                    <Rock:CodeEditor ID="ceCommentLavaTemplate" runat="server" EditorHeight="200" EditorMode="Lava" EditorTheme="Rock" Label="Request Comments Lava Template" Help="The template will be used to generate the comments for the connection request. It will be passed [Person] and [Family] merge fields for use in the template <span class='tip tip-lava'></span>." />
+                    <Rock:CodeEditor ID="ceCommentLavaTemplate" runat="server" EditorHeight="200" EditorMode="Lava" Label="Request Comments Lava Template" Help="The template will be used to generate the comments for the connection request. It will be passed [Person] and [Family] merge fields for use in the template <span class='tip tip-lava'></span>." />
                 </div>
 
                 <h4 class="margin-t-xl">Who Should Be Connected</h4>

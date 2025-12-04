@@ -21,10 +21,11 @@
 // </copyright>
 //
 
+import { CommunicationType } from "@Obsidian/Enums/Communication/communicationType";
 import { ConfigurationMode } from "@Obsidian/Enums/Lms/configurationMode";
 import { LearningCompletionStatus } from "@Obsidian/Enums/Lms/learningCompletionStatus";
 import { Guid } from "@Obsidian/Types";
-import { LearningActivityCompletionBag } from "@Obsidian/ViewModels/Blocks/Lms/LearningActivityCompletionDetail/learningActivityCompletionBag";
+import { LearningClassActivityCompletionBag } from "@Obsidian/ViewModels/Blocks/Lms/LearningClassActivityCompletionDetail/learningClassActivityCompletionBag";
 import { LearningClassAnnouncementBag } from "@Obsidian/ViewModels/Blocks/Lms/LearningClassAnnouncementDetail/learningClassAnnouncementBag";
 import { LearningClassContentPageBag } from "@Obsidian/ViewModels/Blocks/Lms/LearningClassContentPageDetail/learningClassContentPageBag";
 import { LearningClassFacilitatorBag } from "@Obsidian/ViewModels/Blocks/Lms/LearningClassDetail/learningClassFacilitatorBag";
@@ -35,7 +36,7 @@ import { PublicLearningClassWorkspaceNotificationBag } from "@Obsidian/ViewModel
 /** Gets or sets the information required to render the Public Learning Class Workspace block. */
 export type PublicLearningClassWorkspaceBox = {
     /** Gets or sets the list of activities for this learning class. */
-    activities?: LearningActivityCompletionBag[] | null;
+    activities?: LearningClassActivityCompletionBag[] | null;
 
     /** Gets or sets the announcements specific to this class and student. */
     announcements?: LearningClassAnnouncementBag[] | null;
@@ -48,6 +49,9 @@ export type PublicLearningClassWorkspaceBox = {
 
     /** Gets or sets the id for the class. */
     classIdKey?: string | null;
+
+    /** Gets or sets the communication preference */
+    communicationPreference: CommunicationType;
 
     /** Gets or sets the custom content pages for the class. */
     contentPages?: LearningClassContentPageBag[] | null;
@@ -102,6 +106,9 @@ export type PublicLearningClassWorkspaceBox = {
 
     /** Gets or sets the security grant token. */
     securityGrantToken?: string | null;
+
+    /** Gets or sets whethere the Communication Preference toggle should be shown. */
+    showCommunicationPreference: boolean;
 
     /** Whether to show grades on the class overview page. */
     showGrades: boolean;

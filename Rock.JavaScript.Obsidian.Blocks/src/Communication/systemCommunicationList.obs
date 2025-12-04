@@ -51,7 +51,7 @@
         </Column>
 
         <ButtonColumn name="preview"
-                      iconClass="fa fa-search"
+                      iconClass="ti ti-search"
                       visiblePriority="xs"
                       @click="onPreviewClick"
                       width="57" />
@@ -64,7 +64,7 @@
                        width="57"
                        visiblePriority="xs" />
 
-        <SecurityColumn />
+        <SecurityColumn :itemTitle="'title'" />
 
         <DeleteColumn v-if="config.isDeleteEnabled" @click="onDeleteClick" />
     </Grid>

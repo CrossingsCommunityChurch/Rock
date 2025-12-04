@@ -63,7 +63,6 @@ namespace RockWeb.Blocks.Reporting
     [CodeEditorField( "Query",
         Description = "The query to execute. Note that if you are providing SQL you can add items from the query string using Lava like {{ QueryParmName }}.",
         EditorMode = CodeEditorMode.Sql,
-        EditorTheme = CodeEditorTheme.Rock,
         EditorHeight = 400,
         IsRequired = false,
         Category = "CustomSetting",
@@ -102,7 +101,6 @@ namespace RockWeb.Blocks.Reporting
     [CodeEditorField( "Formatted Output",
         Description = "Optional formatting to apply to the returned results.  If left blank, a grid will be displayed. Example: {% for row in rows %} {{ row.FirstName }}<br/> {% endfor %}",
         EditorMode = CodeEditorMode.Lava,
-        EditorTheme = CodeEditorTheme.Rock,
         EditorHeight = 200,
         IsRequired = false,
         Category = "CustomSetting",
@@ -178,7 +176,6 @@ namespace RockWeb.Blocks.Reporting
     [CodeEditorField( "Page Title Lava",
         Description = "Optional Lava for setting the page title. If nothing is provided then the page's title will be used.",
         EditorMode = CodeEditorMode.Lava,
-        EditorTheme = CodeEditorTheme.Rock,
         EditorHeight = 200,
         IsRequired = false,
         Category = "CustomSetting",
@@ -221,7 +218,6 @@ namespace RockWeb.Blocks.Reporting
     [CodeEditorField( "Grid Header Content",
         Description = "This Lava template will be rendered above the grid. It will have access to the same dataset as the grid.",
         EditorMode = CodeEditorMode.Lava,
-        EditorTheme = CodeEditorTheme.Rock,
         EditorHeight = 200,
         IsRequired = false,
         Category = "CustomSetting",
@@ -230,7 +226,6 @@ namespace RockWeb.Blocks.Reporting
     [CodeEditorField( "Grid Footer Content",
         Description = "This Lava template will be rendered below the grid (best used for custom totaling). It will have access to the same dataset as the grid.",
         EditorMode = CodeEditorMode.Lava,
-        EditorTheme = CodeEditorTheme.Rock,
         EditorHeight = 200,
         IsRequired = false,
         Category = "CustomSetting",
@@ -324,7 +319,12 @@ namespace RockWeb.Blocks.Reporting
             BlockUpdated += DynamicData_BlockUpdated;
             AddConfigurationUpdateTrigger( upnlContent );
 
-            BuildControls( !Page.IsPostBack );
+            // Don't build controls if the block's page does not match the current page. This would be the case when
+            // editing the settings from 'Admin Tools > CMS Settings > Pages'.
+            if ( RockPage.PageId == BlockCache.PageId )
+            {
+                BuildControls( !Page.IsPostBack );
+            }
 
             _updatePage = GetAttributeValue( AttributeKey.UpdatePage ).AsBoolean( true );
         }
@@ -733,53 +733,26 @@ namespace RockWeb.Blocks.Reporting
                             return;
                         }
 
-                        if ( LavaService.RockLiquidIsEnabled )
+                        foreach ( DataTable dataTable in dataSet.Tables )
                         {
-                            foreach ( DataTable dataTable in dataSet.Tables )
+                            var lavaRows = new List<DataRowLavaData>();
+                            foreach ( DataRow row in dataTable.Rows )
                             {
-                                var lavaRows = new List<DataRowDrop>();
-                                foreach ( DataRow row in dataTable.Rows )
-                                {
-                                    lavaRows.Add( new DataRowDrop( row ) );
-                                }
-
-                                if ( dataSet.Tables.Count > 1 )
-                                {
-                                    var tableField = new Dictionary<string, object>();
-                                    tableField.Add( "rows", lavaRows );
-                                    mergeFields.Add( "table" + i.ToString(), tableField );
-                                }
-                                else
-                                {
-                                    mergeFields.Add( "rows", lavaRows );
-                                }
-
-                                i++;
+                                lavaRows.Add( new DataRowLavaData( row ) );
                             }
-                        }
-                        else
-                        {
-                            foreach ( DataTable dataTable in dataSet.Tables )
+
+                            if ( dataSet.Tables.Count > 1 )
                             {
-                                var lavaRows = new List<DataRowLavaData>();
-                                foreach ( DataRow row in dataTable.Rows )
-                                {
-                                    lavaRows.Add( new DataRowLavaData( row ) );
-                                }
-
-                                if ( dataSet.Tables.Count > 1 )
-                                {
-                                    var tableField = new Dictionary<string, object>();
-                                    tableField.Add( "rows", lavaRows );
-                                    mergeFields.Add( "table" + i.ToString(), tableField );
-                                }
-                                else
-                                {
-                                    mergeFields.Add( "rows", lavaRows );
-                                }
-
-                                i++;
+                                var tableField = new Dictionary<string, object>();
+                                tableField.Add( "rows", lavaRows );
+                                mergeFields.Add( "table" + i.ToString(), tableField );
                             }
+                            else
+                            {
+                                mergeFields.Add( "rows", lavaRows );
+                            }
+
+                            i++;
                         }
                     }
 
@@ -1376,63 +1349,5 @@ namespace RockWeb.Blocks.Reporting
                 return false;
             }
         }
-
-        #region RockLiquid Lava implementation
-
-        /// <summary>
-        ///
-        /// </summary>
-        private class DataRowDrop : DotLiquid.Drop, ILavaDataDictionary
-        {
-            private readonly DataRow _dataRow;
-
-            public DataRowDrop( DataRow dataRow )
-            {
-                _dataRow = dataRow;
-            }
-
-            public override object BeforeMethod( string method )
-            {
-                if ( _dataRow.Table.Columns.Contains( method ) )
-                {
-                    return _dataRow[method];
-                }
-
-                return null;
-            }
-
-            #region ILavaDataDictionary
-
-            public List<string> AvailableKeys
-            {
-                get
-                {
-                    var keys = new List<string>();
-                    foreach ( DataColumn column in _dataRow.Table.Columns )
-                    {
-                        keys.Add( column.ColumnName );
-                    }
-                    return keys;
-                }
-            }
-
-            public bool ContainsKey( string key )
-            {
-                return _dataRow.Table.Columns.Contains( key );
-            }
-
-            public object GetValue( string key )
-            {
-                if ( _dataRow.Table.Columns.Contains( key ) )
-                {
-                    return _dataRow[key];
-                }
-                return null;
-            }
-
-            #endregion
-        }
-
-        #endregion
     }
 }

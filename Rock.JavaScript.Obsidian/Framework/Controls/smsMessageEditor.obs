@@ -40,7 +40,12 @@
                 <ToolbarSpacerPlugin ref="toolbarSpacerPlugin" />
             </template>
 
-            <MergeFieldPlugin :mergeFields="mergeFields" ref="mergeFieldPlugin" cssClass="btn btn-link" :isIconHidden="true" label="Personalize" />
+            <MergeFieldPlugin :mergeFields="mergeFields"
+                              :commonMergeFields="commonMergeFields"
+                              ref="mergeFieldPlugin"
+                              cssClass="btn btn-link"
+                              :isIconHidden="true"
+                              label="Personalize" />
 
             <ToolbarCountDownPlugin v-if="isCountDownShown"
                                     ref="toolbarCountDownPlugin"
@@ -52,6 +57,15 @@
                                     :modelValue="internalValue" />
 
             <EmojisPlugin ref="emojisPlugin" />
+
+            <ShortLinkPlugin ref="shortLinkPlugin"
+                             cssClass="btn btn-link"
+                             :isIconHidden="true"
+                             label="Create Shortlink"
+                             :checkToken="shortLinkCheckToken"
+                             :getPageId="shortLinkGetPageId"
+                             :sites="shortLinkSites"
+                             :tokenMinLength="shortLinkTokenMinLength" />
         </template>
     </RockFormField>
 </template>
@@ -93,6 +107,7 @@
 
 .note-editor .note-toolbar {
     padding: 0;
+    display: block;
 }
 
 :deep([data-css-class="float-right"]) {
@@ -105,9 +120,10 @@
 </style>
 
 <script setup lang="ts">
-    import { PropType, computed, onMounted, onUnmounted, ref, watch, watchEffect } from "vue";
+    import { PropType, computed, onMounted, onUnmounted, ref, watch } from "vue";
     import MergeFieldPlugin from "./NoteEditor/mergeFieldPlugin.partial.obs";
     import EmojisPlugin from "./NoteEditor/emojisPlugin.partial.obs";
+    import ShortLinkPlugin from "./NoteEditor/shortLinkPlugin.partial.obs";
     import ToolbarCharCountPlugin from "./NoteEditor/toolbarCharCountPlugin.partial.obs";
     import ToolbarCountDownPlugin from "./NoteEditor/toolbarCountDownPlugin.partial.obs";
     import ToolbarLabelPlugin from "./NoteEditor/toolbarLabelPlugin.partial.obs";
@@ -117,6 +133,8 @@
     import RockLabel from "@Obsidian/Controls/rockLabel.obs";
     import { tinymce, Editor, EditorEvent, Events, RawEditorOptions } from "@Obsidian/Libs/tinymce";
     import { standardRockFormFieldProps, useStandardRockFormFieldProps, useVModelPassthrough } from "@Obsidian/Utility/component";
+    import { ListItemBag } from "@Obsidian/ViewModels/Utility/listItemBag";
+    import { Guid } from "@Obsidian/Types";
 
     type ToolbarConfig = "light" | "full";
 
@@ -149,6 +167,32 @@
         mergeFields: {
             type: Array as PropType<string[] | undefined>,
             required: false
+        },
+
+        /**
+         * A list of common merge field to show below the picker for easy access. Should be an array of strings
+         * and the strings should be in the following format: "FieldName^Label|Icon", where the FieldName is the
+         * name of the merge field, Label is the text to display on the button, and Icon is the CSS class for icon.
+         */
+        commonMergeFields: {
+            type: Array as PropType<string[] | undefined>,
+            required: false
+        },
+
+        shortLinkCheckToken: {
+            type: Object as PropType<((token: string, siteId: number) => Promise<string>) | null | undefined>
+        },
+
+        shortLinkGetPageId: {
+            type: Object as PropType<((pageGuid: Guid) => Promise<number | null | undefined>) | null | undefined>
+        },
+
+        shortLinkSites: {
+            type: Array as PropType<ListItemBag[] | null | undefined>
+        },
+
+        shortLinkTokenMinLength: {
+            type: Number as PropType<number | null | undefined>
         },
 
         /** Editor height in pixels (not including toolbar). */
@@ -219,6 +263,7 @@
 
     // Plugins
     const mergeFieldPlugin = ref<InstanceType<typeof MergeFieldPlugin> | undefined>();
+    const shortLinkPlugin = ref<InstanceType<typeof ShortLinkPlugin> | undefined>();
     const toolbarLabelPlugin = ref<InstanceType<typeof ToolbarLabelPlugin> | undefined>();
     const toolbarSpacerPlugin = ref<InstanceType<typeof ToolbarSpacerPlugin> | undefined>();
     const toolbarCharCountPlugin = ref<InstanceType<typeof ToolbarCharCountPlugin> | undefined>();
@@ -285,9 +330,10 @@
     // #region Watchers
 
     // Update the editor content when the model value changes externally.
-    watchEffect(() => {
+    watch([tinyMceInstance, isEditorShown, internalValue], () => {
         if (tinyMceInstance.value && !isEditorShown.value && tinyMceValue.value !== internalValue.value) {
-            tinyMceInstance.value.setContent(internalValue.value);
+            // Replace new lines with <br /> so the editor displays line breaks correctly.
+            tinyMceInstance.value.setContent(internalValue.value.replace(/\r\n/g, "<br />").replace(/\n/g, "<br />"), { format: "text" });
 
             // Get the new content from the editor after setting it
             // just in case it gets manipulated by plugins.
@@ -366,7 +412,7 @@
                 // }
                 // If necessary, don't forget to add the related built-in plugins to the `plugins` option above
                 // or composed as child components if using custom plugins.
-                toolbar: `${toolbarLabelPlugin.value?.id} ${toolbarSpacerPlugin.value?.id} ${mergeFieldPlugin.value?.id} ${emojisPlugin.value?.id} ${props.isCharacterCountShown ? toolbarCharCountPlugin.value?.id : ""} ${props.isCountDownShown ? toolbarCountDownPlugin.value?.id : ""}`,
+                toolbar: `${toolbarLabelPlugin.value?.id} ${toolbarSpacerPlugin.value?.id} ${mergeFieldPlugin.value?.id} ${shortLinkPlugin.value?.id} ${emojisPlugin.value?.id} ${props.isCharacterCountShown ? toolbarCharCountPlugin.value?.id : ""} ${props.isCountDownShown ? toolbarCountDownPlugin.value?.id : ""}`,
 
                 // The callback that is executed when the editor is initialized.
                 setup: (editor): void => {
@@ -397,7 +443,8 @@
                         if (tinyMceInstance.value) {
                             // Set the initial value.
                             if (tinyMceValue.value !== internalValue.value) {
-                                tinyMceInstance.value.setContent(internalValue.value);
+                                // Replace new lines with <br /> so the editor displays line breaks correctly.
+                                tinyMceInstance.value.setContent(internalValue.value.replace(/\r\n/g, "<br />").replace(/\n/g, "<br />"), { format: "text" });
 
                                 // Get the new content from the editor after setting it
                                 // just in case it gets manipulated by plugins.

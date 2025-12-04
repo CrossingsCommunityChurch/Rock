@@ -25,6 +25,7 @@ using Rock;
 using Rock.Core;
 using Rock.Data;
 using Rock.Model;
+using Rock.Net;
 using Rock.Net.Geolocation;
 using Rock.Web.Cache;
 using Rock.Web.UI;
@@ -431,6 +432,17 @@ namespace Rock.Transactions
         /// </value>
         public string UserAgent { get; set; }
 
+        /// <summary>
+        /// The UserAgentPlatformVersion value that will used for the Interaction.
+        /// </summary>
+        /// <remarks>
+        /// This is not always provided by user agents and we have to request it by sending
+        /// Headers "Accept-CH" and "Critical-CH" with a value of Sec-CH-UA-Platform-Version
+        /// and possibly the "Permissions-Policy" header with a value of "ch-ua-platform-version=(self)"
+        /// see https://learn.microsoft.com/en-us/microsoft-edge/web-platform/how-to-detect-win11.
+        /// </remarks>
+        public string UserAgentPlatformVersion { get; set; }
+
         #endregion InteractionDeviceType Properties
 
         #region Interaction Properties
@@ -586,6 +598,7 @@ namespace Rock.Transactions
 
             this.InteractionData = this.InteractionData ?? request?.UrlProxySafe().ToString();
             this.UserAgent = this.UserAgent ?? request?.UserAgent;
+            this.UserAgentPlatformVersion = this.UserAgentPlatformVersion ?? request.UserAgentPlatformVersion();
 
             try
             {
@@ -596,7 +609,9 @@ namespace Rock.Transactions
                 this.IPAddress = string.Empty;
             }
 
-            this.BrowserSessionId = this.BrowserSessionId ?? rockPage?.Session["RockSessionId"]?.ToString().AsGuidOrNull();
+            this.BrowserSessionId = this.BrowserSessionId
+                ?? rockPage?.Session["RockSessionId"]?.ToString().AsGuidOrNull()
+                ?? RockRequestContextAccessor.Current?.SessionGuid;
 
             this.PersonAliasId = this.PersonAliasId ?? rockPage?.CurrentPersonAliasId ?? rockPage?.CurrentVisitor?.Id;
 

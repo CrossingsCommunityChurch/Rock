@@ -2,9 +2,10 @@
 <template>
     <TreeItemPicker v-model="internalValue"
                     formGroupClasses="workflow-action-type-picker"
-                    iconCssClass="fa fa-folder"
+                    iconCssClass="ti ti-folder"
                     :provider="itemProvider"
-                    disableFolderSelection />
+                    disableFolderSelection
+                    autoExpand />
 </template>
 
 <script setup lang="ts">

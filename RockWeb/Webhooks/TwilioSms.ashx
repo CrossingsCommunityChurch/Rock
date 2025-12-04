@@ -17,14 +17,16 @@
 //
 
 using System;
-using System.Web;
+using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Text;
-using System.Collections.Generic;
+using System.Web;
+
 using Rock;
-using Rock.Communication.SmsActions;
 using Rock.Communication;
+using Rock.Communication.Medium;
+using Rock.Communication.SmsActions;
 using Rock.Data;
 using Rock.Model;
 using Rock.SystemKey;
@@ -103,7 +105,7 @@ class TwilioSmsResponseAsync : TwilioDefaultResponseAsync
     /// <param name="fromPhone"></param>
     /// <param name="body"></param>
     /// <returns></returns>
-    public override Twilio.TwiML.Message ProcessMessage( HttpRequest request, string toPhone, string fromPhone, string body )
+    public override Twilio.TwiML.Messaging.Message ProcessMessage( HttpRequest request, string toPhone, string fromPhone, string body )
     {
         var message = new SmsMessage
         {
@@ -112,44 +114,15 @@ class TwilioSmsResponseAsync : TwilioDefaultResponseAsync
             Message = body
         };
 
-        if ( !string.IsNullOrWhiteSpace( message.ToNumber ) && !string.IsNullOrWhiteSpace( message.FromNumber ) )
+        if ( message.ToNumber.IsNotNullOrWhiteSpace() && message.FromNumber.IsNotNullOrWhiteSpace() )
         {
+            // Opt-in/opt-out tracking should be processed before anything else, to ensure we respect the sender's
+            // preferences and also to ensure we remain compliant with messaging regulations.
+            SmsActionService.TryUpdateOptInOutTrackingForSender( message );
+
             using ( var rockContext = new RockContext() )
             {
                 message.FromPerson = new PersonService( rockContext ).GetPersonFromMobilePhoneNumber( message.FromNumber, true );
-
-                if ( IsOptOutMessage( body ) )
-                {
-                    var cleanNumber = PhoneNumber.CleanNumber( fromPhone );
-                    var phoneNumbers = new PhoneNumberService( rockContext ).Queryable()
-                        .Where( pn => pn.FullNumber == cleanNumber )
-                        .ToList();
-
-                    foreach( var phoneNumber in phoneNumbers)
-                    {
-                        phoneNumber.IsMessagingEnabled = false;
-                        phoneNumber.IsMessagingOptedOut = true;
-                        phoneNumber.MessagingOptedOutDateTime = RockDateTime.Now;
-                    }
-
-                    rockContext.SaveChanges();
-                }
-                else if ( IsOptInMessage( body ) )
-                {
-                    var cleanNumber = PhoneNumber.CleanNumber( fromPhone );
-                    var phoneNumbers = new PhoneNumberService( rockContext ).Queryable()
-                        .Where( pn => pn.FullNumber == cleanNumber )
-                        .ToList();
-
-                    foreach( var phoneNumber in phoneNumbers)
-                    {
-                        phoneNumber.IsMessagingEnabled = true;
-                        phoneNumber.IsMessagingOptedOut = false;
-                        phoneNumber.MessagingOptedOutDateTime = null;
-                    }
-
-                    rockContext.SaveChanges();
-                }
 
                 var smsPipelineId = request.QueryString["smsPipelineId"].AsIntegerOrNull();
 
@@ -170,7 +143,7 @@ class TwilioSmsResponseAsync : TwilioDefaultResponseAsync
                             imageGuid = Guid.NewGuid();
 
                             var httpWebRequest = ( HttpWebRequest ) HttpWebRequest.Create( imageUrl );
-                            httpWebRequest.Headers["Authorization"] = "Basic " + Convert.ToBase64String(Encoding.Default.GetBytes(accountSid + ":" + authToken));
+                            httpWebRequest.Headers["Authorization"] = "Basic " + Convert.ToBase64String( Encoding.Default.GetBytes( accountSid + ":" + authToken ) );
 
                             var httpWebResponse = ( HttpWebResponse ) httpWebRequest.GetResponse();
 
@@ -190,14 +163,33 @@ class TwilioSmsResponseAsync : TwilioDefaultResponseAsync
 
                 var outcomes = SmsActionService.ProcessIncomingMessage( message, smsPipelineId );
                 var smsResponse = SmsActionService.GetResponseFromOutcomes( outcomes );
-                var twilioMessage = new Twilio.TwiML.Message();
 
                 if ( smsResponse == null )
                 {
                     return null;
                 }
 
-                if ( !string.IsNullOrWhiteSpace( smsResponse.Message ) )
+                var fromPersonAliasId = message.FromPerson?.PrimaryAliasId;
+                if ( fromPersonAliasId.HasValue )
+                {
+                    var responseCommunicationId = SmsActionService.CreateAndEnqueueResponseCommunication(
+                        smsResponse,
+                        fromPersonAliasId.Value,
+                        message.ToNumber,
+                        rockContext
+                    );
+
+                    if ( responseCommunicationId.HasValue )
+                    {
+                        // There's no need to send a message object back to the caller of this method since we've
+                        // already queued a response to be sent.
+                        return null;
+                    }
+                }
+
+                var twilioMessage = new Twilio.TwiML.Messaging.Message();
+
+                if ( smsResponse.Message.IsNotNullOrWhiteSpace() )
                 {
                     twilioMessage.Body( smsResponse.Message );
                 }
@@ -206,7 +198,10 @@ class TwilioSmsResponseAsync : TwilioDefaultResponseAsync
                 {
                     foreach ( var binaryFile in smsResponse.Attachments )
                     {
-                        twilioMessage.Media( binaryFile.Url );
+                        if ( Uri.TryCreate( binaryFile.Url, UriKind.Absolute, out var uri ) )
+                        {
+                            twilioMessage.Media( uri );
+                        }
                     }
                 }
 
@@ -215,41 +210,5 @@ class TwilioSmsResponseAsync : TwilioDefaultResponseAsync
         }
 
         return null;
-    }
-
-    private bool IsOptOutMessage(string messageBody)
-    {
-        List<string> optOutKeywords = new List<string>
-        {
-            "STOP", "STOPALL", "UNSUBSCRIBE", "CANCEL", "END", "QUIT"
-        };
-
-        foreach (var keyword in optOutKeywords)
-        {
-            if (string.Equals(messageBody.Trim(), keyword, StringComparison.OrdinalIgnoreCase))
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private bool IsOptInMessage(string messageBody)
-    {
-        List<string> optInKeywords = new List<string>
-        {
-            "START", "YES", "UNSTOP"
-        };
-
-        foreach (var keyword in optInKeywords)
-        {
-            if (string.Equals(messageBody.Trim(), keyword, StringComparison.OrdinalIgnoreCase))
-            {
-                return true;
-            }
-        }
-
-        return false;
     }
 }

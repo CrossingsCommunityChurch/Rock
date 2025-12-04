@@ -45,7 +45,7 @@ namespace RockWeb.Blocks.Connection
     [DisplayName( "Connection Type List" )]
     [Category( "Connection > WebView" )]
     [Description( "Displays the list of connection types." )]
-    [IconCssClass( "fa fa-list" )]
+    [IconCssClass( "ti ti-list" )]
 
     #region Block Attributes
     [CodeEditorField( "Type Template",
@@ -56,7 +56,6 @@ namespace RockWeb.Blocks.Connection
                             <p><strong>ConnectionTypes, DetailPage, ConnectionRequestCounts, SumTotalConnectionRequests</strong>)</p>
                          </i>",
         EditorMode = CodeEditorMode.Lava,
-        EditorTheme = CodeEditorTheme.Rock,
         EditorHeight = 400,
         IsRequired = false,
         DefaultValue = Lava.ConnectionTypes

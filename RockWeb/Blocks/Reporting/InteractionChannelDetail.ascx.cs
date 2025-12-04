@@ -38,7 +38,12 @@ namespace RockWeb.Blocks.Reporting
     [Category( "Reporting" )]
     [Description( "Presents the details of a interaction channel using Lava" )]
 
-    [CodeEditorField( "Default Template", "Lava template to use to display content", CodeEditorMode.Lava, CodeEditorTheme.Rock, 400, false, @"
+    [CodeEditorField( "Default Template",
+        Description = "Lava template to use to display content",
+        EditorMode = CodeEditorMode.Lava,
+        EditorHeight = 400,
+        IsRequired = false,
+        DefaultValue = @"
 <div class='row'>
     {% if InteractionChannel.Name != '' %}
         <div class='col-md-6'>
@@ -66,7 +71,8 @@ namespace RockWeb.Blocks.Reporting
         </div>
     {% endif %}
 </div>
-", "", 0 )]
+",
+        Order = 0 )]
 
     [Rock.SystemGuid.BlockTypeGuid( "F722A03E-C344-40B1-B87D-EB90E2BCBC47" )]
     public partial class InteractionChannelDetail : Rock.Web.UI.RockBlock
@@ -82,7 +88,6 @@ namespace RockWeb.Blocks.Reporting
             base.OnInit( e );
 
             btnDelete.Attributes["onclick"] = string.Format( "javascript: return Rock.dialogs.confirmDelete(event, '{0}');", InteractionChannel.FriendlyTypeName );
-            btnSecurity.EntityTypeId = EntityTypeCache.Get( typeof( Rock.Model.InteractionChannel ) ).Id;
 
             // this event gets fired after block settings are updated. it's nice to repaint the screen if these settings would alter it
             this.BlockUpdated += Block_BlockUpdated;
@@ -295,9 +300,6 @@ namespace RockWeb.Blocks.Reporting
                     btnEdit.Visible = false;
                     btnDelete.Visible = false;
                 }
-
-                btnSecurity.Visible = UserCanAdministrate || channel.IsAuthorized( Authorization.ADMINISTRATE, CurrentPerson );
-                btnSecurity.EntityId = channel.Id;
 
                 SetEditMode( false );
 

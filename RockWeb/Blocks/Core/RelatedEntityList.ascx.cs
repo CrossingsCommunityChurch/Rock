@@ -99,7 +99,6 @@ namespace RockWeb.Blocks.Core
     [CodeEditorField( "Lava Template",
         Description = "The Lava template to use for the header",
         EditorMode = CodeEditorMode.Lava,
-        EditorTheme = CodeEditorTheme.Rock,
         EditorHeight = 400,
         Order = 5,
         Key = AttributeKey.LavaTemplate )]
@@ -121,7 +120,7 @@ namespace RockWeb.Blocks.Core
     [TextField( "Header Icon CSS Class",
         Description = "The CSS icon for the panel heading.",
         IsRequired = false,
-        DefaultValue = "fa fa-link",
+        DefaultValue = "ti ti-link",
         Order = 8,
         Key = AttributeKey.HeaderIconCssClass )]
 

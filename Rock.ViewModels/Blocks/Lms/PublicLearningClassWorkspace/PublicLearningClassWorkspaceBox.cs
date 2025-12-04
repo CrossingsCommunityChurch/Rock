@@ -17,8 +17,9 @@
 using System;
 using System.Collections.Generic;
 
+using Rock.Enums.Communication;
 using Rock.Enums.Lms;
-using Rock.ViewModels.Blocks.Lms.LearningActivityCompletionDetail;
+using Rock.ViewModels.Blocks.Lms.LearningClassActivityCompletionDetail;
 using Rock.ViewModels.Blocks.Lms.LearningClassAnnouncementDetail;
 using Rock.ViewModels.Blocks.Lms.LearningClassContentPageDetail;
 using Rock.ViewModels.Blocks.Lms.LearningClassDetail;
@@ -35,7 +36,7 @@ namespace Rock.ViewModels.Blocks.Lms.PublicLearningClassWorkspace
         /// <summary>
         /// Gets or sets the list of activities for this learning class.
         /// </summary>
-        public List<LearningActivityCompletionBag> Activities { get; set; }
+        public List<LearningClassActivityCompletionBag> Activities { get; set; }
 
         /// <summary>
         /// Gets or sets the announcements specific to this class and student.
@@ -131,5 +132,15 @@ namespace Rock.ViewModels.Blocks.Lms.PublicLearningClassWorkspace
         /// Whether to show grades on the class overview page.
         /// </summary>
         public bool ShowGrades { get; set; }
+
+        /// <summary>
+        /// Gets or sets whethere the Communication Preference toggle should be shown.
+        /// </summary>
+        public bool ShowCommunicationPreference { get; set; }
+
+        /// <summary>
+        /// Gets or sets the communication preference
+        /// </summary>
+        public CommunicationType CommunicationPreference { get; set; }
     }
 }

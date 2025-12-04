@@ -42,7 +42,7 @@ namespace Rock.Blocks.Event
     [DisplayName( "Calendar Event Item Detail" )]
     [Category( "Event" )]
     [Description( "Displays the details of the given calendar event item." )]
-    [IconCssClass( "fa fa-question" )]
+    [IconCssClass( "ti ti-question-mark" )]
     [SupportedSiteTypes( Model.SiteType.Web )]
 
     #region Block Attributes
@@ -259,7 +259,7 @@ namespace Rock.Blocks.Event
             var eventAttributes = GetEventAttributes( rockContext, entity.Id.ToString() );
             bag.EventOccurenceAttributes = eventAttributes.ConvertAll( e => new EventItemOccurenceAttributeBag()
             {
-                Attribute = PublicAttributeHelper.GetPublicEditableAttributeViewModel( e ),
+                Attribute = PublicAttributeHelper.GetPublicEditableAttribute( e ),
                 FieldType = FieldTypeCache.Get( e.FieldTypeId )?.Name,
             } );
 
@@ -925,7 +925,7 @@ namespace Rock.Blocks.Event
             else
             {
                 var attribute = attributes.Find( a => a.Guid == attributeGuid );
-                editableAttribute = PublicAttributeHelper.GetPublicEditableAttributeViewModel( attribute );
+                editableAttribute = PublicAttributeHelper.GetPublicEditableAttribute( attribute );
             }
 
             var reservedKeyNames = new List<string>();

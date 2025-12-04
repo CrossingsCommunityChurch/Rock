@@ -19,10 +19,14 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
+using System.Threading;
 using System.Web.Http;
 using System.Web.Http.Controllers;
 
+using Microsoft.Extensions.Logging;
+
 using Rock.Data;
+using Rock.Logging;
 using Rock.SystemGuid;
 
 namespace Rock.Model
@@ -32,6 +36,12 @@ namespace Rock.Model
     /// </summary>
     public partial class RestControllerService
     {
+        /// <summary>
+        /// An internal property to let the RestControllersController know if
+        /// the RegisterControllers() has finished registering the controllers.
+        /// </summary>
+        internal static bool IsRegisterControllersFinished = false;
+
         private class DiscoveredControllerFromReflection
         {
             public string Name { get; set; }
@@ -59,29 +69,78 @@ namespace Rock.Model
         }
 
         /// <summary>
-        /// Registers the controllers.
+        /// Registers the controllers; retrying up to 5 times if an InvalidOperationException
+        /// (Collection was modified; enumeration operation may not execute) occurs.
         /// </summary>
         public static void RegisterControllers()
         {
             /*
-             * 05/13/2022 MDP/DMV
-             * 
-             * In addition to the 12/19/2019 BJW note, we also added a RockGuid attribute to 
-             * controllers and methods (except for inherited methods). This will prevent
-             * loosing security on methods that have changed their signature. 
-             * 
-             * 
-             * 12/19/2019 BJW
-             *
-             * There was an issue with the SecuredAttribute not calculating API ID the same as was being calculated here.
-             * This caused the secured attribute to sometimes not find the RestAction record and thus not find the
-             * appropriate permissions (Auth table). The new method "GetApiId" is used in both places as a standardized
-             * API ID generator to ensure that this does not occur. The following code has also been modified to gracefully
-             * update any old style API IDs and update them to the new format without losing any foreign key associations, such
-             * as permissions.
-             *
-             * See task for detailed background: https://app.asana.com/0/474497188512037/1150703513867003/f
-             */
+                 6/2/2025 - NA
+
+                 IApiExplorer.ApiDescriptions returns a Collection<ApiDescription> that can be lazily populated
+                 by ApiExplorer at access time. If other threads are also accessing or modifying routes/controllers
+                 during this time (e.g., app initialization, concurrent requests), we can hit this concurrency
+                 exception even when just reading the .Count property.
+
+                 Reason: Try 5 times before giving up.
+            */
+
+            int maxAttempts = 5;
+            int baseDelayMs = 3000; // 3 seconds base
+
+            for ( int attempt = 1; attempt <= maxAttempts ; attempt++ )
+            {
+                try
+                {
+                    RegisterControllersInternal();
+                    IsRegisterControllersFinished = true;
+                    break; // success, exit loop
+                }
+                catch ( InvalidOperationException )
+                {
+                    if ( attempt == maxAttempts )
+                    {
+                        throw; // fail after final attempt
+                    }
+
+                    // small delay
+                    Thread.Sleep( baseDelayMs * attempt );
+                }
+            }
+        }
+		
+        /// <summary>
+        /// Registers the controllers.
+        /// </summary>
+        private static void RegisterControllersInternal()
+        {
+            var logger = RockLogger.LoggerFactory.CreateLogger<RestControllerService>();
+
+            var sw = new Stopwatch();
+            sw.Start();
+            logger.LogDebug( "Starting RegisterControllers" );
+
+            /*
+                 5/13/2022 - MDP/DMV
+
+                 In addition to the 12/19/2019 BJW note, we also added a RockGuid attribute to 
+                 controllers and methods (except for inherited methods). This will prevent
+                 loosing security on methods that have changed their signature. 
+
+
+                 12/19/2019 - BJW
+
+                 There was an issue with the SecuredAttribute not calculating API ID the same as was being calculated here.
+                 This caused the secured attribute to sometimes not find the RestAction record and thus not find the
+                 appropriate permissions (Auth table). The new method "GetApiId" is used in both places as a standardized
+                 API ID generator to ensure that this does not occur. The following code has also been modified to gracefully
+                 update any old style API IDs and update them to the new format without losing any foreign key associations, such
+                 as permissions.
+
+                 See task for detailed background: https://app.asana.com/0/474497188512037/1150703513867003/f
+
+                 Reason: Preserve security settings when method signatures change and ensure consistent API ID generation.
+            */
 
             // Controller Class Name => New Format Id => Old Format Id
             var controllerApiIdMap = new Dictionary<string, Dictionary<string, string>>();
@@ -89,6 +148,7 @@ namespace Rock.Model
             var rockContext = new RockContext();
             var restControllerService = new RestControllerService( rockContext );
             var discoveredControllers = new List<DiscoveredControllerFromReflection>();
+            logger.LogDebug( $"\t{sw.ElapsedMilliseconds} ms Getting GetApiExplorer..." );
 
             var config = GlobalConfiguration.Configuration;
             var explorer = config.Services.GetApiExplorer();
@@ -98,6 +158,9 @@ namespace Rock.Model
                 // Just in case ApiDescriptions wasn't populated, exit and don't do anything
                 return;
             }
+            logger.LogDebug( $"\t{sw.ElapsedMilliseconds} ms ...done getting GetApiExplorer." );
+
+            logger.LogDebug( $"\t{sw.ElapsedMilliseconds} ms Looking for duplicateActionIdentifiers..." );
 
             // Look for any duplicate rest action unique identifiers and log
             // them for the developer to look into.
@@ -125,6 +188,9 @@ namespace Rock.Model
 
                 ExceptionLogService.LogException( new Exception( $"Found duplicate rest action guid '{duplicateIdentifier.Key}' on {methods}" ) );
             }
+            logger.LogDebug( $"\t{sw.ElapsedMilliseconds} ms ...done looking." );
+
+            logger.LogDebug( $"\t{sw.ElapsedMilliseconds} ms Iterate over all {explorer.ApiDescriptions.Count} ApiDescriptions to discover rest actions..." );
 
             foreach ( var apiDescription in explorer.ApiDescriptions )
             {
@@ -200,6 +266,8 @@ namespace Rock.Model
                 controller.DiscoveredRestActions.Add( restAction );
             }
 
+            logger.LogDebug( $"\t{sw.ElapsedMilliseconds} ms ...done iterating over all ApiDescriptions" );
+
             if ( !discoveredControllers.Any() )
             {
                 // Just in case discoveredControllers somehow is empty, exit and don't do anything
@@ -220,6 +288,7 @@ namespace Rock.Model
                     var duplicateNames = duplicateController.Select( c => c.ClassName ).JoinStrings( ", " );
 
                     Debug.WriteLine( $"Detected duplicate controller guid '{duplicateController.Key}': {duplicateNames}" );
+                    logger.LogDebug( $"Detected duplicate controller guid '{duplicateController.Key}': {duplicateNames}" );
 
                     // Only throw an exception if a debugger is attached. This
                     // reduces the risk of causing issues on a production system
@@ -243,6 +312,7 @@ namespace Rock.Model
                     var duplicateNames = duplicateAction.Select( a => $"[{a.Method}]{a.MethodInfo.ReflectedType}.{a.MethodInfo.Name}" ).JoinStrings( ", " );
 
                     Debug.WriteLine( $"Detected duplicate action guid '{duplicateAction.Key}': {duplicateNames}" );
+                    logger.LogDebug( $"Detected duplicate action guid '{duplicateAction.Key}': {duplicateNames}" );
 
                     // Only throw an exception if a debugger is attached. This
                     // reduces the risk of causing issues on a production system
@@ -256,6 +326,8 @@ namespace Rock.Model
 
             // First create any new controllers we will need in the next phase.
             var allDatabaseControllers = restControllerService.Queryable().ToList();
+
+            logger.LogDebug( $"\t{sw.ElapsedMilliseconds} ms Iterate over all {discoveredControllers.Count} discoveredControllers..." );
 
             foreach ( var discoveredController in discoveredControllers )
             {
@@ -297,6 +369,9 @@ namespace Rock.Model
 
                 controller.SetMetadata( metadata );
             }
+            logger.LogDebug( $"\t{sw.ElapsedMilliseconds} ms ...done iterating over all discoveredControllers" );
+
+            logger.LogDebug( $"\t{sw.ElapsedMilliseconds} ms Saving changes..." );
 
             // Save all changes to the REST controllers.
             try
@@ -316,9 +391,12 @@ namespace Rock.Model
                     throw;
                 }
             }
+            logger.LogDebug( $"\t{sw.ElapsedMilliseconds} ms ...done saving changes." );
 
             var actionService = new RestActionService( rockContext );
             var allDatabaseActions = actionService.Queryable().ToList();
+
+            logger.LogDebug( $"\t{sw.ElapsedMilliseconds} ms Iterate (again) over all {discoveredControllers.Count} discoveredControllers to iterate over all discovered REST actions..." );
 
             foreach ( var discoveredController in discoveredControllers )
             {
@@ -394,6 +472,9 @@ namespace Rock.Model
                     action.SetMetadata( metadata );
                 }
             }
+            logger.LogDebug( $"\t{sw.ElapsedMilliseconds} ms ...done iterating (again) over all discoveredControllers" );
+
+            logger.LogDebug( $"\t{sw.ElapsedMilliseconds} ms Delete actions that no longer exist" );
 
             // Delete any actions that no longer exist.
             // NOTE: In the future this won't be safe since we might have API
@@ -405,14 +486,21 @@ namespace Rock.Model
             var actionsToDelete = allDatabaseActions
                 .Where( a => !allDiscoveredActions.Any( da => da.ApiId == a.ApiId || da.ReflectedGuid == a.Guid ) )
                 .ToList();
+            logger.LogDebug( $"\t{sw.ElapsedMilliseconds} ms DeleteRange {actionsToDelete.Count} actions" );
+
             actionService.DeleteRange( actionsToDelete );
 
             // Delete any controllers that no longer exist.
             var controllers = discoveredControllers.Select( d => d.ClassName ).ToList();
-            foreach ( var controller in restControllerService.Queryable().Where( c => !controllers.Contains( c.ClassName ) ).ToList() )
+            var controllersToDelete = restControllerService.Queryable().Where( c => !controllers.Contains( c.ClassName ) ).ToList();
+            logger.LogDebug( $"\t{sw.ElapsedMilliseconds} ms Delete {controllersToDelete.Count} controllers" );
+
+            foreach ( var controller in controllersToDelete )
             {
                 restControllerService.Delete( controller );
             }
+
+            logger.LogDebug( $"\t{sw.ElapsedMilliseconds} ms Save changes" );
 
             try
             {
@@ -431,6 +519,7 @@ namespace Rock.Model
                     throw;
                 }
             }
+            logger.LogDebug( $"{sw.ElapsedMilliseconds} ms Done Starting RegisterControllers." );
         }
     }
 }

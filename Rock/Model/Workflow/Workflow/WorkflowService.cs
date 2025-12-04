@@ -14,17 +14,19 @@
 // limitations under the License.
 // </copyright>
 //
-using Rock.Data;
-using Rock.Web.Cache;
+using System;
 using System.Collections.Generic;
 using System.Linq;
+
+using Rock.Data;
+using Rock.Web.Cache;
 
 namespace Rock.Model
 {
     /// <summary>
     /// Service/Data access class for <see cref="Rock.Model.Workflow"/> entity objects
     /// </summary>
-    public partial class WorkflowService 
+    public partial class WorkflowService
     {
         /// <summary>
         /// Determines whether this instance can delete the specified item.
@@ -90,7 +92,7 @@ namespace Rock.Model
             var workflowType = WorkflowTypeCache.Get( workflow.WorkflowTypeId );
             if ( workflowType != null && ( workflowType.IsActive ?? true ) )
             {
-                var rockContext = (RockContext)this.Context;
+                var rockContext = ( RockContext ) this.Context;
 
                 if ( workflow.IsPersisted )
                 {
@@ -98,52 +100,65 @@ namespace Rock.Model
                     rockContext.SaveChanges();
                 }
 
-                bool result = workflow.ProcessActivities( rockContext, entity, out errorMessages );
-
-                if ( workflow.Status == "DeleteWorkflowNow" )
+                try
                 {
-                    if ( workflow.Id > 0 )
+                    bool result = workflow.ProcessActivities( rockContext, entity, out errorMessages );
+
+                    if ( workflow.Status == "DeleteWorkflowNow" )
                     {
-                        rockContext.SaveChanges();
-                        Delete( workflow );
-                        rockContext.SaveChanges();
+                        if ( workflow.Id > 0 )
+                        {
+                            rockContext.SaveChanges();
+                            Delete( workflow );
+                            rockContext.SaveChanges();
+                        }
+                        result = true;
                     }
-                    result = true;
-                }
-                else
-                {
-                    if ( workflow.IsPersisted || workflowType.IsPersisted )
+                    else
                     {
-                        if ( workflow.Id == 0 )
+                        if ( workflow.IsPersisted || workflowType.IsPersisted )
                         {
-                            Add( workflow );
-                        }
-
-                        // Set EntityId and EntityTypeId if they are not already set and the included entity object is appropriate.
-                        if ( ( workflow.EntityId == null ) && ( workflow.EntityTypeId == null ) && ( entity != null ) )
-                        {
-                            var typedEntity = entity as IEntity;
-                            if ( typedEntity != null )
+                            if ( workflow.Id == 0 )
                             {
-                                workflow.EntityId = typedEntity.Id;
-                                workflow.EntityTypeId = typedEntity.TypeId;
+                                Add( workflow );
                             }
+
+                            // Set EntityId and EntityTypeId if they are not already set and the included entity object is appropriate.
+                            if ( ( workflow.EntityId == null ) && ( workflow.EntityTypeId == null ) && ( entity != null ) )
+                            {
+                                var typedEntity = entity as IEntity;
+                                if ( typedEntity != null )
+                                {
+                                    workflow.EntityId = typedEntity.Id;
+                                    workflow.EntityTypeId = typedEntity.TypeId;
+                                }
+                            }
+
+                            rockContext.SaveChanges();
+
+                            workflow.SaveAttributeValues( rockContext );
+                            foreach ( var activity in workflow.Activities )
+                            {
+                                activity.SaveAttributeValues( rockContext );
+                            }
+
+                            workflow.IsProcessing = false;
+                            rockContext.SaveChanges();
                         }
+                    }
 
-                        rockContext.SaveChanges();
-
-                        workflow.SaveAttributeValues( rockContext );
-                        foreach ( var activity in workflow.Activities )
-                        {
-                            activity.SaveAttributeValues( rockContext );
-                        }
-
+                    return result;
+                }
+                catch
+                {
+                    if ( workflow.IsPersisted )
+                    {
                         workflow.IsProcessing = false;
                         rockContext.SaveChanges();
                     }
-                }
 
-                return result;
+                    throw;
+                }
             }
 
             else

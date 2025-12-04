@@ -81,7 +81,6 @@ namespace RockWeb.Blocks.Crm.PersonDetail
         Key = AttributeKey.GroupHeaderLava,
         Description = "Lava to put at the top of the block. Merge fields include Page, CurrentPerson, Group (the family) and GroupMembers.",
         EditorMode = CodeEditorMode.Lava,
-        EditorTheme = CodeEditorTheme.Rock,
         EditorHeight = 200,
         IsRequired = false,
         Order = 5 )]
@@ -91,7 +90,6 @@ namespace RockWeb.Blocks.Crm.PersonDetail
         Key = AttributeKey.GroupFooterLava,
         Description = "Lava to put at the bottom of the block. Merge fields include Page, CurrentPerson, Group (the family) and GroupMembers.",
         EditorMode = CodeEditorMode.Lava,
-        EditorTheme = CodeEditorTheme.Rock,
         EditorHeight = 200,
         IsRequired = false,
         Order = 6 )]
@@ -400,7 +398,7 @@ namespace RockWeb.Blocks.Crm.PersonDetail
             if( e.Item.FindControl( "litAddress" ) is Literal litAddress )
             {
                 groupLocation.GroupLocationTypeValue.LoadAttributes();
-                var iconCssClass = groupLocation.GroupLocationTypeValue.GetAttributeValue( "IconCSSClass" ) ?? "fa fa-map-marker";
+                var iconCssClass = groupLocation.GroupLocationTypeValue.GetAttributeValue( "IconCSSClass" ) ?? "ti ti-map-pin";
 
                 litAddress.Text = $@"
                     <div class=""profile-row group-hover"">
@@ -718,12 +716,12 @@ namespace RockWeb.Blocks.Crm.PersonDetail
 
             if( litGroupAttributes.Text.IsNullOrWhiteSpace() && litMoreGroupAttributes.Text.IsNotNullOrWhiteSpace() )
             {
-                lblShowGroupAttributeTitle.Text = group.GroupType.Name + " Attributes <a class='js-show-more-family-attributes stretched-link' href='#' title='Show More " + group.GroupType.Name +" Attributes'><i class='fa fa-chevron-down'></i></a>";
+                lblShowGroupAttributeTitle.Text = group.GroupType.Name + " Attributes <a class='js-show-more-family-attributes stretched-link' href='#' title='Show More " + group.GroupType.Name +" Attributes'><i class='ti ti-chevron-down'></i></a>";
                 lblShowGroupAttributeTitle.AddCssClass( "d-flex justify-content-between position-relative" );
             }
             else
             {
-                lblShowGroupAttributeTitle.Text = "<a class='js-show-more-family-attributes' href='#' title='Show More " + group.GroupType.Name +" Attributes'><i class='fa fa-chevron-down'></i></a>";
+                lblShowGroupAttributeTitle.Text = "<a class='js-show-more-family-attributes' href='#' title='Show More " + group.GroupType.Name +" Attributes'><i class='ti ti-chevron-down'></i></a>";
                 lblShowGroupAttributeTitle.AddCssClass( "pull-right" );
             }
 

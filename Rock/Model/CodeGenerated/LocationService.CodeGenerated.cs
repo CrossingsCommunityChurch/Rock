@@ -186,9 +186,11 @@ namespace Rock.Model
             target.Id = source.Id;
             target.AssessorParcelId = source.AssessorParcelId;
             target.Barcode = source.Barcode;
+            target.BeaconId = source.BeaconId;
             target.City = source.City;
             target.Country = source.Country;
             target.County = source.County;
+            target.Description = source.Description;
             target.FirmRoomThreshold = source.FirmRoomThreshold;
             target.ForeignGuid = source.ForeignGuid;
             target.ForeignKey = source.ForeignKey;

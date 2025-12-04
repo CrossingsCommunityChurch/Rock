@@ -38,7 +38,7 @@ namespace Rock.Blocks.Lms
     [DisplayName( "Learning Semester Detail" )]
     [Category( "LMS" )]
     [Description( "Displays the details of a particular learning semester." )]
-    [IconCssClass( "fa fa-question" )]
+    [IconCssClass( "ti ti-question-mark" )]
     [SupportedSiteTypes( Model.SiteType.Web )]
 
     [Rock.SystemGuid.EntityTypeGuid( "78bcf0d7-b5ac-4429-8055-b436652083a7" )]
@@ -216,16 +216,21 @@ namespace Rock.Blocks.Lms
             box.IfValidProperty( nameof( box.Bag.StartDate ),
                 () => entity.StartDate = box.Bag.StartDate );
 
-            box.IfValidProperty( nameof( box.Bag.LearningProgramId ),
-                () => entity.LearningProgramId = box.Bag.LearningProgramId );
-
             return true;
         }
 
         /// <inheritdoc/>
         protected override LearningSemester GetInitialEntity()
         {
-            return GetInitialEntity<LearningSemester, LearningSemesterService>( RockContext, PageParameterKey.LearningSemesterId );
+            var entity = GetInitialEntity<LearningSemester, LearningSemesterService>( RockContext, PageParameterKey.LearningSemesterId );
+
+            // Set the LearningProgramId so security checks work correctly.
+            if ( entity.Id == 0 )
+            {
+                entity.LearningProgramId = RequestContext.PageParameterAsId( PageParameterKey.LearningProgramId );
+            }
+
+            return entity;
         }
 
         /// <summary>
@@ -256,7 +261,10 @@ namespace Rock.Blocks.Lms
             else
             {
                 // Create a new entity.
-                entity = new LearningSemester();
+                entity = new LearningSemester
+                {
+                    LearningProgramId = RequestContext.PageParameterAsId( PageParameterKey.LearningProgramId )
+                };
                 entityService.Add( entity );
             }
 

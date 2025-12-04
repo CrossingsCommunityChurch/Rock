@@ -36,7 +36,7 @@ namespace Rock.Blocks.Lms
     [DisplayName( "Learning Program List" )]
     [Category( "LMS" )]
     [Description( "Displays a list of learning programs." )]
-    [IconCssClass( "fa fa-list" )]
+    [IconCssClass( "ti ti-list" )]
     [SupportedSiteTypes( Model.SiteType.Web )]
 
     [LinkedPage( "Detail Page",
@@ -115,14 +115,11 @@ namespace Rock.Blocks.Lms
         }
 
         /// <inheritdoc/>
-        protected override IQueryable<LearningProgram> GetListQueryable( RockContext rockContext )
+        protected override List<LearningProgram> GetListItems( IQueryable<LearningProgram> queryable, RockContext rockContext )
         {
-            var currentPerson = GetCurrentPerson();
-
-            // Materialize the LearningPrograms so that we can check for View authorization.
-            return new LearningProgramService( rockContext ).Queryable().ToList()
-                .Where( p => p.IsAuthorized( Authorization.VIEW, currentPerson ) )
-                .AsQueryable();
+            return queryable.ToList()
+                .Where( lp => lp.IsAuthorized( Authorization.VIEW, RequestContext.CurrentPerson ) )
+                .ToList();
         }
 
         /// <inheritdoc/>
@@ -192,11 +189,11 @@ namespace Rock.Blocks.Lms
         {
             var disablePredicatableIds = PageCache.Layout.Site.DisablePredictableIds;
             var programId = new LearningProgramService( RockContext ).GetSelect( key, p => p.Id, !disablePredicatableIds );
-            var entityService = new LearningActivityService( RockContext );
+            var entityService = new LearningClassActivityService( RockContext );
 
             var hasCompletions = entityService.Queryable()
                 .Where( c => c.LearningClass.LearningCourse.LearningProgramId == programId )
-                .Any( c => c.LearningActivityCompletions.Any() );
+                .Any( c => c.LearningClassActivityCompletions.Any() );
 
             return ActionOk( hasCompletions );
         }

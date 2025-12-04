@@ -12,7 +12,12 @@
             </div>
 
             <template #footerActions v-if="!resultLavaTemplate && !blockError">
-                <RockButton :btnSize="BtnSize.Default" :btnType="BtnType.Primary" :disabled="isRegistering" type="submit">
+                <div class="captcha-container">
+                    <div v-if="!options.disableCaptchaSupport" v-show="!isCaptchaComplete">
+                        <Captcha ref="captchaElement" validationTitle="Captcha" />
+                    </div>
+                </div>
+                <RockButton v-if="isCaptchaComplete || options.disableCaptchaSupport" :btnSize="BtnSize.Default" :btnType="BtnType.Primary" :disabled="isRegistering" type="submit">
                     {{ buttonText }}
                 </RockButton>
             </template>
@@ -21,8 +26,14 @@
     </RockForm>
 </template>
 
+<style scoped>
+.captcha-container {
+    margin-bottom: var(--spacing-small);
+}
+</style>
+
 <script setup lang="ts">
-    import { computed, ref } from "vue";
+    import { computed, onMounted, ref } from "vue";
     import NotificationBox from "@Obsidian/Controls/notificationBox.obs";
     import EditPanel from "./GroupRegistration/editPanel.partial.obs";
     import { useConfigurationValues, useInvokeBlockAction } from "@Obsidian/Utility/block";
@@ -33,7 +44,9 @@
     import { BtnSize } from "@Obsidian/Enums/Controls/btnSize";
     import Panel from "@Obsidian/Controls/panel.obs";
     import RockForm from "@Obsidian/Controls/rockForm.obs";
+    import Captcha from "@Obsidian/Controls/captcha.obs";
     import { makeUrlRedirectSafe } from "@Obsidian/Utility/url";
+    import { BlockActionContextBag } from "@Obsidian/ViewModels/Blocks/blockActionContextBag";
 
     const config = useConfigurationValues<GroupRegistrationBlockBox>();
     const invokeBlockAction = useInvokeBlockAction();
@@ -52,16 +65,12 @@
     const buttonText = ref(config.registerButtonAltText ?? "Register");
     const isRegistering = ref(false);
 
+    const captchaElement = ref<InstanceType<typeof Captcha> | undefined>();
+    const isCaptchaComplete = ref(false);
+
     // #endregion
 
     // #region Computed Values
-
-    /**
-     * The entity name to display in the block panel.
-     */
-    const panelName = computed((): string => {
-        return "Group Registration";
-    });
 
     const options = computed((): GroupRegistrationBlockBox => {
         return config ?? { autoFill: true, isEmailRequired: true, isMobilePhoneRequired: false, openSpots: 2 };
@@ -70,6 +79,16 @@
     // #endregion
 
     // #region Functions
+
+    async function waitForCaptcha(): Promise<void> {
+        if (options.value.disableCaptchaSupport || !captchaElement.value) {
+            isCaptchaComplete.value = true;
+            return;
+        }
+
+        const token = await captchaElement.value.getToken();
+        isCaptchaComplete.value = !!token;
+    }
 
     // #endregion
 
@@ -85,9 +104,16 @@
         errorMessage.value = "";
         isRegistering.value = true;
 
+        const actionContext: BlockActionContextBag = {};
+        if (!options.value.disableCaptchaSupport && captchaElement.value) {
+            actionContext.captcha = await captchaElement.value.getToken();
+            captchaElement.value.refreshToken();
+        }
+
         const result = await invokeBlockAction<string>("Save", {
             groupRegistrationBag: groupRegistrationBag.value
-        });
+        }, actionContext);
+
         isRegistering.value = false;
 
         if (result.isSuccess && result.data) {
@@ -116,5 +142,13 @@
     else {
         groupRegistrationBag.value = config.entity;
     }
+
+    // #region Lifecycle Hooks
+
+    onMounted(() => {
+        waitForCaptcha();
+    });
+
+    // #endregion Lifecycle Hooks
 
 </script>

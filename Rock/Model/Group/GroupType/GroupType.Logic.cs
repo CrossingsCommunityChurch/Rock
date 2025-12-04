@@ -18,6 +18,7 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 using System.Data.Entity;
 using System.Linq;
 
@@ -38,6 +39,7 @@ namespace Rock.Model
         /// Gets or sets the attendance reminder followup days list.  This is the logical representation of <see cref="AttendanceReminderFollowupDays"/>.
         /// </summary>
         /// <value>The attendance reminder followup days list.</value>
+        [NotMapped]
         public List<int> AttendanceReminderFollowupDaysList
         {
             get
@@ -74,6 +76,7 @@ namespace Rock.Model
         ///     </para>
         /// </remarks>
         [RockInternal( "17.0" )]
+		[NotMapped]
         public bool AreAnyRelationshipMultipliersCustomized =>
             LeaderToLeaderRelationshipMultiplier != 1m
             || LeaderToNonLeaderRelationshipMultiplier != 1m
@@ -245,7 +248,7 @@ namespace Rock.Model
         /// <param name="entityTypeQualifierColumn">The EntityTypeQualifierColumn value to match against.</param>
         /// <returns>A list of attributes defined in the inheritance tree.</returns>
         [Obsolete( "Use GroupTypeCache.GetInheritedAttributesForQualifier() instead." )]
-        [RockObsolete( "1.17" )]
+        [RockObsolete( "17.0" )]
         public List<AttributeCache> GetInheritedAttributesForQualifier( Rock.Data.RockContext rockContext, int entityTypeId, string entityTypeQualifierColumn )
         {
             var groupTypeIds = GetInheritedGroupTypeIds( rockContext );

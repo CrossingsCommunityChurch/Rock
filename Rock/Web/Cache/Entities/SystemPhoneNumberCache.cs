@@ -19,8 +19,6 @@ using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Linq;
 using System.Runtime.Serialization;
-using System.Data.Entity.Spatial;
-using Rock.Lava;
 
 using Rock.Data;
 using Rock.Model;
@@ -65,6 +63,28 @@ namespace Rock.Web.Cache
         [DataMember]
         public string Number { get; private set; }
 
+
+        /// <summary>
+        /// The backing field for the <see cref="NumberAsNumeric"/> property.
+        /// </summary>
+        private string _numberAsNumeric = null;
+
+        /// <summary>
+        /// Gets the phone number as numeric only (no formatting or whitespace).
+        /// </summary>
+        public string NumberAsNumeric
+        {
+            get
+            {
+                if ( _numberAsNumeric.IsNullOrWhiteSpace() )
+                {
+                    _numberAsNumeric = Number.RemoveAllNonNumericCharacters();
+                }
+
+                return _numberAsNumeric;
+            }
+        }
+
         /// <summary>
         /// Gets a value indicating whether this phone number is active.
         /// </summary>
@@ -106,7 +126,7 @@ namespace Rock.Web.Cache
         /// Gets a value indicating whether this phone number will
         /// forward incoming messages to <see cref="AssignedToPersonAliasId"/>.
         /// </summary>
-        /// <value><c>true</c> if this phohe number will forward incoming messages; otherwise, <c>false</c>.</value>
+        /// <value><c>true</c> if this phone number will forward incoming messages; otherwise, <c>false</c>.</value>
         [DataMember]
         public bool IsSmsForwardingEnabled { get; private set; }
 
@@ -143,6 +163,34 @@ namespace Rock.Web.Cache
         /// </value>
         [DataMember]
         public string ProviderIdentifier { get; private set; }
+
+        /// <summary>
+        /// Gets or sets whether to prevent Rock from sending automatic SMS replies to opt-in or opt-out messages.
+        /// </summary>
+        /// <value>
+        /// <c>true</c> if Rock should not send automatic replies; otherwise, <c>false</c>.
+        /// </value>
+        /// <remarks>
+        /// Use this when the messaging provider handles these responses. Otherwise, SMS pipelines will need to manage
+        /// them manually (not recommended).
+        /// </remarks>
+        [DataMember]
+        public bool SuppressSmsOptInOutAutoReplies { get; private set; }
+
+        /// <summary>
+        /// Gets or sets whether to prevent Rock from updating an individual's SMS status when they opt in or out of
+        /// receiving SMS messages.
+        /// </summary>
+        /// <value>
+        /// <c>true</c> if Rock should not update an individual's SMS status; otherwise, <c>false</c>.
+        /// </value>
+        /// <remarks>
+        /// This should be used with caution, as an individual's SMS-enabled phone number will not be marked as opted-out
+        /// or SMS-disabled when they opt out. It's understood that an organization will become responsible for complying
+        /// with carrier regulatory requirements, industry standards, and applicable law if this tracking is disabled.
+        /// </remarks>
+        [DataMember]
+        public bool DisableSmsOptInOutTracking { get; private set; }
 
         #endregion
 
@@ -191,6 +239,8 @@ namespace Rock.Web.Cache
             SmsNotificationGroupId = systemPhoneNumber.SmsNotificationGroupId;
             MobileApplicationSiteId = systemPhoneNumber.MobileApplicationSiteId;
             ProviderIdentifier = systemPhoneNumber.ProviderIdentifier;
+            SuppressSmsOptInOutAutoReplies = systemPhoneNumber.SuppressSmsOptInOutAutoReplies;
+            DisableSmsOptInOutTracking = systemPhoneNumber.DisableSmsOptInOutTracking;
         }
 
         /// <summary>
@@ -234,6 +284,28 @@ namespace Rock.Web.Cache
             }
 
             return allSystemPhoneNumbers.Where( c => c.IsActive ).OrderBy( c => c.Order ).ToList();
+        }
+
+        /// <summary>
+        /// Gets the first <see cref="SystemPhoneNumberCache"/> whose <see cref="Number"/> matches the provided
+        /// <paramref name="phoneNumber"/>.
+        /// </summary>
+        /// <param name="phoneNumber">The string representation of the phone number whose <see cref="SystemPhoneNumberCache"/> to find.</param>
+        /// <returns>A <see cref="SystemPhoneNumberCache"/> instance if a match is found; otherwise, null.</returns>
+        /// <remarks>
+        /// All non-numeric characters will be removed from the provided <paramref name="phoneNumber"/> and each
+        /// <see cref="Number"/> while performing the search.
+        /// </remarks>
+        public static SystemPhoneNumberCache GetByNumber( string phoneNumber )
+        {
+            if ( phoneNumber.IsNullOrWhiteSpace() )
+            {
+                return null;
+            }
+
+            var phoneNumberNumeric = phoneNumber.RemoveAllNonNumericCharacters();
+
+            return All().FirstOrDefault( s => s.NumberAsNumeric == phoneNumberNumeric );
         }
 
         #endregion

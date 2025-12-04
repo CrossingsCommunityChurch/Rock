@@ -162,6 +162,7 @@ namespace Rock.Model
             target.Id = source.Id;
             target.CanEdit = source.CanEdit;
             target.CanManageMembers = source.CanManageMembers;
+            target.CanTakeAttendance = source.CanTakeAttendance;
             target.CanView = source.CanView;
             target.ChatRole = source.ChatRole;
             target.Description = source.Description;
@@ -171,6 +172,7 @@ namespace Rock.Model
             target.IsCheckInAllowed = source.IsCheckInAllowed;
             target.IsExcludedFromPeerNetwork = source.IsExcludedFromPeerNetwork;
             target.IsLeader = source.IsLeader;
+            target.IsPublic = source.IsPublic;
             target.IsSystem = source.IsSystem;
             target.MaxCount = source.MaxCount;
             target.MinCount = source.MinCount;

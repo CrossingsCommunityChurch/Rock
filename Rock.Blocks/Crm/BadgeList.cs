@@ -38,8 +38,8 @@ namespace Rock.Blocks.Crm
     [DisplayName( "Badge List" )]
     [Category( "CRM" )]
     [Description( "Displays a list of badges." )]
-    [IconCssClass( "fa fa-list" )]
-    // [SupportedSiteTypes( Model.SiteType.Web )]
+    [IconCssClass( "ti ti-list" )]
+    [SupportedSiteTypes( Model.SiteType.Web )]
 
     [LinkedPage( "Detail Page",
         Description = "The page that will show the badge details.",
@@ -117,7 +117,9 @@ namespace Rock.Blocks.Crm
         /// <inheritdoc/>
         protected override IQueryable<Model.Badge> GetListQueryable( RockContext rockContext )
         {
-            return base.GetListQueryable( rockContext );
+            return base.GetListQueryable( rockContext )
+                .Include( b => b.EntityType )
+                .Include( b => b.BadgeComponentEntityType );
         }
 
         /// <inheritdoc/>

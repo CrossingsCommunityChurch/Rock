@@ -22,14 +22,17 @@
                          textMode="multiline" />
             </div>
             <div class="col-md-6">
-                <TextBox v-model="iconCssClass"
-                         label="Icon CSS Class" />
+                <IconPicker v-model="iconCssClass"
+                            label="Icon CSS Class" />
             </div>
             <div class="col-md-6">
                 <ColorPicker v-model="highlightColor"
                              class="form-control input-md"
                              label="Highlight Color" />
             </div>
+        </div>
+
+        <div class="row" v-if="hasAttributes">
             <div class="col-md-6">
                 <Checkbox
                           v-model="deleteAttributeValues"
@@ -47,11 +50,12 @@
 </template>
 
 <script setup lang="ts">
-    import { PropType, ref, watch } from "vue";
+    import { PropType, ref, watch, computed } from "vue";
     import AttributeValuesContainer from "@Obsidian/Controls/attributeValuesContainer.obs";
     import CategoryPicker from "@Obsidian/Controls/categoryPicker.obs";
     import Checkbox from "@Obsidian/Controls/checkBox.obs";
     import TextBox from "@Obsidian/Controls/textBox.obs";
+    import IconPicker from "@Obsidian/Controls/iconPicker.obs";
     import ColorPicker from "@Obsidian/Controls/colorPicker.obs";
     import TransitionVerticalCollapse from "@Obsidian/Controls/transitionVerticalCollapse.obs";
     import { setPropertiesBoxValue, watchPropertyChanges } from "@Obsidian/Utility/block";
@@ -101,6 +105,8 @@
     // #endregion
 
     // #region Computed Values
+
+    const hasAttributes = computed(() => Object.keys(attributes.value).length > 0);
 
     // #endregion
 

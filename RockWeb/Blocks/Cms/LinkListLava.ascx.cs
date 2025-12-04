@@ -53,7 +53,6 @@ namespace RockWeb.Blocks.Cms
         "Lava Template",
         Description = "Lava template to use to display content",
         EditorMode = CodeEditorMode.Lava,
-        EditorTheme = CodeEditorTheme.Rock,
         EditorHeight = 400,
         IsRequired = true,
         DefaultValue =  DefaultLavaTemplate,
@@ -64,7 +63,6 @@ namespace RockWeb.Blocks.Cms
         "Edit Header",
         Description = "The HTML to display above list when editing values.",
         EditorMode = CodeEditorMode.Html,
-        EditorTheme = CodeEditorTheme.Rock,
         EditorHeight = 100,
         IsRequired = true,
         DefaultValue = DefaultEditHeader,
@@ -75,7 +73,6 @@ namespace RockWeb.Blocks.Cms
         "Edit Footer",
         Description = "The HTML to display above list when editing values.",
         EditorMode = CodeEditorMode.Html,
-        EditorTheme = CodeEditorTheme.Rock,
         EditorHeight = 100,
         IsRequired = true,
         DefaultValue = DefaultEditFooter,
@@ -105,7 +102,7 @@ namespace RockWeb.Blocks.Cms
     <div class=""panel-heading"">
         <h4 class=""panel-title"">Links</h4>
         {% if AllowedActions.Edit == true %}
-            <span class=""pull-right""><a href=""#"" onclick=""{{ '' | Postback:'EditList' }}""><i class='fa fa-gear'></i></a></span>
+            <span class=""pull-right""><a href=""#"" onclick=""{{ '' | Postback:'EditList' }}""><i class='ti ti-settings'></i></a></span>
         {% endif %}
     </div>
     <div class=""block-content"">

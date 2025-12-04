@@ -23,9 +23,11 @@ using System.Linq;
 using Microsoft.Extensions.Logging;
 
 using Rock.Attribute;
+using Rock.Crm.RecordSource;
 using Rock.Data;
 using Rock.Logging;
 using Rock.Model;
+using Rock.Utility;
 using Rock.ViewModels.Blocks.Prayer.PrayerRequestEntry;
 using Rock.Web.Cache;
 using Rock.Web.UI;
@@ -181,7 +183,7 @@ namespace Rock.Blocks.Prayer
 
     [DefinedValueField( "Connection Status",
         DefinedTypeGuid = Rock.SystemGuid.DefinedType.PERSON_CONNECTION_STATUS,
-        Description = "The connection status to use when creating new person records.",
+        Description = "The connection status to use for new individuals (default = 'Participant').",
         IsRequired = false,
         AllowMultiple = false,
         DefaultValue = Rock.SystemGuid.DefinedValue.PERSON_CONNECTION_STATUS_PARTICIPANT,
@@ -191,7 +193,7 @@ namespace Rock.Blocks.Prayer
 
     [DefinedValueField( "Record Status",
         DefinedTypeGuid = Rock.SystemGuid.DefinedType.PERSON_RECORD_STATUS,
-        Description = "The record status to use when creating new person records.",
+        Description = "The record status to use for new individuals (default = 'Pending').",
         IsRequired = false,
         AllowMultiple = false,
         DefaultValue = Rock.SystemGuid.DefinedValue.PERSON_RECORD_STATUS_PENDING,
@@ -199,30 +201,39 @@ namespace Rock.Blocks.Prayer
         Order = 19,
         Key = AttributeKey.RecordStatus )]
 
+    [DefinedValueField( "Record Source",
+        DefinedTypeGuid = Rock.SystemGuid.DefinedType.RECORD_SOURCE_TYPE,
+        Description = "The record source to use for new individuals (default = 'Prayer'). If a 'RecordSource' page parameter is found, it will be used instead.",
+        IsRequired = false,
+        AllowMultiple = false,
+        DefaultValue = Rock.SystemGuid.DefinedValue.RECORD_SOURCE_TYPE_PRAYER,
+        Category = AttributeCategory.Features,
+        Order = 20,
+        Key = AttributeKey.RecordSource )]
+
     // On Save Behavior
     [BooleanField( "Navigate To Parent On Save",
         Description = "If enabled, on successful save control will redirect back to the parent page.",
         DefaultBooleanValue = false,
         Category = AttributeCategory.OnSaveBehavior,
-        Order = 20,
+        Order = 21,
         Key = AttributeKey.NavigateToParentOnSave )]
 
     [BooleanField( "Refresh Page On Save",
         Description = "If enabled, on successful save control will reload the current page. NOTE: This is ignored if 'Navigate to Parent On Save' is enabled.",
         DefaultBooleanValue = false,
         Category = AttributeCategory.OnSaveBehavior,
-        Order = 21,
+        Order = 22,
         Key = AttributeKey.RefreshPageOnSave )]
 
     [CodeEditorField( "Save Success Text",
         Description = "Text to display upon successful save. The 'PrayerRequest' merge field will contain the saved PrayerRequest. (Only applies if not navigating to parent page on save.) <span class='tip tip-lava'></span><span class='tip tip-html'></span>",
         EditorMode = CodeEditorMode.Html,
-        EditorTheme = CodeEditorTheme.Rock,
         EditorHeight = 200,
         IsRequired = false,
         DefaultValue = "<p>Thank you for allowing us to pray for you.</p>",
         Category = AttributeCategory.OnSaveBehavior,
-        Order = 22,
+        Order = 23,
         Key = AttributeKey.SaveSuccessText )]
 
     [WorkflowTypeField( "Workflow",
@@ -231,8 +242,16 @@ namespace Rock.Blocks.Prayer
         IsRequired = false,
         DefaultValue = "",
         Category = AttributeCategory.OnSaveBehavior,
-        Order = 23,
+        Order = 24,
         Key = AttributeKey.Workflow )]
+
+    [BooleanField(
+        "Disable Captcha Support",
+        Description = "If set to 'Yes' the CAPTCHA verification step will not be performed.",
+        DefaultBooleanValue = false,
+        Category = AttributeCategory.Features,
+        Order = 25,
+        Key = AttributeKey.DisableCaptchaSupport )]
 
     #endregion
 
@@ -284,12 +303,14 @@ namespace Rock.Blocks.Prayer
             public const string CreatePersonIfNoMatchFound = "CreatePersonIfNoMatchFound";
             public const string ConnectionStatus = "ConnectionStatus";
             public const string RecordStatus = "RecordStatus";
+            public const string RecordSource = "RecordSource";
 
             public const string NavigateToParentOnSave = "NavigateToParentOnSave";
             public const string RefreshPageOnSave = "RefreshPageOnSave";
 
             public const string SaveSuccessText = "SaveSuccessText";
             public const string Workflow = "Workflow";
+            public const string DisableCaptchaSupport = "DisableCaptchaSupport";
         }
 
         private static class MergeFieldKey
@@ -457,6 +478,12 @@ namespace Rock.Blocks.Prayer
         [BlockAction( "Save" )]
         public BlockActionResult Save( PrayerRequestEntrySaveRequestBag bag )
         {
+            bool disableCaptcha = Captcha.CaptchaService.ShouldDisableCaptcha( GetAttributeValue( AttributeKey.DisableCaptchaSupport ).AsBoolean() );
+            if ( !disableCaptcha && !RequestContext.IsCaptchaValid )
+            {
+                return ActionBadRequest( "CAPTCHA verification failed. Please try again." );
+            }
+
             if ( !IsValid( bag, out var errors ) )
             {
                 return ActionOk( new PrayerRequestEntrySaveResponseBag
@@ -556,7 +583,8 @@ namespace Rock.Blocks.Prayer
                                 LastName = bag.LastName,
                                 Gender = Gender.Unknown,
                                 ConnectionStatusValueId = connectionStatusDefinedValue.Id,
-                                RecordStatusValueId = recordStatusDefinedValue.Id
+                                RecordStatusValueId = recordStatusDefinedValue.Id,
+                                RecordSourceValueId = GetRecordSourceValueId()
                             };
 
                             if ( isEmailProvided )
@@ -643,7 +671,7 @@ namespace Rock.Blocks.Prayer
                 if ( bag.AttributeValues?.Any() == true )
                 {
                     prayerRequest.LoadAttributes( rockContext );
-                    prayerRequest.SetPublicAttributeValues( bag.AttributeValues, currentPerson, enforceSecurity: false );
+                    prayerRequest.SetPublicAttributeValues( bag.AttributeValues, currentPerson, enforceSecurity: false, attributeFilter: IsPublicAttribute );
                 }
 
                 if ( !prayerRequest.IsValid )
@@ -727,7 +755,8 @@ namespace Rock.Blocks.Prayer
                 IsUrgentShown = this.IsUrgentShown,
                 ParentPageUrl = this.IsPageRedirectedToParentOnSave ? this.GetParentPageUrl() : null,
                 DefaultRequest = this.RequestPageParameter,
-                IsMobilePhoneShown = this.IsPersonMatchingEnabled
+                IsMobilePhoneShown = this.IsPersonMatchingEnabled,
+                DisableCaptchaSupport = Captcha.CaptchaService.ShouldDisableCaptcha( GetAttributeValue( AttributeKey.DisableCaptchaSupport ).AsBoolean() )
             };
 
             // Load the categories. The Category drop down will not be shown if they are not loaded.
@@ -750,7 +779,7 @@ namespace Rock.Blocks.Prayer
 
                 if ( !defaultCategoryGuid.IsEmpty() )
                 {
-                    box.DefaultCategoryGuid = box.Categories.Select( c => c.Value.AsGuid() ).FirstOrDefault( c => c == defaultCategoryGuid ); 
+                    box.DefaultCategoryGuid = box.Categories.Select( c => c.Value.AsGuid() ).FirstOrDefault( c => c == defaultCategoryGuid );
                 }
             }
 
@@ -790,7 +819,7 @@ namespace Rock.Blocks.Prayer
             // Load the attributes.
             var prayerRequest = new PrayerRequest { Id = 0 };
             prayerRequest.LoadAttributes();
-            box.Attributes = prayerRequest.GetPublicAttributesForEdit( currentPerson, enforceSecurity: false );
+            box.Attributes = prayerRequest.GetPublicAttributesForEdit( currentPerson, enforceSecurity: false, attributeFilter: IsPublicAttribute );
 
             return box;
         }
@@ -828,6 +857,16 @@ namespace Rock.Blocks.Prayer
             }
 
             return !errors.Any();
+        }
+
+        /// <summary>
+        /// Determines whether the attribute is public.
+        /// </summary>
+        /// <param name="attributeCache">The attribute to check.</param>
+        /// <returns>Whether the attribute is public.</returns>
+        private bool IsPublicAttribute( AttributeCache attributeCache )
+        {
+            return attributeCache.IsPublic;
         }
 
         /// <summary>
@@ -890,6 +929,18 @@ namespace Rock.Blocks.Prayer
                     Logger.LogError( ex, "Unable to start workflow after prayer request was created." );
                 }
             }
+        }
+
+        /// <summary>
+        /// Gets the record source to use for new individuals.
+        /// </summary>
+        /// <returns>
+        /// The identifier of the Record Source Type <see cref="DefinedValue"/> to use.
+        /// </returns>
+        private int? GetRecordSourceValueId()
+        {
+            return RecordSourceHelper.GetSessionRecordSourceValueId()
+                ?? DefinedValueCache.Get( GetAttributeValue( AttributeKey.RecordSource ).AsGuid() )?.Id;
         }
 
         #endregion

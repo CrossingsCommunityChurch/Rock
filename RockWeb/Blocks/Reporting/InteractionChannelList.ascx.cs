@@ -20,7 +20,7 @@ using System.ComponentModel;
 using System.Data.Entity;
 using System.Linq;
 using System.Web.UI;
-using DotLiquid;
+
 using Rock;
 using Rock.Attribute;
 using Rock.Data;
@@ -42,7 +42,13 @@ namespace RockWeb.Blocks.Reporting
 
     [LinkedPage( "Session List Page", "Page reference to the session list page. This will be included as a variable in the Lava.", false, order: 0 )]
     [LinkedPage( "Component List Page", "Page reference to the component list page. This will be included as a variable in the Lava.", false, order: 1 )]
-    [CodeEditorField( "Default Template", "The Lava template to use as default.", Rock.Web.UI.Controls.CodeEditorMode.Lava, Rock.Web.UI.Controls.CodeEditorTheme.Rock, 300, false, order: 2, defaultValue: @"{% if InteractionChannel != null and InteractionChannel != '' %}
+    [CodeEditorField( "Default Template",
+        Description = "The Lava template to use as default.",
+        EditorMode = Rock.Web.UI.Controls.CodeEditorMode.Lava,
+        EditorHeight = 300,
+        IsRequired = false,
+        Order = 2,
+        DefaultValue = @"{% if InteractionChannel != null and InteractionChannel != '' %}
     <a href='{% if InteractionChannel.UsesSession == true %}{{ SessionListPage }}{% else %}{{ ComponentListPage }}{% endif %}?ChannelId={{ InteractionChannel.Id }}'>
         <div class='panel panel-widget collapsed'>
             <div class='panel-heading clearfix'>
@@ -50,7 +56,7 @@ namespace RockWeb.Blocks.Reporting
 
                 <div class='panel-labels d-flex align-items-center'>
                     {% if InteractionChannel.ChannelTypeMediumValue != null and InteractionChannel.ChannelTypeMediumValue != '' %}<span class='label label-info'>{{ InteractionChannel.ChannelTypeMediumValue.Value }}</span>{% endif %}
-                    <i class='fa fa-chevron-right margin-l-md'></i>
+                    <i class='ti ti-chevron-right margin-l-md'></i>
                 </div>
             </div>
         </div>
@@ -214,21 +220,8 @@ namespace RockWeb.Blocks.Reporting
                 }
 
                 // Parse the default template so that it does not need to be parsed multiple times.
-                Template defaultTemplate = null;
-                ILavaTemplate defaultLavaTemplate = null;
-
-                if ( LavaService.RockLiquidIsEnabled )
-                {
-                    defaultTemplate = LavaHelper.CreateDotLiquidTemplate( GetAttributeValue( "DefaultTemplate" ) );
-
-                    LavaHelper.VerifyParseTemplateForCurrentEngine( GetAttributeValue( "DefaultTemplate" ) );
-                }
-                else
-                {
-                    var parseResult = LavaService.ParseTemplate( GetAttributeValue( "DefaultTemplate" ) );
-
-                    defaultLavaTemplate = parseResult.Template;
-                }
+                var parseResult = LavaService.ParseTemplate( GetAttributeValue( "DefaultTemplate" ) );
+                var defaultLavaTemplate = parseResult.Template;
 
                 var options = new Rock.Lava.CommonMergeFieldsOptions();
                 options.GetPageContext = false;
@@ -238,49 +231,24 @@ namespace RockWeb.Blocks.Reporting
 
                 var channelItems = new List<ChannelItem>();
 
-                if ( LavaService.RockLiquidIsEnabled )
+                foreach ( var channel in channelQry )
                 {
-                    foreach ( var channel in channelQry )
+                    if ( !channel.IsAuthorized( Authorization.VIEW, CurrentPerson ) )
                     {
-                        if ( !channel.IsAuthorized( Authorization.VIEW, CurrentPerson ) )
-                        {
-                            continue;
-                        }
-                        var channelMergeFields = new Dictionary<string, object>( mergeFields );
-                        channelMergeFields.Add( "InteractionChannel", channel );
-
-                        string html = channel.ChannelListTemplate.IsNotNullOrWhiteSpace() ?
-                            channel.ChannelListTemplate.ResolveMergeFields( channelMergeFields ) :
-                            defaultTemplate.Render( Hash.FromDictionary( channelMergeFields ) );
-
-                        channelItems.Add( new ChannelItem
-                        {
-                            Id = channel.Id,
-                            ChannelHtml = html
-                        } );
+                        continue;
                     }
-                }
-                else
-                {
-                    foreach ( var channel in channelQry )
+                    var channelMergeFields = new Dictionary<string, object>( mergeFields );
+                    channelMergeFields.Add( "InteractionChannel", channel );
+
+                    string html = channel.ChannelListTemplate.IsNotNullOrWhiteSpace() ?
+                        channel.ChannelListTemplate.ResolveMergeFields( channelMergeFields ) :
+                        LavaService.RenderTemplate( defaultLavaTemplate, channelMergeFields ).Text;
+
+                    channelItems.Add( new ChannelItem
                     {
-                        if ( !channel.IsAuthorized( Authorization.VIEW, CurrentPerson ) )
-                        {
-                            continue;
-                        }
-                        var channelMergeFields = new Dictionary<string, object>( mergeFields );
-                        channelMergeFields.Add( "InteractionChannel", channel );
-
-                        string html = channel.ChannelListTemplate.IsNotNullOrWhiteSpace() ?
-                            channel.ChannelListTemplate.ResolveMergeFields( channelMergeFields ) :
-                            LavaService.RenderTemplate( defaultLavaTemplate, channelMergeFields ).Text;
-
-                        channelItems.Add( new ChannelItem
-                        {
-                            Id = channel.Id,
-                            ChannelHtml = html
-                        } );
-                    }
+                        Id = channel.Id,
+                        ChannelHtml = html
+                    } );
                 }
 
                 rptChannel.DataSource = channelItems;

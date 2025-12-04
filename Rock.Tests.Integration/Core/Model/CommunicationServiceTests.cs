@@ -49,6 +49,11 @@ namespace Rock.Tests.Integration.Core.Model
         [ClassCleanup]
         public static void TestCleanup()
         {
+            if ( IsContainersEnabled )
+            {
+                return;
+            }
+
             RemoveTestData();
         }
 
@@ -68,8 +73,8 @@ namespace Rock.Tests.Integration.Core.Model
                     .AsNoTracking()
                     .ToList();
 
-                Assert.That.IsTrue( stopwatch.ElapsedMilliseconds < _expectedRuntimeMax, "Query took longer then a second to run." );
-                Assert.That.IsFalse( qry.Any( c => c.SendDateKey.HasValue ), "Query returned sent communications." );
+                Assert.IsLessThan( _expectedRuntimeMax, stopwatch.ElapsedMilliseconds, "Query took longer then a second to run." );
+                Assert.IsFalse( qry.Any( c => c.SendDateKey.HasValue ), "Query returned sent communications." );
             }
         }
 
@@ -87,7 +92,7 @@ namespace Rock.Tests.Integration.Core.Model
                     .AsNoTracking()
                     .ToList();
 
-                Assert.That.IsFalse( qry.Any( c => c.Status != CommunicationStatus.Approved ), "Query returned unapproved communications." );
+                Assert.IsFalse( qry.Any( c => c.Status != CommunicationStatus.Approved ), "Query returned unapproved communications." );
             }
         }
 
@@ -105,7 +110,7 @@ namespace Rock.Tests.Integration.Core.Model
                     .AsNoTracking()
                     .ToList();
 
-                Assert.That.IsFalse( qry.Any( c => c.Status != CommunicationStatus.Approved && c.Status != CommunicationStatus.PendingApproval ), "Query returned unapproved communications." );
+                Assert.IsFalse( qry.Any( c => c.Status != CommunicationStatus.Approved && c.Status != CommunicationStatus.PendingApproval ), "Query returned unapproved communications." );
             }
         }
 
@@ -127,8 +132,8 @@ namespace Rock.Tests.Integration.Core.Model
                     .ToList();
                 var communicationsWithNoRecipients = qry.Count( c => c.Recipients.Count( r => r.Status == CommunicationRecipientStatus.Pending ) == 0 );
 
-                Assert.That.NotEqual( 0, communicationsWithNoRecipients );
-                Assert.That.AreEqual( communicationsWithNoRecipients,
+                Assert.AreNotEqual( 0, communicationsWithNoRecipients );
+                Assert.AreEqual( communicationsWithNoRecipients,
                     qry.Count( c => c.ListGroupId.HasValue
                         && c.Recipients.Count( r => r.Status == CommunicationRecipientStatus.Pending ) == 0 ),
                     "Query communications with no recipients or a list group id." );
@@ -152,7 +157,7 @@ namespace Rock.Tests.Integration.Core.Model
                     .AsNoTracking()
                     .ToList();
 
-                Assert.That.IsFalse( qry.Any( c => !c.ListGroupId.HasValue
+                Assert.IsFalse( qry.Any( c => !c.ListGroupId.HasValue
                     && c.Recipients.Count( r => r.Status == CommunicationRecipientStatus.Pending ) == 0 ),
                     "Query returned communications with no recipients." );
             }
@@ -174,11 +179,11 @@ namespace Rock.Tests.Integration.Core.Model
 
                 var expectedBeginWindow = RockDateTime.Now.AddDays( 0 - _expirationDays );
                 var expectedEndWindow = RockDateTime.Now.AddMinutes( 0 - _delayMinutes );
-                Assert.That.IsFalse( qry.Any( c => c.ReviewedDateTime > expectedEndWindow && c.FutureSendDateTime == null ), "Query returned communications that are greater then the expected end window." );
-                Assert.That.IsFalse( qry.Any( c => c.ReviewedDateTime < expectedBeginWindow && c.FutureSendDateTime == null ), "Query returned communications that are less then the expected begin window." );
-                Assert.That.IsFalse( qry.Any( c => c.ReviewedDateTime == null && c.FutureSendDateTime == null ), "Query returned communications without a created date." );
-                Assert.That.IsFalse( qry.Any( c => c.FutureSendDateTime > RockDateTime.Now ), "Query returned communications that are greater then the expected end window." );
-                Assert.That.IsFalse( qry.Any( c => c.FutureSendDateTime < expectedBeginWindow ), "Query returned communications that are less then the expected begin window." );
+                Assert.IsFalse( qry.Any( c => c.ReviewedDateTime > expectedEndWindow && c.FutureSendDateTime == null ), "Query returned communications that are greater then the expected end window." );
+                Assert.IsFalse( qry.Any( c => c.ReviewedDateTime < expectedBeginWindow && c.FutureSendDateTime == null ), "Query returned communications that are less then the expected begin window." );
+                Assert.IsFalse( qry.Any( c => c.ReviewedDateTime == null && c.FutureSendDateTime == null ), "Query returned communications without a created date." );
+                Assert.IsFalse( qry.Any( c => c.FutureSendDateTime > RockDateTime.Now ), "Query returned communications that are greater then the expected end window." );
+                Assert.IsFalse( qry.Any( c => c.FutureSendDateTime < expectedBeginWindow ), "Query returned communications that are less then the expected begin window." );
             }
         }
 
@@ -198,10 +203,10 @@ namespace Rock.Tests.Integration.Core.Model
 
                 var expectedBeginWindow = RockDateTime.Now.AddDays( 0 - _expirationDays );
                 var expectedEndWindow = RockDateTime.Now.AddMinutes( 0 - _delayMinutes );
-                Assert.That.IsFalse( qry.Any( c => c.ReviewedDateTime > expectedEndWindow && c.FutureSendDateTime == null ), "Query returned communications that are greater then the expected end window." );
-                Assert.That.IsFalse( qry.Any( c => c.ReviewedDateTime < expectedBeginWindow && c.FutureSendDateTime == null ), "Query returned communications that are less then the expected begin window." );
-                Assert.That.IsFalse( qry.Any( c => c.ReviewedDateTime == null && c.FutureSendDateTime == null ), "Query returned communications without a created date." );
-                Assert.That.IsFalse( qry.Any( c => c.FutureSendDateTime < expectedBeginWindow ), "Query returned communications that were out of range." );
+                Assert.IsFalse( qry.Any( c => c.ReviewedDateTime > expectedEndWindow && c.FutureSendDateTime == null ), "Query returned communications that are greater then the expected end window." );
+                Assert.IsFalse( qry.Any( c => c.ReviewedDateTime < expectedBeginWindow && c.FutureSendDateTime == null ), "Query returned communications that are less then the expected begin window." );
+                Assert.IsFalse( qry.Any( c => c.ReviewedDateTime == null && c.FutureSendDateTime == null ), "Query returned communications without a created date." );
+                Assert.IsFalse( qry.Any( c => c.FutureSendDateTime < expectedBeginWindow ), "Query returned communications that were out of range." );
             }
         }
 
@@ -296,7 +301,7 @@ namespace Rock.Tests.Integration.Core.Model
             }
         }
 
-        private static List<Rock.Model.Communication> CreateCommunications( int sender, CommunicationStatus communicationStatus, DateTime? reviewedDateTime, DateTime? futureSendDateTime, bool AddPendingRecipient, int? listGroupId )
+        private static List<Rock.Model.Communication> CreateCommunications( int sender, CommunicationStatus communicationStatus, DateTime? reviewedDateTime, DateTime? futureSendDateTime, bool addPendingRecipient, int? listGroupId )
         {
 
             // Create communication with no recipients.
@@ -334,7 +339,7 @@ namespace Rock.Tests.Integration.Core.Model
             };
             foreach ( CommunicationRecipientStatus communicationRecipientStatus in Enum.GetValues( typeof( CommunicationRecipientStatus ) ) )
             {
-                if ( !AddPendingRecipient && communicationRecipientStatus == CommunicationRecipientStatus.Pending )
+                if ( !addPendingRecipient && communicationRecipientStatus == CommunicationRecipientStatus.Pending )
                 {
                     continue;
                 }

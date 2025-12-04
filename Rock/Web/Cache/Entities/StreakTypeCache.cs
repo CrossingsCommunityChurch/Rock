@@ -21,6 +21,8 @@ using System.Data.Entity;
 using System.Linq;
 using System.Runtime.Serialization;
 using Newtonsoft.Json;
+
+using Rock.Configuration;
 using Rock.Data;
 using Rock.Model;
 
@@ -169,7 +171,7 @@ namespace Rock.Web.Cache
                     {
                         if ( _streakTypeExclusionIds == null )
                         {
-                            using ( var rockContext = new RockContext() )
+                            using ( var rockContext = RockApp.Current.CreateRockContext() )
                             {
                                 _streakTypeExclusionIds = new StreakTypeExclusionService( rockContext )
                                     .GetByStreakTypeId( Id )
@@ -233,7 +235,9 @@ namespace Rock.Web.Cache
             RequiresEnrollment = sourceModel.RequiresEnrollment;
             OccurrenceFrequency = sourceModel.OccurrenceFrequency;
             StartDate = sourceModel.StartDate;
-            OccurrenceMap = sourceModel.OccurrenceMap;
+            // Create a copy of the byte array, otherwise modifications on the entity
+            // could affect the cached data.
+            OccurrenceMap = sourceModel.OccurrenceMap?.ToArray();
             FirstDayOfWeek = sourceModel.FirstDayOfWeek;
             StructureSettingsJSON = sourceModel.StructureSettingsJSON;
 

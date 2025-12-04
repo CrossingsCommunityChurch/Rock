@@ -37,14 +37,13 @@ namespace Rock.Blocks.Lms
     [DisplayName( "Public Learning Class Enrollment" )]
     [Category( "LMS" )]
     [Description( "Allows the current person or other registrant to enroll in a learning class." )]
-    [IconCssClass( "fa fa-question" )]
+    [IconCssClass( "ti ti-question-mark" )]
     [SupportedSiteTypes( Model.SiteType.Web )]
 
     [CodeEditorField( "Header Lava Template",
         Key = AttributeKey.HeaderLavaTemplate,
         Description = "The Lava template to use to show a header above the various state templates. Merge fields include: LearningClass, Facilitators, Registrant, CurrentPerson and other Common Merge Fields. <span class='tip tip-lava'></span>",
         EditorMode = CodeEditorMode.Lava,
-        EditorTheme = CodeEditorTheme.Rock,
         EditorHeight = 400,
         IsRequired = false,
         DefaultValue = AttributeDefault.HeaderLavaTemplate,
@@ -53,7 +52,6 @@ namespace Rock.Blocks.Lms
     [CodeEditorField( "Confirmation Lava Template",
         Key = AttributeKey.ConfirmationLavaTemplate,
         Description = "The Lava template to use when displaying the confirmation messaging to the individual. Merge fields include: ErrorKey (one of: 'unmet_course_requirements', 'class_full', 'enrollment_closed', 'already_enrolled'), UnmetRequirements, LearningClass, Facilitators, Registrant, CurrentPerson and other Common Merge Fields. <span class='tip tip-lava'></span>", EditorMode = CodeEditorMode.Lava,
-        EditorTheme = CodeEditorTheme.Rock,
         EditorHeight = 400,
         IsRequired = false,
         DefaultValue = AttributeDefault.ConfirmationLavaTemplate,
@@ -62,7 +60,6 @@ namespace Rock.Blocks.Lms
     [CodeEditorField( "Completion Lava Template",
         Key = AttributeKey.CompletionLavaTemplate,
         Description = "The Lava template to use to show the completed message. Merge fields include: UnmetRequirements, LearningClass, Facilitators, Registrant, CurrentPerson and other Common Merge Fields. <span class='tip tip-lava'></span>", EditorMode = CodeEditorMode.Lava,
-        EditorTheme = CodeEditorTheme.Rock,
         EditorHeight = 400,
         IsRequired = false,
         DefaultValue = AttributeDefault.CompletionLavaTemplate,
@@ -71,7 +68,6 @@ namespace Rock.Blocks.Lms
     [CodeEditorField( "Enrollment Error Lava Template",
         Key = AttributeKey.EnrollmentErrorLavaTemplate,
         Description = "The Lava template to use when the individual is not able to enroll. Merge fields include: ErrorKey (one of: 'unmet_course_requirements', 'class_full', 'enrollment_closed', 'already_enrolled'), UnmetRequirements, Facilitators, LearningClass, Registrant, CurrentPerson and other Common Merge Fields. <span class='tip tip-lava'></span>", EditorMode = CodeEditorMode.Lava,
-        EditorTheme = CodeEditorTheme.Rock,
         EditorHeight = 400,
         IsRequired = true,
         DefaultValue = AttributeDefault.EnrollmentErrorLavaTemplate,
@@ -339,7 +335,7 @@ namespace Rock.Blocks.Lms
 ";
             public const string CompletionLavaTemplate = @"
 <div class=""completion-container d-flex flex-column justify-content-center my-5"">
-    <i class=""fa fa-check-circle fa-4x text-success text-center""></i>
+    <i class=""ti ti-circle-check ti-4x text-success text-center""></i>
     <h3 class=""completion-header text-center"">Successfully Enrolled!</h3>
     <div class=""completion-sub-header text-center"">
         You are now enrolled in this class.
@@ -349,7 +345,7 @@ namespace Rock.Blocks.Lms
 ";
             public const string EnrollmentErrorLavaTemplate = @"
 <div class=""error-container d-flex flex-column justify-content-center my-5"">
-    <i class=""fa fa-exclamation-triangle fa-4x text-danger text-center""></i>
+    <i class=""ti ti-alert-triangle ti-4x text-danger text-center""></i>
     <h3 class=""error-header text-center"">Cannot Enroll in Class</h3>
     <div class=""error-sub-header text-center"">
         {% case ErrorKey %}

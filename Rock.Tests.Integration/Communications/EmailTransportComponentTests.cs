@@ -80,7 +80,7 @@ namespace Rock.Tests.Integration.Communications
                 .Object
                 .Send( actualEmail, 0, new Dictionary<string, string>(), out var errorMessages );
 
-            Assert.That.IsEmpty( errorMessages );
+            Assert.IsEmpty( errorMessages );
 
             emailTransport
                 .Protected()
@@ -152,7 +152,7 @@ namespace Rock.Tests.Integration.Communications
                 .Object
                 .Send( actualEmail, 0, new Dictionary<string, string>(), out var errorMessages );
 
-            Assert.That.IsEmpty( errorMessages );
+            Assert.IsEmpty( errorMessages );
 
             emailTransport
                 .Protected()
@@ -218,7 +218,7 @@ namespace Rock.Tests.Integration.Communications
                 .Object
                 .Send( actualEmail, 0, new Dictionary<string, string>(), out var errorMessages );
 
-            Assert.That.IsEmpty( errorMessages );
+            Assert.IsEmpty( errorMessages );
 
             emailTransport
                 .Protected()
@@ -282,7 +282,7 @@ namespace Rock.Tests.Integration.Communications
                 .Object
                 .Send( actualEmail, 0, new Dictionary<string, string>(), out var errorMessages );
 
-            Assert.That.IsEmpty( errorMessages );
+            Assert.IsEmpty( errorMessages );
 
             emailTransport
                 .Protected()
@@ -346,7 +346,7 @@ namespace Rock.Tests.Integration.Communications
                 .Object
                 .Send( actualEmail, 0, new Dictionary<string, string>(), out var errorMessages );
 
-            Assert.That.IsEmpty( errorMessages );
+            Assert.IsEmpty( errorMessages );
 
             emailTransport
                 .Protected()
@@ -408,7 +408,7 @@ namespace Rock.Tests.Integration.Communications
                 .Object
                 .Send( actualEmail, 0, new Dictionary<string, string>(), out var errorMessages );
 
-            Assert.That.IsEmpty( errorMessages );
+            Assert.IsEmpty( errorMessages );
 
             emailTransport
                 .Protected()
@@ -470,7 +470,7 @@ namespace Rock.Tests.Integration.Communications
                 .Object
                 .Send( actualEmail, 0, new Dictionary<string, string> { { "fromEmail", "" } }, out var errorMessages );
 
-            Assert.That.IsEmpty( errorMessages );
+            Assert.IsEmpty( errorMessages );
 
             emailTransport
                 .Protected()
@@ -519,8 +519,8 @@ namespace Rock.Tests.Integration.Communications
                 .Object
                 .Send( actualEmail, 0, new Dictionary<string, string>(), out var errorMessages );
 
-            Assert.That.AreEqual( 1, errorMessages.Count );
-            Assert.That.AreEqual( "The specified string is not in the form required for an e-mail address.", errorMessages[0] );
+            Assert.HasCount( 1, errorMessages );
+            Assert.AreEqual( "The specified string is not in the form required for an e-mail address.", errorMessages[0] );
         }
 
         [TestMethod]
@@ -562,8 +562,8 @@ namespace Rock.Tests.Integration.Communications
                 .Object
                 .Send( actualEmail, 0, new Dictionary<string, string>(), out var errorMessages );
 
-            Assert.That.AreEqual( 1, errorMessages.Count );
-            Assert.That.AreEqual( "A From address was not provided.", errorMessages[0] );
+            Assert.HasCount( 1, errorMessages );
+            Assert.AreEqual( "A From address was not provided.", errorMessages[0] );
         }
 
         [TestMethod]
@@ -638,7 +638,7 @@ namespace Rock.Tests.Integration.Communications
                 .Object
                 .Send( actualEmailMessage, 0, new Dictionary<string, string>(), out var errorMessages );
 
-            Assert.That.IsEmpty( errorMessages );
+            Assert.IsEmpty( errorMessages );
 
             emailTransport
                 .Protected()
@@ -654,8 +654,8 @@ namespace Rock.Tests.Integration.Communications
                         rem.PlainTextMessage == expectedEmailMessage.PlainTextMessage &&
                         rem.ReplyToEmail.Contains( expectedEmailMessage.ReplyToEmail ) &&
                         rem.Subject == expectedEmailMessage.Subject &&
-                        AreEquivelent( rem.BCCEmails, expectedEmailMessage.BCCEmails ) &&
-                        AreEquivelent( rem.CCEmails, expectedEmailMessage.CCEmails )
+                        AreEquivelent( expectedEmailMessage.BCCEmails, rem.BCCEmails ) &&
+                        AreEquivelent( expectedEmailMessage.CCEmails, rem.CCEmails )
                     )
                 );
         }
@@ -727,6 +727,15 @@ namespace Rock.Tests.Integration.Communications
             if ( expectedCssInline )
             {
                 expectedHtmlMessage = @"<html><head></head><body>
+		                            <style>
+		                              .component-text td {
+			                              color: #0a0a0a;
+			                              font-family: Helvetica, Arial, sans-serif;
+			                              font-size: 16px;
+			                              font-weight: normal;
+			                              line-height: 1.3;
+		                              }
+		                            </style>
 		                            <div class=""structure-dropzone"">
 			                            <div class=""dropzone"">
 				                            <table class=""component component-text selected"">
@@ -782,7 +791,7 @@ namespace Rock.Tests.Integration.Communications
                 .Object
                 .Send( actualEmailMessage, 0, new Dictionary<string, string> { { "CSSInliningEnabled", mediumCssInline.ToString() } }, out var errorMessages );
 
-            Assert.That.IsEmpty( errorMessages );
+            Assert.IsEmpty( errorMessages );
 
             emailTransport
                 .Protected()
@@ -869,7 +878,7 @@ namespace Rock.Tests.Integration.Communications
                 .Object
                 .Send( expectedEmailMessage, 0, new Dictionary<string, string>(), out var errorMessages );
 
-            Assert.That.IsEmpty( errorMessages );
+            Assert.IsEmpty( errorMessages );
 
             emailTransport
                 .Protected()
@@ -935,7 +944,7 @@ namespace Rock.Tests.Integration.Communications
                 .Object
                 .Send( actualEmail, 0, new Dictionary<string, string>(), out var errorMessages );
 
-            Assert.That.AreEqual( 0, errorMessages.Count, errorMessages.JoinStrings( ", " ) );
+            Assert.IsEmpty( errorMessages, errorMessages.JoinStrings( ", " ) );
 
             emailTransport
                 .Protected()
@@ -1002,7 +1011,7 @@ namespace Rock.Tests.Integration.Communications
                 .Object
                 .Send( actualEmail, 0, new Dictionary<string, string>(), out var errorMessages );
 
-            Assert.That.AreEqual( 0, errorMessages.Count, errorMessages.JoinStrings( ", " ) );
+            Assert.IsEmpty( errorMessages, errorMessages.JoinStrings( ", " ) );
 
             emailTransport
                 .Protected()
@@ -1069,7 +1078,7 @@ namespace Rock.Tests.Integration.Communications
                 .Object
                 .Send( actualEmail, 0, new Dictionary<string, string>(), out var errorMessages );
 
-            Assert.That.AreEqual( 0, errorMessages.Count, errorMessages.JoinStrings( ", " ) );
+            Assert.IsEmpty( errorMessages, errorMessages.JoinStrings( ", " ) );
 
             emailTransport
                 .Protected()
@@ -1137,7 +1146,7 @@ namespace Rock.Tests.Integration.Communications
                 .Object
                 .Send( actualEmail, 0, new Dictionary<string, string>(), out var errorMessages );
 
-            Assert.That.AreEqual( 0, errorMessages.Count, errorMessages.JoinStrings( ", " ) );
+            Assert.IsEmpty( errorMessages, errorMessages.JoinStrings( ", " ) );
 
             emailTransport
                 .Protected()
@@ -1539,8 +1548,8 @@ namespace Rock.Tests.Integration.Communications
                 .Send( actualCommunication, 37, new Dictionary<string, string>() );
 
             var actualReciepent = new CommunicationRecipientService( new RockContext() ).Get( actualCommunication.Recipients.FirstOrDefault().Id );
-            Assert.That.AreEqual( CommunicationRecipientStatus.Failed, actualReciepent.Status );
-            Assert.That.AreEqual( "Exception: The specified string is not in the form required for an e-mail address.", actualReciepent.StatusNote );
+            Assert.AreEqual( CommunicationRecipientStatus.Failed, actualReciepent.Status );
+            Assert.AreEqual( "Exception: The specified string is not in the form required for an e-mail address.", actualReciepent.StatusNote );
         }
 
         [TestMethod]
@@ -1572,8 +1581,8 @@ namespace Rock.Tests.Integration.Communications
                 .Send( actualCommunication, 37, new Dictionary<string, string>() );
 
             var actualReciepent = new CommunicationRecipientService( new RockContext() ).Get( actualCommunication.Recipients.FirstOrDefault().Id );
-            Assert.That.AreEqual( CommunicationRecipientStatus.Failed, actualReciepent.Status );
-            Assert.That.Contains( actualReciepent.StatusNote, "Exception: The parameter 'address' cannot be an empty string." );
+            Assert.AreEqual( CommunicationRecipientStatus.Failed, actualReciepent.Status );
+            Assert.Contains( "Exception: The parameter 'address' cannot be an empty string.", actualReciepent.StatusNote );
         }
 
         [TestMethod]
@@ -1638,8 +1647,8 @@ namespace Rock.Tests.Integration.Communications
                         rem.PlainTextMessage == expectedEmailMessage.PlainTextMessage &&
                         rem.ReplyToEmail.Contains( expectedEmailMessage.ReplyToEmail ) &&
                         rem.Subject == expectedEmailMessage.Subject &&
-                        AreEquivelent( rem.BCCEmails, expectedEmailMessage.BCCEmails ) &&
-                        AreEquivelent( rem.CCEmails, expectedEmailMessage.CCEmails )
+                        AreEquivelent( expectedEmailMessage.BCCEmails, rem.BCCEmails ) &&
+                        AreEquivelent( expectedEmailMessage.CCEmails, rem.CCEmails )
                     )
                 );
         }
@@ -1750,6 +1759,15 @@ namespace Rock.Tests.Integration.Communications
             if ( expectedCssInline )
             {
                 expectedHtmlMessage = @"<html><head></head><body>
+		                            <style>
+		                              .component-text td {
+			                              color: #0a0a0a;
+			                              font-family: Helvetica, Arial, sans-serif;
+			                              font-size: 16px;
+			                              font-weight: normal;
+			                              line-height: 1.3;
+		                              }
+		                            </style>
 		                            <div class=""structure-dropzone"">
 			                            <div class=""dropzone"">
 				                            <table class=""component component-text selected"">
@@ -1839,7 +1857,7 @@ namespace Rock.Tests.Integration.Communications
 
         private bool AreEquivelent<T>( List<T> expectedList, List<T> actualList )
         {
-            Assert.That.AreEqual( expectedList, actualList );
+            CollectionAssert.AreEquivalent( expectedList, actualList );
             return true;
         }
 

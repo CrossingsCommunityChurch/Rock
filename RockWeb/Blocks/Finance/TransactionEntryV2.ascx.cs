@@ -26,6 +26,7 @@ using Rock;
 using Rock.Attribute;
 using Rock.Bus.Message;
 using Rock.Communication;
+using Rock.Crm.RecordSource;
 using Rock.Data;
 using Rock.Financial;
 using Rock.Lava;
@@ -41,7 +42,7 @@ namespace RockWeb.Blocks.Finance
     /// <summary>
     /// Version 2 of the Transaction Entry Block
     /// </summary>
-    [DisplayName( "Transaction Entry (V2)" )]
+    [DisplayName( "Transaction Entry" )]
     [Category( "Finance" )]
     [Description( "Creates a new financial transaction or scheduled transaction." )]
 
@@ -320,7 +321,6 @@ namespace RockWeb.Blocks.Finance
         Key = AttributeKey.AccountHeaderTemplate,
         Description = "The Lava Template to use as the amount input label for each account.",
         EditorMode = CodeEditorMode.Lava,
-        EditorTheme = CodeEditorTheme.Rock,
         EditorHeight = 50,
         IsRequired = true,
         DefaultValue = "{{ Account.PublicName }}",
@@ -401,7 +401,7 @@ namespace RockWeb.Blocks.Finance
         Key = AttributeKey.PersonConnectionStatus,
         Category = AttributeCategory.PersonOptions,
         DefinedTypeGuid = Rock.SystemGuid.DefinedType.PERSON_CONNECTION_STATUS,
-        Description = "The connection status to use for new individuals (default: 'Prospect'.)",
+        Description = "The connection status to use for new individuals (default: 'Prospect').",
         AllowMultiple = false,
         DefaultValue = Rock.SystemGuid.DefinedValue.PERSON_CONNECTION_STATUS_PROSPECT,
         IsRequired = true,
@@ -412,11 +412,22 @@ namespace RockWeb.Blocks.Finance
         Key = AttributeKey.PersonRecordStatus,
         Category = AttributeCategory.PersonOptions,
         DefinedTypeGuid = Rock.SystemGuid.DefinedType.PERSON_RECORD_STATUS,
-        Description = "The record status to use for new individuals (default: 'Pending'.)",
+        Description = "The record status to use for new individuals (default: 'Pending').",
         IsRequired = true,
         AllowMultiple = false,
         DefaultValue = Rock.SystemGuid.DefinedValue.PERSON_RECORD_STATUS_PENDING,
         Order = 5 )]
+
+    [DefinedValueField(
+        "Record Source",
+        Key = AttributeKey.PersonRecordSource,
+        Category = AttributeCategory.PersonOptions,
+        DefinedTypeGuid = Rock.SystemGuid.DefinedType.RECORD_SOURCE_TYPE,
+        Description = "The record source to use for new individuals (default = 'Giving'). If a 'RecordSource' page parameter is found, it will be used instead.",
+        IsRequired = true,
+        AllowMultiple = false,
+        DefaultValue = Rock.SystemGuid.DefinedValue.RECORD_SOURCE_TYPE_GIVING,
+        Order = 6 )]
 
     #endregion Person Options
 
@@ -478,7 +489,6 @@ namespace RockWeb.Blocks.Finance
         Key = AttributeKey.InvalidAccountInURLMessage,
         Description = "Display this text (HTML) as an error alert if an invalid 'account' or 'GL account' is passed through the URL. Leave blank to just ignore the invalid accounts and not show a message.",
         EditorMode = CodeEditorMode.Html,
-        EditorTheme = CodeEditorTheme.Rock,
         EditorHeight = 200,
         IsRequired = false,
         DefaultValue = "",
@@ -581,7 +591,7 @@ mission. We are so grateful for your commitment.</p>
         <div class='panel panel-default'>
             <div class='panel-heading'>
                 <span class='panel-title h1'>
-                    <i class='fa fa-calendar'></i>
+                    <i class='ti ti-calendar'></i>
                     {{ scheduledTransaction.TransactionFrequencyValue.Value }}
                 </span>
 
@@ -590,7 +600,7 @@ mission. We are so grateful for your commitment.</p>
                 </span>
 
                 <div class='panel-actions pull-right'>
-                    <span class='js-toggle-scheduled-details toggle-scheduled-details clickable fa fa-chevron-down'></span>
+                    <span class='js-toggle-scheduled-details toggle-scheduled-details clickable ti ti-chevron-down'></span>
                 </div>
             </div>
 
@@ -656,7 +666,7 @@ mission. We are so grateful for your commitment.</p>
                 $totalAmount.hide();
             }
 
-            $toggle.removeClass('fa-chevron-down').addClass('fa-chevron-up');
+            $toggle.removeClass('ti-chevron-down').addClass('ti-chevron-up');
         } else {
             if (animate) {
                 $scheduledDetails.slideUp();
@@ -666,7 +676,7 @@ mission. We are so grateful for your commitment.</p>
                 $totalAmount.show();
             }
 
-            $toggle.removeClass('fa-chevron-up').addClass('fa-chevron-down');
+            $toggle.removeClass('ti-chevron-up').addClass('ti-chevron-down');
         }
     };
 
@@ -746,6 +756,7 @@ mission. We are so grateful for your commitment.</p>
             public const string PersonAddressType = "PersonAddressType";
             public const string PersonConnectionStatus = "PersonConnectionStatus";
             public const string PersonRecordStatus = "PersonRecordStatus";
+            public const string PersonRecordSource = "PersonRecordSource";
             public const string EnableFeeCoverage = "EnableFeeCoverage";
             public const string FeeCoverageDefaultState = "FeeCoverageDefaultState";
             public const string FeeCoverageMessage = "FeeCoverageMessage";
@@ -985,9 +996,11 @@ mission. We are so grateful for your commitment.</p>
             this.AddConfigurationUpdateTrigger( upnlContent );
 
             // Don't use captcha if the block is set to disable (DisableCaptchaSupport==true) it or if is not configured (IsAvailable==false)
-            var disableCaptchaSupport = GetAttributeValue( AttributeKey.DisableCaptchaSupport ).AsBoolean() || !cpCaptcha.IsAvailable;
-            cpCaptcha.Visible = !disableCaptchaSupport;
+            var disableCaptchaSupport = Captcha.CaptchaService.ShouldDisableCaptcha( GetAttributeValue( AttributeKey.DisableCaptchaSupport ).AsBoolean() );
+            cpCaptcha.Visible = !( disableCaptchaSupport || !cpCaptcha.IsAvailable );
             cpCaptcha.TokenReceived += CpCaptcha_TokenReceived;
+
+            btnGiveNow.Visible = !cpCaptcha.Visible;
 
             var enableACH = this.GetAttributeValue( AttributeKey.EnableACH ).AsBoolean();
             var enableCreditCard = this.GetAttributeValue( AttributeKey.EnableCreditCard ).AsBoolean();
@@ -996,7 +1009,7 @@ mission. We are so grateful for your commitment.</p>
                 _hostedPaymentInfoControl = this.FinancialGatewayComponent.GetHostedPaymentInfoControl( this.FinancialGateway, $"_hostedPaymentInfoControl_{this.FinancialGateway.Id}", new HostedPaymentInfoControlOptions { EnableACH = enableACH, EnableCreditCard = enableCreditCard } );
                 phHostedPaymentControl.Controls.Add( _hostedPaymentInfoControl );
 
-                if ( disableCaptchaSupport )
+                if ( !cpCaptcha.Visible )
                 {
                     hfHostPaymentInfoSubmitScript.Value = this.FinancialGatewayComponent.GetHostPaymentInfoSubmitScript( this.FinancialGateway, _hostedPaymentInfoControl );
                 }
@@ -1090,6 +1103,15 @@ mission. We are so grateful for your commitment.</p>
             {
                 hfHostPaymentInfoSubmitScript.Value = this.FinancialGatewayComponent.GetHostPaymentInfoSubmitScript( this.FinancialGateway, _hostedPaymentInfoControl );
                 cpCaptcha.Visible = false;
+                
+                btnGiveNow.Visible = true;
+            }
+            else
+            {
+                cpCaptcha.Visible = true;
+                btnGiveNow.Visible = false;
+                nbPromptForAmountsWarning.Visible = true;
+                nbPromptForAmountsWarning.Text = "There was an issue processing your request. Please try again. If the issue persists please contact us.";
             }
         }
 
@@ -2397,6 +2419,8 @@ mission. We are so grateful for your commitment.</p>
                 newPersonOrBusiness.RecordStatusValueId = dvcRecordStatus.Id;
             }
 
+            newPersonOrBusiness.RecordSourceValueId = GetRecordSourceValueId();
+
             int? campusId = this.SelectedCampusId;
 
             // Create Person and Family, and set their primary campus to the one they gave money to
@@ -2406,6 +2430,18 @@ mission. We are so grateful for your commitment.</p>
             rockContext.SaveChanges();
 
             return newPersonOrBusiness;
+        }
+
+        /// <summary>
+        /// Gets the record source to use for new individuals.
+        /// </summary>
+        /// <returns>
+        /// The identifier of the Record Source Type <see cref="DefinedValue"/> to use.
+        /// </returns>
+        private int? GetRecordSourceValueId()
+        {
+            return RecordSourceHelper.GetSessionRecordSourceValueId()
+                ?? DefinedValueCache.Get( GetAttributeValue( AttributeKey.PersonRecordSource ).AsGuid() )?.Id;
         }
 
         /// <summary>

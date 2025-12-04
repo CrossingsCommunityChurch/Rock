@@ -13,7 +13,6 @@ using Rock.CheckIn.v2.Labels;
 using Rock.CheckIn.v2.Labels.Renderers;
 using Rock.Enums.CheckIn.Labels;
 using Rock.Model;
-using Rock.Tests.Shared;
 using Rock.Tests.Shared.TestFramework;
 using Rock.ViewModels.CheckIn.Labels;
 
@@ -42,7 +41,7 @@ namespace Rock.Tests.CheckIn.v2.Labels.Renderers
                 renderer.Dispose();
             } );
 
-            Assert.That.Contains( zpl, expectedToken );
+            Assert.Contains( expectedToken, zpl );
         }
 
         [TestMethod]
@@ -71,7 +70,7 @@ namespace Rock.Tests.CheckIn.v2.Labels.Renderers
                 renderer.Dispose();
             } );
 
-            Assert.That.Contains( zpl, expectedToken );
+            Assert.Contains( expectedToken, zpl );
         }
 
         [TestMethod]
@@ -100,7 +99,7 @@ namespace Rock.Tests.CheckIn.v2.Labels.Renderers
                 renderer.Dispose();
             } );
 
-            Assert.That.Contains( zpl, expectedToken );
+            Assert.Contains( expectedToken, zpl );
         }
 
         #endregion
@@ -128,7 +127,7 @@ namespace Rock.Tests.CheckIn.v2.Labels.Renderers
                 renderer.Dispose();
             } );
 
-            Assert.That.Contains( zpl, expectedToken );
+            Assert.Contains( expectedToken, zpl );
         }
 
         #endregion
@@ -167,8 +166,8 @@ namespace Rock.Tests.CheckIn.v2.Labels.Renderers
                 renderer.Dispose();
             } );
 
-            Assert.That.Contains( zpl, expectedValue );
-            Assert.That.DoesNotContain( zpl, unexpectedValue );
+            Assert.Contains( expectedValue, zpl );
+            Assert.DoesNotContain( unexpectedValue, zpl );
         }
 
         [TestMethod]
@@ -204,7 +203,7 @@ namespace Rock.Tests.CheckIn.v2.Labels.Renderers
                 renderer.Dispose();
             } );
 
-            Assert.That.Contains( zpl, expectedValue );
+            Assert.Contains( expectedValue, zpl );
         }
 
         [TestMethod]
@@ -240,7 +239,7 @@ namespace Rock.Tests.CheckIn.v2.Labels.Renderers
                 renderer.Dispose();
             } );
 
-            Assert.That.Contains( zpl, expectedValue );
+            Assert.Contains( expectedValue, zpl );
         }
 
         [TestMethod]
@@ -274,7 +273,7 @@ namespace Rock.Tests.CheckIn.v2.Labels.Renderers
                 renderer.Dispose();
             } );
 
-            Assert.That.Contains( zpl, expectedToken );
+            Assert.Contains( expectedToken, zpl );
         }
 
         [TestMethod]
@@ -313,7 +312,7 @@ namespace Rock.Tests.CheckIn.v2.Labels.Renderers
                 renderer.Dispose();
             } );
 
-            Assert.That.Contains( zpl, expectedToken );
+            Assert.Contains( expectedToken, zpl );
         }
 
         [TestMethod]
@@ -356,7 +355,7 @@ namespace Rock.Tests.CheckIn.v2.Labels.Renderers
                 renderer.Dispose();
             } );
 
-            Assert.That.Matches( zpl, expectedPattern );
+            Assert.MatchesRegex( expectedPattern, zpl );
         }
 
         [TestMethod]
@@ -397,10 +396,10 @@ namespace Rock.Tests.CheckIn.v2.Labels.Renderers
                 renderer.Dispose();
             } );
 
-            Assert.That.Contains( zpl, expectedFirstValue );
-            Assert.That.Contains( zpl, expectedSecondValue );
-            Assert.That.Contains( zpl, expectedThirdValue );
-            Assert.That.Contains( zpl, expectedFourthValue );
+            Assert.Contains( expectedFirstValue, zpl );
+            Assert.Contains( expectedSecondValue, zpl );
+            Assert.Contains( expectedThirdValue, zpl );
+            Assert.Contains( expectedFourthValue, zpl );
         }
 
         [TestMethod]
@@ -434,7 +433,7 @@ namespace Rock.Tests.CheckIn.v2.Labels.Renderers
                 renderer.Dispose();
             } );
 
-            Assert.That.Matches( zpl, expectedPattern );
+            Assert.MatchesRegex( expectedPattern, zpl );
         }
 
         [TestMethod]
@@ -468,7 +467,7 @@ namespace Rock.Tests.CheckIn.v2.Labels.Renderers
                 renderer.Dispose();
             } );
 
-            Assert.That.Matches( zpl, expectedPattern );
+            Assert.MatchesRegex( expectedPattern, zpl );
         }
 
         [TestMethod]
@@ -501,7 +500,7 @@ namespace Rock.Tests.CheckIn.v2.Labels.Renderers
                 renderer.Dispose();
             } );
 
-            Assert.That.Matches( zpl, expectedPattern );
+            Assert.MatchesRegex( expectedPattern, zpl );
         }
 
         [TestMethod]
@@ -535,7 +534,7 @@ namespace Rock.Tests.CheckIn.v2.Labels.Renderers
                 renderer.Dispose();
             } );
 
-            Assert.That.Matches( zpl, expectedPattern );
+            Assert.MatchesRegex( expectedPattern, zpl );
         }
 
         [TestMethod]
@@ -571,11 +570,11 @@ namespace Rock.Tests.CheckIn.v2.Labels.Renderers
 
             var match = expectedPattern.Match( zpl );
 
-            Assert.That.IsTrue( match.Success );
+            Assert.IsTrue( match.Success );
 
             var isSquare = match.Groups[1].Value.AsInteger() == match.Groups[2].Value.AsInteger();
 
-            Assert.That.IsTrue( isSquare, $"Expected '{match.Groups[1].Value.AsInteger()}' to be equal to '{match.Groups[2].Value.AsInteger()}'." );
+            Assert.IsTrue( isSquare, $"Expected '{match.Groups[1].Value.AsInteger()}' to be equal to '{match.Groups[2].Value.AsInteger()}'." );
         }
 
         [TestMethod]
@@ -610,11 +609,11 @@ namespace Rock.Tests.CheckIn.v2.Labels.Renderers
 
             var match = expectedPattern.Match( zpl );
 
-            Assert.That.IsTrue( match.Success );
+            Assert.IsTrue( match.Success );
 
             var isWider = match.Groups[1].Value.AsInteger() > match.Groups[2].Value.AsInteger();
 
-            Assert.That.IsTrue( isWider, $"Expected '{match.Groups[1].Value.AsInteger()}' to be greater than '{match.Groups[1].Value.AsInteger()}'." );
+            Assert.IsTrue( isWider, $"Expected '{match.Groups[1].Value.AsInteger()}' to be greater than '{match.Groups[1].Value.AsInteger()}'." );
         }
 
         [TestMethod]
@@ -649,11 +648,11 @@ namespace Rock.Tests.CheckIn.v2.Labels.Renderers
 
             var match = expectedPattern.Match( zpl );
 
-            Assert.That.IsTrue( match.Success );
+            Assert.IsTrue( match.Success );
 
             var isNarrower = match.Groups[1].Value.AsInteger() < match.Groups[2].Value.AsInteger();
 
-            Assert.That.IsTrue( isNarrower, $"Expected '{match.Groups[1].Value.AsInteger()}' to be less than '{match.Groups[1].Value.AsInteger()}'." );
+            Assert.IsTrue( isNarrower, $"Expected '{match.Groups[1].Value.AsInteger()}' to be less than '{match.Groups[1].Value.AsInteger()}'." );
         }
 
         [TestMethod]
@@ -689,11 +688,11 @@ namespace Rock.Tests.CheckIn.v2.Labels.Renderers
 
             var match = expectedPattern.Match( zpl );
 
-            Assert.That.IsTrue( match.Success );
+            Assert.IsTrue( match.Success );
 
             var isWider = match.Groups[1].Value.AsInteger() > match.Groups[2].Value.AsInteger();
 
-            Assert.That.IsTrue( isWider, $"Expected '{match.Groups[1].Value.AsInteger()}' to be greater than '{match.Groups[1].Value.AsInteger()}'." );
+            Assert.IsTrue( isWider, $"Expected '{match.Groups[1].Value.AsInteger()}' to be greater than '{match.Groups[1].Value.AsInteger()}'." );
         }
 
         [TestMethod]
@@ -726,7 +725,7 @@ namespace Rock.Tests.CheckIn.v2.Labels.Renderers
                 renderer.Dispose();
             } );
 
-            Assert.That.Contains( zpl, "^FDTestV...^FS" );
+            Assert.Contains( "^FDTestV...^FS", zpl );
         }
 
         [TestMethod]
@@ -759,7 +758,7 @@ namespace Rock.Tests.CheckIn.v2.Labels.Renderers
                 renderer.Dispose();
             } );
 
-            Assert.That.Contains( zpl, expectedFontCommand );
+            Assert.Contains( expectedFontCommand, zpl );
         }
 
         [TestMethod]
@@ -810,7 +809,7 @@ namespace Rock.Tests.CheckIn.v2.Labels.Renderers
                 renderer.Dispose();
             } );
 
-            Assert.That.Contains( zpl, expectedOrigin );
+            Assert.Contains( expectedOrigin, zpl );
         }
 
         [TestMethod]
@@ -843,7 +842,7 @@ namespace Rock.Tests.CheckIn.v2.Labels.Renderers
                 renderer.Dispose();
             } );
 
-            Assert.That.Contains( zpl, expectedFontCommand );
+            Assert.Contains( expectedFontCommand, zpl );
         }
 
         [TestMethod]
@@ -894,7 +893,7 @@ namespace Rock.Tests.CheckIn.v2.Labels.Renderers
                 renderer.Dispose();
             } );
 
-            Assert.That.Contains( zpl, expectedOrigin );
+            Assert.Contains( expectedOrigin, zpl );
         }
 
         [TestMethod]
@@ -927,7 +926,7 @@ namespace Rock.Tests.CheckIn.v2.Labels.Renderers
                 renderer.Dispose();
             } );
 
-            Assert.That.Contains( zpl, expectedFontCommand );
+            Assert.Contains( expectedFontCommand, zpl );
         }
 
         [TestMethod]
@@ -978,7 +977,7 @@ namespace Rock.Tests.CheckIn.v2.Labels.Renderers
                 renderer.Dispose();
             } );
 
-            Assert.That.Contains( zpl, expectedOrigin );
+            Assert.Contains( expectedOrigin, zpl );
         }
 
         #endregion
@@ -1028,7 +1027,7 @@ namespace Rock.Tests.CheckIn.v2.Labels.Renderers
                 renderer.Dispose();
             } );
 
-            Assert.That.Contains( zpl, expectedOrigin );
+            Assert.Contains( expectedOrigin, zpl );
         }
 
         [TestMethod]
@@ -1072,7 +1071,7 @@ namespace Rock.Tests.CheckIn.v2.Labels.Renderers
                 renderer.Dispose();
             } );
 
-            Assert.That.Matches( zpl, expectedPattern );
+            Assert.MatchesRegex( expectedPattern, zpl );
         }
 
         [TestMethod]
@@ -1118,7 +1117,7 @@ namespace Rock.Tests.CheckIn.v2.Labels.Renderers
                 renderer.Dispose();
             } );
 
-            Assert.That.Contains( zpl, expectedOrigin );
+            Assert.Contains( expectedOrigin, zpl );
         }
 
         [TestMethod]
@@ -1162,7 +1161,7 @@ namespace Rock.Tests.CheckIn.v2.Labels.Renderers
                 renderer.Dispose();
             } );
 
-            Assert.That.Matches( zpl, expectedPattern );
+            Assert.MatchesRegex( expectedPattern, zpl );
         }
 
         [TestMethod]
@@ -1208,7 +1207,7 @@ namespace Rock.Tests.CheckIn.v2.Labels.Renderers
                 renderer.Dispose();
             } );
 
-            Assert.That.Contains( zpl, expectedOrigin );
+            Assert.Contains( expectedOrigin, zpl );
         }
 
         [TestMethod]
@@ -1252,7 +1251,7 @@ namespace Rock.Tests.CheckIn.v2.Labels.Renderers
                 renderer.Dispose();
             } );
 
-            Assert.That.Matches( zpl, expectedPattern );
+            Assert.MatchesRegex( expectedPattern, zpl );
         }
 
         [TestMethod]
@@ -1298,7 +1297,7 @@ namespace Rock.Tests.CheckIn.v2.Labels.Renderers
                 renderer.Dispose();
             } );
 
-            Assert.That.Contains( zpl, expectedOrigin );
+            Assert.Contains( expectedOrigin, zpl );
         }
 
         [TestMethod]
@@ -1342,7 +1341,7 @@ namespace Rock.Tests.CheckIn.v2.Labels.Renderers
                 renderer.Dispose();
             } );
 
-            Assert.That.Matches( zpl, expectedPattern );
+            Assert.MatchesRegex( expectedPattern, zpl );
         }
 
         [TestMethod]
@@ -1382,7 +1381,7 @@ namespace Rock.Tests.CheckIn.v2.Labels.Renderers
                 renderer.Dispose();
             } );
 
-            Assert.That.Matches( zpl, expectedPattern );
+            Assert.MatchesRegex( expectedPattern, zpl );
         }
 
         [TestMethod]
@@ -1420,7 +1419,7 @@ namespace Rock.Tests.CheckIn.v2.Labels.Renderers
                 renderer.Dispose();
             } );
 
-            Assert.That.Matches( zpl, expectedPattern );
+            Assert.MatchesRegex( expectedPattern, zpl );
         }
 
         [TestMethod]
@@ -1457,7 +1456,7 @@ namespace Rock.Tests.CheckIn.v2.Labels.Renderers
                 renderer.Dispose();
             } );
 
-            Assert.That.Matches( zpl, expectedPattern );
+            Assert.MatchesRegex( expectedPattern, zpl );
         }
 
         [TestMethod]
@@ -1494,7 +1493,7 @@ namespace Rock.Tests.CheckIn.v2.Labels.Renderers
                 renderer.Dispose();
             } );
 
-            Assert.That.Matches( zpl, expectedPattern );
+            Assert.MatchesRegex( expectedPattern, zpl );
         }
 
         [TestMethod]
@@ -1538,7 +1537,7 @@ namespace Rock.Tests.CheckIn.v2.Labels.Renderers
                 renderer.Dispose();
             } );
 
-            Assert.That.Matches( zpl, expectedPattern );
+            Assert.MatchesRegex( expectedPattern, zpl );
         }
 
         [TestMethod]
@@ -1582,7 +1581,7 @@ namespace Rock.Tests.CheckIn.v2.Labels.Renderers
                 renderer.Dispose();
             } );
 
-            Assert.That.Matches( zpl, expectedPattern );
+            Assert.MatchesRegex( expectedPattern, zpl );
         }
 
         #endregion
@@ -1624,7 +1623,7 @@ namespace Rock.Tests.CheckIn.v2.Labels.Renderers
                 renderer.Dispose();
             } );
 
-            Assert.That.Contains( zpl, expectedToken );
+            Assert.Contains( expectedToken, zpl );
         }
 
         [TestMethod]
@@ -1662,15 +1661,16 @@ namespace Rock.Tests.CheckIn.v2.Labels.Renderers
                 renderer.Dispose();
             } );
 
-            Assert.That.Matches( zpl, expectedPattern );
+            Assert.MatchesRegex( expectedPattern, zpl );
         }
 
         [TestMethod]
-        public void WriteRectangleField_WithFilled_SetsBorderToHeight()
+        public void WriteRectangleField_WithFilled_SetsBorderToMinimumBetweenWidthAndHeight()
         {
+            var fieldWidth = 1;
             var fieldHeight = 2.5;
             var dpi = 300;
-            var expectedPattern = new Regex( @"\^GB[0-9]+,[0-9]+,750" );
+            var expectedPattern = new Regex( @"\^GB[0-9]+,[0-9]+,300" );
 
             var renderer = new ZplLabelRenderer();
             var request = new PrintLabelRequest
@@ -1685,7 +1685,8 @@ namespace Rock.Tests.CheckIn.v2.Labels.Renderers
             var field = new Mock<LabelField>( MockBehavior.Strict, new LabelFieldBag
             {
                 FieldType = LabelFieldType.Rectangle,
-                Height = fieldHeight
+                Height = fieldHeight,
+                Width = fieldWidth
             } );
 
             field.Setup( f => f.GetConfiguration<RectangleFieldConfiguration>() )
@@ -1703,7 +1704,7 @@ namespace Rock.Tests.CheckIn.v2.Labels.Renderers
                 renderer.Dispose();
             } );
 
-            Assert.That.Matches( zpl, expectedPattern );
+            Assert.MatchesRegex( expectedPattern, zpl );
         }
 
         [TestMethod]
@@ -1745,7 +1746,7 @@ namespace Rock.Tests.CheckIn.v2.Labels.Renderers
                 renderer.Dispose();
             } );
 
-            Assert.That.Matches( zpl, expectedPattern );
+            Assert.MatchesRegex( expectedPattern, zpl );
         }
 
         [TestMethod]
@@ -1786,7 +1787,7 @@ namespace Rock.Tests.CheckIn.v2.Labels.Renderers
                 renderer.Dispose();
             } );
 
-            Assert.That.Matches( zpl, expectedPattern );
+            Assert.MatchesRegex( expectedPattern, zpl );
         }
 
         [TestMethod]
@@ -1827,7 +1828,7 @@ namespace Rock.Tests.CheckIn.v2.Labels.Renderers
                 renderer.Dispose();
             } );
 
-            Assert.That.Matches( zpl, expectedPattern );
+            Assert.MatchesRegex( expectedPattern, zpl );
         }
 
         [TestMethod]
@@ -1869,7 +1870,7 @@ namespace Rock.Tests.CheckIn.v2.Labels.Renderers
                 renderer.Dispose();
             } );
 
-            Assert.That.Matches( zpl, expectedPattern );
+            Assert.MatchesRegex( expectedPattern, zpl );
         }
 
         #endregion
@@ -1911,7 +1912,7 @@ namespace Rock.Tests.CheckIn.v2.Labels.Renderers
                 renderer.Dispose();
             } );
 
-            Assert.That.Contains( zpl, expectedToken );
+            Assert.Contains( expectedToken, zpl );
         }
 
         [TestMethod]
@@ -1949,7 +1950,7 @@ namespace Rock.Tests.CheckIn.v2.Labels.Renderers
                 renderer.Dispose();
             } );
 
-            Assert.That.Matches( zpl, expectedPattern );
+            Assert.MatchesRegex( expectedPattern, zpl );
         }
 
         [TestMethod]
@@ -1990,7 +1991,7 @@ namespace Rock.Tests.CheckIn.v2.Labels.Renderers
                 renderer.Dispose();
             } );
 
-            Assert.That.Matches( zpl, expectedPattern );
+            Assert.MatchesRegex( expectedPattern, zpl );
         }
 
         [TestMethod]
@@ -2032,7 +2033,7 @@ namespace Rock.Tests.CheckIn.v2.Labels.Renderers
                 renderer.Dispose();
             } );
 
-            Assert.That.Matches( zpl, expectedPattern );
+            Assert.MatchesRegex( expectedPattern, zpl );
         }
 
         [TestMethod]
@@ -2073,7 +2074,7 @@ namespace Rock.Tests.CheckIn.v2.Labels.Renderers
                 renderer.Dispose();
             } );
 
-            Assert.That.Matches( zpl, expectedPattern );
+            Assert.MatchesRegex( expectedPattern, zpl );
         }
 
         [TestMethod]
@@ -2114,7 +2115,7 @@ namespace Rock.Tests.CheckIn.v2.Labels.Renderers
                 renderer.Dispose();
             } );
 
-            Assert.That.Matches( zpl, expectedPattern );
+            Assert.MatchesRegex( expectedPattern, zpl );
         }
 
         #endregion
@@ -2162,15 +2163,15 @@ namespace Rock.Tests.CheckIn.v2.Labels.Renderers
                 renderer.Object.Dispose();
             } );
 
-            Assert.That.Matches( zpl, expectedPattern );
+            Assert.MatchesRegex( expectedPattern, zpl );
         }
 
         [TestMethod]
-        public void WriteImageField_WithImageData_EncodesDataAsHex()
+        public void WriteImageField_WithImageData_EncodesDataAsZ64()
         {
             var dpi = 300;
             var imageData = Enumerable.Range( 8, 4 ).Select( i => ( byte ) i ).ToArray();
-            var expectedPattern = new Regex( @"\^GFA,[0-9],[0-9],[0-9],08090A0B" );
+            var expectedPattern = new Regex( @"\^GFA,[0-9],[0-9],[0-9],:Z64:eJzj4OTiBgAAXgAn:C9E0" );
 
             var request = new PrintLabelRequest
             {
@@ -2206,7 +2207,7 @@ namespace Rock.Tests.CheckIn.v2.Labels.Renderers
                 renderer.Object.Dispose();
             } );
 
-            Assert.That.Matches( zpl, expectedPattern );
+            Assert.MatchesRegex( expectedPattern, zpl );
         }
 
         [TestMethod]
@@ -2253,7 +2254,7 @@ namespace Rock.Tests.CheckIn.v2.Labels.Renderers
                 renderer.Object.Dispose();
             } );
 
-            Assert.That.Matches( zpl, expectedPattern );
+            Assert.MatchesRegex( expectedPattern, zpl );
         }
 
         [TestMethod]
@@ -2296,7 +2297,7 @@ namespace Rock.Tests.CheckIn.v2.Labels.Renderers
                 renderer.Object.Dispose();
             } );
 
-            Assert.That.IsEmpty( zpl );
+            Assert.IsEmpty( zpl );
         }
 
         #endregion
@@ -2347,15 +2348,15 @@ namespace Rock.Tests.CheckIn.v2.Labels.Renderers
                 renderer.Object.Dispose();
             } );
 
-            Assert.That.Matches( zpl, expectedPattern );
+            Assert.MatchesRegex( expectedPattern, zpl );
         }
 
         [TestMethod]
-        public void WriteIconField_WithImageData_EncodesDataAsHex()
+        public void WriteIconField_WithImageData_EncodesDataAsZ64()
         {
             var dpi = 300;
             var imageData = Enumerable.Range( 8, 4 ).Select( i => ( byte ) i ).ToArray();
-            var expectedPattern = new Regex( @"\^GFA,[0-9],[0-9],[0-9],08090A0B" );
+            var expectedPattern = new Regex( @"\^GFA,[0-9],[0-9],[0-9],:Z64:eJzj4OTiBgAAXgAn:C9E0" );
 
             var request = new PrintLabelRequest
             {
@@ -2394,7 +2395,7 @@ namespace Rock.Tests.CheckIn.v2.Labels.Renderers
                 renderer.Object.Dispose();
             } );
 
-            Assert.That.Matches( zpl, expectedPattern );
+            Assert.MatchesRegex( expectedPattern, zpl );
         }
 
         [TestMethod]
@@ -2442,7 +2443,7 @@ namespace Rock.Tests.CheckIn.v2.Labels.Renderers
                 renderer.Object.Dispose();
             } );
 
-            Assert.That.Matches( zpl, expectedPattern );
+            Assert.MatchesRegex( expectedPattern, zpl );
         }
 
         [TestMethod]
@@ -2488,7 +2489,7 @@ namespace Rock.Tests.CheckIn.v2.Labels.Renderers
                 renderer.Object.Dispose();
             } );
 
-            Assert.That.IsEmpty( zpl );
+            Assert.IsEmpty( zpl );
         }
 
         [TestMethod]
@@ -2528,7 +2529,7 @@ namespace Rock.Tests.CheckIn.v2.Labels.Renderers
                 renderer.Dispose();
             } );
 
-            Assert.That.IsEmpty( zpl );
+            Assert.IsEmpty( zpl );
         }
 
         #endregion
@@ -2576,15 +2577,15 @@ namespace Rock.Tests.CheckIn.v2.Labels.Renderers
                 renderer.Object.Dispose();
             } );
 
-            Assert.That.Matches( zpl, expectedPattern );
+            Assert.MatchesRegex( expectedPattern, zpl );
         }
 
         [TestMethod]
-        public void WriteAttendeePhotoField_WithPhotoData_EncodesDataAsHex()
+        public void WriteAttendeePhotoField_WithPhotoData_EncodesDataAsZ64()
         {
             var dpi = 300;
             var imageData = Enumerable.Range( 8, 4 ).Select( i => ( byte ) i ).ToArray();
-            var expectedPattern = new Regex( @"\^GFA,[0-9],[0-9],[0-9],08090A0B" );
+            var expectedPattern = new Regex( @"\^GFA,[0-9],[0-9],[0-9],:Z64:eJzj4OTiBgAAXgAn:C9E0" );
 
             var request = new PrintLabelRequest
             {
@@ -2620,7 +2621,7 @@ namespace Rock.Tests.CheckIn.v2.Labels.Renderers
                 renderer.Object.Dispose();
             } );
 
-            Assert.That.Matches( zpl, expectedPattern );
+            Assert.MatchesRegex( expectedPattern, zpl );
         }
 
         [TestMethod]
@@ -2667,7 +2668,7 @@ namespace Rock.Tests.CheckIn.v2.Labels.Renderers
                 renderer.Object.Dispose();
             } );
 
-            Assert.That.Matches( zpl, expectedPattern );
+            Assert.MatchesRegex( expectedPattern, zpl );
         }
 
         [TestMethod]
@@ -2710,7 +2711,7 @@ namespace Rock.Tests.CheckIn.v2.Labels.Renderers
                 renderer.Object.Dispose();
             } );
 
-            Assert.That.IsEmpty( zpl );
+            Assert.IsEmpty( zpl );
         }
 
         [TestMethod]
@@ -2753,7 +2754,7 @@ namespace Rock.Tests.CheckIn.v2.Labels.Renderers
                 renderer.Object.Dispose();
             } );
 
-            Assert.That.IsEmpty( zpl );
+            Assert.IsEmpty( zpl );
         }
 
         [TestMethod]
@@ -2800,7 +2801,7 @@ namespace Rock.Tests.CheckIn.v2.Labels.Renderers
                 renderer.Object.Dispose();
             } );
 
-            Assert.That.AreEqual( expectedDithering, actualDithering );
+            Assert.AreEqual( expectedDithering, actualDithering );
         }
 
         [TestMethod]
@@ -2847,7 +2848,7 @@ namespace Rock.Tests.CheckIn.v2.Labels.Renderers
                 renderer.Object.Dispose();
             } );
 
-            Assert.That.AreEqual( expectedDithering, actualDithering );
+            Assert.AreEqual( expectedDithering, actualDithering );
         }
 
         #endregion
@@ -2886,7 +2887,7 @@ namespace Rock.Tests.CheckIn.v2.Labels.Renderers
                 renderer.Dispose();
             } );
 
-            Assert.That.IsEmpty( zpl );
+            Assert.IsEmpty( zpl );
         }
 
         [TestMethod]
@@ -2924,7 +2925,7 @@ namespace Rock.Tests.CheckIn.v2.Labels.Renderers
                 renderer.Dispose();
             } );
 
-            Assert.That.Matches( zpl, expectedPattern );
+            Assert.MatchesRegex( expectedPattern, zpl );
         }
 
         [TestMethod]
@@ -2962,7 +2963,7 @@ namespace Rock.Tests.CheckIn.v2.Labels.Renderers
                 renderer.Dispose();
             } );
 
-            Assert.That.Matches( zpl, expectedPattern );
+            Assert.MatchesRegex( expectedPattern, zpl );
         }
 
         [TestMethod]
@@ -3024,7 +3025,7 @@ namespace Rock.Tests.CheckIn.v2.Labels.Renderers
                 renderer.Object.Dispose();
             } );
 
-            Assert.That.Matches( zpl, expectedPattern );
+            Assert.MatchesRegex( expectedPattern, zpl );
         }
 
         [TestMethod]
@@ -3084,7 +3085,7 @@ namespace Rock.Tests.CheckIn.v2.Labels.Renderers
                 renderer.Object.Dispose();
             } );
 
-            Assert.That.IsEmpty( zpl );
+            Assert.IsEmpty( zpl );
         }
 
         [TestMethod]
@@ -3135,13 +3136,13 @@ namespace Rock.Tests.CheckIn.v2.Labels.Renderers
                 renderer.Object.Dispose();
             } );
 
-            Assert.That.IsEmpty( zpl );
+            Assert.IsEmpty( zpl );
         }
 
         [TestMethod]
         public void WriteBarcodeField_WithQRCodeAndDynamicContent_EmitsCodeData()
         {
-            var expectedPattern = new Regex( @"\^GFA,[0-9]+,[0-9]+,4,000000000000000000000000000000000FEEBF000828A0000BADAE000BA8AE000BA92E000823A0000FEABF00000F000006B72F00080C500006E772000E95DC0007E4F300000E23000FED08000824A2000BAAAA000BA355000BAD76000829DC000FE5760000000000000000000000000000000000\^FS" );
+            var expectedPattern = new Regex( @"\^GFA,[0-9]+,[0-9]+,4,:Z64:eJxjYEAF\/O\/2M3BoLGDgXruOgXsFEK\/UY\+BQXsDA\/2o\/UJKBgW27PgMHTwAD2\/MiBr6pdxjYn3xmYOBTZuB\/y8HAobKIgXvVKgbuxaFA\/WUMHJp3GPifljGgAwBDFRbe:1798\^FS" );
 
             var request = new PrintLabelRequest
             {
@@ -3179,7 +3180,7 @@ namespace Rock.Tests.CheckIn.v2.Labels.Renderers
                 renderer.Dispose();
             } );
 
-            Assert.That.Matches( zpl, expectedPattern );
+            Assert.MatchesRegex( expectedPattern, zpl );
         }
 
         [TestMethod]
@@ -3223,7 +3224,7 @@ namespace Rock.Tests.CheckIn.v2.Labels.Renderers
                 renderer.Dispose();
             } );
 
-            Assert.That.Matches( zpl, expectedPattern );
+            Assert.MatchesRegex( expectedPattern, zpl );
         }
 
         #endregion

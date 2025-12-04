@@ -3,15 +3,15 @@
     <tr v-if="!isEditMode">
         <td>{{ key }}</td>
         <td>{{ title }}</td>
-        <td><i class="fa fa-check"></i></td>
+        <td><i class="ti ti-check"></i></td>
         <td class="grid-columncommand" align="center">
             <a class="btn btn-default btn-sm" @click="onEditClick">
-                <i class="fa fa-pencil"></i>
+                <i class="ti ti-pencil"></i>
             </a>
         </td>
         <td class="grid-columncommand" align="center">
             <a class="btn btn-danger btn-sm" @click="onRemoveClick">
-                <i class="fa fa-times"></i>
+                <i class="ti ti-x"></i>
             </a>
         </td>
     </tr>
@@ -47,14 +47,14 @@
         </td>
 
         <td class="grid-columncommand" align="center">
-            <a class="btn btn-success btn-sm" :class="{disabled: isSaveDisabled}" @click="onAcceptClick">
-                <i class="fa fa-check"></i>
+            <a class="btn btn-success btn-sm" :class="{ disabled: isSaveDisabled }" @click="onAcceptClick">
+                <i class="ti ti-check"></i>
             </a>
         </td>
 
         <td class="grid-columncommand" align="center">
             <a class="btn btn-default btn-sm" @click="onCancelClick">
-                <i class="fa fa-minus"></i>
+                <i class="ti ti-minus"></i>
             </a>
         </td>
     </tr>
@@ -67,7 +67,7 @@
     import { ContentCollectionCustomFieldBag } from "@Obsidian/ViewModels/Cms/contentCollectionCustomFieldBag";
     import { useFormState } from "@Obsidian/Utility/form";
     import { newGuid } from "@Obsidian/Utility/guid";
-    import { computed, PropType, ref, watch } from "vue";
+    import { computed, onBeforeUnmount, PropType, ref, watch } from "vue";
 
     const props = defineProps({
         modelValue: {
@@ -134,6 +134,10 @@
      * the model to match what they entered.
      */
     function onAcceptClick(): void {
+        if (isSaveDisabled.value) {
+            return;
+        }
+
         emit("update:modelValue", {
             key: key.value.replace(/ /g, ""),
             title: title.value,
@@ -169,6 +173,10 @@
 
     watch(isEditMode, () => {
         updateValidation();
+    });
+
+    onBeforeUnmount(() => {
+        formState?.setError(validationId, "Custom Value", "");
     });
 
     updateValidation();

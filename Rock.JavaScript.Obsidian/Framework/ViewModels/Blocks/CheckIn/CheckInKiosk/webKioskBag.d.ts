@@ -21,11 +21,18 @@
 // </copyright>
 //
 
+import { AdultsOrChildrenSelectionMode } from "@Obsidian/Enums/CheckIn/adultsOrChildrenSelectionMode";
 import { CameraBarcodeConfiguration } from "@Obsidian/Enums/Core/cameraBarcodeConfiguration";
 import { KioskType } from "@Obsidian/Enums/Core/kioskType";
 
 /** Details about a single web-based kiosk device. */
 export type WebKioskBag = {
+    /**
+     * Controls who can be added to an existing family during check-in,
+     * regardless of the IsAddingFamiliesEnabled value.
+     */
+    allowAddingIndividualsToExistingFamilies: AdultsOrChildrenSelectionMode;
+
     /** Determines how the camera should operate on this kiosk device. */
     cameraMode: CameraBarcodeConfiguration;
 
@@ -35,8 +42,14 @@ export type WebKioskBag = {
     /** Gets or sets the kiosk identifier. This is used by the iPad app. */
     idNumber: number;
 
+    /** Determines if adding new families in registration mode is enabled. */
+    isAddingFamiliesEnabled: boolean;
+
     /** Gets or sets a value indicating whether this kiosk has the camera enabled. */
     isCameraEnabled: boolean;
+
+    /** Determines if editing new families in registration mode is enabled. */
+    isEditingFamiliesEnabled: boolean;
 
     /**
      * Gets or sets a value indicating whether this kiosk supports

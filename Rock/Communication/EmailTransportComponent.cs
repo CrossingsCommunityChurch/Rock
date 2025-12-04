@@ -372,6 +372,12 @@ namespace Rock.Communication
                             recipient.StatusNote = result.StatusNote;
                             recipient.TransportEntityTypeName = this.GetType().FullName;
 
+                            if ( result.Status == CommunicationRecipientStatus.Delivered )
+                            {
+                                recipient.SendDateTime = RockDateTime.Now;
+                                // Do not set DeliveredDateTime, as this should be set by email transport webhooks.
+                            }
+
                             // Log it
                             try
                             {
@@ -610,16 +616,13 @@ namespace Rock.Communication
 
             templateRockEmailMessage.FromPersonId = emailMessage.FromPersonId;
 
-            var fromAddress = GetFromAddress( emailMessage, mergeFields, globalAttributes );
-            var fromName = GetFromName( emailMessage, mergeFields, globalAttributes );
+            templateRockEmailMessage.FromEmail = emailMessage.FromEmail.IsNullOrWhiteSpace() ? globalAttributes.GetValue( "OrganizationEmail" ) : emailMessage.FromEmail;
+            templateRockEmailMessage.FromName = emailMessage.FromName;
 
-            if ( fromAddress.IsNullOrWhiteSpace() )
+            if ( templateRockEmailMessage.FromEmail.IsNullOrWhiteSpace() )
             {
                 return null;
             }
-
-            templateRockEmailMessage.FromEmail = fromAddress;
-            templateRockEmailMessage.FromName = fromName;
 
             // CC
             templateRockEmailMessage.CCEmails = emailMessage.CCEmails;
@@ -675,12 +678,6 @@ namespace Rock.Communication
             resultEmailMessage.EnabledLavaCommands = communication.EnabledLavaCommands;
             resultEmailMessage.FromEmail = communication.FromEmail;
             resultEmailMessage.FromName = communication.FromName;
-
-            var fromAddress = GetFromAddress( resultEmailMessage, mergeFields, globalAttributes );
-            var fromName = GetFromName( resultEmailMessage, mergeFields, globalAttributes );
-
-            resultEmailMessage.FromEmail = fromAddress;
-            resultEmailMessage.FromName = fromName;
 
             // Reply To
             var replyToEmail = string.Empty;
@@ -745,7 +742,12 @@ namespace Rock.Communication
 
             recipientEmail.SetRecipients( new List<RockEmailMessageRecipient> { toEmailAddress } );
 
-            var fromMailAddress = new MailAddress( emailMessage.FromEmail, emailMessage.FromName );
+            var globalAttributes = GlobalAttributesCache.Get();
+
+            var fromEmail = GetFromAddress( emailMessage, rockMessageRecipient.MergeFields, globalAttributes );
+            var fromName = GetFromName( emailMessage, rockMessageRecipient.MergeFields, globalAttributes );
+
+            var fromMailAddress = new MailAddress( fromEmail, fromName );
             var checkResult = CheckSafeSender( new List<string> { toEmailAddress.EmailAddress }, fromMailAddress, organizationEmail );
 
             // Reply To
@@ -780,7 +782,7 @@ namespace Rock.Communication
                 if ( emailMessage.CssInliningEnabled )
                 {
                     // move styles inline to help it be compatible with more email clients
-                    body = body.ConvertHtmlStylesToInlineAttributes( true );
+                    body = body.ConvertHtmlStylesToInlineAttributes();
                 }
             }
 
@@ -855,7 +857,12 @@ namespace Rock.Communication
 
             recipientEmail.SetRecipients( new List<RockEmailMessageRecipient> { toEmailAddress } );
 
-            var fromMailAddress = new MailAddress( emailMessage.FromEmail, emailMessage.FromName );
+            var globalAttributes = GlobalAttributesCache.Get();
+
+            var fromEmail = GetFromAddress( emailMessage, mergeFields, globalAttributes );
+            var fromName = GetFromName( emailMessage, mergeFields, globalAttributes );
+
+            var fromMailAddress = new MailAddress( fromEmail, fromName );
             var checkResult = CheckSafeSender( new List<string> { toEmailAddress.EmailAddress }, fromMailAddress, organizationEmail );
 
             // Reply To
@@ -934,15 +941,12 @@ namespace Rock.Communication
                 if ( emailMessage.CssInliningEnabled )
                 {
                     // move styles inline to help it be compatible with more email clients
-                    htmlBody = htmlBody.ConvertHtmlStylesToInlineAttributes( true );
+                    htmlBody = htmlBody.ConvertHtmlStylesToInlineAttributes();
                 }
 
                 // add the main Html content to the email
                 recipientEmail.Message = htmlBody;
             }
-
-            // Headers
-            var globalAttributes = GlobalAttributesCache.Get();
 
             // communication_recipient_guid
             recipientEmail.MessageMetaData["communication_recipient_guid"] = communicationRecipient.Guid.ToString();
@@ -1178,6 +1182,11 @@ namespace Rock.Communication
                     {
                         recipient.StatusNote = result.StatusNote;
                     }
+                    else
+                    {
+                        recipient.SendDateTime = RockDateTime.Now;
+                        // Do not set DeliveredDateTime, as this should be set by email transport webhooks.
+                    }
 
                     recipient.TransportEntityTypeName = this.GetType().FullName;
 
@@ -1262,6 +1271,29 @@ namespace Rock.Communication
 
                 transaction.RecipientGuid = recipientEmailMessage.MessageMetaData["communication_recipient_guid"].AsGuidOrNull();
                 transaction.RecipientStatus = result.Status;
+
+                /*
+                    6/30/25 - MSE
+
+                    Fixed communication record to save correct ReplyToEmail when sender is not a safe sender.
+
+                    Reason: When Rock replaces FromEmail with organization email for unsafe senders, the
+                    communication record should save the original sender's email in ReplyToEmail field.
+                */
+                if ( !string.IsNullOrWhiteSpace( recipientEmailMessage.ReplyToEmail ) )
+                {
+                    var replyToEmail = recipientEmailMessage.ReplyToEmail;
+                    try
+                    {
+                        replyToEmail = new System.Net.Mail.MailAddress( replyToEmail ).Address;
+                    }
+                    catch ( Exception ex )
+                    {
+                        ExceptionLogService.LogException( ex );
+                    }
+
+                    transaction.ReplyTo = replyToEmail;
+                }
 
                 if ( recipientEmailMessage.CreateCommunicationRecordImmediately )
                 {

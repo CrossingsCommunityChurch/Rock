@@ -23,7 +23,7 @@ using System.Linq.Expressions;
 using System.Web;
 using System.Web.UI;
 using System.Web.UI.WebControls;
-using DotLiquid;
+
 using Rock;
 using Rock.Attribute;
 using Rock.Data;
@@ -154,7 +154,6 @@ namespace RockWeb.Blocks.Groups
         )]
     [CodeEditorField( "Map Info",
         EditorMode = CodeEditorMode.Lava,
-        EditorTheme = CodeEditorTheme.Rock,
         EditorHeight = 200,
         IsRequired = false,
         DefaultValue = AttributeDefaultLava.MapInfo,
@@ -168,7 +167,6 @@ namespace RockWeb.Blocks.Groups
         Key = AttributeKey.ShowLavaOutput )]
     [CodeEditorField( "Lava Output",
         EditorMode = CodeEditorMode.Lava,
-        EditorTheme = CodeEditorTheme.Rock,
         EditorHeight = 200,
         IsRequired = false,
         DefaultValue = "",
@@ -1525,21 +1523,11 @@ namespace RockWeb.Blocks.Groups
                 // If a map is to be shown
                 if ( showMap && groups.Any() )
                 {
-                    Template template = null;
                     ILavaTemplate lavaTemplate = null;
 
-                    if ( LavaService.RockLiquidIsEnabled )
-                    {
-                        template = LavaHelper.CreateDotLiquidTemplate( GetAttributeValue( AttributeKey.MapInfo ) );
+                    var parseResult = LavaService.ParseTemplate( GetAttributeValue( AttributeKey.MapInfo ) );
 
-                        LavaHelper.VerifyParseTemplateForCurrentEngine( GetAttributeValue( AttributeKey.MapInfo ) );
-                    }
-                    else
-                    {
-                        var parseResult = LavaService.ParseTemplate( GetAttributeValue( AttributeKey.MapInfo ) );
-
-                        lavaTemplate = parseResult.Template;
-                    }
+                    lavaTemplate = parseResult.Template;
 
                     // Add mapitems for all the remaining valid group locations
                     var groupMapItems = new List<MapItem>();
@@ -1578,16 +1566,9 @@ namespace RockWeb.Blocks.Groups
 
                             string infoWindow;
 
-                            if ( LavaService.RockLiquidIsEnabled )
-                            {
-                                infoWindow = template.Render( Hash.FromDictionary( mergeFields ) );
-                            }
-                            else
-                            {
-                                var result = LavaService.RenderTemplate( lavaTemplate, mergeFields );
+                            var result = LavaService.RenderTemplate( lavaTemplate, mergeFields );
 
-                                infoWindow = result.Text;
-                            }
+                            infoWindow = result.Text;
 
                             // Add a map item for group
                             var mapItem = new FinderMapItem( gl.Location );
@@ -2332,7 +2313,23 @@ namespace RockWeb.Blocks.Groups
                 marker = DefinedValueCache.Get( markerDefinedValueId.Value ).Description;
             }
 
-            if (mapId != "DEFAULT_MAP_ID" )
+            /*
+                11/25/2025 - N.A.
+
+                Check to see if we are using a custom mapId. Map markers are separate objects created using the
+                Maps JavaScript API and are rendered on top of the map. Their appearance is controlled entirely
+                through client-side code, not the map style ID. However, when using a custom mapId, the
+                mapScriptFormat code above switches to the modern google.maps.marker.AdvancedMarkerElement.
+                This element requires an HTML or SVG element for its content property.
+
+                This fix ensures compatibility with both custom Map ID configurations or legacy (no mapId) mode. 
+                The legacy marker should only contain the PATH value of the SVG (such as "M 0,0 C -2,...")
+
+                Reason: When using a custom mapId, the mapScriptFormat code switches to google.maps.marker.AdvancedMarkerElement, 
+                which requires an a full SVG element as its content.
+            */
+
+            if ( mapId.IsNotNullOrWhiteSpace() )
             {
                 var markerFormat = "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"50\" height=\"50\" viewBox=\"-10 -40 30 55\"><path d=\"{0}\"/></svg>";
                 marker = string.Format( markerFormat, marker ).Replace( "\"", "'" );

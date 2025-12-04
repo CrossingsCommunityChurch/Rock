@@ -34,6 +34,17 @@ namespace Rock.Web.Cache
     [DataContract]
     public class CampusCache : ModelCache<CampusCache, Campus>
     {
+        #region Fields
+
+        /// <summary>
+        /// The identifiers of the <see cref="CampusSchedule"/> objects associated
+        /// with this campus. Unlike the <see cref="CampusScheduleIds"/> property,
+        /// this field holds the identifiers of the link records, not the schedules
+        /// themselves.
+        /// </summary>
+        private List<int> _campusScheduleIds = new List<int>();
+
+        #endregion
 
         #region Properties
 
@@ -182,6 +193,8 @@ namespace Rock.Web.Cache
         /// The service times.
         /// </value>
         [DataMember]
+        [RockObsolete( "19.0" )]
+        [Obsolete( "Use the CampusSchedules property instead." )]
         public string RawServiceTimes { get; private set; }
 
         /// <summary>
@@ -190,11 +203,40 @@ namespace Rock.Web.Cache
         /// <value>
         /// The service times.
         /// </value>
+        [RockObsolete( "19.0" )]
+        [Obsolete( "Use the CampusSchedules property instead." )]
         public List<ServiceTime> ServiceTimes
         {
             get
             {
                 var serviceTimes = new List<ServiceTime>();
+
+                // Use the CampusSchedules if available
+                if ( CampusSchedules.Any() )
+                {
+                    foreach ( var campusSchedule in CampusSchedules )
+                    {
+                        var schedule = campusSchedule.Schedule;
+                        if ( schedule != null )
+                        {
+                            //var nextStartDateTime = schedule.GetNextStartDateTime( RockDateTime.Now );
+                            var nextStartDateTime = schedule.GetICalOccurrences( RockDateTime.Now, RockDateTime.Now.AddYears( 1 ), null )
+                                .Select( o => o.Period.StartTime.AsSystemLocal )
+                                .FirstOrDefault();
+                            if ( nextStartDateTime != null )
+                            {
+                                serviceTimes.Add( new ServiceTime
+                                {
+                                    Day = nextStartDateTime.ToString( "dddd" ),
+                                    Time = nextStartDateTime.ToString( "h:mm tt" )
+                                } );
+                            }
+                        }
+                    }
+                    return serviceTimes;
+                }
+
+                // Otherwise use the obsolete RawServiceTimes string
                 if ( string.IsNullOrWhiteSpace( RawServiceTimes ) )
                     return serviceTimes;
 
@@ -325,6 +367,11 @@ namespace Rock.Web.Cache
         [DataMember]
         public decimal? TitheMetric { get; set; }
 
+        /// <summary>
+        /// The schedules that are associated with this campus.
+        /// </summary>
+        public List<CampusScheduleCache> CampusSchedules => CampusScheduleCache.GetMany( _campusScheduleIds ).ToList();
+
         #endregion
 
         #region Public Methods
@@ -383,7 +430,10 @@ namespace Rock.Web.Cache
             TeamGroupId = campus.TeamGroupId;
             PhoneNumber = campus.PhoneNumber;
             LeaderPersonAliasId = campus.LeaderPersonAliasId;
-            RawServiceTimes = campus.ServiceTimes;
+#pragma warning disable CS0612, CS0618
+            RawServiceTimes = RawServiceTimesFrom( campus.CampusSchedules, campus.ServiceTimes );
+#pragma warning restore CS0612, CS0618
+            _campusScheduleIds = campus.CampusSchedules.Select( s => s.Id ).ToList();
             CampusScheduleIds = campus.CampusSchedules.Select( s => s.ScheduleId ).ToList();
             Order = campus.Order;
             OpenedDate = campus.OpenedDate;
@@ -391,6 +441,49 @@ namespace Rock.Web.Cache
             TitheMetric = campus.TitheMetric;
 
             Location = new CampusLocation( campus.Location );
+        }
+
+        /// <summary>
+        /// This method will generate the RawServiceTimes string from either the new CampusSchedules
+        /// collection or the old obsolete ServiceTimes string.
+        /// </summary>
+        /// <remarks>
+        /// The serviceTimes string argument should be removed once campus.ServiceTimes is
+        /// removed.
+        /// </remarks>
+        /// <param name="campusSchedules"></param>
+        /// <param name="serviceTimes">A string such as "Sat^4pm|Sat^6pm|Sun^12pm" in the format of (Day^Time delimited with | characters)</param>
+        /// <returns>A string such as "Sat^4pm|Sat^6pm|Sun^12pm" in the format of (Day^Time delimited with | characters)</returns>
+        private static string RawServiceTimesFrom( ICollection<CampusSchedule> campusSchedules, string serviceTimes)
+        {
+            // Resolve ServiceTimes using the new CampusSchedules if available
+            if ( campusSchedules.Any() )
+            {
+                var sb = new System.Text.StringBuilder();
+                foreach ( var campusSchedule in campusSchedules )
+                {
+                    var schedule = campusSchedule.Schedule;
+                    if ( schedule != null )
+                    {
+                        var nextStartDateTime = schedule.GetNextStartDateTime( RockDateTime.Now );
+                        if ( nextStartDateTime != null )
+                        {
+                            if ( sb.Length > 0 )
+                            {
+                                sb.Append( "|" );
+                            }
+                            sb.AppendFormat( nextStartDateTime.Value.ToString( "dddd^h:mm tt" ) );
+                        }
+                    }
+                }
+                return sb.ToString();
+            }
+            else
+            {
+                // Otherwise just return the old ServiceTimes string
+                return serviceTimes;
+            }
+
         }
 
         /// <summary>
@@ -449,7 +542,6 @@ namespace Rock.Web.Cache
 		[Serializable]
         [DataContract]
         [LavaType( "Day", "Time" )]
-        [DotLiquid.LiquidType( "Day", "Time" )]
         public class ServiceTime
         {
             /// <summary>
@@ -477,7 +569,6 @@ namespace Rock.Web.Cache
         [Serializable]
         [DataContract]
         [LavaType( "Street1", "Street2", "City", "State", "PostalCode", "Country", "Latitude", "Longitude", "ImageUrl" )]
-        [DotLiquid.LiquidType( "Street1", "Street2", "City", "State", "PostalCode", "Country", "Latitude", "Longitude", "ImageUrl" )]
         public class CampusLocation
         {
             /// <summary>

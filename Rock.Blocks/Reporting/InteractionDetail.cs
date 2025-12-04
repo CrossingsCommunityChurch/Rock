@@ -34,7 +34,7 @@ namespace Rock.Blocks.Reporting
     [DisplayName( "Interaction Detail" )]
     [Category( "Reporting" )]
     [Description( "Presents the details of a interaction using Lava" )]
-    [IconCssClass( "fa fa-question" )]
+    [IconCssClass( "ti ti-question-mark" )]
     [SupportedSiteTypes( Model.SiteType.Web )]
 
     #region Block Attributes
@@ -42,7 +42,6 @@ namespace Rock.Blocks.Reporting
     [CodeEditorField( "Default Template",
         Description = "The Lava template to use as default.",
         EditorMode = Rock.Web.UI.Controls.CodeEditorMode.Lava,
-        EditorTheme = Rock.Web.UI.Controls.CodeEditorTheme.Rock,
         EditorHeight = 300,
         IsRequired = false,
         Order = 2,
@@ -90,7 +89,7 @@ namespace Rock.Blocks.Reporting
         protected const string DEFAULT_LAVA_TEMPLATE = @"<div class='panel panel-block'>
         <div class='panel-heading'>
 	        <h1 class='panel-title'>
-                <i class='fa fa-user'></i>
+                <i class='ti ti-user'></i>
                 Interaction Detail
             </h1>
         </div>
@@ -183,30 +182,27 @@ namespace Rock.Blocks.Reporting
                     interactionEntity = GetInteractionEntity( interaction );
                 }
 
-                if ( BlockCache.IsAuthorized( Authorization.EDIT, GetCurrentPerson() ) || interaction.IsAuthorized( Authorization.VIEW, GetCurrentPerson() ) )
+                var mergeFields = RequestContext.GetCommonMergeFields( GetCurrentPerson() );
+                mergeFields.TryAdd( MergeFieldKeys.Person, GetCurrentPerson() );
+                mergeFields.Add( MergeFieldKeys.InteractionDetailPage, LinkedPageRoute( MergeFieldKeys.InteractionDetailPage ) );
+                mergeFields.Add( MergeFieldKeys.InteractionChannel, interaction.InteractionComponent.InteractionChannel );
+                mergeFields.Add( MergeFieldKeys.InteractionComponent, interaction.InteractionComponent );
+                mergeFields.Add( MergeFieldKeys.InteractionEntity, interactionEntity );
+
+                if ( interactionEntity != null )
                 {
-                    var mergeFields = RequestContext.GetCommonMergeFields( GetCurrentPerson() );
-                    mergeFields.TryAdd( MergeFieldKeys.Person, GetCurrentPerson() );
-                    mergeFields.Add( MergeFieldKeys.InteractionDetailPage, LinkedPageRoute( MergeFieldKeys.InteractionDetailPage ) );
-                    mergeFields.Add( MergeFieldKeys.InteractionChannel, interaction.InteractionComponent.InteractionChannel );
-                    mergeFields.Add( MergeFieldKeys.InteractionComponent, interaction.InteractionComponent );
-                    mergeFields.Add( MergeFieldKeys.InteractionEntity, interactionEntity );
-
-                    if ( interactionEntity != null )
-                    {
-                        mergeFields.Add( MergeFieldKeys.InteractionEntityName, interactionEntity.ToString() );
-                    }
-                    else
-                    {
-                        mergeFields.Add( MergeFieldKeys.InteractionEntityName, string.Empty );
-                    }
-
-                    mergeFields.Add( MergeFieldKeys.Interaction, interaction );
-
-                    return interaction.InteractionComponent.InteractionChannel.InteractionDetailTemplate.IsNotNullOrWhiteSpace() ?
-                        interaction.InteractionComponent.InteractionChannel.InteractionDetailTemplate.ResolveMergeFields( mergeFields ) :
-                        GetAttributeValue( AttributeKey.DefaultTemplate ).ResolveMergeFields( mergeFields );
+                    mergeFields.Add( MergeFieldKeys.InteractionEntityName, interactionEntity.ToString() );
                 }
+                else
+                {
+                    mergeFields.Add( MergeFieldKeys.InteractionEntityName, string.Empty );
+                }
+
+                mergeFields.Add( MergeFieldKeys.Interaction, interaction );
+
+                return interaction.InteractionComponent.InteractionChannel.InteractionDetailTemplate.IsNotNullOrWhiteSpace() ?
+                    interaction.InteractionComponent.InteractionChannel.InteractionDetailTemplate.ResolveMergeFields( mergeFields ) :
+                    GetAttributeValue( AttributeKey.DefaultTemplate ).ResolveMergeFields( mergeFields );
             }
             return string.Empty;
         }

@@ -39,11 +39,18 @@ namespace RockWeb.Blocks.Reporting
 
     [LinkedPage( "Component Detail Page", "Page reference to the component detail page. This will be included as a variable in the Lava.", false, order: 0 )]
     [LinkedPage( "Interaction Detail Page", "Page reference to the interaction detail page. This will be included as a variable in the Lava.", false, order: 1 )]
-    [CodeEditorField( "Default Template", "The Lava template to use as default.", Rock.Web.UI.Controls.CodeEditorMode.Lava, Rock.Web.UI.Controls.CodeEditorTheme.Rock, 300, false, order: 2, defaultValue: @"
+
+    [CodeEditorField( "Default Template",
+        Description = "The Lava template to use as default.",
+        EditorMode = Rock.Web.UI.Controls.CodeEditorMode.Lava,
+        EditorHeight = 300,
+        IsRequired = false,
+        Order = 2,
+        DefaultValue = @"
 	<div class='panel panel-block'>
         <div class='panel-heading'>
 			<h1 class='panel-title'>
-                <i class='fa fa-th'></i>
+                <i class='ti ti-grid-dots'></i>
                 Components
             </h1>
         </div>
@@ -57,7 +64,7 @@ namespace RockWeb.Blocks.Reporting
 				 <div class='panel panel-widget'>
                     <div class='panel-heading clearfix'>
                         {% if component.Name != '' %}<h1 class='panel-title pull-left'>{{ component.Name }}</h1>{% endif %}
-                        <div class='pull-right'><i class='fa fa-chevron-right'></i></div>
+                        <div class='pull-right'><i class='ti ti-chevron-right'></i></div>
                     </div>
                 </div>
                 {% if ComponentDetailPage != null and ComponentDetailPage != '' %}
@@ -67,15 +74,17 @@ namespace RockWeb.Blocks.Reporting
 			{% endfor %}	
             <div class ='nav-paging'>
             {% if PreviousPageNavigateUrl != null and PreviousPageNavigateUrl != '' %}
-                <a Id ='lPrev' class = 'btn btn-primary btn-prev' href='{{ PreviousPageNavigateUrl }}'><i class='fa fa-chevron-left'></i> Prev<a/>
+                <a Id ='lPrev' class = 'btn btn-primary btn-prev' href='{{ PreviousPageNavigateUrl }}'><i class='ti ti-chevron-left'></i> Prev<a/>
             {% endif %}
             {% if NextPageNavigateUrl != null and NextPageNavigateUrl != '' %}
-                <a Id ='hlNext' class = 'btn btn-primary btn-next' href='{{ NextPageNavigateUrl }}'> Next <i class='fa fa-chevron-right'></i><a/>
+                <a Id ='hlNext' class = 'btn btn-primary btn-next' href='{{ NextPageNavigateUrl }}'> Next <i class='ti ti-chevron-right'></i><a/>
             {% endif %}
             </div>
 		</div>
 	</div>" )]
+
     [IntegerField( "Page Size", "The number of components to show per page.", true, 20, "", 3 )]
+
     [ContextAware( typeof( Person ) )]
     [Rock.SystemGuid.BlockTypeGuid( "00FF58B1-A433-43AA-82C9-45F8F58FBE9F" )]
     public partial class InteractionComponentList : Rock.Web.UI.RockBlock

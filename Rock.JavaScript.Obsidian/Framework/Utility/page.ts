@@ -23,10 +23,12 @@ export type PageConfig = {
     pageId: number;
     pageGuid: Guid;
     pageParameters: Record<string, string>;
+    sessionGuid: Guid;
     interactionGuid: Guid;
     currentPerson: CurrentPersonBag | null;
     isAnonymousVisitor: boolean;
     loginUrlWithReturnUrl: string;
+    trailblazerMode: boolean;
 };
 
 export function smoothScrollToTop(): void {

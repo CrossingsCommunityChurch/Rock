@@ -43,7 +43,6 @@ namespace RockWeb.Blocks.Fundraising
         Key = AttributeKey.ProfileLavaTemplate,
         Description = "Lava template for what to display at the top of the main panel. Usually used to display information about the participant such as photo, name, etc.",
         EditorMode = CodeEditorMode.Lava,
-        EditorTheme = CodeEditorTheme.Rock,
         EditorHeight = 100,
         IsRequired = false,
         DefaultValue = @"{% include '~~/Assets/Lava/FundraisingParticipantProfile.lava' %}",
@@ -54,7 +53,6 @@ namespace RockWeb.Blocks.Fundraising
         Key = AttributeKey.ProgressLavaTemplate,
         Description = "Lava template for how the progress bar should be displayed ",
         EditorMode = CodeEditorMode.Lava,
-        EditorTheme = CodeEditorTheme.Rock,
         EditorHeight = 100,
         IsRequired = false,
         DefaultValue = @"{% include '~~/Assets/Lava/FundraisingParticipantProgress.lava' %}",
@@ -65,7 +63,6 @@ namespace RockWeb.Blocks.Fundraising
         Key = AttributeKey.UpdatesLavaTemplate,
         Description = "Lava template for the Updates (Content Channel Items)",
         EditorMode = CodeEditorMode.Lava,
-        EditorTheme = CodeEditorTheme.Rock,
         EditorHeight = 100,
         IsRequired = false,
         DefaultValue = @"{% include '~~/Assets/Lava/FundraisingOpportunityUpdates.lava' %}",
@@ -76,7 +73,6 @@ namespace RockWeb.Blocks.Fundraising
         Key = AttributeKey.RequirementsHeaderLavaTemplate,
         Description = "Lava template for requirements header.",
         EditorMode = CodeEditorMode.Lava,
-        EditorTheme = CodeEditorTheme.Rock,
         EditorHeight = 100,
         IsRequired = false,
         DefaultValue = @"{% include '~~/Assets/Lava/FundraisingParticipantRequirementsHeader.lava' %}",
@@ -323,7 +319,7 @@ namespace RockWeb.Blocks.Fundraising
 
                 lProfileTitle.Text = string.Format(
                     "{0} Profile for {1}",
-                    RockFilters.Possessive( groupMember.Person.FullName ),
+                    groupMember.Person.FullName?.ToPossessive(),
                     groupMember.Group.GetAttributeValue( "OpportunityTitle" ) );
 
                 var dateRange = DateRangePicker.CalculateDateRangeFromDelimitedValues( groupMember.Group.GetAttributeValue( "OpportunityDateRange" ) );
@@ -667,7 +663,7 @@ namespace RockWeb.Blocks.Fundraising
             }
             else
             {
-                makeDonationButtonText = string.Format( "Contribute to {0} {1}", RockFilters.Possessive( groupMember.Person.NickName ), opportunityType );
+                makeDonationButtonText = string.Format( "Contribute to {0} {1}", groupMember.Person.NickName?.ToPossessive(), opportunityType );
             }
 
             mergeFields.Add( "MakeDonationButtonText", makeDonationButtonText );

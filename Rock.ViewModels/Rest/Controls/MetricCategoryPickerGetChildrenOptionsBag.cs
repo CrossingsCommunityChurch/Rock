@@ -16,6 +16,7 @@
 //
 
 using System;
+using System.Collections.Generic;
 
 namespace Rock.ViewModels.Rest.Controls
 {
@@ -37,7 +38,7 @@ namespace Rock.ViewModels.Rest.Controls
         /// specify their own IconCssClass value.
         /// </summary>
         /// <value>The default icon CSS class.</value>
-        public string DefaultIconCssClass { get; set; } = "fa fa-bar-chart-o";
+        public string DefaultIconCssClass { get; set; } = "ti ti-chart-bar";
 
         /// <summary>
         /// Gets or sets the security grant token to use when performing
@@ -45,6 +46,16 @@ namespace Rock.ViewModels.Rest.Controls
         /// </summary>
         /// <value>The security grant token.</value>
         public string SecurityGrantToken { get; set; }
+
+        /// <summary>
+        /// Gets or sets the values that need to be expanded to. This is used
+        /// when opening the tree view with an already selected value. Each
+        /// selected value is included in this property. When getting the list
+        /// of root items, you should automatically expand your results until
+        /// each of these values is reached.
+        /// </summary>
+
+        public List<string> ExpandToValues { get; set; }
     }
 }
 

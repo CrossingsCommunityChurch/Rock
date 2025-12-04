@@ -12,7 +12,8 @@
     import DropDownListProperty from "./dropDownListProperty.partial.obs";
     import { inlineStyleProvider, styleSheetProvider } from "../providers.partial";
     import { StyleSheetMode, ValueProvider } from "../types.partial";
-    import { stringConverter } from "../utils.partial";
+    import { FontFamilies, stringConverter } from "../utils.partial";
+    import { Enumerable } from "@Obsidian/Utility/linq";
     import { ListItemBag } from "@Obsidian/ViewModels/Utility/listItemBag";
 
     const props = defineProps({
@@ -45,36 +46,12 @@
 
     // IMPORTANT! These values will be used as is in the rendered CSS Ruleset.
     // If quotes are required, add them here.
-    const fontFamilies: ListItemBag[] = [
-        {
-            text: "Arial",
-            value: "Arial"
-        }, {
-            text: "Courier New",
-            value: '"Courier New"'
-        }, {
-            text: "Georgia",
-            value: "Georgia"
-        }, {
-            text: "Tahoma",
-            value: "Tahoma"
-        }, {
-            text: "Times New Roman",
-            value: '"Times New Roman"'
-        }, {
-            text: "Trebuchet MS",
-            value: '"Trebuchet MS"'
-        }, {
-            text: "Verana",
-            value: "Verana"
-        }, {
-            text: "Lucida",
-            value: "Lucida"
-        }, {
-            text: "Helvetica Neue",
-            value: '"Helvetica Neue"'
-        }
-    ];
+    const fontFamilies: ListItemBag[] = Enumerable
+        .from(Object.keys(FontFamilies))
+        .select(fontFamilyKey => ({
+            text: fontFamilyKey,
+            value: FontFamilies[fontFamilyKey]
+        })).toArray();
 
     // #region Values
 

@@ -39,7 +39,7 @@ namespace Rock.Blocks.Core
     [DisplayName( "Interaction Channel Detail" )]
     [Category( "Reporting" )]
     [Description( "Displays the details of a particular interaction channel." )]
-    [IconCssClass( "fa fa-question" )]
+    [IconCssClass( "ti ti-question-mark" )]
     // [SupportedSiteTypes( Model.SiteType.Web )]
 
     #region Block Attributes
@@ -48,7 +48,6 @@ namespace Rock.Blocks.Core
         Key = AttributeKey.DefaultTemplate,
         Description = "Lava template to use to display content",
         EditorMode = CodeEditorMode.Lava,
-        EditorTheme = CodeEditorTheme.Rock,
         EditorHeight = 400,
         IsRequired = false,
         DefaultValue = @"

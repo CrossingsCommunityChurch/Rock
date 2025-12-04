@@ -2,7 +2,7 @@
 <template>
     <div ref="emailSettingsStepElement"
          class="email-settings-step">
-        <Panel :hasFullscreen="true"
+        <Panel hasFullscreen
                panelBodyCssClass="panel-body-wizard"
                :title="title"
                type="block">
@@ -30,7 +30,7 @@
                             <a class="show-options-button"
                                role="button"
                                @click="areMoreOptionsShown = !areMoreOptionsShown">
-                                <span class="text-primary">Show {{ areMoreOptionsShown ? 'Less' : 'More' }} Options</span> <i :class="{ 'text-color': true, 'fa fa-chevron-up': areMoreOptionsShown, 'fa fa-chevron-down': !areMoreOptionsShown }"></i>
+                                <span class="text-primary">Show {{ areMoreOptionsShown ? 'Less' : 'More' }} Options</span> <i :class="{ 'text-color': true, 'ti ti-chevron-up': areMoreOptionsShown, 'ti ti-chevron-down': !areMoreOptionsShown }"></i>
                             </a>
                         </div>
 
@@ -67,35 +67,31 @@
                         </TransitionVerticalCollapse>
 
                         <div class="row">
-                            <div class="col-sm-5">
+                            <div class="col-sm-6">
                                 <TextBox v-model="internalSubject"
                                          help="<span class='tip tip-lava'></span>"
                                          label="Email Subject"
                                          rules="required" />
-                                <ImageUploader v-model="currentAttachment"
-                                               :binaryFileTypeGuid="attachmentBinaryFileTypeGuid"
-                                               label="Attachments"
-                                               :uploadAsTemporary="true"
-                                               @update:modelValue="onAttachmentAdded" />
+
+                                <TextBox v-if="emailPreviewElement"
+                                         v-model="emailPreviewText"
+                                         help="A short summary of the email which will show in the inbox before the email is opened."
+                                         label="Email Preview Text"
+                                         textMode="multiline" />
+
+                                <FileUploader v-model="currentAttachment"
+                                              :binaryFileTypeGuid="attachmentBinaryFileTypeGuid"
+                                              label="Attachments"
+                                              :uploadAsTemporary="true"
+                                              @update:modelValue="onAttachmentAdded" />
 
                                 <div class="attachment">
                                     <ul class="attachment-content">
                                         <li v-for="binaryFileAttachment in internalEmailAttachmentBinaryFiles">
-                                            <a :href="`/GetFile.ashx?guid=${binaryFileAttachment.value}&fileName=${binaryFileAttachment.text}`" target="_blank" rel="noopener noreferrer">{{ binaryFileAttachment.text }}</a> <a><i class="fa fa-times" @click="onAttachmentRemoved(binaryFileAttachment)"></i></a>
+                                            <a :href="`/GetFile.ashx?guid=${binaryFileAttachment.value}&fileName=${binaryFileAttachment.text}`" target="_blank" rel="noopener noreferrer">{{ binaryFileAttachment.text }}</a> <a><i class="ti ti-x" @click="onAttachmentRemoved(binaryFileAttachment)"></i></a>
                                         </li>
                                     </ul>
                                 </div>
-                            </div>
-
-                            <div class="col-sm-7">
-                                <TextBox v-if="emailPreviewElement"
-                                         v-model="emailPreviewText"
-                                         help="A short summary of the email which will show in the inbox before the email is opened."
-                                         label="Email Preview"
-                                         textMode="multiline" />
-                            </div>
-
-                            <div class="col-sm-5">
                             </div>
                         </div>
                     </RockForm>
@@ -103,11 +99,13 @@
             </template>
 
             <template #footerActions>
-                <RockButton @click="onPreviousClicked">Previous</RockButton>
+                <RockButton v-shortcut="!areNavigationShortcutsDisabled && 'ArrowLeft'"
+                            @click="onPreviousClicked">Previous</RockButton>
             </template>
 
             <template #footerSecondaryActions>
-                <RockButton btnType="primary"
+                <RockButton v-shortcut="!areNavigationShortcutsDisabled && 'ArrowRight'"
+                            btnType="primary"
                             :form="formId"
                             type="submit">{{ nextStepTitle ? `Next: ${nextStepTitle}` : 'Next' }}</RockButton>
             </template>
@@ -142,12 +140,13 @@
     import { nextTick, onMounted, onUnmounted, PropType, ref, watch } from "vue";
     import ConditionalWell from "@Obsidian/Controls/conditionalWell.obs";
     import EmailBox from "@Obsidian/Controls/emailBox.obs";
-    import ImageUploader from "@Obsidian/Controls/imageUploader.obs";
+    import FileUploader from "@Obsidian/Controls/fileUploader.obs";
     import Panel from "@Obsidian/Controls/panel.obs";
     import RockButton from "@Obsidian/Controls/rockButton.obs";
     import RockForm from "@Obsidian/Controls/rockForm.obs";
     import TextBox from "@Obsidian/Controls/textBox.obs";
     import TransitionVerticalCollapse from "@Obsidian/Controls/transitionVerticalCollapse.obs";
+    import { vShortcut } from "@Obsidian/Directives/shortcut";
     import { Guid } from "@Obsidian/Types";
     import { useVModelPassthrough } from "@Obsidian/Utility/component";
     import { newGuid } from "@Obsidian/Utility/guid";
@@ -156,6 +155,11 @@
     import { isHTMLElement } from "@Obsidian/Utility/dom";
 
     const props = defineProps({
+        areNavigationShortcutsDisabled: {
+            type: Boolean as PropType<boolean>,
+            required: true
+        },
+
         attachmentBinaryFileTypeGuid: {
             type: String as PropType<Guid>,
             required: true

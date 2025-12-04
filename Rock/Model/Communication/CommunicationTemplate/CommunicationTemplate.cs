@@ -26,6 +26,7 @@ using System.Runtime.Serialization;
 using Newtonsoft.Json;
 using Rock.Communication;
 using Rock.Data;
+using Rock.Enums.Communication;
 using Rock.Security;
 using Rock.Utility;
 
@@ -137,6 +138,21 @@ namespace Rock.Model
         /// </value>=
         [DataMember]
         public bool IsStarter { get; set; }
+
+        /// <summary>
+        /// Gets or sets the communication template version.
+        /// </summary>
+        [DataMember]
+        public CommunicationTemplateVersion Version { get; set; }
+
+        /// <summary>
+        /// Gets or sets the Communication Template usage type.
+        /// </summary>
+        /// <value>
+        /// If <see langword="null"/>, this is a general purpose template that should be shown in the Communication List and Communication Entry Wizard blocks.
+        /// </value>
+        [DataMember]
+        public CommunicationTemplateUsageType? UsageType { get; set; }
 
         #region Email Fields
 

@@ -45,7 +45,7 @@ namespace Rock.Blocks.Lms
     [DisplayName( "Learning Course Detail" )]
     [Category( "LMS" )]
     [Description( "Displays the details of a particular learning requiredCourse." )]
-    [IconCssClass( "fa fa-question" )]
+    [IconCssClass( "ti ti-question-mark" )]
     [SupportedSiteTypes( Model.SiteType.Web )]
 
     #region Block Attributes
@@ -68,7 +68,7 @@ namespace Rock.Blocks.Lms
 
         private static class PageParameterKey
         {
-            public const string LearningActivityId = "LearningActivityId";
+            public const string LearningClassActivityId = "LearningClassActivityId";
             public const string LearningClassId = "LearningClassId";
             public const string LearningClassContentPageId = "LearningClassContentPageId";
             public const string LearningClassAnnouncementId = "LearningClassAnnouncementId";
@@ -97,10 +97,11 @@ namespace Rock.Blocks.Lms
 
             SetBoxInitialEntityState( box );
 
-            var entity = box.Entity;
-
-            box.NavigationUrls = GetBoxNavigationUrls( entity );
-            box.Options = GetBoxOptions( entity );
+            if ( box.Entity != null )
+            {
+                box.NavigationUrls = GetBoxNavigationUrls( box.Entity );
+                box.Options = GetBoxOptions( box.Entity );
+            }
 
             return box;
         }
@@ -210,7 +211,8 @@ namespace Rock.Blocks.Lms
                 CourseCode = entity.CourseCode,
                 Credits = entity.Credits,
                 Description = entity.Description,
-                DescriptionAsHtml = entity.Description.IsNotNullOrWhiteSpace() ? new StructuredContentHelper( entity.Description ).Render() : string.Empty,
+                // Don't resolve the merge fields as this is being shown to an admin type person.
+                DescriptionAsHtml = new StructuredContentHelper( entity.Description ).Render(),
                 EnableAnnouncements = entity.EnableAnnouncements,
                 ImageBinaryFile = entity.ImageBinaryFile?.ToListItemBag(),
                 IsActive = entity.IsActive,
@@ -301,8 +303,13 @@ namespace Rock.Blocks.Lms
             box.IfValidProperty( nameof( box.Bag.Credits ),
                 () => entity.Credits = box.Bag.Credits );
 
-            box.IfValidProperty( nameof( box.Bag.Description ),
-                () => entity.Description = box.Bag.Description );
+            box.IfValidProperty( nameof( box.Bag.Description ), () =>
+            {
+                new StructuredContentHelper( box.Bag.Description )
+                    .DetectAndApplyDatabaseChanges( entity.Description, RockContext );
+
+                entity.Description = box.Bag.Description;
+            } );
 
             box.IfValidProperty( nameof( box.Bag.EnableAnnouncements ),
                 () => entity.EnableAnnouncements = box.Bag.EnableAnnouncements );
@@ -374,8 +381,6 @@ namespace Rock.Blocks.Lms
                 {
                     LearningProgram = program,
                     LearningProgramId = program?.Id ?? 0,
-                    Id = 0,
-                    Guid = Guid.Empty,
                     IsActive = true
                 };
             }
@@ -423,7 +428,7 @@ namespace Rock.Blocks.Lms
         private Dictionary<string, string> GetBoxNavigationUrls( LearningCourseBag entity )
         {
             var queryParams = GetCurrentPageParams( entity.DefaultLearningClassIdKey );
-            var activityParams = GetCurrentPageParams( entity.DefaultLearningClassIdKey, PageParameterKey.LearningActivityId );
+            var activityParams = GetCurrentPageParams( entity.DefaultLearningClassIdKey, PageParameterKey.LearningClassActivityId );
             var participantParams = GetCurrentPageParams( entity.DefaultLearningClassIdKey, PageParameterKey.LearningParticipantId );
             var contentPageParams = GetCurrentPageParams( entity.DefaultLearningClassIdKey, PageParameterKey.LearningClassContentPageId );
             var announcementParams = GetCurrentPageParams( entity.DefaultLearningClassIdKey, PageParameterKey.LearningClassAnnouncementId );
@@ -482,7 +487,10 @@ namespace Rock.Blocks.Lms
             else
             {
                 // Create a new entity.
-                entity = new LearningCourse();
+                entity = new LearningCourse
+                {
+                    LearningProgramId = RequestContext.PageParameterAsId( PageParameterKey.LearningProgramId )
+                };
                 entityService.Add( entity );
             }
 
@@ -569,7 +577,11 @@ namespace Rock.Blocks.Lms
                 entity.LearningProgramId = learningProgramId;
             }
 
-            RockContext.SaveChanges();
+            RockContext.WrapTransaction( () =>
+            {
+                RockContext.SaveChanges();
+                entity.SaveAttributeValues( RockContext );
+            } );
 
             // Ensure navigation properties will work now.
             entity = entityService.GetCourseWithRequirements( entity.Id );

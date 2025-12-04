@@ -28,6 +28,7 @@ using Rock.Enums.Blocks.Security.ForgotUserName;
 using Rock.Model;
 using Rock.Security;
 using Rock.ViewModels.Blocks.Security.ForgotUserName;
+using Rock.Web.UI.Controls;
 
 namespace Rock.Blocks.Security
 {
@@ -46,7 +47,6 @@ namespace Rock.Blocks.Security
     [CodeEditorField( "Heading Caption",
         Key = AttributeKey.HeadingCaption,
         EditorMode = Rock.Web.UI.Controls.CodeEditorMode.Html,
-        EditorTheme = Rock.Web.UI.Controls.CodeEditorTheme.Rock,
         EditorHeight = 200,
         IsRequired = false,
         DefaultValue = "<h5 class='text-center'>Can't log in?</h5>",
@@ -56,7 +56,6 @@ namespace Rock.Blocks.Security
     [CodeEditorField( "Invalid Email Caption",
         Key = AttributeKey.InvalidEmailCaption,
         EditorMode = Rock.Web.UI.Controls.CodeEditorMode.Html,
-        EditorTheme = Rock.Web.UI.Controls.CodeEditorTheme.Rock,
         EditorHeight = 200,
         IsRequired = false,
         DefaultValue = "Sorry, we didn't recognize that email address. Want to try another?",
@@ -66,7 +65,6 @@ namespace Rock.Blocks.Security
     [CodeEditorField( "Success Caption",
         Key = AttributeKey.SuccessCaption,
         EditorMode = Rock.Web.UI.Controls.CodeEditorMode.Html,
-        EditorTheme = Rock.Web.UI.Controls.CodeEditorTheme.Rock,
         EditorHeight = 200,
         IsRequired = false,
         DefaultValue = "We've emailed you instructions for logging in.",
@@ -102,6 +100,7 @@ namespace Rock.Blocks.Security
 
     #endregion
 
+    [Rock.Cms.DefaultBlockRole( Rock.Enums.Cms.BlockRole.Primary )]
     [Rock.SystemGuid.EntityTypeGuid( "5BBEE600-781E-4480-8144-36F8D01C7F09" )]
     [Rock.SystemGuid.BlockTypeGuid( "16CD7562-BE31-4823-9C4D-F365AB0AA5C4" )]
     public class ForgotUserName : RockBlockType
@@ -160,7 +159,7 @@ namespace Rock.Blocks.Security
                 ErrorMessage = null,
                 NavigationUrls = GetBoxNavigationUrls(),
                 SecurityGrantToken = null,
-                DisableCaptchaSupport = this.DisableCaptchaSupport
+                DisableCaptchaSupport = Captcha.CaptchaService.ShouldDisableCaptcha( GetAttributeValue( AttributeKey.DisableCaptchaSupport ).AsBoolean() )
             };
         }
 
@@ -175,7 +174,7 @@ namespace Rock.Blocks.Security
         [BlockAction]
         public BlockActionResult SendInstructions( ForgotUserNameSendInstructionsRequestBag bag )
         {
-            var disableCaptcha = GetAttributeValue( AttributeKey.DisableCaptchaSupport ).AsBoolean();
+            var disableCaptcha = Captcha.CaptchaService.ShouldDisableCaptcha( GetAttributeValue( AttributeKey.DisableCaptchaSupport ).AsBoolean() );
 
             if ( !disableCaptcha && !RequestContext.IsCaptchaValid )
             {

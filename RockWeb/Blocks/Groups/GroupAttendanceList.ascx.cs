@@ -61,6 +61,8 @@ namespace RockWeb.Blocks.Groups
         DefaultBooleanValue = true,
         Order = 4,
         Key = AttributeKey.DisplayAttendanceType )]
+
+    [Rock.Cms.DefaultBlockRole( Rock.Enums.Cms.BlockRole.Primary )]
     [Rock.SystemGuid.BlockTypeGuid( Rock.SystemGuid.BlockType.GROUP_ATTENDANCE_LIST )]
     public partial class GroupAttendanceList : RockBlock, ICustomGridColumns
     {
@@ -118,7 +120,7 @@ namespace RockWeb.Blocks.Groups
                 gOccurrences.RowDataBound += gOccurrences_RowDataBound;
 
                 // make sure they have Auth to edit the block OR edit to the Group
-                bool canEditBlock = IsUserAuthorized( Authorization.EDIT ) || _group.IsAuthorized( Authorization.EDIT, this.CurrentPerson );
+                bool canEditBlock = IsUserAuthorized( Authorization.EDIT ) || _group.IsAuthorized( Authorization.EDIT, this.CurrentPerson ) || _group.IsAuthorized( Authorization.TAKE_ATTENDANCE, this.CurrentPerson );
                 gOccurrences.Actions.ShowAdd = canEditBlock && GetAttributeValue( AttributeKey.AllowAdd ).AsBoolean();
                 gOccurrences.IsDeleteEnabled = canEditBlock;
 

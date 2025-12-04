@@ -54,7 +54,6 @@ namespace Rock.Tests.Shared.Lava
 
         public static void Initialize( bool testFluidEngine, bool loadShortcodes )
         {
-            LavaService.RockLiquidIsEnabled = false;
             FluidEngineIsEnabled = testFluidEngine;
 
             RegisterLavaEngineFactories();
@@ -757,6 +756,11 @@ namespace Rock.Tests.Shared.Lava
                     outputCompareText = Regex.Replace( outputCompareText, @"\s*", string.Empty );
                 }
 
+                if ( options.NormalizeNewLine )
+                {
+                    outputCompareText = Regex.Replace( outputCompareText, @"\r\n", "\n" );
+                }
+
                 if ( options.IgnoreCase )
                 {
                     outputCompareText = outputCompareText.ToLower();
@@ -837,7 +841,7 @@ namespace Rock.Tests.Shared.Lava
 
                             if ( !isValid )
                             {
-                                Assert.That.Fail( message );
+                                Assert.Fail( message );
                             }
                         }
                         else
@@ -849,11 +853,11 @@ namespace Rock.Tests.Shared.Lava
 
                             if ( matchType == LavaTestOutputMatchTypeSpecifier.Contains )
                             {
-                                Assert.That.Contains( outputCompareText, expectedOutputCompareText );
+                                Assert.Contains( expectedOutputCompareText, outputCompareText );
                             }
                             else if ( matchType == LavaTestOutputMatchTypeSpecifier.DoesNotContain )
                             {
-                                Assert.That.DoesNotContain( outputCompareText, expectedOutputCompareText );
+                                Assert.DoesNotContain( expectedOutputCompareText, outputCompareText );
                             }
                         }
                     }
@@ -872,7 +876,7 @@ namespace Rock.Tests.Shared.Lava
 
             if ( !isMatch )
             {
-                Assert.That.Fail( message );
+                Assert.Fail( message );
             }
         }
 
@@ -1028,8 +1032,8 @@ namespace Rock.Tests.Shared.Lava
             inputTemplate = inputTemplate ?? string.Empty;
 
             var result = engine.RenderTemplate( inputTemplate.Trim(), options );
-            Assert.That.IsNull( result.Error, "The template failed to render." );
-            Assert.That.IsFalse( result.Text.IsNullOrWhiteSpace(), "The template produced no output." );
+            Assert.IsNull( result.Error, "The template failed to render." );
+            Assert.IsFalse( result.Text.IsNullOrWhiteSpace(), "The template produced no output." );
         }
 
         /// <summary>
@@ -1101,15 +1105,14 @@ namespace Rock.Tests.Shared.Lava
         {
             inputTemplate = inputTemplate ?? string.Empty;
 
-            Assert.That.ThrowsException<LavaException>(
-            () =>
+            var renderOptions = new LavaRenderParameters
             {
-                var renderOptions = new LavaRenderParameters
-                {
-                    Context = engine.NewRenderContext( mergeFields ),
-                    ExceptionHandlingStrategy = ExceptionHandlingStrategySpecifier.Throw
-                };
+                Context = engine.NewRenderContext( mergeFields ),
+                ExceptionHandlingStrategy = ExceptionHandlingStrategySpecifier.Throw
+            };
 
+            Assert.Throws<LavaException>( () =>
+            {
                 _ = engine.RenderTemplate( inputTemplate.Trim(), renderOptions );
             },
             "Invalid template expected." );
@@ -1144,7 +1147,7 @@ namespace Rock.Tests.Shared.Lava
 
                 var isValidDate = DateTime.TryParse( outputString, out outputDate );
 
-                Assert.That.True( isValidDate, $"Template Output does not represent a valid DateTime. [Output=\"{outputString}\"]" );
+                Assert.IsTrue( isValidDate, $"Template Output does not represent a valid DateTime. [Output=\"{outputString}\"]" );
 
                 if ( maximumDelta != null )
                 {
@@ -1152,7 +1155,7 @@ namespace Rock.Tests.Shared.Lava
                 }
                 else
                 {
-                    Assert.That.AreEqual( expectedDateTime, outputDate );
+                    Assert.AreEqual( expectedDateTime, outputDate );
                 }
             } );
         }
@@ -1170,7 +1173,7 @@ namespace Rock.Tests.Shared.Lava
 
             isValid = DateTime.TryParse( expectedDateString, out expectedDate );
 
-            Assert.That.True( isValid, "Expected Date String input is not a valid date." );
+            Assert.IsTrue( isValid, "Expected Date String input is not a valid date." );
 
             AssertTemplateOutputDate( expectedDate, inputTemplate, maximumDelta );
         }
@@ -1219,7 +1222,7 @@ namespace Rock.Tests.Shared.Lava
 
             // To simplify the process of testing date/time differences, we need to ensure that the selected timezone is not subject to Daylight Saving Time.
             // If a DST-affected timezone is used, some tests will fail when executed across DST boundary dates.
-            Assert.That.IsFalse( RockDateTime.OrgTimeZoneInfo.SupportsDaylightSavingTime, "Test Timezone should not be configured for Daylight Saving Time (DST)." );
+            Assert.IsFalse( RockDateTime.OrgTimeZoneInfo.SupportsDaylightSavingTime, "Test Timezone should not be configured for Daylight Saving Time (DST)." );
         }
 
         /// <summary>

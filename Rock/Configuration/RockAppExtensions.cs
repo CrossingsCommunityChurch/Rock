@@ -15,11 +15,13 @@
 // </copyright>
 
 using System;
+using System.IO;
 
 using Microsoft.Extensions.DependencyInjection;
 
 using Rock.Attribute;
 using Rock.Communication.Chat;
+using Rock.Data;
 using Rock.Lava;
 
 namespace Rock.Configuration
@@ -63,7 +65,7 @@ namespace Rock.Configuration
         /// <summary>
         /// Get the name of the current Lava engine that is being used to
         /// process Lava. If this is called before Rock has finished starting
-        /// up it will always return <c>DotLiquid</c>.
+        /// up it will always return <c>Fluid</c>.
         /// </summary>
         /// <param name="app">The RockApp for which to retrieve the Lava engine name.</param>
         /// <returns>The current Lava engine name.</returns>
@@ -74,18 +76,11 @@ namespace Rock.Configuration
 
             if ( engine == null )
             {
-                return "DotLiquid";
+                return "Fluid";
             }
             else
             {
-                var engineName = engine.EngineName;
-
-                if ( LavaService.RockLiquidIsEnabled )
-                {
-                    engineName = $"DotLiquid (with {engineName} verification)";
-                }
-
-                return engineName;
+                return engine.EngineName;
             }
         }
 
@@ -100,7 +95,7 @@ namespace Rock.Configuration
         }
 
         /// <summary>
-        /// Resolves the rock URL to the absolute path it refers to on this site.
+        /// Resolves the Rock URL to the absolute path it refers to on this site.
         /// The name of the theme will be determined automatically, if it can't
         /// be determined then "Rock" will be used.
         /// </summary>
@@ -120,7 +115,7 @@ namespace Rock.Configuration
         }
 
         /// <summary>
-        /// Resolves the rock URL to the absolute path it refers to on this site.
+        /// Resolves the Rock URL to the absolute path it refers to on this site.
         /// </summary>
         /// <remarks>
         ///     <para>An input starting with "~~/" will return a theme URL like, "{SiteRoot}/Themes/{CurrentSiteTheme}/{input}" without the leading "~~".</para>
@@ -161,7 +156,80 @@ namespace Rock.Configuration
             return url;
         }
 
-        #region Service Provider
+        /// <summary>
+        /// Maps the Rock relative path to the physical path it refers to on
+        /// the filesystem. The name of the theme will be determined
+        /// automatically, if it can't be determined then "Rock" will be used.
+        /// </summary>
+        /// <remarks>
+        ///     <para>An input starting with "~~/" will return a path like, "{SiteRoot}/Themes/{CurrentSiteTheme}/{input}" without the leading "~~".</para>
+        ///     <para>An input starting with "~/" will return the site root like, {SiteRoot}/{input}" without the leading "~".</para>
+        ///     <para>An input of "~~" will return a path like "{SiteRoot}/Themes/{CurrentSiteTheme}" without a trailing slash.</para>
+        ///     <para>An input of "~" will return the site root "{SiteRoot}/" with a trailing slash. </para>
+        ///     <para>The input will be returned as supplied for all other cases.</para>
+        /// </remarks>
+        /// <param name="app">The RockApp instance.</param>
+        /// <param name="path">The input with prefix <c>"~~"</c> or <c>"~"</c>.</param>
+        /// <returns>The resolved path.</returns>
+        public static string MapPath( this RockApp app, string path )
+        {
+            return MapPath( app, path, "Rock" );
+        }
+
+        /// <summary>
+        /// Maps the Rock relative path to the physical path it refers to on
+        /// the filesystem.
+        /// </summary>
+        /// <remarks>
+        ///     <para>An input starting with "~~/" will return a path like, "{SiteRoot}/Themes/{CurrentSiteTheme}/{input}" without the leading "~~".</para>
+        ///     <para>An input starting with "~/" will return the site root like, {SiteRoot}/{input}" without the leading "~".</para>
+        ///     <para>An input of "~~" will return a path like "{SiteRoot}/Themes/{CurrentSiteTheme}" without a trailing slash.</para>
+        ///     <para>An input of "~" will return the site root "{SiteRoot}/" with a trailing slash. </para>
+        ///     <para>The input will be returned as supplied for all other cases.</para>
+        /// </remarks>
+        /// <param name="app">The RockApp instance.</param>
+        /// <param name="path">The input with prefix <c>"~~"</c> or <c>"~"</c>.</param>
+        /// <param name="theme">The name of the theme when a "~~" is encountered.</param>
+        /// <returns>The resolved path.</returns>
+        public static string MapPath( this RockApp app, string path, string theme )
+        {
+            var appPath = app.HostingSettings.WebRootPath.TrimEnd( new char[] { '/', '\\' } );
+
+            if ( path.IsNullOrWhiteSpace() )
+            {
+                return path;
+            }
+
+            if ( path == "~" )
+            {
+                // Special case, make this end with slash.
+                return $"{appPath}{Path.DirectorySeparatorChar}";
+            }
+
+            if ( path.StartsWith( "~~" ) )
+            {
+                return new[] { appPath, "Themes", theme, path.Substring( 2 ) }.JoinStrings( Path.DirectorySeparatorChar.ToString() );
+            }
+
+            if ( path.StartsWith( "~" ) )
+            {
+                return new[] { appPath, path.Substring( 1 ) }.JoinStrings( Path.DirectorySeparatorChar.ToString() );
+            }
+
+            return path;
+        }
+
+        /// <summary>
+        /// Creates a new <see cref="RockContext"/> for use in the application.
+        /// This provides a central location to creating contexts for accessing
+        /// the database so that unit tests can more easily override the behavior.
+        /// </summary>
+        /// <param name="app">The current Rock application instannce.</param>
+        /// <returns>A new instance of <see cref="RockContext"/>.</returns>
+        internal static RockContext CreateRockContext( this RockApp app )
+        {
+            return app.GetRequiredService<IRockContextFactory>().CreateRockContext();
+        }
 
         /// <summary>
         /// Gets the <see cref="IChatProvider"/> service from the <see cref="RockApp"/>'s <see cref="IServiceProvider"/>.
@@ -178,7 +246,5 @@ namespace Rock.Configuration
         {
             return rockApp.GetRequiredService<IChatProvider>();
         }
-
-        #endregion Service Provider
     }
 }

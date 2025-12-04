@@ -12,12 +12,13 @@
         <asp:Panel ID="pnlContent" runat="server">
             <asp:HiddenField ID="hfTransactionViewMode" runat="server" />
             <asp:HiddenField ID="hfMoveToBatchId" runat="server" />
+            <asp:HiddenField ID="hfIsMoveTransactionsEnabled" runat="server" Value="False" />
 
             <asp:ValidationSummary ID="valSummaryTop" runat="server" HeaderText="Please correct the following:" CssClass="alert alert-validation" />
 
             <div class="panel panel-block">
                 <div class="panel-heading">
-                    <h1 class="panel-title"><i class="fa fa-credit-card"></i> <asp:Literal ID="lTitle" runat="server"></asp:Literal></h1>
+                    <h1 class="panel-title"><i class="ti ti-credit-card"></i> <asp:Literal ID="lTitle" runat="server"></asp:Literal></h1>
 
                     <div class="pull-right">
                         <Rock:ButtonDropDownList ID="bddlOptions" runat="server" FormGroupCssClass="panel-options pull-right dropdown-right" Title="Options" SelectionStyle="Checkmark" OnSelectionChanged="bddlOptions_SelectionChanged">

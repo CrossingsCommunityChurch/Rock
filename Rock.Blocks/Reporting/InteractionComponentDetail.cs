@@ -16,13 +16,11 @@
 //
 
 using System;
-using System.Collections.Generic;
 using System.ComponentModel;
 
 using Rock.Attribute;
 using Rock.Data;
 using Rock.Model;
-using Rock.Security;
 using Rock.ViewModels.Blocks.Reporting.InteractionComponentDetail;
 using Rock.Web.Cache;
 
@@ -34,7 +32,7 @@ namespace Rock.Blocks.Reporting
     [DisplayName( "Interaction Component Detail" )]
     [Category( "Reporting" )]
     [Description( "Presents the details of a interaction channel using Lava" )]
-    [IconCssClass( "fa fa-question" )]
+    [IconCssClass( "ti ti-question-mark" )]
     // [SupportedSiteTypes( Model.SiteType.Web )]
 
     #region Block Attributes
@@ -42,7 +40,6 @@ namespace Rock.Blocks.Reporting
     [CodeEditorField( "Default Template",
         Description = "The Lava template to use as default.",
         EditorMode = Rock.Web.UI.Controls.CodeEditorMode.Lava,
-        EditorTheme = Rock.Web.UI.Controls.CodeEditorTheme.Rock,
         EditorHeight = 400,
         IsRequired = false,
         Order = 0,
@@ -133,28 +130,25 @@ namespace Rock.Blocks.Reporting
                     interactionEntity = GetComponentEntity( RockContext, interactionComponent );
                 }
 
-                if ( BlockCache.IsAuthorized( Authorization.EDIT, GetCurrentPerson() ) || interactionComponent.IsAuthorized( Authorization.VIEW, GetCurrentPerson() ) )
+                var mergeFields = RequestContext.GetCommonMergeFields( GetCurrentPerson() );
+                mergeFields.TryAdd( MergeFieldKeys.Person, GetCurrentPerson() );
+                mergeFields.Add( MergeFieldKeys.InteractionChannel, interactionComponent.InteractionChannel );
+                mergeFields.Add( MergeFieldKeys.InteractionComponent, interactionComponent );
+                mergeFields.Add( MergeFieldKeys.InteractionComponentEntity, interactionEntity );
+
+                if ( interactionEntity != null )
                 {
-                    var mergeFields = RequestContext.GetCommonMergeFields( GetCurrentPerson() );
-                    mergeFields.TryAdd( MergeFieldKeys.Person, GetCurrentPerson() );
-                    mergeFields.Add( MergeFieldKeys.InteractionChannel, interactionComponent.InteractionChannel );
-                    mergeFields.Add( MergeFieldKeys.InteractionComponent, interactionComponent );
-                    mergeFields.Add( MergeFieldKeys.InteractionComponentEntity, interactionEntity );
-
-                    if ( interactionEntity != null )
-                    {
-                        mergeFields.Add( MergeFieldKeys.InteractionComponentEntityName, interactionEntity.ToString() );
-                    }
-                    else
-                    {
-                        mergeFields.Add( MergeFieldKeys.InteractionComponentEntityName, string.Empty );
-                    }
-
-                    box.ComponentName = interactionComponent.Name;
-                    box.Content = interactionComponent.InteractionChannel.ComponentDetailTemplate.IsNotNullOrWhiteSpace() ?
-                        interactionComponent.InteractionChannel.ComponentDetailTemplate.ResolveMergeFields( mergeFields ) :
-                        GetAttributeValue( AttributeKey.DefaultTemplate ).ResolveMergeFields( mergeFields );
+                    mergeFields.Add( MergeFieldKeys.InteractionComponentEntityName, interactionEntity.ToString() );
                 }
+                else
+                {
+                    mergeFields.Add( MergeFieldKeys.InteractionComponentEntityName, string.Empty );
+                }
+
+                box.ComponentName = interactionComponent.Name;
+                box.Content = interactionComponent.InteractionChannel.ComponentDetailTemplate.IsNotNullOrWhiteSpace() ?
+                    interactionComponent.InteractionChannel.ComponentDetailTemplate.ResolveMergeFields( mergeFields ) :
+                    GetAttributeValue( AttributeKey.DefaultTemplate ).ResolveMergeFields( mergeFields );
             }
             else
             {

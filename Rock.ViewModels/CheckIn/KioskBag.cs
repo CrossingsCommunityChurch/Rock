@@ -14,6 +14,7 @@
 // limitations under the License.
 // </copyright>
 //
+using Rock.Enums.CheckIn;
 using Rock.Model;
 
 namespace Rock.ViewModels.CheckIn
@@ -23,6 +24,12 @@ namespace Rock.ViewModels.CheckIn
     /// </summary>
     public class KioskBag : CheckInItemBag
     {
+        /// <summary>
+        /// Controls who can be added to an existing family during check-in,
+        /// regardless of the IsAddingFamiliesEnabled value.
+        /// </summary>
+        public AdultsOrChildrenSelectionMode AllowAddingIndividualsToExistingFamilies { get; set; }
+
         /// <summary>
         /// Gets or sets the kiosk type.
         /// </summary>
@@ -46,5 +53,15 @@ namespace Rock.ViewModels.CheckIn
         /// </summary>
         /// <value><c>true</c> if this kiosk supports registration mode; otherwise, <c>false</c>.</value>
         public bool IsRegistrationModeEnabled { get; set; }
+
+        /// <summary>
+        /// Determines if adding new families in registration mode is enabled.
+        /// </summary>
+        public bool IsAddingFamiliesEnabled { get; set; }
+
+        /// <summary>
+        /// Determines if editing new families in registration mode is enabled.
+        /// </summary>
+        public bool IsEditingFamiliesEnabled { get; set; }
     }
 }

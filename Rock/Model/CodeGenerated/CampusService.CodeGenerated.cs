@@ -226,6 +226,8 @@ namespace Rock.Model
         public static void CopyPropertiesFrom( this Campus target, Campus source )
         {
             target.Id = source.Id;
+            target.AverageWeekendAttendance = source.AverageWeekendAttendance;
+            target.BeaconId = source.BeaconId;
             target.CampusStatusValueId = source.CampusStatusValueId;
             target.CampusTypeValueId = source.CampusTypeValueId;
             target.ClosedDate = source.ClosedDate;
@@ -240,7 +242,9 @@ namespace Rock.Model
             target.OpenedDate = source.OpenedDate;
             target.Order = source.Order;
             target.PhoneNumber = source.PhoneNumber;
+            #pragma warning disable 612, 618
             target.ServiceTimes = source.ServiceTimes;
+            #pragma warning restore 612, 618
             target.ShortCode = source.ShortCode;
             target.TeamGroupId = source.TeamGroupId;
             target.TimeZoneId = source.TimeZoneId;

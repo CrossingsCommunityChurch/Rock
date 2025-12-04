@@ -40,7 +40,16 @@ namespace Rock.Tests.Integration.Core.Jobs
         [DataRow( GivingJourneyStage.Consistent, 7, 14, 21, 28, 35, 42 )]
 
         // Has been giving consistently starting more than 150 days ago, and gave three times, and hasn't lapsed more than 149 days
-        [DataRow( GivingJourneyStage.Consistent, 151, 144, 137 )]
+        // [DataRow( GivingJourneyStage.Consistent, 151, 144, 137 )]
+        /*
+            This scenario should not be Consistent based on our documentation. Upon investigation into our giving classification logic,
+            we found that it is due for refresh.
+
+            Due to a temporary fix to address a Github issue, this test now results in no classification (null) instead of Consistent.
+            https://github.com/SparkDevNetwork/Rock/commit/67177f5af7199acb6ab071563127bed4501b83d4
+
+            So for now, we'll ignore this test as we work on a more comprehensive update to the classification logic.
+         */
 
         // Has been giving consistently every 2 weeks for over a year
         [DataRow( GivingJourneyStage.Consistent, 14, 28, 42, 56, 70, 84, 98, 112, 126, 140, 154, 168, 182, 196, 210, 224, 238, 252, 266, 280, 294, 308, 322, 336, 350, 364, 378, 392, 406, 420, 434, 448, 462 )]
@@ -144,7 +153,7 @@ namespace Rock.Tests.Integration.Core.Jobs
 
             // with NULL giving JourneySettings, all the results should be null and not what they would be if not null
             Assert.AreNotEqual( unExpectedGivingJourneyStage, givingJourneyStage );
-            Assert.AreEqual( null, givingJourneyStage );
+            Assert.IsNull( givingJourneyStage );
         }
 
         /// <summary>
@@ -172,16 +181,13 @@ namespace Rock.Tests.Integration.Core.Jobs
         // Just started giving, and started giving consistently, but only 2 times. So they might look like a new giver. However, if NewFirstGiftInTheLastDays is null,
         // They would fall into Consistent Giver instead of FirstTime giver.
         // This is a situation where they really shouldn't be called a consistent giver, because they only gave 2 times.  But since New isn't configured, they end up here.
-        [DataRow( GivingJourneyStage.Consistent, 7, 14)]
+        [DataRow( GivingJourneyStage.Consistent, 7, 14 )]
 
         [DataRow( GivingJourneyStage.Occasional, 40, 120, 190 )]
         [DataRow( GivingJourneyStage.Occasional, 40, 120, ( 120 + 93 ) )]
 
         // Started recently, but gave more than 5 times, and has been giving consistently
         [DataRow( GivingJourneyStage.Consistent, 7, 14, 21, 28, 35, 42 )]
-
-        // Has been giving consistently starting more than 150 days ago, and gave three times, and hasn't lapsed more than 149 days
-        [DataRow( GivingJourneyStage.Consistent, 151, 144, 137 )]
 
         // Has been giving consistently every 2 weeks for over a year
         [DataRow( GivingJourneyStage.Consistent, 14, 28, 42, 56, 70, 84, 98, 112, 126, 140, 154, 168, 182, 196, 210, 224, 238, 252, 266, 280, 294, 308, 322, 336, 350, 364, 378, 392, 406, 420, 434, 448, 462 )]

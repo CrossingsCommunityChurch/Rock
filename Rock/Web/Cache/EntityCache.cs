@@ -21,6 +21,7 @@ using System.Linq;
 using System.Runtime.Serialization;
 
 using Rock.Attribute;
+using Rock.Configuration;
 using Rock.Data;
 using Rock.Model;
 
@@ -386,7 +387,7 @@ namespace Rock.Web.Cache
 
             if ( rockContext == null )
             {
-                rockContext = new RockContext();
+                rockContext = RockApp.Current.CreateRockContext();
                 disposeOfContext = true;
             }
 
@@ -406,7 +407,7 @@ namespace Rock.Web.Cache
                 // Pre-load all the attributes.
                 if ( typeof( IHasAttributes ).IsAssignableFrom( typeof( TT ) ) && typeof( T ) != typeof( AttributeCache ) )
                 {
-                    items.Cast<IHasAttributes>().LoadAttributes( rockContext );
+                    Helper.LoadAttributes( typeof( TT ), items.Cast<IHasAttributes>().ToList(), rockContext );
                 }
 
                 cachedItems.AddRange( items.Select( a => Get( ( TT ) a ) ) );
@@ -459,7 +460,7 @@ namespace Rock.Web.Cache
 
             if ( rockContext == null )
             {
-                rockContext = new RockContext();
+                rockContext = RockApp.Current.CreateRockContext();
                 disposeOfContext = true;
             }
 
@@ -479,7 +480,7 @@ namespace Rock.Web.Cache
                 // Pre-load all the attributes.
                 if ( typeof( IHasAttributes ).IsAssignableFrom( typeof( TT ) ) && typeof( T ) != typeof( AttributeCache ) )
                 {
-                    items.Cast<IHasAttributes>().LoadAttributes( rockContext );
+                    Helper.LoadAttributes( typeof( TT ), items.Cast<IHasAttributes>().ToList(), rockContext );
                 }
 
                 cachedItems.AddRange( items.Select( a => Get( ( TT ) a ) ) );
@@ -606,7 +607,7 @@ namespace Rock.Web.Cache
                 return QueryDbWithContext( id, rockContext );
             }
 
-            using ( var newRockContext = new RockContext() )
+            using ( var newRockContext = RockApp.Current.CreateRockContext() )
             {
                 return QueryDbWithContext( id, newRockContext );
             }
@@ -650,7 +651,7 @@ namespace Rock.Web.Cache
                 return QueryDbWithContext( guid, rockContext );
             }
 
-            using ( var newRockContext = new RockContext() )
+            using ( var newRockContext = RockApp.Current.CreateRockContext() )
             {
                 return QueryDbWithContext( guid, newRockContext );
             }
@@ -688,7 +689,7 @@ namespace Rock.Web.Cache
                 return QueryDbForAllIdsWithContext( rockContext );
             }
 
-            using ( var newRockContext = new RockContext() )
+            using ( var newRockContext = RockApp.Current.CreateRockContext() )
             {
                 return QueryDbForAllIdsWithContext( newRockContext );
             }
