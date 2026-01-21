@@ -47,6 +47,7 @@ namespace Rock.CheckIn.v2
             typeof( MembershipOpportunityFilter ),
             typeof( ScheduleRequirementOpportunityFilter ),
             typeof( DataViewOpportunityFilter ),
+            typeof( RoomAttributeOpportunityFilter ),
             typeof( PreferredGroupsOpportunityFilter )
         };
 

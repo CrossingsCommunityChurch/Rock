@@ -235,6 +235,12 @@ namespace Rock.SystemKey
         /// </summary>
         public const string CHECKIN_GROUPTYPE_PROMOTIONS_CONTENT_CHANNEL = "core_PromotionsContentChannel";
 
+        /// <summary>
+        /// Attribute key used to identify the person and group attribute key
+        /// that should match when filtering check-in groups by room attribute.
+        /// </summary>
+        public const string CHECKIN_GROUPTYPE_ROOM_ATTRIBUTE_KEY = "core_checkin_RoomAttributeKey";
+
         #endregion
 
         #region Display

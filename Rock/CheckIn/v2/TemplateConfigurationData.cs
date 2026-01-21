@@ -89,6 +89,12 @@ namespace Rock.CheckIn.v2
         public virtual AutoSelectMode AutoSelect { get; }
 
         /// <summary>
+        /// Gets the attribute key that will be used to compare person and group
+        /// room attributes for filtering.
+        /// </summary>
+        public virtual string RoomAttributeKey { get; }
+
+        /// <summary>
         /// Gets the type of check-in experience to use. Family check-in allows
         /// more than one person in the family to be checked in at a time.
         /// </summary>
@@ -654,6 +660,12 @@ namespace Rock.CheckIn.v2
             SecurityCodeAlphaNumericLength = groupTypeCache.GetAttributeValue( "core_checkin_SecurityCodeLength" ).AsInteger();
             SecurityCodeNumericLength = groupTypeCache.GetAttributeValue( "core_checkin_SecurityCodeNumericLength" ).AsInteger();
             SuccessLavaTemplateDisplay = ( Enums.CheckIn.SuccessLavaTemplateDisplayMode ) groupTypeCache.GetAttributeValue( GroupTypeAttributeKey.CHECKIN_SUCCESS_LAVA_TEMPLATE_OVERRIDE_DISPLAY_MODE ).AsInteger();
+            RoomAttributeKey = groupTypeCache.GetAttributeValue( GroupTypeAttributeKey.CHECKIN_GROUPTYPE_ROOM_ATTRIBUTE_KEY );
+
+            if ( string.IsNullOrWhiteSpace( RoomAttributeKey ) )
+            {
+                RoomAttributeKey = "RoomAttribute";
+            }
 
             // Lava templates.
             AbilityLevelSelectHeaderLavaTemplate = groupTypeCache.GetAttributeValue( GroupTypeAttributeKey.CHECKIN_ABILITY_LEVEL_SELECT_HEADER_LAVA_TEMPLATE ) ?? string.Empty;
